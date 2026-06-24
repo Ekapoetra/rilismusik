@@ -145,13 +145,13 @@ export default function AdminCMS() {
           <div className="space-y-3" data-testid="admin-cms-legal-entity">
             <div className="text-xs text-zinc-500 mb-2">Informasi badan hukum operator yang ditampilkan di footer landing page, invoice, dan dokumen kontrak.</div>
             <div className="grid md:grid-cols-2 gap-3">
-              <F label="Company Name"><input className="rm-input" value={s.legal_entity?.company_name || ""} onChange={(e) => setVal("legal_entity.company_name", e.target.value)} data-testid="admin-cms-legal-company" /></F>
+              <F label="Company Name"><input className="rm-input" value={s.legal_entity?.company_name || ""} onChange={(e) => setVal("legal_entity.company_name", e.target.value)} data-testid="admin-cms-legal-company_name" /></F>
               <F label="NIB"><input className="rm-input" value={s.legal_entity?.nib || ""} onChange={(e) => setVal("legal_entity.nib", e.target.value)} data-testid="admin-cms-legal-nib" /></F>
-              <F label="Address Line 1"><input className="rm-input" value={s.legal_entity?.address_line1 || ""} onChange={(e) => setVal("legal_entity.address_line1", e.target.value)} /></F>
-              <F label="Address Line 2"><input className="rm-input" value={s.legal_entity?.address_line2 || ""} onChange={(e) => setVal("legal_entity.address_line2", e.target.value)} /></F>
-              <F label="City"><input className="rm-input" value={s.legal_entity?.city || ""} onChange={(e) => setVal("legal_entity.city", e.target.value)} /></F>
-              <F label="Postal Code"><input className="rm-input" value={s.legal_entity?.postal_code || ""} onChange={(e) => setVal("legal_entity.postal_code", e.target.value)} /></F>
-              <F label="Country"><input className="rm-input" value={s.legal_entity?.country || ""} onChange={(e) => setVal("legal_entity.country", e.target.value)} /></F>
+              <F label="Address Line 1"><input className="rm-input" value={s.legal_entity?.address_line1 || ""} onChange={(e) => setVal("legal_entity.address_line1", e.target.value)} data-testid="admin-cms-legal-address_line1" /></F>
+              <F label="Address Line 2"><input className="rm-input" value={s.legal_entity?.address_line2 || ""} onChange={(e) => setVal("legal_entity.address_line2", e.target.value)} data-testid="admin-cms-legal-address_line2" /></F>
+              <F label="City"><input className="rm-input" value={s.legal_entity?.city || ""} onChange={(e) => setVal("legal_entity.city", e.target.value)} data-testid="admin-cms-legal-city" /></F>
+              <F label="Postal Code"><input className="rm-input" value={s.legal_entity?.postal_code || ""} onChange={(e) => setVal("legal_entity.postal_code", e.target.value)} data-testid="admin-cms-legal-postal_code" /></F>
+              <F label="Country"><input className="rm-input" value={s.legal_entity?.country || ""} onChange={(e) => setVal("legal_entity.country", e.target.value)} data-testid="admin-cms-legal-country" /></F>
               <F label="WhatsApp / HP"><input className="rm-input" value={s.legal_entity?.whatsapp || ""} onChange={(e) => setVal("legal_entity.whatsapp", e.target.value)} data-testid="admin-cms-legal-whatsapp" /></F>
             </div>
           </div>

@@ -22,8 +22,10 @@ SUPPORT = {"email": "support1@rilismusik.com", "password": "Support#2026"}
 RELEASE = {"email": "release1@rilismusik.com", "password": "Release#2026"}
 
 FORBIDDEN_LABEL_KEYS = ("royalty_percentage_default", "royalty_percentage_history", "default_royalty_share")
+# Note: fee_percent_applied (5% distributor fee) is intentionally VISIBLE to labels
+# per user requirement 2026-06-24 ("fee 5% tetap diperlihatkan tidak masalah").
 FORBIDDEN_LINE_KEYS = (
-    "label_percentage_applied", "fee_percent_applied", "distributor_idr", "exchange_rate",
+    "label_percentage_applied", "distributor_idr", "exchange_rate",
     "revenue_eur", "fee_eur", "net_eur", "label_eur", "distributor_eur",
     "gross_revenue_eur", "unit_price_eur", "mechanical_cost_eur", "client_share_rate",
 )

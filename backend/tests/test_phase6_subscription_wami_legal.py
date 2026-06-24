@@ -51,10 +51,10 @@ LABEL_QUERIES = {
 }
 
 FORBIDDEN_LINE_KEYS = {
-    "label_percentage_applied", "fee_percent_applied", "distributor_idr", "exchange_rate",
+    "label_percentage_applied", "distributor_idr", "exchange_rate",
     "revenue_eur", "fee_eur", "net_eur", "label_eur", "distributor_eur",
     "gross_revenue_eur", "unit_price_eur", "mechanical_cost_eur", "client_share_rate",
-}
+}  # fee_percent_applied is intentionally VISIBLE per user requirement 2026-06-24
 
 
 # ---------- helpers ----------

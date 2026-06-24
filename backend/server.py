@@ -996,8 +996,21 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
     # Eligibility: only when release is LIVE
     if rel.get("status") != "live":
         raise HTTPException(status_code=400, detail="Pendaftaran WAMI hanya dapat dilakukan setelah rilisan LIVE")
-    # VIP gets WAMI free → no invoice needed; just create order with status=pending
-    is_vip = label.get("payment_type") == "annual_subscription" and label.get("subscription_tier") == "annual_vip"
+    # VIP gets WAMI free → no invoice needed; just create order with status=pending.
+    # Must be an ACTIVE annual_vip subscription (expired VIPs pay normally).
+    now_dt = datetime.now(timezone.utc)
+    sub_expires_raw = label.get("subscription_expires_at")
+    sub_active = label.get("subscription_status") == "active"
+    if sub_active and sub_expires_raw:
+        try:
+            sub_active = datetime.fromisoformat(str(sub_expires_raw).replace("Z", "+00:00")) > now_dt
+        except Exception:
+            sub_active = False
+    is_vip = (
+        label.get("payment_type") == "annual_subscription"
+        and label.get("subscription_tier") == "annual_vip"
+        and sub_active
+    )
     # Prevent duplicate active orders
     existing = await db.wami_orders.find_one({"track_id": body.track_id, "status": {"$nin": ["cancelled", "rejected"]}})
     if existing:
@@ -3054,7 +3067,7 @@ async def seed_indexes_and_admins():
             })
             logger.info("Sub-admin seeded: %s (%s)", email, role)
 
-    # Seed default landing settings
+    # Seed default landing settings (idempotent — only insert missing keys)
     for key, value in DEFAULT_LANDING_SETTINGS.items():
         existing_setting = await db.landing_settings.find_one({"key": key})
         if not existing_setting:
@@ -3065,6 +3078,27 @@ async def seed_indexes_and_admins():
                 "updated_by": None,
                 "updated_at": now_iso(),
             })
+
+    # Migration: backfill missing sub-keys inside existing landing_settings docs.
+    # When new pricing/legal_entity fields are added to DEFAULT_LANDING_SETTINGS,
+    # this loop ensures they appear on already-seeded keys without overwriting
+    # admin-edited values.
+    for key, default_value in DEFAULT_LANDING_SETTINGS.items():
+        if not isinstance(default_value, dict):
+            continue
+        existing_setting = await db.landing_settings.find_one({"key": key})
+        if not existing_setting:
+            continue
+        current_value = existing_setting.get("value") or {}
+        if not isinstance(current_value, dict):
+            continue
+        added = {k: v for k, v in default_value.items() if k not in current_value}
+        if added:
+            await db.landing_settings.update_one(
+                {"key": key},
+                {"$set": {f"value.{k}": v for k, v in added.items()} | {"updated_at": now_iso()}},
+            )
+            logger.info("CMS migration: added %s to '%s'", list(added.keys()), key)
 
 
 async def check_subscription_expiry_job():

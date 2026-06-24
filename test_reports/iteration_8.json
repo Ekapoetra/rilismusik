@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 6 retest after 4 fixes from iteration 7. All targeted fixes verified end-to-end. Backend pytest: Phase5+Phase6 = 40 passed / 1 intentional skip (PPR-via-submit cover-upload constraint) / 0 failures. Phase2+Phase3+Phase4 regression = 60/60 passed. Direct API verification on GET /api/cms/landing confirms backfill: pricing.annual_normal_price=350000 AND pricing.wami_addon_price=100000 now present alongside legacy keys; full legal_entity block (PT. Jeeres Group Indonesia / NIB 2202260059749 / WA 085864137150) populated. Frontend smoke: Landing footer renders Badan Hukum block from CMS (company name + NIB + WhatsApp + address); /admin/cms Legal Entity tab exposes all 8 data-testids (company_name, nib, address_line1, address_line2, city, postal_code, country, whatsapp); /label/invoices banner shows [data-testid='invoices-legal-entity'] with 'Ditagihkan oleh: PT. Jeeres Group Indonesia + NIB + WA'; /label/wami and /admin/wami pages render cleanly with VIP-free badges and Rp 100.000 paid rows. royalty_utils.py INTERNAL_PERCENT_FIELDS now correctly excludes fee_percent_applied per user spec — Phase-5 redaction test confirms label sees fee_percent_applied (transparency) while label_percentage_applied/distributor_idr/exchange_rate/EUR fields remain stripped. VIP active-subscription guard at server.py L1001-1013 now requires sub_active (status='active' AND expires_at>now); covered indirectly by passing TestWamiNonVip (annual_normal pays Rp100K) + TestWamiVipFree (active annual_vip gets free).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payments/wami (expired-VIP guard)", "issue": "No dedicated pytest test for 'annual_vip + subscription_status=expired -> must pay Rp100K'. Code path is correct (L1001-1013 sub_active check) and indirectly covered, but a direct regression test would harden against future refactors."},
+      {"endpoint": "PATCH /api/admin/labels/{id}", "issue": "Still does not accept subscription_tier in body; tests work around via direct MongoDB writes for tier downgrade. Carried over from iteration 7 (enhancement, not blocker)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase6_subscription_wami_legal.py",
+    "/app/backend/tests/test_phase5_redaction_cron.py",
+    "/app/test_reports/pytest/iter8_phase5_6.xml",
+    "/app/test_reports/pytest/iter8_phase2_3_4.xml"
+  ],
+  "action_items": [
+    "(Optional enhancement) Add explicit pytest case in test_phase6 for expired-VIP -> paid WAMI path to lock in the L1001-1013 guard.",
+    "(Optional enhancement) Extend PATCH /api/admin/labels/{id} schema (LabelStatusUpdate) to accept subscription_tier so tests no longer need direct DB writes."
+  ],
+  "critical_code_review_comments": [
+    "server.py L1001-1013: VIP-active guard correctly implemented — parses ISO timestamp with Z→+00:00 fallback and only flags is_vip when status='active' AND expires_at>now. Defensive try/except keeps it robust against malformed timestamps.",
+    "server.py L3082-3101: New migration loop is idempotent and additive-only — uses $set on missing keys, never overwrites admin edits. Comment explicitly documents intent. Good pattern for future schema growth.",
+    "royalty_utils.py L110-119: Inline comment now explicitly cites user requirement ('fee 5% tetap diperlihatkan') with date — clear audit trail for the spec reconciliation.",
+    "CMS.jsx L144-157: All 8 inputs now have unique data-testids; container also has data-testid='admin-cms-legal-entity' for the tab wrapper.",
+    "Minor: server.py L1090-1108 (mock_pay annual_subscription) still resets expires_at to now+365d even when an active subscription has remaining time — could truncate. Carry-over from iteration 7, low priority.",
+    "Minor: SUBSCRIPTION_PRICES dict + CMS pricing block remain two sources of truth (carry-over). Consider deriving CMS pricing defaults from the constants."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (40/40 phase5+6 effective pass, 1 intentional skip; 60/60 phase2+3+4)", "frontend": "100% (landing footer + invoices banner + CMS legal tab + label/wami + admin/wami all verified)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (OK). Mustafa label: mustafa_kamal1782325960@example.com / Demo#2026 (OK).",
+  "seed_data_creation": "No new seed data. Existing TEST_phase6 fixtures reused. Mustafa tier still gets reset to annual_normal via direct DB write inside the test fixture (unchanged from iter7).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All four iteration-7 fixes confirmed working end-to-end: (1) CMS pricing backfill migration (server.py L3082-3101) adds annual_normal_price=350000 + wami_addon_price=100000 without overwriting; (2) CMS Legal Entity 8 data-testids verified via DOM query on /admin/cms; (3) VIP active guard at server.py L1001-1013 — pytest indirectly covers via Mustafa (annual_normal pays Rp100K) and Khizanah (active VIP gets free); (4) Phase5+Phase6 pytest now green (40/41, 1 intentional skip). No regressions in Phase2/3/4. The two remaining minor items are pre-existing iteration-7 carry-overs (no dedicated expired-VIP test; PATCH /admin/labels lacks subscription_tier field) — neither blocks the feature.",
+  "rca of the issue": "N/A — all iteration-7 root causes resolved. Migration backfill solves the seed-idempotency gap; explicit data-testid attributes resolve the CMS testability gap; sub_active datetime comparison closes the expired-VIP loophole; royalty_utils.py + tests aligned to the user's 2026-06-24 clarification that 5% distributor fee is OK to expose."
+}

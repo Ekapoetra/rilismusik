@@ -109,7 +109,9 @@ INTERNAL_EUR_FIELDS = (
 
 # Percentage / fee fields — must NEVER be exposed to label/artist. The royalty
 # IDR amount shown to them is FINAL; they should not see the label-share split.
-# NOTE: `fee_percent_applied` (5% distributor fee) is OK to show — transparency.
+# NOTE: `fee_percent_applied` (5% distributor fee) is INTENTIONALLY shown for
+# transparency per user requirement (2026-06-24): "fee 5% tetap diperlihatkan
+# tidak masalah". Only the label-share percentage is hidden.
 INTERNAL_PERCENT_FIELDS = (
     "label_percentage_applied",
     "distributor_idr",
