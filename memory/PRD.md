@@ -38,38 +38,49 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Admin user creation (super_admin only). Multi-role sidebar filtering.
 - Activity logs on every important admin action.
 
-## What's Been Implemented (Phase 1 MVP + Phase 2 Royalty & Finance) — 2026-06-24
+## What's Been Implemented (Phase 1 MVP + Phase 2 Royalty & Finance + Phase 3 Support) — 2026-06-24
 ### Phase 1 (initial release)
 - **Landing page** — full iOS-inspired glassmorphism (floating navbar, hero floating cards, royalty simulator, pricing, FAQ accordion), 100% CMS-driven.
 - **Auth** — register/login/logout/refresh/me, email verification (dev token), forgot/reset, brute-force lockout (X-Forwarded-For aware), httpOnly cookies + JWT + bcrypt.
 - **Label** — dashboard stats, releases (list + 3-step upload wizard with WAV / 3000×3000 / date ≥7d validation + audio player + edit), artist sub-accounts, profile + bank, invoices + subscription (MOCK Xendit).
 - **Admin** — multi-role console (5 roles, role-filtered sidebar): 12 metrics, label management (status + royalty %), release review (approve/need_revision/reject/deliver/mark_live/takedown + ISRC/UPC + payment guard), artists, payments, CMS (7 tabs), admin users (super admin only), activity logs.
 
-### Phase 2 (Royalty & Finance) — newly added
-- **CSV royalty import** — admin uploads Believe CSV (EUR), auto-detect headers (ISRC, UPC, Title, Artist, Platform, Country, Quantity, Revenue), tries ISRC → UPC matching, calculates per-line distributor fee (5%) and label share with **history-aware percentage** (royalty_percentage_history per period).
-- **Manual exchange rate** EUR→IDR per period (no auto-fetch).
-- **Status flow**: `pending_review` → `published` (kredit ke `balance_pending_idr` semua label) → `dana_received` (pindah ke `balance_available_idr`). Setiap transaksi dicatat di `balance_transactions` ledger.
-- **Withdraw window**: Asia/Jakarta `withdraw_window_state()` — request open 1–14, payment window 15–20, closed 21+ (button disabled). Min Rp 1.000.000. Bank account required (admin verify bank).
-- **Withdraw admin actions**: approve / reject (refund) / mark_paid (upload bukti pembayaran PDF/JPG + payment reference).
-- **Label royalty report** — period selector, summary cards (total IDR, streams, lines), breakdown per platform & country, top tracks list, filterable line table (platform, country), **CSV export** endpoint streaming.
-- **Bank verification** — admin can verify bank account (sets `bank_verified=True`).
+### Phase 2 (Royalty & Finance) — added
+- **CSV royalty import** — admin uploads Believe CSV (EUR), auto-detect headers, ISRC→UPC matching, distributor fee (5%) + history-aware label %.
+- **Manual exchange rate** EUR→IDR per period.
+- **Status flow**: `pending_review` → `published` → `dana_received` with balance ledger.
+- **Withdraw window** (1–14 request / 15–20 payment / 21+ closed), min Rp 1.000.000, bank verification.
+- **Label royalty report** with breakdown per platform/country + CSV export.
+
+### Phase 3 (Support & Legal) — added 2026-06-24
+- **Support Ticketing System** — 8 categories (takedown, edit_metadata, edit_audio, edit_cover, content_id_claim, content_id_release, royalty_issue, other), 8 statuses (open, waiting_admin, waiting_label, in_progress, submitted_to_believe, done, rejected, cancelled).
+- **Chat-style comment thread** with attachments (WAV / 3000×3000 cover / JPG/PNG/PDF/TXT/DOCX); auto status flip when label/admin comments; system messages for status changes.
+- **Label** can create/view/cancel own tickets at `/label/support`. Strict cross-label isolation (403).
+- **Admin** can list (filter by status/category/search), view detail, comment, change status + add internal notes at `/admin/tickets`.
+- **22/22 pytest passing** at `/app/backend/tests/test_phase3_tickets.py`.
+
+### Landing & UI polish — 2026-06-24
+- New **Platforms section** showing all major DSP logos (Spotify, Apple Music, Deezer, YouTube Music, TikTok, Facebook/Instagram Music, Amazon Music, SoundCloud, Tidal, Shazam, iHeart Radio).
+- Removed "60% default bagian label" from hero stats and pricing footer (replaced with "150+ platform digital").
+- "Made with Emergent" badge hidden.
 
 ## Prioritized Backlog
-### P0 (next session — Phase 3: Support & Legal)
-- Support ticketing (8 categories incl. takedown, edit metadata/audio/cover, Content ID).
-- Contracts upload + status (Contract Active/Expired/Pending/Terminated).
-- Blacklist management UI.
-- Email notifications (Resend/SendGrid integration).
-- Dashboard in-app notifications.
-- Subscription expiry transition + reminder.
+### P0 (next session)
+- **Xendit live integration** (Pay Per Release Rp35.000 + Annual Subscription Rp500.000) — needs API keys.
+- **Contracts module** — upload kontrak, set masa berlaku, perpanjangan, status (Active/Expired/Pending/Terminated).
+- **Blacklist management UI** (backend `account_status='blacklisted'` already wired; UI still pending).
+- **Email notifications** (Resend/SendGrid) for verification, password reset, invoice, ticket updates.
+- **In-app notifications** dashboard (bell icon).
+- **Subscription expiry** transition + reminder cron.
 
 ### P1 (Polish / Production-ready)
-- Real Xendit live integration (key gathering + webhook signature verification).
 - Real email provider (replace dev token returns).
 - Google OAuth login (Emergent managed).
 - PDF export of royalty report (currently CSV only).
 - Bulk admin actions (import old labels CSV).
+- Cloud Storage (S3/Cloudinary) for WAV + cover.
 - Tax/PPN automation, multi-artist royalty splits per track.
+- Phase-3-tester suggestions: MIME-type validation on uploads, `.strip()` on ticket subject/description, formal status-transition rules.
 
 ### P2 (Phase 4+ — Growth)
 - Public artist profile pages, royalty forecasting.
@@ -77,8 +88,8 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Mobile native app.
 
 ## Next Tasks
-1. **Phase 3 — Support & Legal** (when user requests): support tickets (8 categories), contracts, blacklist UI, notifications.
-2. Real Xendit + Resend/SendGrid integration when production keys are provided.
+1. **Xendit Payment integration** (block release submission until invoice paid).
+2. **Contracts module** + **Blacklist UI** + **Email/in-app notifications**.
 3. PDF export (currently CSV only).
 4. Multi-artist royalty splits per track (currently 100% to label, artist views via track linkage).
 
