@@ -70,6 +70,17 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 ### Refactor — Modular Routers (DONE 2026-06-24)
 `server.py` reduced 3228 → 101 lines. 14 modular routers + `deps.py` + `cms_defaults.py` + `seed.py` + `cron_jobs.py`. **114/115 pytest PASS, zero regression**.
 
+### Phase 7 — Master Distribution Agreement (MDA) Auto-generation (DONE 2026-06-24)
+- **MDA generated automatically at label registration** via reportlab PDF builder (`/app/backend/routes/mda_generator.py`).
+- **Tier-agnostic**: same MDA covers Pay Per Release, Annual Normal, Annual VIP, and WAMI add-on — listed as "Schedule A" inside the contract. Label can switch tiers without invalidating MDA.
+- **Lifetime contract** (no expiry) — `end_date=null`, `is_lifetime=true`. Either party can terminate via support ticket / admin termination.
+- **Legal basis**: UU ITE No. 11/2008 jo. UU No. 19/2016 (electronic signature via checkbox + timestamp + accepted_by_name).
+- **9-pasal Indonesian-language template**: Definisi, Lisensi Distribusi, Skema Pembayaran (Schedule A), Royalti & Biaya Distributor, Jadwal Withdraw, Kepatuhan & Takedown, Jangka Waktu & Pengakhiran, Hukum yang Berlaku (Pengadilan Negeri Sintang), Persetujuan Elektronik.
+- **CMS-driven**: PT. Jeeres Group Indonesia + NIB 2202260059749 + WA 085864137150 merged dynamically from `landing_settings.legal_entity`.
+- **Public preview** at `GET /api/cms/mda/preview` (no auth) — renders sample PDF with placeholder label data so prospects can review before registering. Does NOT mutate DB.
+- **UI**: Register page (`/register`) has MDA checkbox + link to preview PDF; submit button disabled until ticked. Label `/label/contract` shows "Tanpa Batas Waktu" + violet UU-ITE banner for the auto-generated MDA.
+- **Tests**: `test_phase7_mda.py` 5/5 PASS. Full regression: 119/120 pass + 1 intentional skip (Phase 1-7 + refactor smoke).
+
 ## Test credentials
 See `/app/memory/test_credentials.md`.
 

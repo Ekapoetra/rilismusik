@@ -126,7 +126,6 @@ export default function Register() {
               className="mt-1 w-4 h-4 accent-[#FF1F8E]"
               checked={form.mda_accepted}
               onChange={(e) => setForm({ ...form, mda_accepted: e.target.checked })}
-              required
               data-testid="register-mda-checkbox"
             />
             <span className="text-xs text-zinc-300 leading-relaxed">
