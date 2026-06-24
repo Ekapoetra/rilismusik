@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 3 (Support Ticketing) + landing-page UI polish — 22/22 pytest passed and all UI assertions confirmed against live preview URL. Backend covers categories, label-create (success + 5 category-specific validations + cross-label 403), list/detail/visibility, comment status flips (admin→waiting_label, label→waiting_admin), admin status update (creates system comment), label cancel (allowed on open, 400 on done), closed-ticket comment block (400 'ditutup'), and attachment upload validation (audio=wav only, cover=3000x3000 only, general=jpg/png/pdf/wav/mp3/txt/docx). Frontend smoke: landing page no longer has '60% default bagian label', hero shows the three new stats, pricing footer reads only 'Fee distributor: 5%', the new Platforms section with image testid 'landing-platforms-image' (3000x518 PNG) renders correctly, and the Emergent badge is in DOM but display:none. Label side /label/support shows 3 seeded tickets (TEST_TD Sedang Diproses, TEST_OTHER cancel me Dibatalkan, TEST_OTHER will close Selesai), +Tiket Baru opens modal with 8-category select and own-releases dropdown. Admin side /admin/tickets shows the list with status+category filters and ticket detail page exposes 'admin-ticket-set-status-button'. /admin/royalty Upload CSV button (admin-royalty-upload-button) present.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/tickets/{id}/comment", "issue": "Status flip skips 'submitted_to_believe' — when ticket is at submitted_to_believe, a label/admin comment does NOT change status. Likely intentional (waiting on Believe externally), but neither does it advance to waiting_admin. Consider documenting this in PRD."},
+      {"endpoint": "POST /api/tickets/upload-attachment", "issue": "MIME type is not validated, only file extension. A user could upload an .exe renamed to .pdf and pass. Add python-magic or mimetypes.guess_type cross-check for production."},
+      {"endpoint": "POST /api/tickets/label/create", "issue": "Subject/description trimmed only by Pydantic min_length=3 — whitespace-only strings of >=3 chars pass (e.g., '   '). Consider .strip() validator."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Auth transition label1 logout -> super_admin login", "issue": "Two 401 console errors during cookie clear + redirect — same noise observed in iteration_2. Non-blocking.", "affected_selectors": []}
+    ],
+    "design_issues": [
+      {"screen": "/label/support new-ticket modal", "issues": ["React hydration warning: '<span> cannot be a child of <option>' — caused by Emergent dev-mode instrumentation injecting tracking <span> tags inside <option> elements of the release dropdown. Harmless at runtime but pollutes the console. Will disappear in production build."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase3_tickets.py",
+    "/app/test_reports/pytest/phase3_results.xml"
+  ],
+  "action_items": [
+    "Cross-check MIME type in /api/tickets/upload-attachment to prevent extension spoofing (low priority).",
+    "Add .strip()+min-length validator on TicketCreateIn.subject/description (low priority).",
+    "Decide and document whether comments on 'submitted_to_believe' tickets should be allowed and what status they flip to.",
+    "Phase-1 leftovers still pending: brute-force lockout via X-Forwarded-For and removing verification_token/reset_token from prod auth responses."
+  ],
+  "critical_code_review_comments": [
+    "ticket_r.post('/upload-attachment') reads the FULL cover file into memory before image-size validation (.read() into BytesIO) — fine for 5MB JPEGs but flag if covers grow. Audio/general path uses streaming copyfileobj which is correct.",
+    "label_create_ticket inserts ticket then immediately inserts a description comment without a transaction; if comment insert fails the ticket exists without first message. For MVP acceptable; consider single batch insert or Mongo session.",
+    "_ticket_visible_to does an extra db.labels.find_one per request — could be cached on the user object (label_id) at login to save one round-trip per ticket view.",
+    "TICKET_NON_CANCELLABLE includes 'cancelled' so cancel-again returns 400 (correct), but error message 'Hubungi admin' on already-cancelled tickets is slightly misleading — consider distinguishing 'already cancelled' vs 'cannot cancel (final state)'.",
+    "Admin status endpoint does not validate transitions (e.g., one can jump from 'open' directly to 'done' without going through 'in_progress'). For MVP fine, but document allowed transitions in PRD."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase3_tickets.py (new — 22 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (22/22 Phase 3) + 100% (18/18 Phase 2) + 96% Phase 1", "frontend": "100% (all landing/support/admin assertions verified)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; label1@test.com / Password#123. Working.",
+  "seed_data_creation": "Phase 3 tests created the following tickets for label1 (release Senja, ef849191-...): (1) TEST_TD Subject [takedown, currently in_progress with system+admin comments], (2) TEST_OTHER will close [other, status=done], (3) TEST_OTHER cancel me [other, status=cancelled]. Plus one ticket on a fresh TEST_P3 Other Label (other). All persisted in support_tickets / ticket_comments collections.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 ticket tests at /app/backend/tests/test_phase3_tickets.py — run with `pytest backend/tests/test_phase3_tickets.py -v`. label1 now has 3 tickets in support_tickets (in_progress, done, cancelled). The comment-submit and cancel-ticket data-testids are conditionally rendered: hidden when status in (done/rejected/cancelled). To test these buttons, open RM-260624-43F57 (TEST_TD Subject, in_progress) — NOT the first link in the list. Backend ticket_r endpoints expect Pydantic TicketCreateIn payload — see /app/backend/models.py:218. Admin sidebar shows 'Royalty Import' nav item with text 'Royalty Import' (link href is /admin/royalty — verified by querying admin-royalty-upload-button which is present). Browser query a[href='/admin/royalty'] returned False because the link is wrapped — query by data-testid instead.",
+  "rca_of_the_issue": "No product bugs found in this iteration. Two UI selectors initially appeared 'missing' (support-comment-submit and admin-ticket-comment-submit) — RCA: the test clicked the first ticket detail link in the list, which happened to be a cancelled ticket (B36D5). Comment form is correctly hidden on closed tickets (backend also returns 400 'Tiket sudah ditutup' for comment attempts in this state). This is correct UX, not a bug. Verified by reading server.py:2114 (status block) and observing 'Tiket sudah ditutup. Tidak bisa menambah komentar.' message in the UI."
+}

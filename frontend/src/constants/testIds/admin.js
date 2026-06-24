@@ -48,3 +48,14 @@ export const ADMIN_USER = {
   roleSelect: 'admin-user-role-select',
   saveButton: 'admin-user-save-button',
 };
+
+export const ADMIN_TICKET = {
+  statusFilter: 'admin-ticket-status-filter',
+  categoryFilter: 'admin-ticket-category-filter',
+  search: 'admin-ticket-search',
+  setStatusSelect: 'admin-ticket-set-status-select',
+  setStatusButton: 'admin-ticket-set-status-button',
+  internalNoteInput: 'admin-ticket-internal-note-input',
+  commentInput: 'admin-ticket-comment-input',
+  commentSubmit: 'admin-ticket-comment-submit',
+};

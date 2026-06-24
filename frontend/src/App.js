@@ -20,6 +20,8 @@ import LabelProfile from "@/pages/label/Profile";
 import LabelInvoices from "@/pages/label/Invoices";
 import LabelRoyalty from "@/pages/label/Royalty";
 import LabelWithdraw from "@/pages/label/Withdraw";
+import LabelSupportTickets from "@/pages/label/SupportTickets";
+import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminLabels from "@/pages/admin/Labels";
@@ -34,6 +36,8 @@ import AdminActivityLogs from "@/pages/admin/ActivityLogs";
 import AdminRoyaltyImport from "@/pages/admin/RoyaltyImport";
 import AdminRoyaltyDetail from "@/pages/admin/RoyaltyDetail";
 import AdminWithdraw from "@/pages/admin/Withdraw";
+import AdminTickets from "@/pages/admin/Tickets";
+import AdminTicketDetail from "@/pages/admin/TicketDetail";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -65,7 +69,8 @@ function App() {
             <Route path="/label/invoices" element={<LabelInvoices />} />
             <Route path="/label/royalty" element={<LabelRoyalty />} />
             <Route path="/label/withdraw" element={<LabelWithdraw />} />
-            <Route path="/label/support" element={<ComingSoon title="Support Ticket" description="Takedown, edit metadata, edit audio/cover, Content ID akan tersedia di Fase 3." />} />
+            <Route path="/label/support" element={<LabelSupportTickets />} />
+            <Route path="/label/support/:id" element={<LabelSupportTicketDetail />} />
           </Route>
 
           {/* Artist */}
@@ -86,7 +91,8 @@ function App() {
             <Route path="/admin/royalty" element={<AdminRoyaltyImport />} />
             <Route path="/admin/royalty/:id" element={<AdminRoyaltyDetail />} />
             <Route path="/admin/withdraw" element={<AdminWithdraw />} />
-            <Route path="/admin/tickets" element={<ComingSoon title="Support Tickets" description="Kelola tiket dari label: takedown, edit metadata, edit audio, Content ID. (Fase 3)" />} />
+            <Route path="/admin/tickets" element={<AdminTickets />} />
+            <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
             <Route path="/admin/contracts" element={<ComingSoon title="Contracts" description="Upload kontrak, set masa berlaku, perpanjang. (Fase 3)" />} />
           </Route>
 

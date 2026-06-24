@@ -74,7 +74,7 @@ export default function Landing() {
             <div className="mt-10 flex items-center gap-5 text-xs text-zinc-500">
               <div><span className="font-bold text-white">5%</span> fee distributor</div>
               <div className="w-px h-4 bg-zinc-700" />
-              <div><span className="font-bold text-white">60%</span> default bagian label</div>
+              <div><span className="font-bold text-white">150+</span> platform digital</div>
               <div className="w-px h-4 bg-zinc-700" />
               <div><span className="font-bold text-white">7 hari</span> minimal release date</div>
             </div>
@@ -147,6 +147,26 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* PLATFORMS */}
+      <section id="platforms" className="px-6 md:px-12 lg:px-24 py-16">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">DISTRIBUSI KE 150+ PLATFORM</div>
+            <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Lagu Anda tampil di platform terbesar dunia.</h2>
+            <p className="mt-3 text-zinc-400">Spotify, Apple Music, YouTube Music, TikTok, dan banyak lagi — semua dalam satu submission.</p>
+          </div>
+          <div className="rm-glass rounded-[32px] p-6 md:p-10">
+            <img
+              src="/brand/platforms.png"
+              alt="Platform distribusi: Spotify, Apple Music, Deezer, YouTube Music, TikTok, Facebook/Instagram Music, Amazon Music, SoundCloud, Tidal, Shazam, iHeart Radio"
+              className="w-full max-w-5xl mx-auto opacity-90 hover:opacity-100 transition-opacity"
+              style={{ filter: "drop-shadow(0 0 24px rgba(255,31,142,0.08))" }}
+              data-testid="landing-platforms-image"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* HOW IT WORKS */}
       <section className="px-6 md:px-12 lg:px-24 py-20">
         <div className="max-w-6xl mx-auto">
@@ -204,7 +224,7 @@ export default function Landing() {
               <Link to="/register" className="rm-btn-primary mt-8 inline-block">Mulai Subscription</Link>
             </div>
           </div>
-          <p className="text-center text-xs text-zinc-500 mt-8">Fee distributor: {fee}% — Bagian label default: {labelPercent}%</p>
+          <p className="text-center text-xs text-zinc-500 mt-8">Fee distributor: {fee}%</p>
         </div>
       </section>
 

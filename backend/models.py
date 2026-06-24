@@ -189,3 +189,52 @@ class WithdrawAdminAction(BaseModel):
     payment_proof_url: Optional[str] = None
     payment_reference: Optional[str] = None
     note: Optional[str] = None
+
+
+# ============ SUPPORT TICKETING ============
+TicketCategory = Literal[
+    "takedown",
+    "edit_metadata",
+    "edit_audio",
+    "edit_cover",
+    "content_id_claim",
+    "content_id_release",
+    "royalty_issue",
+    "other",
+]
+
+TicketStatus = Literal[
+    "open",
+    "waiting_admin",
+    "waiting_label",
+    "in_progress",
+    "submitted_to_believe",
+    "done",
+    "rejected",
+    "cancelled",
+]
+
+
+class TicketCreateIn(BaseModel):
+    release_id: str
+    category: TicketCategory
+    subject: str = Field(min_length=3, max_length=200)
+    description: str = Field(min_length=3, max_length=4000)
+    # Category-specific payload
+    new_metadata: Optional[Dict[str, Any]] = None      # for edit_metadata
+    new_audio_url: Optional[str] = None                # for edit_audio (uploaded WAV)
+    new_audio_track_id: Optional[str] = None           # for edit_audio (which track)
+    new_cover_url: Optional[str] = None                # for edit_cover (3000x3000 uploaded)
+    reason: Optional[str] = None                       # for takedown / edit_metadata reason
+    originality_declared: Optional[bool] = None        # for content_id_claim
+    attachments: List[str] = Field(default_factory=list)
+
+
+class TicketCommentIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+    attachments: List[str] = Field(default_factory=list)
+
+
+class TicketAdminUpdateIn(BaseModel):
+    status: Optional[TicketStatus] = None
+    internal_note: Optional[str] = None

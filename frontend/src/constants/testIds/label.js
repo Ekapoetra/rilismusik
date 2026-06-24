@@ -48,3 +48,21 @@ export const ARTIST_MGMT = {
   passwordInput: 'artist-mgmt-password-input',
   saveButton: 'artist-mgmt-save-button',
 };
+
+export const SUPPORT = {
+  newTicketButton: 'support-new-ticket-button',
+  categorySelect: 'support-category-select',
+  releaseSelect: 'support-release-select',
+  subjectInput: 'support-subject-input',
+  descriptionInput: 'support-description-input',
+  reasonInput: 'support-reason-input',
+  audioUpload: 'support-audio-upload',
+  coverUpload: 'support-cover-upload',
+  trackSelect: 'support-track-select',
+  originalityCheckbox: 'support-originality-checkbox',
+  submitButton: 'support-submit-button',
+  cancelTicketButton: 'support-cancel-ticket-button',
+  commentInput: 'support-comment-input',
+  commentSubmit: 'support-comment-submit',
+  commentAttachment: 'support-comment-attachment',
+};
