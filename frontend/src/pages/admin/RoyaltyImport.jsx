@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Upload, FileSpreadsheet, CheckCircle2, Banknote } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2 } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -15,6 +15,8 @@ function todayPeriod() {
 export default function AdminRoyaltyImport() {
   const [imports, setImports] = useState([]);
   const [open, setOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState("");
   const [form, setForm] = useState({ period: todayPeriod(), rate_eur_idr: 17500, file: null, note: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -44,6 +46,22 @@ export default function AdminRoyaltyImport() {
     finally { setBusy(false); }
   };
 
+  const submitReset = async (e) => {
+    e.preventDefault();
+    setErr(""); setMsg("");
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("confirm", resetConfirm);
+      const { data } = await api.post("/royalty/admin/reset-demo-data", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setMsg(`Reset selesai — ${data.imports_deleted} import, ${data.lines_deleted} lines, ${data.transactions_deleted} transaksi dihapus. ${data.labels_reset} label balance di-reset.`);
+      setResetOpen(false);
+      setResetConfirm("");
+      load();
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+    finally { setBusy(false); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex justify-between items-center flex-wrap gap-3">
@@ -52,9 +70,19 @@ export default function AdminRoyaltyImport() {
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Royalty Import</h1>
           <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR) + set kurs IDR per periode.</p>
         </div>
-        <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid="admin-royalty-upload-button">
-          <Upload className="w-4 h-4" /> Upload CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200"
+            onClick={() => setResetOpen(true)}
+            data-testid="admin-royalty-reset-button"
+            title="Hapus semua data royalti (dummy) sebelum production"
+          >
+            <Trash2 className="w-4 h-4" /> Reset Data Demo
+          </button>
+          <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid="admin-royalty-upload-button">
+            <Upload className="w-4 h-4" /> Upload CSV
+          </button>
+        </div>
       </div>
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
@@ -102,7 +130,7 @@ export default function AdminRoyaltyImport() {
             <div>
               <label className="rm-label">File CSV Believe</label>
               <input type="file" accept=".csv,text/csv" className="rm-input" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} data-testid="admin-royalty-file" />
-              <div className="text-[11px] text-zinc-500 mt-1">Auto-detect kolom ISRC, UPC, Title, Artist, Platform, Country, Quantity, Revenue (EUR).</div>
+              <div className="text-[11px] text-zinc-500 mt-1">Auto-detect kolom Believe (Indonesian + English): ISRC, UPC, Judul track, Nama Artis, Platform, Negara, Kuantias, Pendapatan Bersih (EUR). Format desimal Eropa <code>0,000123</code> didukung.</div>
             </div>
             <div>
               <label className="rm-label">Catatan (opsional)</label>
@@ -111,6 +139,52 @@ export default function AdminRoyaltyImport() {
             <div className="flex justify-end gap-2">
               <button type="button" className="rm-btn-ghost" onClick={() => setOpen(false)}>Batal</button>
               <button className="rm-btn-primary" disabled={busy} data-testid="admin-royalty-submit">{busy ? "Mengupload…" : "Upload & Parse"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setResetOpen(false)}>
+          <form onClick={(e) => e.stopPropagation()} onSubmit={submitReset} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4 border border-red-500/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-300 grid place-items-center">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="font-display font-extrabold text-xl tracking-tighter text-red-200">Reset Data Demo</h3>
+            </div>
+            <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-200 space-y-2">
+              <div className="font-bold">⚠️ Aksi ini TIDAK BISA DIBATALKAN.</div>
+              <div>Akan menghapus seluruh:</div>
+              <ul className="list-disc pl-5 text-xs space-y-1 text-red-200/80">
+                <li>Semua import royalti (Believe CSV)</li>
+                <li>Semua royalty lines</li>
+                <li>Semua transaksi saldo (pending/available)</li>
+                <li>Reset balance pending & available SEMUA label ke Rp 0</li>
+                <li>Hapus file CSV yang sudah diupload</li>
+              </ul>
+              <div className="text-xs mt-2 text-red-200/70">Gunakan ini sebelum production deploy untuk membersihkan data dummy. Withdraw request, releases, dan data label lainnya TIDAK terpengaruh.</div>
+            </div>
+            <div>
+              <label className="rm-label">Ketik <b>RESET</b> untuk konfirmasi</label>
+              <input
+                className="rm-input"
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                placeholder="RESET"
+                data-testid="admin-royalty-reset-confirm-input"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="rm-btn-ghost" onClick={() => { setResetOpen(false); setResetConfirm(""); }}>Batal</button>
+              <button
+                className="rm-btn-primary bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500"
+                disabled={busy || resetConfirm !== "RESET"}
+                data-testid="admin-royalty-reset-submit"
+              >
+                {busy ? "Menghapus…" : "Hapus Semua Data"}
+              </button>
             </div>
           </form>
         </div>

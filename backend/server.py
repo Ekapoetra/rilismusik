@@ -50,7 +50,8 @@ from models import (
 )
 from royalty_utils import (
     parse_csv_bytes, detect_columns, parse_amount, normalize_header,
-    calculate_line, label_percentage_at,
+    parse_period_from_value, calculate_line, label_percentage_at,
+    strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 
@@ -1268,10 +1269,20 @@ def _match_line(row: Dict[str, Any], col_idx: Dict[str, Optional[int]], headers:
         "track_title": (get("track_title") or "").strip() or None,
         "artist_name": (get("artist_name") or "").strip() or None,
         "release_title": (get("release_title") or "").strip() or None,
+        "label_name": (get("label_name") or "").strip() or None,
         "platform": (get("platform") or "").strip() or None,
         "country": (get("country") or "").strip() or None,
         "quantity": int(parse_amount(get("quantity") or "0") or 0),
         "revenue_eur": parse_amount(get("revenue_eur") or "0"),
+        # Admin-only / sensitive (will be stripped from label/artist responses)
+        "gross_revenue_eur": parse_amount(get("gross_revenue_eur") or "0") or None,
+        "unit_price_eur": parse_amount(get("unit_price_eur") or "0") or None,
+        "mechanical_cost_eur": parse_amount(get("mechanical_cost_eur") or "0") or None,
+        "client_share_rate": parse_amount(get("client_share_rate") or "0") or None,
+        # Optional metadata
+        "sales_type": (get("sales_type") or "").strip() or None,
+        "subscription_type": (get("subscription_type") or "").strip() or None,
+        "row_period": parse_period_from_value(get("period")),
     }
 
 
@@ -1326,6 +1337,7 @@ async def admin_upload_royalty_csv(
 
     # Pre-fetch all labels' percentage history
     labels = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
+    labels_by_name = {(lab.get("label_name") or "").strip().lower(): lab for lab in labels.values()}
     pct_history: Dict[str, List[Dict[str, Any]]] = {}
     async for h in db.royalty_percentage_history.find({}, {"_id": 0}):
         pct_history.setdefault(h["label_id"], []).append(h)
@@ -1344,18 +1356,27 @@ async def admin_upload_royalty_csv(
         track = None
         release = None
         label_id = None
+        match_by = None
         # Try ISRC match
         if raw["isrc"]:
             t = all_tracks.get(raw["isrc"].upper())
             if t:
                 track = t
                 label_id = t["label_id"]
+                match_by = "isrc"
         # Try UPC match
         if not label_id and raw["upc"]:
             r = all_releases_by_upc.get(raw["upc"].upper())
             if r:
                 release = r
                 label_id = r["label_id"]
+                match_by = "upc"
+        # Fallback: match by label name (lowercase)
+        if not label_id and raw["label_name"]:
+            lab = labels_by_name.get(raw["label_name"].strip().lower())
+            if lab:
+                label_id = lab["id"]
+                match_by = "label_name"
 
         match_status = "matched" if label_id else "unmatched"
         if match_status == "matched":
@@ -1380,14 +1401,24 @@ async def admin_upload_royalty_csv(
             "track_title_raw": raw["track_title"],
             "artist_name_raw": raw["artist_name"],
             "release_title_raw": raw["release_title"],
+            "label_name_raw": raw["label_name"],
             "platform": raw["platform"],
             "country": raw["country"],
             "quantity": raw["quantity"],
             "revenue_eur": revenue_eur,
+            "sales_type": raw.get("sales_type"),
+            "subscription_type": raw.get("subscription_type"),
+            "row_period": raw.get("row_period"),
+            # admin-only sensitive fields:
+            "gross_revenue_eur": raw.get("gross_revenue_eur"),
+            "unit_price_eur": raw.get("unit_price_eur"),
+            "mechanical_cost_eur": raw.get("mechanical_cost_eur"),
+            "client_share_rate": raw.get("client_share_rate"),
             "track_id": track["id"] if track else None,
             "release_id": (track or release or {}).get("release_id") or (release or {}).get("id"),
             "label_id": label_id,
             "artist_id": track.get("artist_id") if track else None,
+            "match_by": match_by,
             "label_percentage_applied": label_pct,
             "fee_percent_applied": fee_percent,
             "exchange_rate": rate_eur_idr,
@@ -1569,6 +1600,53 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
 
 
+@royalty_r.post("/admin/reset-demo-data")
+async def admin_reset_demo_royalty_data(
+    confirm: str = Form(...),
+    user: dict = Depends(require_admin),
+):
+    """⚠️ DANGER ZONE — Wipe all royalty data (imports + lines + balance transactions)
+    and reset every label's balance to zero. Used to clear dummy data before going live.
+    Requires confirm='RESET' to proceed. Super Admin only.
+    """
+    if user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    if confirm != "RESET":
+        raise HTTPException(status_code=400, detail="Konfirmasi tidak cocok. Ketik 'RESET' untuk melanjutkan.")
+
+    n_imports = (await db.royalty_imports.delete_many({})).deleted_count
+    n_lines = (await db.royalty_lines.delete_many({})).deleted_count
+    n_tx = (await db.balance_transactions.delete_many({"type": {"$in": ["royalty_pending", "royalty_available"]}})).deleted_count
+    n_labels = (await db.labels.update_many({}, {"$set": {
+        "balance_pending_idr": 0,
+        "balance_available_idr": 0,
+        "updated_at": now_iso(),
+    }})).modified_count
+    # Also delete uploaded CSV files
+    csv_dir = UPLOAD_DIR / "csv"
+    deleted_files = 0
+    if csv_dir.exists():
+        for p in csv_dir.iterdir():
+            if p.is_file():
+                try:
+                    p.unlink()
+                    deleted_files += 1
+                except Exception:
+                    pass
+    await log_activity(user["id"], "reset_demo_royalty", "system", "all", after={
+        "imports": n_imports, "lines": n_lines, "transactions": n_tx,
+        "labels_reset": n_labels, "files_deleted": deleted_files,
+    })
+    return {
+        "ok": True,
+        "imports_deleted": n_imports,
+        "lines_deleted": n_lines,
+        "transactions_deleted": n_tx,
+        "labels_reset": n_labels,
+        "csv_files_deleted": deleted_files,
+    }
+
+
 # -------- LABEL royalty endpoints --------
 @royalty_r.get("/months")
 async def label_royalty_months(user: dict = Depends(get_current_user)):
@@ -1673,6 +1751,9 @@ async def label_royalty_lines(
     if artist_id:
         filt["artist_id"] = artist_id
     items = await db.royalty_lines.find(filt, {"_id": 0}).sort("label_idr", -1).limit(limit).to_list(limit)
+    # Hide sensitive fields from label/artist responses
+    if user["role"] in (LABEL_ROLE, ARTIST_ROLE):
+        items = [strip_sensitive(it) for it in items]
     return items
 
 

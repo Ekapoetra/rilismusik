@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 4 (Real Believe royalty CSV + sensitive-field redaction + reset-demo-data) — 31/31 pytest passed and all frontend assertions verified against live preview URL. Backend covers: parse_amount for 13 number formats including the headline bug 0,000407547753 -> 0.000407547753, parse_csv_bytes semicolon auto-detect with all 21 Believe Indonesian headers, detect_columns mapping every canonical key (including kuantias typo, pendapatan bersih/kotor, harga unit, biaya mekanis, tingkat pembagian klien, jenis penjualan/langganan), parse_period_from_value across 6 formats, strip_sensitive removes all 4 admin-only keys, real-CSV upload of first 99 Believe rows (semicolon, EU decimals) — total_revenue_eur sums Pendapatan Bersih NOT Kotor (verified by recomputing both locally), label_name fallback match observed alongside isrc/upc matches, GET /api/royalty/lines as LABEL strips gross_revenue_eur/unit_price_eur/mechanical_cost_eur/client_share_rate while admin GET /admin/imports/{id} still includes them, POST /royalty/admin/reset-demo-data returns 400 on wrong confirm, 422 on missing confirm, 403 for admin_finance and 401/403 unauthenticated. Frontend smoke: /admin/royalty shows new 'Reset Data Demo' button next to 'Upload CSV', clicking it opens red-bordered modal listing what will be deleted, submit button is DISABLED with empty input and with lowercase 'reset', ENABLED only when user types exactly 'RESET'. Label royalty page /label/royalty (Khizanah Kreasi Gontor, 3334 lines, Rp 176.121 total) shows TotalRoyalti/TotalStreams/TotalLines, Per Platform, Top Country, Top Tracks, lines table with only Periode/Track/Artist/Platform/Country/Streams/Status/Royalti IDR columns. Live network fetch of /api/royalty/lines from the label browser session returned 0 leaked sensitive keys — sample_keys list confirms gross_revenue_eur/unit_price_eur/mechanical_cost_eur/client_share_rate are absent. Cleaned up 2 throw-away 2099-01 test imports + 198 lines via direct Mongo delete (no DELETE endpoint exists for imports).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/royalty/admin/imports/{id}", "issue": "No delete endpoint exists. Test imports cannot be cleaned via API; required direct Mongo cleanup. Consider adding admin-only delete for pending_review imports so QA / admins can roll back mis-uploads without nuking everything via reset-demo-data."},
+      {"endpoint": "POST /api/royalty/admin/reset-demo-data", "issue": "Detail message in code is 'Konfirmasi tidak cocok. Ketik \\'RESET\\' untuk melanjutkan.' (with single quotes around RESET); request payload says 'Ketik RESET untuk melanjutkan' (no quotes). Cosmetic, but make frontend/backend strings consistent if any UI parser depends on exact string."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_believe_royalty.py",
+    "/app/test_reports/pytest/phase4_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Add DELETE /api/royalty/admin/imports/{id} so admins can drop a single mis-uploaded import without resetting everything.",
+    "(Optional) Reconcile error string between server.py (\"Ketik 'RESET' untuk melanjutkan\") and PRD wording (\"Ketik RESET untuk melanjutkan\"). Either is fine.",
+    "Leftovers from prior iterations still pending: brute-force lockout via X-Forwarded-For, hide verification_token/reset_token from prod auth responses, MIME cross-check on /api/tickets/upload-attachment."
+  ],
+  "critical_code_review_comments": [
+    "royalty_utils.parse_csv_bytes: row dict is built using normalized header as key, so duplicate column headers (rare in Believe but possible in user uploads) silently overwrite earlier values. Consider warning when len(set(normalized_headers)) != len(normalized_headers).",
+    "server.py upload-csv: total_revenue_eur is computed by summing every row's Pendapatan Bersih INCLUDING unmatched lines. Correct given today's UX (admin sees gross EUR before publishing), but if business later wants 'matched-only EUR' for forecasting, expose both numbers in the import doc.",
+    "server.py reset-demo-data: nukes ALL royalty_imports + royalty_lines + balance_transactions of type royalty_*, but does NOT touch withdraw_requests or releases/tracks/labels. Comment in code is accurate. Note: there is no dry-run/preview mode — single confirm string is the only safety net. For production, consider adding a 5-second hold + secondary password re-entry.",
+    "server.py upload-csv: file is written to disk under {import_id}.csv before insert. If the insert_many fails midway, the .csv file is orphaned. Reset-demo-data does purge /uploads/csv/*.csv so this is self-healing for demo data, but for production a transactional cleanup (or write-after-success) is safer.",
+    "Frontend RoyaltyImport.jsx: reset-confirm input uses local state and is reset to '' only on modal close path that hits onClick={() => setResetOpen(false)}. If user closes via ESC there's no listener — verified that ESC does close the modal but resetConfirm is not cleared, so reopening pre-fills the previous text. Minor UX nit (still works correctly because submit is gated on exact match)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_believe_royalty.py (new — 31 tests: 13 parse_amount + 6 parse_period + 2 parse_csv + 1 strip_sensitive + 2 sensitive-fields-API + 3 Believe upload + 4 reset-demo-data)"
+  ],
+  "success_rate": {"backend": "100% (31/31 Phase 4) + 100% (22/22 Phase 3) + 100% (18/18 Phase 2)", "frontend": "100% — reset modal + RESET-gated submit + label royalty no-leak all verified"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 — working. Demo label khizanah_kreasi_gontor1782325960@example.com / Demo#2026 — working (3334 lines, Rp 176.121).",
+  "seed_data_creation": "Phase 4 created 2 throw-away royalty_imports for period 2099-01 during pytest, then cleaned them up via direct Mongo delete. Existing seed data (1 royalty_import for 2025-05, status=dana_received, 4712 matched lines across 4 demo labels) is INTACT — reset-demo-data was NOT executed with confirm='RESET' as instructed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 4 test file at /app/backend/tests/test_believe_royalty.py. Includes a class-scoped Believe CSV upload test that writes ONE import for period 2099-01 — if it fails mid-run, do a Mongo cleanup: delete_many({period:'2099-01'}) on royalty_imports and royalty_lines (there's no DELETE API). The reset-demo-data class skips on missing admin_finance — make sure POST /api/admin/admin-users is reachable and accepts {email,password,name,role}. To smoke the label royalty hide-fields path, login as khizanah_kreasi_gontor1782325960@example.com / Demo#2026 and hit /api/royalty/lines — the sample_keys list MUST NOT contain gross_revenue_eur/unit_price_eur/mechanical_cost_eur/client_share_rate. The label royalty page table is rendered with headers exactly: # | TRACK | STREAMS | ROYALTI IDR (top tracks) and PERIODE | TRACK | ARTIST | PLATFORM | COUNTRY | STREAMS | STATUS | ROYALTI IDR (lines)."
+}
