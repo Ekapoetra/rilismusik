@@ -2612,6 +2612,9 @@ async def admin_blacklist_label(label_id: str, body: BlacklistIn, user: dict = D
 async def admin_unblacklist_label(label_id: str, user: dict = Depends(require_admin)):
     if user["role"] not in ("super_admin",):
         raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0, "id": 1})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
     await db.labels.update_one({"id": label_id}, {"$set": {
         "account_status": "active", "blacklisted": False,
         "blacklist_reason": None, "updated_at": now_iso(),
@@ -2814,6 +2817,28 @@ async def seed_indexes_and_admins():
     elif not verify_password(admin_password, existing["password_hash"]):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password), "updated_at": now_iso()}})
         logger.info("Super admin password updated for: %s", admin_email)
+
+    # Seed sub-admin accounts (idempotent — only create if missing)
+    sub_admins = [
+        ("Admin Support", "support1@rilismusik.com", "Support#2026", "admin_support"),
+        ("Admin Finance", "finance1@rilismusik.com", "Finance#2026", "admin_finance"),
+        ("Admin Release", "release1@rilismusik.com", "Release#2026", "admin_release"),
+        ("Admin Marketing", "marketing1@rilismusik.com", "Marketing#2026", "admin_marketing"),
+    ]
+    for name, email, pwd, role in sub_admins:
+        if await db.users.find_one({"email": email}) is None:
+            await db.users.insert_one({
+                "id": new_id(),
+                "name": name,
+                "email": email,
+                "password_hash": hash_password(pwd),
+                "role": role,
+                "email_verified_at": now_iso(),
+                "status": "active",
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            })
+            logger.info("Sub-admin seeded: %s (%s)", email, role)
 
     # Seed default landing settings
     for key, value in DEFAULT_LANDING_SETTINGS.items():

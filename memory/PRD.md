@@ -52,13 +52,16 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - **Withdraw window** (1–14 request / 15–20 payment / 21+ closed), min Rp 1.000.000, bank verification.
 - **Label royalty report** with breakdown per platform/country + CSV export.
 
-### Phase 4 (Real Believe CSV + Sensitive-field redaction) — added 2026-06-24
+### Phase 4 (Real Believe CSV + Sensitive-field redaction + Contracts + Notifications + Blacklist) — added 2026-06-24
 - **Real Believe CSV parser** — full Indonesian header support (Bulan Penjualan, Negara, Judul track, Nama Artis, Judul rilis, Kuantias [misspelled], Pendapatan Bersih, Pendapatan Kotor, Harga Unit, Biaya Mekanis, Tingkat pembagian klien). Auto-detects semicolon delimiter and parses European decimals correctly (`0,000407547753` → `0.000407547753`).
 - **Label name fallback match** — when ISRC/UPC don't match a release in DB, try matching CSV `Nama Label` to existing label name (case-insensitive). 4712/5000 (94.2%) rows matched on the real Believe sample.
-- **Sensitive fields hidden from label/artist responses**: `Harga Unit`, `Biaya Mekanis`, `Pendapatan Kotor`, `Tingkat pembagian klien` are STORED for admin audit but stripped via `strip_sensitive()` before returning to label/artist users.
-- **Reset Demo Data** endpoint (`POST /api/royalty/admin/reset-demo-data` with `confirm=RESET`, super_admin only) — wipes royalty imports + lines + transactions, resets all label balances to 0, deletes uploaded CSV files. UI: red danger-zone button + RESET-gated confirmation modal.
-- **31/31 pytest passing** at `/app/backend/tests/test_believe_royalty.py`.
-- Demo data: 1 import for 2025-05, 4712 matched lines across 4 demo labels (Khizanah Kreasi Gontor, Mustafa Kamal, WANWE RECORDS, Manawa Music).
+- **All EUR fields hidden from label/artist responses**: `revenue_eur`, `fee_eur`, `net_eur`, `label_eur`, `distributor_eur`, plus 4 SENSITIVE_FIELDS (`gross_revenue_eur`, `unit_price_eur`, `mechanical_cost_eur`, `client_share_rate`). Labels see only IDR amounts. Admin sees full EUR + IDR for audit.
+- **Reset Demo Data** endpoint (`POST /api/royalty/admin/reset-demo-data` with `confirm=RESET`, super_admin only) + UI button under `/admin/royalty`.
+- **Contracts Module** — admin uploads PDF kontrak per label, sets start/end dates, auto-status (active → expiring_soon → expired). Extend & terminate flows. Label-side `/label/contract` shows own contracts with status badges, days_left countdown, download link, expiry warnings.
+- **In-app Notifications** — bell icon with unread badge in both Label & Admin layouts. Auto-created on: new ticket, ticket comment, ticket status change, release action (approve/reject/etc), withdraw action (approve/reject/paid), royalty publish (per label with IDR amount), contract create/extend/terminate. Polls every 30s.
+- **Blacklist Management UI** — super_admin only. Admin → Labels → detail → "Blacklist…" button with required reason modal. Blacklisted labels CANNOT login (HTTP 403 with reason in detail). "Lepas Blacklist" button restores access. BLACKLISTED badge + red reason banner on label detail page.
+- **Idempotent sub-admin seeding** — finance1/support1/release1/marketing1 auto-seeded on backend startup.
+- **31/31 phase 3 pytest + 19/20 phase 4 pytest passing**. Demo: 1 import for 2025-05 + 3 demo contracts (Khizanah=active, Mustafa=expiring_soon, Manawa=expired).
 
 ### Phase 3 (Support & Legal) — added 2026-06-24
 - **Support Ticketing System** — 8 categories (takedown, edit_metadata, edit_audio, edit_cover, content_id_claim, content_id_release, royalty_issue, other), 8 statuses (open, waiting_admin, waiting_label, in_progress, submitted_to_believe, done, rejected, cancelled).
@@ -75,10 +78,7 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 ## Prioritized Backlog
 ### P0 (next session)
 - **Xendit live integration** (Pay Per Release Rp35.000 + Annual Subscription Rp500.000) — needs API keys.
-- **Contracts module** — upload kontrak, set masa berlaku, perpanjangan, status (Active/Expired/Pending/Terminated).
-- **Blacklist management UI** (backend `account_status='blacklisted'` already wired; UI still pending).
-- **Email notifications** (Resend/SendGrid) for verification, password reset, invoice, ticket updates.
-- **In-app notifications** dashboard (bell icon).
+- **Email notifications** (Resend/SendGrid) for verification, password reset, invoice, ticket updates (in-app already done).
 - **Subscription expiry** transition + reminder cron.
 
 ### P1 (Polish / Production-ready)
@@ -86,9 +86,10 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Google OAuth login (Emergent managed).
 - PDF export of royalty report (currently CSV only).
 - Bulk admin actions (import old labels CSV).
-- Cloud Storage (S3/Cloudinary) for WAV + cover.
+- Cloud Storage (S3/Cloudinary) for WAV + cover + contract PDFs.
 - Tax/PPN automation, multi-artist royalty splits per track.
-- Phase-3-tester suggestions: MIME-type validation on uploads, `.strip()` on ticket subject/description, formal status-transition rules.
+- Notification UX: dedicated unread-count endpoint (less payload per poll), notifications.user_id+read_at compound index already added.
+- Contract MIME magic-byte check (currently extension-only).
 
 ### P2 (Phase 4+ — Growth)
 - Public artist profile pages, royalty forecasting.
