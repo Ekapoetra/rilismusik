@@ -52,6 +52,14 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - **Withdraw window** (1–14 request / 15–20 payment / 21+ closed), min Rp 1.000.000, bank verification.
 - **Label royalty report** with breakdown per platform/country + CSV export.
 
+### Phase 4 (Real Believe CSV + Sensitive-field redaction) — added 2026-06-24
+- **Real Believe CSV parser** — full Indonesian header support (Bulan Penjualan, Negara, Judul track, Nama Artis, Judul rilis, Kuantias [misspelled], Pendapatan Bersih, Pendapatan Kotor, Harga Unit, Biaya Mekanis, Tingkat pembagian klien). Auto-detects semicolon delimiter and parses European decimals correctly (`0,000407547753` → `0.000407547753`).
+- **Label name fallback match** — when ISRC/UPC don't match a release in DB, try matching CSV `Nama Label` to existing label name (case-insensitive). 4712/5000 (94.2%) rows matched on the real Believe sample.
+- **Sensitive fields hidden from label/artist responses**: `Harga Unit`, `Biaya Mekanis`, `Pendapatan Kotor`, `Tingkat pembagian klien` are STORED for admin audit but stripped via `strip_sensitive()` before returning to label/artist users.
+- **Reset Demo Data** endpoint (`POST /api/royalty/admin/reset-demo-data` with `confirm=RESET`, super_admin only) — wipes royalty imports + lines + transactions, resets all label balances to 0, deletes uploaded CSV files. UI: red danger-zone button + RESET-gated confirmation modal.
+- **31/31 pytest passing** at `/app/backend/tests/test_believe_royalty.py`.
+- Demo data: 1 import for 2025-05, 4712 matched lines across 4 demo labels (Khizanah Kreasi Gontor, Mustafa Kamal, WANWE RECORDS, Manawa Music).
+
 ### Phase 3 (Support & Legal) — added 2026-06-24
 - **Support Ticketing System** — 8 categories (takedown, edit_metadata, edit_audio, edit_cover, content_id_claim, content_id_release, royalty_issue, other), 8 statuses (open, waiting_admin, waiting_label, in_progress, submitted_to_believe, done, rejected, cancelled).
 - **Chat-style comment thread** with attachments (WAV / 3000×3000 cover / JPG/PNG/PDF/TXT/DOCX); auto status flip when label/admin comments; system messages for status changes.
