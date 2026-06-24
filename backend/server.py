@@ -205,8 +205,10 @@ async def register(body: RegisterLabelIn, response: Response):
 @auth.post("/login")
 async def login(body: LoginIn, response: Response, request: Request):
     email = body.email.lower().strip()
-    # brute force check
-    identifier = f"{request.client.host if request.client else 'na'}:{email}"
+    # brute force check — use X-Forwarded-For (set by ingress) for stable client IP
+    fwd = request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip")
+    client_ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "na"))
+    identifier = f"{client_ip}:{email}"
     attempt = await db.login_attempts.find_one({"identifier": identifier})
     now = datetime.now(timezone.utc)
     if attempt and attempt.get("locked_until"):
