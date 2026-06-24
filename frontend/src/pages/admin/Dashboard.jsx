@@ -1,16 +1,71 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
-import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3 } from "lucide-react";
+import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3, AlertTriangle, X } from "lucide-react";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 }
 
+const PRODUCTION_BANNERS = [
+  {
+    id: "storage-ephemeral",
+    severity: "warn",
+    title: "Cloud storage belum aktif — upload file akan ephemeral",
+    body: "WAV audio, cover image, dan PDF contract yang baru di-upload TIDAK persisten saat pod restart. Tunda upload audio/cover untuk label aktif sampai integrasi cloud storage (S3/Cloudinary) selesai. MDA PDF aman karena bisa di-regenerate dari CMS.",
+  },
+  {
+    id: "xendit-mock",
+    severity: "info",
+    title: "Xendit payment masih mock — invoice belum redirect ke checkout real",
+    body: "Untuk testing, gunakan endpoint internal mock-pay. Integrasi Xendit LIVE dijadwalkan selanjutnya.",
+  },
+  {
+    id: "email-mock",
+    severity: "info",
+    title: "Email notifikasi belum live — token verify & forgot password hanya di backend log",
+    body: "Untuk reset password / verify email, cek backend log: tail -n 200 /var/log/supervisor/backend.err.log",
+  },
+];
+
+function DismissibleBanner({ b, onDismiss }) {
+  const color = b.severity === "warn"
+    ? "bg-amber-500/10 border-amber-500/30 text-amber-100"
+    : "bg-indigo-500/10 border-indigo-500/30 text-indigo-100";
+  return (
+    <div className={`rounded-2xl border ${color} p-4 flex items-start gap-3`} data-testid={`admin-banner-${b.id}`}>
+      <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <div className="font-semibold text-sm">{b.title}</div>
+        <div className="text-xs opacity-80 mt-1 leading-relaxed">{b.body}</div>
+      </div>
+      <button
+        onClick={() => onDismiss(b.id)}
+        className="opacity-60 hover:opacity-100 transition flex-shrink-0"
+        aria-label="dismiss"
+        data-testid={`admin-banner-dismiss-${b.id}`}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [m, setM] = useState(null);
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("rm-admin-banners-dismissed") || "[]"); }
+    catch { return []; }
+  });
 
   useEffect(() => { api.get("/admin/dashboard").then(r => setM(r.data)); }, []);
+
+  const dismiss = (id) => {
+    const next = [...new Set([...dismissed, id])];
+    setDismissed(next);
+    localStorage.setItem("rm-admin-banners-dismissed", JSON.stringify(next));
+  };
+  const visibleBanners = PRODUCTION_BANNERS.filter(b => !dismissed.includes(b.id));
 
   if (!m) return <div className="text-zinc-500">Memuat metrik admin…</div>;
 
@@ -21,6 +76,12 @@ export default function AdminDashboard() {
         <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Admin Dashboard</h1>
         <p className="text-sm text-zinc-400 mt-1">Metrik operasional platform RILIS MUSIK.</p>
       </div>
+
+      {visibleBanners.length > 0 && (
+        <div className="space-y-2" data-testid="admin-production-banners">
+          {visibleBanners.map(b => <DismissibleBanner key={b.id} b={b} onDismiss={dismiss} />)}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <Stat testId={ADMIN_DASHBOARD.totalLabels} label="Total Label" value={m.total_labels} icon={Building2} accent="rose" />
