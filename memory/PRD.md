@@ -52,7 +52,20 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - **Withdraw window** (1–14 request / 15–20 payment / 21+ closed), min Rp 1.000.000, bank verification.
 - **Label royalty report** with breakdown per platform/country + CSV export.
 
-### Phase 4 (Real Believe CSV + Sensitive-field redaction + Contracts + Notifications + Blacklist) — added 2026-06-24
+### Phase 5 (Royalty-percentage redaction + Cron) — added 2026-06-24
+- **All royalty percentage info hidden from label/artist surfaces**:
+  - Landing page no longer mentions "5% fee distributor" or "60% bagian label". Simulator shows ONLY final Rp + Revenue/Kurs inputs.
+  - Pricing footer simplified to "Semua paket sudah termasuk distribusi ke 150+ platform digital".
+  - `GET /api/label/me`, `/auth/me`, `/auth/login`, `/auth/register`, `/label/dashboard` ALL strip `royalty_percentage_default`, `royalty_percentage_history`, `default_royalty_share` from `label` payload.
+  - `GET /api/royalty/lines` (label/artist) also strips `label_percentage_applied`, `fee_percent_applied`, `distributor_idr`, `exchange_rate` (in addition to previously-removed EUR + sensitive fields).
+  - Label CSV export header reduced to `[period,release_title,track_title,artist_name,platform,country,isrc,upc,streams,royalty_idr,status]`.
+  - Admin still sees ALL percentages/EUR/sensitive for audit.
+- **Subscription expiry cron** — hourly job (APScheduler 3.10.4). Auto-transitions expired subs to `status='expired'` + `payment_type='pay_per_release'`. Sends `subscription_reminder` notification at T-7/T-3/T-1 days. Dedupe via `notifications.meta.marker`.
+- **Contract expiry reminder cron** — daily at 02:00 UTC (09:00 Jakarta). Sends `contract_reminder` notification at T-30/T-7/T-1 days.
+- **Manual cron triggers** — `POST /api/admin/cron/subscription-check` (super_admin+admin_finance) and `/api/admin/cron/contract-check` (super_admin+admin_release) for instant runs / testing.
+- **20/20 phase 5 pytest passing** at `/app/backend/tests/test_phase5_redaction_cron.py`.
+
+### Phase 4 (Real Believe CSV + Contracts + Notifications + Blacklist) — added 2026-06-24
 - **Real Believe CSV parser** — full Indonesian header support (Bulan Penjualan, Negara, Judul track, Nama Artis, Judul rilis, Kuantias [misspelled], Pendapatan Bersih, Pendapatan Kotor, Harga Unit, Biaya Mekanis, Tingkat pembagian klien). Auto-detects semicolon delimiter and parses European decimals correctly (`0,000407547753` → `0.000407547753`).
 - **Label name fallback match** — when ISRC/UPC don't match a release in DB, try matching CSV `Nama Label` to existing label name (case-insensitive). 4712/5000 (94.2%) rows matched on the real Believe sample.
 - **All EUR fields hidden from label/artist responses**: `revenue_eur`, `fee_eur`, `net_eur`, `label_eur`, `distributor_eur`, plus 4 SENSITIVE_FIELDS (`gross_revenue_eur`, `unit_price_eur`, `mechanical_cost_eur`, `client_share_rate`). Labels see only IDR amounts. Admin sees full EUR + IDR for audit.
@@ -78,8 +91,7 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 ## Prioritized Backlog
 ### P0 (next session)
 - **Xendit live integration** (Pay Per Release Rp35.000 + Annual Subscription Rp500.000) — needs API keys.
-- **Email notifications** (Resend/SendGrid) for verification, password reset, invoice, ticket updates (in-app already done).
-- **Subscription expiry** transition + reminder cron.
+- **Email notifications** (Resend/SendGrid) for verification, password reset, invoice, ticket updates, contract reminders (in-app already done).
 
 ### P1 (Polish / Production-ready)
 - Real email provider (replace dev token returns).
