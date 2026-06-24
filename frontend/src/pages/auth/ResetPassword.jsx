@@ -28,12 +28,12 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen rm-mesh flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen rm-mesh flex items-center justify-center px-4 py-12 text-white">
       <div className="w-full max-w-md rm-glass-strong rounded-[28px] p-8 rm-fade-up">
-        <Link to="/login" className="text-sm text-slate-600 hover:text-[#FF3B30]">← Login</Link>
+        <Link to="/login" className="text-sm text-zinc-400 hover:text-white">← Login</Link>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter mt-3">Reset Password</h1>
         {done ? (
-          <div className="mt-6 text-emerald-700 bg-emerald-50 rounded-xl p-4 text-sm">Password berhasil direset. Mengalihkan ke login…</div>
+          <div className="mt-6 text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-sm">Password berhasil direset. Mengalihkan ke login…</div>
         ) : (
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div>
@@ -48,7 +48,7 @@ export default function ResetPassword() {
               <label className="rm-label">Konfirmasi Password</label>
               <input type="password" className="rm-input" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} data-testid="reset-password-confirm-input" />
             </div>
-            {err && <div className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{err}</div>}
+            {err && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
             <button className="rm-btn-primary w-full" disabled={loading} data-testid="reset-submit-button">
               {loading ? "Memproses…" : "Reset Password"}
             </button>

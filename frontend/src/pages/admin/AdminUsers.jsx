@@ -41,7 +41,7 @@ export default function AdminUsers() {
     <div className="space-y-5 max-w-5xl">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Access Control</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Access Control</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Admin Users</h1>
         </div>
         <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid={ADMIN_USER.addButton}>
@@ -50,15 +50,15 @@ export default function AdminUsers() {
       </div>
 
       <div className="rm-card overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-slate-500 bg-slate-50/60 border-b border-slate-100">
+        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-4">Nama</div>
           <div className="col-span-4">Email</div>
           <div className="col-span-3">Role</div>
           <div className="col-span-1">Status</div>
         </div>
-        {items.length === 0 ? <div className="p-8 text-center text-slate-500 text-sm">Belum ada admin user.</div> : items.map((u) => (
-          <div key={u.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-slate-50 last:border-0">
-            <div className="col-span-12 md:col-span-4 flex items-center gap-2"><Shield className="w-4 h-4 text-slate-400" />{u.name}</div>
+        {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Belum ada admin user.</div> : items.map((u) => (
+          <div key={u.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0">
+            <div className="col-span-12 md:col-span-4 flex items-center gap-2"><Shield className="w-4 h-4 text-zinc-600" />{u.name}</div>
             <div className="col-span-6 md:col-span-4 text-sm truncate">{u.email}</div>
             <div className="col-span-3 md:col-span-3 text-sm capitalize">{u.role.replace(/_/g, " ")}</div>
             <div className="col-span-3 md:col-span-1 text-xs capitalize">{u.status}</div>

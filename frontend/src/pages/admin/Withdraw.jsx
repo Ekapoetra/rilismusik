@@ -5,10 +5,10 @@ import { Banknote, CheckCircle, XCircle, UploadCloud } from "lucide-react";
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 
 const STATUS_PILL = {
-  requested: "bg-amber-50 text-amber-700",
-  approved: "bg-sky-50 text-sky-700",
-  rejected: "bg-red-50 text-red-700",
-  paid: "bg-emerald-50 text-emerald-700",
+  requested: "bg-amber-500/100/15 text-amber-300",
+  approved: "bg-sky-500/15 text-sky-300",
+  rejected: "bg-red-500/15 text-red-300",
+  paid: "bg-emerald-500/15 text-emerald-300",
 };
 
 export default function AdminWithdraw() {
@@ -50,13 +50,13 @@ export default function AdminWithdraw() {
   return (
     <div className="space-y-5">
       <div>
-        <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Finance</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Finance</div>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter">Withdraw Management</h1>
-        {window && <p className="text-sm text-slate-600 mt-1">Hari ke-{window.day} (Asia/Jakarta) — {window.message}</p>}
+        {window && <p className="text-sm text-zinc-400 mt-1">Hari ke-{window.day} (Asia/Jakarta) — {window.message}</p>}
       </div>
 
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="min-w-[200px]">
@@ -72,7 +72,7 @@ export default function AdminWithdraw() {
       </div>
 
       <div className="rm-card overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-slate-500 bg-slate-50/60 border-b border-slate-100">
+        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-3">Label</div>
           <div className="col-span-2">Jumlah</div>
           <div className="col-span-3">Rekening</div>
@@ -80,29 +80,29 @@ export default function AdminWithdraw() {
           <div className="col-span-1">Status</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
-        {items.length === 0 ? <div className="p-10 text-center text-slate-500 text-sm">Belum ada withdraw.</div> : items.map((w) => (
-          <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-slate-50 last:border-0">
+        {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada withdraw.</div> : items.map((w) => (
+          <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0">
             <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 grid place-items-center"><Banknote className="w-4 h-4" /></div>
+              <div className="w-9 h-9 rounded-xl bg-amber-500/100/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>
               <div className="min-w-0">
                 <div className="font-semibold text-sm truncate">{w.label_name || w.label_id}</div>
               </div>
             </div>
             <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight">{fmtIDR(w.amount_idr)}</div>
-            <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-slate-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
+            <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-zinc-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
             <div className="col-span-6 md:col-span-2 text-xs">{w.request_date?.slice(0, 10)}</div>
-            <div className="col-span-6 md:col-span-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-slate-100 text-slate-600"}`}>{w.status}</span></div>
+            <div className="col-span-6 md:col-span-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
             <div className="col-span-12 md:col-span-1 text-right">
               {w.status === "requested" && (
                 <div className="flex gap-1 justify-end">
-                  <button title="Approve" className="text-emerald-600 hover:bg-emerald-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("approve"); }} data-testid={`admin-withdraw-approve-${w.id}`}><CheckCircle className="w-4 h-4" /></button>
+                  <button title="Approve" className="text-emerald-300 hover:bg-emerald-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("approve"); }} data-testid={`admin-withdraw-approve-${w.id}`}><CheckCircle className="w-4 h-4" /></button>
                   <button title="Reject" className="text-red-600 hover:bg-red-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("reject"); }} data-testid={`admin-withdraw-reject-${w.id}`}><XCircle className="w-4 h-4" /></button>
                 </div>
               )}
               {w.status === "approved" && (
                 <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
               )}
-              {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs text-[#FF3B30] font-semibold">Bukti →</a>}
+              {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
             </div>
           </div>
         ))}
@@ -112,7 +112,7 @@ export default function AdminWithdraw() {
         <div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4" onClick={() => setOpen(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4">
             <h3 className="font-display font-extrabold text-xl tracking-tighter capitalize">{action.replace("_", " ")} Withdraw</h3>
-            <div className="text-sm text-slate-600">{open.label_name} • {fmtIDR(open.amount_idr)}</div>
+            <div className="text-sm text-zinc-400">{open.label_name} • {fmtIDR(open.amount_idr)}</div>
             {action === "mark_paid" && (
               <>
                 <div>
@@ -121,7 +121,7 @@ export default function AdminWithdraw() {
                     <UploadCloud className="w-4 h-4" /> {form.payment_proof_url ? "Ganti file" : "Upload bukti"}
                     <input type="file" accept=".jpg,.jpeg,.png,.pdf" hidden onChange={(e) => uploadProof(e.target.files?.[0])} data-testid="admin-withdraw-proof-upload" />
                   </label>
-                  {form.payment_proof_url && <div className="text-xs text-emerald-700 mt-1">✓ {form.payment_proof_url.split("/").pop()}</div>}
+                  {form.payment_proof_url && <div className="text-xs text-emerald-300 mt-1">✓ {form.payment_proof_url.split("/").pop()}</div>}
                 </div>
                 <div>
                   <label className="rm-label">Referensi Pembayaran</label>

@@ -15,19 +15,20 @@ export const STATUS_LABELS = {
   taken_down: "Taken Down",
 };
 
+// Dark-mode tuned palette
 const STYLES = {
-  draft: { bg: "#F4F4F5", color: "#6B7280", dot: "#9CA3AF" },
-  submitted: { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
-  awaiting_payment: { bg: "#FEF3C7", color: "#92400E", dot: "#F59E0B" },
-  paid: { bg: "#ECFDF5", color: "#047857", dot: "#10B981" },
-  under_review: { bg: "#FFF7ED", color: "#9A3412", dot: "#F97316" },
-  need_revision: { bg: "#FEF9C3", color: "#854D0E", dot: "#EAB308" },
-  approved: { bg: "#ECFDF5", color: "#065F46", dot: "#10B981" },
-  delivered: { bg: "#EEF2FF", color: "#3730A3", dot: "#6366F1" },
-  live: { bg: "#DCFCE7", color: "#166534", dot: "#16A34A" },
-  rejected: { bg: "#FEF2F2", color: "#991B1B", dot: "#EF4444" },
-  takedown_requested: { bg: "#F3F4F6", color: "#374151", dot: "#6B7280" },
-  taken_down: { bg: "#1F2937", color: "#F3F4F6", dot: "#9CA3AF" },
+  draft: { bg: "rgba(255,255,255,0.06)", color: "#A1A1B5", dot: "#A1A1B5" },
+  submitted: { bg: "rgba(99,102,241,0.15)", color: "#A5B4FC", dot: "#818CF8" },
+  awaiting_payment: { bg: "rgba(245,158,11,0.15)", color: "#FCD34D", dot: "#F59E0B" },
+  paid: { bg: "rgba(16,185,129,0.15)", color: "#6EE7B7", dot: "#34D399" },
+  under_review: { bg: "rgba(249,115,22,0.15)", color: "#FDBA74", dot: "#FB923C" },
+  need_revision: { bg: "rgba(234,179,8,0.15)", color: "#FDE047", dot: "#FACC15" },
+  approved: { bg: "rgba(16,185,129,0.15)", color: "#6EE7B7", dot: "#10B981" },
+  delivered: { bg: "rgba(99,102,241,0.15)", color: "#C7D2FE", dot: "#6366F1" },
+  live: { bg: "rgba(255,31,142,0.18)", color: "#FF8AC0", dot: "#FF1F8E" },
+  rejected: { bg: "rgba(239,68,68,0.15)", color: "#FCA5A5", dot: "#EF4444" },
+  takedown_requested: { bg: "rgba(255,255,255,0.06)", color: "#A1A1B5", dot: "#71717A" },
+  taken_down: { bg: "rgba(0,0,0,0.4)", color: "#A1A1B5", dot: "#52525B" },
 };
 
 export default function StatusBadge({ status }) {

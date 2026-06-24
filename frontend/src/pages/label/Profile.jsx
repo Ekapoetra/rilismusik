@@ -38,16 +38,16 @@ export default function LabelProfile() {
     finally { setSaving(false); }
   };
 
-  if (!profile) return <div className="text-slate-500">Memuat…</div>;
+  if (!profile) return <div className="text-zinc-500">Memuat…</div>;
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Profil & Rekening</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Profil & Rekening</div>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter">Profil Label</h1>
       </div>
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
       <div className="rm-card p-6 space-y-4">
         <div className="flex items-center gap-2 font-display font-bold text-lg tracking-tight"><Building2 className="w-5 h-5" /> Info Label</div>
@@ -55,7 +55,7 @@ export default function LabelProfile() {
           <F label="Nama Label"><input className="rm-input" value={profile.label_name || ""} onChange={e => setProfile({ ...profile, label_name: e.target.value })} data-testid="profile-label-name" /></F>
           <F label="Penanggung Jawab"><input className="rm-input" value={profile.pic_name || ""} onChange={e => setProfile({ ...profile, pic_name: e.target.value })} data-testid="profile-pic-name" /></F>
           <F label="WhatsApp"><input className="rm-input" value={profile.whatsapp || ""} onChange={e => setProfile({ ...profile, whatsapp: e.target.value })} /></F>
-          <F label="Email"><input className="rm-input bg-slate-50" value={user?.email || ""} disabled /></F>
+          <F label="Email"><input className="rm-input bg-white/5" value={user?.email || ""} disabled /></F>
           <F label="Alamat"><input className="rm-input" value={profile.address || ""} onChange={e => setProfile({ ...profile, address: e.target.value })} /></F>
           <F label="Kota"><input className="rm-input" value={profile.city || ""} onChange={e => setProfile({ ...profile, city: e.target.value })} /></F>
           <F label="Negara"><input className="rm-input" value={profile.country || ""} onChange={e => setProfile({ ...profile, country: e.target.value })} /></F>
@@ -73,7 +73,7 @@ export default function LabelProfile() {
             <Row k="Nomor Rekening" v={bank.account_number} />
             <Row k="Atas Nama" v={bank.account_holder_name} />
             <Row k="Status Verifikasi" v={bank.verified_status} />
-            <div className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3">Rekening hanya bisa diinput sekali. Untuk perubahan, hubungi support@rilismusik.com.</div>
+            <div className="text-xs text-zinc-500 bg-white/5 rounded-xl p-3">Rekening hanya bisa diinput sekali. Untuk perubahan, hubungi support@rilismusik.com.</div>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-3">
@@ -90,4 +90,4 @@ export default function LabelProfile() {
   );
 }
 function F({ label, children }) { return <div><label className="rm-label">{label}</label>{children}</div>; }
-function Row({ k, v }) { return <div className="flex justify-between text-sm py-1"><span className="text-slate-500">{k}</span><span className="font-semibold capitalize">{v || "—"}</span></div>; }
+function Row({ k, v }) { return <div className="flex justify-between text-sm py-1"><span className="text-zinc-500">{k}</span><span className="font-semibold capitalize">{v || "—"}</span></div>; }

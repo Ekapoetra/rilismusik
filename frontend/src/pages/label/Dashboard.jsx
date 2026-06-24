@@ -18,7 +18,7 @@ export default function LabelDashboardHome() {
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
   }, []);
 
-  if (!data) return <div className="text-slate-500">Memuat…</div>;
+  if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { stats, label } = data;
 
   return (
@@ -26,7 +26,7 @@ export default function LabelDashboardHome() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Dashboard</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Dashboard</div>
           <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Halo, {label.label_name}</h1>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -62,28 +62,28 @@ export default function LabelDashboardHome() {
       <div className="rm-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold text-lg tracking-tight">Rilisan Terbaru</h3>
-          <Link to="/label/releases" className="text-sm font-semibold text-[#FF3B30]">Lihat semua →</Link>
+          <Link to="/label/releases" className="text-sm font-semibold rm-gradient-text">Lihat semua →</Link>
         </div>
         {releases.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            Belum ada rilisan. <Link to="/label/releases/upload" className="font-semibold text-[#FF3B30]">Upload sekarang</Link>
+          <div className="text-center py-8 text-zinc-500 text-sm">
+            Belum ada rilisan. <Link to="/label/releases/upload" className="font-semibold rm-gradient-text">Upload sekarang</Link>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-white/5">
             {releases.map((r) => (
               <div key={r.id} className="py-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 grid place-items-center text-white">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white">
                     <Disc3 className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate">{r.release_title}</div>
-                    <div className="text-xs text-slate-500">{r.artist_name} • {r.release_date}</div>
+                    <div className="text-xs text-zinc-500">{r.artist_name} • {r.release_date}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <StatusBadge status={r.status} />
-                  <Link to={`/label/releases/${r.id}`} className="text-xs font-semibold text-slate-700 hover:text-[#FF3B30]">Detail →</Link>
+                  <Link to={`/label/releases/${r.id}`} className="text-xs font-semibold text-zinc-200 hover:rm-gradient-text">Detail →</Link>
                 </div>
               </div>
             ))}
@@ -96,16 +96,16 @@ export default function LabelDashboardHome() {
 
 function StatCard({ label, value, sub, icon: Icon, accent, mini, testId }) {
   const colors = {
-    emerald: "from-emerald-50 to-emerald-100 text-emerald-600",
-    amber: "from-amber-50 to-amber-100 text-amber-600",
-    blue: "from-sky-50 to-sky-100 text-sky-600",
-    rose: "from-rose-50 to-rose-100 text-rose-600",
+    emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300",
+    amber: "from-amber-500/15 to-amber-500/5 text-amber-300",
+    blue: "from-sky-500/15 to-sky-500/5 text-sky-300",
+    rose: "from-rose-500/15 to-rose-500/5 text-rose-300",
   };
-  const cl = colors[accent] || "from-slate-50 to-slate-100 text-slate-600";
+  const cl = colors[accent] || "from-slate-50 to-slate-100 text-zinc-400";
   return (
     <div className={`rm-card ${mini ? "p-4" : "p-5"}`} data-testid={testId}>
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-widest font-bold text-slate-500">{label}</div>
+        <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
         {Icon && (
           <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${cl} grid place-items-center`}>
             <Icon className="w-4 h-4" />
@@ -113,15 +113,15 @@ function StatCard({ label, value, sub, icon: Icon, accent, mini, testId }) {
         )}
       </div>
       <div className={`font-display font-extrabold tracking-tighter ${mini ? "text-2xl" : "text-2xl md:text-3xl"} mt-2`}>{value}</div>
-      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-zinc-500 mt-1">{sub}</div>}
     </div>
   );
 }
 
 function StatusPill({ icon: Icon, label, active, warn }) {
-  let cls = "bg-slate-100 text-slate-600";
-  if (active) cls = "bg-emerald-50 text-emerald-700";
-  if (warn) cls = "bg-amber-50 text-amber-700";
+  let cls = "bg-white/[0.06] text-zinc-400";
+  if (active) cls = "bg-emerald-500/15 text-emerald-300";
+  if (warn) cls = "bg-amber-500/100/15 text-amber-300";
   return (
     <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cls}`}>
       <Icon className="w-3.5 h-3.5" />

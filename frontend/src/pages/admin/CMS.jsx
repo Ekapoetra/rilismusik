@@ -20,7 +20,7 @@ export default function AdminCMS() {
     finally { setSaving(false); }
   };
 
-  if (!s) return <div className="text-slate-500">Memuat…</div>;
+  if (!s) return <div className="text-zinc-500">Memuat…</div>;
 
   const setVal = (path, val) => {
     const next = JSON.parse(JSON.stringify(s));
@@ -45,18 +45,18 @@ export default function AdminCMS() {
     <div className="space-y-5 max-w-4xl">
       <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Content Management</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Content Management</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Landing Page CMS</h1>
         </div>
         <button className="rm-btn-primary" onClick={save} disabled={saving} data-testid={ADMIN_CMS.saveButton}>{saving ? "Menyimpan…" : "Simpan Perubahan"}</button>
       </div>
 
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-200">
+      <div className="flex flex-wrap gap-2 border-b border-white/10">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`px-4 py-2 text-sm font-bold rounded-t-xl ${tab === t.id ? "bg-white border border-slate-200 border-b-white text-[#FF3B30]" : "text-slate-500"}`} data-testid={`admin-cms-tab-${t.id}`}>
+          <button key={t.id} onClick={() => setTab(t.id)} className={`px-4 py-2 text-sm font-bold rounded-t-xl ${tab === t.id ? "bg-[#14111E] border border-white/10 border-b-[#14111E] rm-gradient-text" : "text-zinc-500 hover:text-white"}`} data-testid={`admin-cms-tab-${t.id}`}>
             {t.label}
           </button>
         ))}
@@ -87,7 +87,7 @@ export default function AdminCMS() {
         {tab === "benefits" && (
           <div className="space-y-3">
             {(s.benefits || []).map((b, i) => (
-              <div key={i} className="border border-slate-100 rounded-2xl p-3 grid md:grid-cols-2 gap-3 bg-slate-50/30">
+              <div key={i} className="border border-white/5 rounded-2xl p-3 grid md:grid-cols-2 gap-3 bg-white/[0.02]">
                 <F label={`Title ${i + 1}`}><input className="rm-input" value={b.title} onChange={(e) => {
                   const next = [...s.benefits]; next[i] = { ...b, title: e.target.value }; setVal("benefits", next);
                 }} /></F>
@@ -110,7 +110,7 @@ export default function AdminCMS() {
         {tab === "faq" && (
           <div className="space-y-3">
             {(s.faq || []).map((f, i) => (
-              <div key={i} className="border border-slate-100 rounded-2xl p-3 grid gap-2 bg-slate-50/30">
+              <div key={i} className="border border-white/5 rounded-2xl p-3 grid gap-2 bg-white/[0.02]">
                 <F label={`Question ${i + 1}`}><input className="rm-input" value={f.q} onChange={(e) => {
                   const next = [...s.faq]; next[i] = { ...f, q: e.target.value }; setVal("faq", next);
                 }} /></F>

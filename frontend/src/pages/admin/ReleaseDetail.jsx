@@ -34,49 +34,49 @@ export default function AdminReleaseDetail() {
     finally { setBusy(false); }
   };
 
-  if (!data) return <div className="text-slate-500">Memuat…</div>;
+  if (!data) return <div className="text-zinc-500">Memuat…</div>;
 
   const blockedByPayment = data.payment_status === "pending";
 
   return (
     <div className="space-y-5 max-w-5xl">
-      <Link to="/admin/releases" className="text-sm text-slate-600 hover:text-[#FF3B30]">← Release Management</Link>
+      <Link to="/admin/releases" className="text-sm text-zinc-400 hover:rm-gradient-text">← Release Management</Link>
 
       <div className="flex items-start gap-4 flex-wrap">
         {data.cover_url ? (
           <img src={fileUrl(data.cover_url)} alt="cover" className="w-32 h-32 rounded-2xl object-cover" />
-        ) : <div className="w-32 h-32 rounded-2xl bg-slate-100 grid place-items-center text-slate-400"><Disc3 className="w-10 h-10" /></div>}
+        ) : <div className="w-32 h-32 rounded-2xl bg-white/[0.06] grid place-items-center text-zinc-600"><Disc3 className="w-10 h-10" /></div>}
         <div className="flex-1 min-w-[260px]">
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">{data.release_type}</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{data.release_type}</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">{data.release_title}</h1>
-          <div className="text-slate-600">{data.artist_name} • Rilis {data.release_date}</div>
+          <div className="text-zinc-400">{data.artist_name} • Rilis {data.release_date}</div>
           <div className="mt-2 flex gap-2"><StatusBadge status={data.status} />
-            {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700">Invoice Pending</span>}
-            {data.payment_status === "free_subscription" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">Subscription</span>}
+            {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/100/15 text-amber-300">Invoice Pending</span>}
+            {data.payment_status === "free_subscription" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">Subscription</span>}
           </div>
         </div>
       </div>
 
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
       {blockedByPayment && (
-        <div className="rounded-2xl bg-amber-50 text-amber-800 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
+        <div className="rounded-2xl bg-amber-500/100/15 text-amber-300 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
       )}
 
       {/* Tracks with audio */}
       <div className="rm-card p-5">
         <h3 className="font-display font-bold text-lg tracking-tight mb-3">Tracklist</h3>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-white/5">
           {data.tracks?.map((t) => (
             <div key={t.id} className="py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 grid place-items-center text-sm font-bold">{t.track_number}</div>
+                <div className="w-9 h-9 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center text-sm font-bold">{t.track_number}</div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm truncate">{t.track_title}</div>
-                  <div className="text-xs text-slate-500 truncate">{t.artist_name} • Composer: {t.composer || "—"} {t.isrc && <> • ISRC {t.isrc}</>}</div>
+                  <div className="text-xs text-zinc-500 truncate">{t.artist_name} • Composer: {t.composer || "—"} {t.isrc && <> • ISRC {t.isrc}</>}</div>
                 </div>
               </div>
-              {t.audio_url ? <audio controls src={fileUrl(t.audio_url)} className="h-9 max-w-[260px]" /> : <span className="text-xs text-slate-400 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Belum ada audio</span>}
+              {t.audio_url ? <audio controls src={fileUrl(t.audio_url)} className="h-9 max-w-[260px]" /> : <span className="text-xs text-zinc-600 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Belum ada audio</span>}
             </div>
           ))}
         </div>

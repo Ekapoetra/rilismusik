@@ -29,15 +29,15 @@ export default function LabelRoyalty() {
     return `${API_BASE}/royalty/export.csv?${p.toString()}`;
   }, [period]);
 
-  if (!summary) return <div className="text-slate-500">Memuat…</div>;
+  if (!summary) return <div className="text-zinc-500">Memuat…</div>;
 
   return (
     <div className="space-y-5 max-w-6xl">
       <div className="flex justify-between items-end flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Royalti</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Royalti</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Laporan Royalti</h1>
-          <p className="text-sm text-slate-600 mt-1">Detail bagian Anda dari laporan Believe (dalam IDR).</p>
+          <p className="text-sm text-zinc-400 mt-1">Detail bagian Anda dari laporan Believe (dalam IDR).</p>
         </div>
         <div className="flex gap-2">
           <select className="rm-input min-w-[140px]" value={period} onChange={(e) => setPeriod(e.target.value)} data-testid="royalty-period-select">
@@ -49,8 +49,8 @@ export default function LabelRoyalty() {
       </div>
 
       {months.length === 0 ? (
-        <div className="rm-card p-10 text-center text-slate-500">
-          <Music className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+        <div className="rm-card p-10 text-center text-zinc-500">
+          <Music className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
           <div className="font-display font-bold text-lg">Belum ada data royalti</div>
           <p className="text-sm mt-1">Data royalti akan muncul setelah admin upload CSV Believe dan publish.</p>
         </div>
@@ -81,11 +81,11 @@ export default function LabelRoyalty() {
             </div>
             {summary.by_track.length === 0 ? <Empty /> : (
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-[11px] uppercase tracking-widest text-slate-500"><th className="py-2">#</th><th>Track</th><th>Streams</th><th className="text-right">Royalti IDR</th></tr></thead>
+                <thead><tr className="text-left text-[11px] uppercase tracking-widest text-zinc-500"><th className="py-2">#</th><th>Track</th><th>Streams</th><th className="text-right">Royalti IDR</th></tr></thead>
                 <tbody>
                   {summary.by_track.map((t, i) => (
-                    <tr key={i} className="border-t border-slate-100">
-                      <td className="py-2 text-slate-400">{i + 1}</td>
+                    <tr key={i} className="border-t border-white/5">
+                      <td className="py-2 text-zinc-600">{i + 1}</td>
                       <td className="font-semibold truncate max-w-[260px]">{t.title}</td>
                       <td>{t.streams?.toLocaleString("id-ID")}</td>
                       <td className="text-right font-bold">{fmtIDR(t.total_idr)}</td>
@@ -107,25 +107,25 @@ export default function LabelRoyalty() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-[10px] uppercase tracking-widest text-slate-500">
+                <thead><tr className="text-left text-[10px] uppercase tracking-widest text-zinc-500">
                   <th className="py-2">Periode</th><th>Track</th><th>Artist</th><th>Platform</th><th>Country</th><th>Streams</th><th>Status</th><th className="text-right">Royalti IDR</th>
                 </tr></thead>
                 <tbody>
                   {lines.slice(0, 200).map((l) => (
-                    <tr key={l.id} className="border-t border-slate-100">
+                    <tr key={l.id} className="border-t border-white/5">
                       <td className="py-2">{l.period}</td>
                       <td className="font-semibold truncate max-w-[160px]">{l.track_title_raw || "—"}</td>
                       <td className="truncate max-w-[120px]">{l.artist_name_raw}</td>
                       <td>{l.platform || "—"}</td>
                       <td>{l.country || "—"}</td>
                       <td>{l.quantity?.toLocaleString("id-ID")}</td>
-                      <td><span className={`text-[10px] font-bold ${l.status === "available" ? "text-emerald-700" : l.status === "withdrawn" ? "text-slate-500" : "text-amber-700"}`}>{l.status}</span></td>
+                      <td><span className={`text-[10px] font-bold ${l.status === "available" ? "text-emerald-300" : l.status === "withdrawn" ? "text-zinc-500" : "text-amber-300"}`}>{l.status}</span></td>
                       <td className="text-right font-bold">{fmtIDR(l.label_idr)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {lines.length > 200 && <div className="text-xs text-slate-500 text-center mt-3">Menampilkan 200 lines pertama. Export CSV untuk data lengkap.</div>}
+              {lines.length > 200 && <div className="text-xs text-zinc-500 text-center mt-3">Menampilkan 200 lines pertama. Export CSV untuk data lengkap.</div>}
             </div>
           </div>
         </>
@@ -134,16 +134,16 @@ export default function LabelRoyalty() {
   );
 }
 function Card({ label, v, accent, icon: Icon }) {
-  const cls = { rose: "text-rose-700", indigo: "text-indigo-700" }[accent] || "";
+  const cls = { rose: "text-rose-300", indigo: "text-indigo-300" }[accent] || "";
   return <div className="rm-card p-5">
-    <div className="flex justify-between items-start"><div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">{label}</div>{Icon && <Icon className="w-4 h-4 text-slate-400" />}</div>
+    <div className="flex justify-between items-start"><div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{label}</div>{Icon && <Icon className="w-4 h-4 text-zinc-600" />}</div>
     <div className={`font-display text-2xl md:text-3xl font-extrabold tracking-tighter mt-2 ${cls}`}>{v}</div>
   </div>;
 }
 function Panel({ title, icon: Icon, children }) {
-  return <div className="rm-card p-5"><div className="flex items-center gap-2 mb-3"><Icon className="w-4 h-4 text-slate-400" /><h3 className="font-display font-bold tracking-tight">{title}</h3></div>{children}</div>;
+  return <div className="rm-card p-5"><div className="flex items-center gap-2 mb-3"><Icon className="w-4 h-4 text-zinc-600" /><h3 className="font-display font-bold tracking-tight">{title}</h3></div>{children}</div>;
 }
 function Row({ k, v, sub }) {
-  return <div className="flex justify-between items-center py-1.5 border-b border-slate-50 last:border-0"><div className="text-sm">{k}{sub && <div className="text-[10px] text-slate-500">{sub}</div>}</div><div className="font-bold text-sm">{v}</div></div>;
+  return <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0"><div className="text-sm">{k}{sub && <div className="text-[10px] text-zinc-500">{sub}</div>}</div><div className="font-bold text-sm">{v}</div></div>;
 }
-function Empty() { return <div className="text-sm text-slate-500 py-4">Belum ada data.</div>; }
+function Empty() { return <div className="text-sm text-zinc-500 py-4">Belum ada data.</div>; }

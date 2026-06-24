@@ -12,14 +12,14 @@ export default function AdminDashboard() {
 
   useEffect(() => { api.get("/admin/dashboard").then(r => setM(r.data)); }, []);
 
-  if (!m) return <div className="text-slate-500">Memuat metrik admin…</div>;
+  if (!m) return <div className="text-zinc-500">Memuat metrik admin…</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Overview</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Overview</div>
         <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Admin Dashboard</h1>
-        <p className="text-sm text-slate-600 mt-1">Metrik operasional platform RILIS MUSIK.</p>
+        <p className="text-sm text-zinc-400 mt-1">Metrik operasional platform RILIS MUSIK.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -41,24 +41,24 @@ export default function AdminDashboard() {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="rm-card p-5">
-          <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" /> Royalti</div>
+          <div className="text-xs uppercase tracking-widest font-bold text-zinc-500 mb-3 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" /> Royalti</div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-slate-500">Total Revenue EUR</div>
+              <div className="text-xs text-zinc-500">Total Revenue EUR</div>
               <div className="font-display text-2xl font-extrabold tracking-tight">€ {(m.total_revenue_eur || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Total Revenue IDR</div>
+              <div className="text-xs text-zinc-500">Total Revenue IDR</div>
               <div className="font-display text-2xl font-extrabold tracking-tight">{fmtIDR(m.total_revenue_idr)}</div>
             </div>
           </div>
-          <div className="mt-4 text-xs text-slate-500">
+          <div className="mt-4 text-xs text-zinc-500">
             CSV terakhir: {m.last_csv_import ? `${m.last_csv_import.period} • ${m.last_csv_import.created_at?.slice(0, 10)}` : "Belum ada"}
           </div>
         </div>
         <div className="rm-card p-5">
-          <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3">Quick Tips</div>
-          <ul className="text-sm text-slate-700 space-y-2 leading-relaxed">
+          <div className="text-xs uppercase tracking-widest font-bold text-zinc-500 mb-3">Quick Tips</div>
+          <ul className="text-sm text-zinc-200 space-y-2 leading-relaxed">
             <li>📦 Review rilisan di menu <b>Release Management</b>.</li>
             <li>💳 Verifikasi pembayaran Xendit (MOCK) di menu <b>Xendit Payments</b>.</li>
             <li>🎨 Atur konten landing page di menu <b>Landing Page CMS</b>.</li>
@@ -72,16 +72,16 @@ export default function AdminDashboard() {
 
 function Stat({ label, value, icon: Icon, accent, testId }) {
   const c = {
-    rose: "from-rose-50 to-rose-100 text-rose-600",
-    indigo: "from-indigo-50 to-indigo-100 text-indigo-600",
-    amber: "from-amber-50 to-amber-100 text-amber-600",
-    orange: "from-orange-50 to-orange-100 text-orange-600",
-    emerald: "from-emerald-50 to-emerald-100 text-emerald-600",
-  }[accent] || "from-slate-50 to-slate-100 text-slate-600";
+    rose: "from-rose-500/15 to-rose-500/5 text-rose-300",
+    indigo: "from-indigo-500/15 to-indigo-500/5 text-indigo-300",
+    amber: "from-amber-500/15 to-amber-500/5 text-amber-300",
+    orange: "from-pink-500/15 to-purple-500/15 text-pink-300",
+    emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300",
+  }[accent] || "from-slate-50 to-slate-100 text-zinc-400";
   return (
     <div className="rm-card p-5" data-testid={testId}>
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-widest font-bold text-slate-500">{label}</div>
+        <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
         <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${c} grid place-items-center`}>
           <Icon className="w-4 h-4" />
         </div>

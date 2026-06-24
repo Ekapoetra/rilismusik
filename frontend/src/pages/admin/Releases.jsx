@@ -19,7 +19,7 @@ export default function AdminReleases() {
   return (
     <div className="space-y-5">
       <div>
-        <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Release Operations</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Release Operations</div>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter">Release Management</h1>
       </div>
 
@@ -39,23 +39,23 @@ export default function AdminReleases() {
       </div>
 
       <div className="rm-card overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-slate-500 bg-slate-50/60 border-b border-slate-100">
+        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-4">Rilisan</div>
           <div className="col-span-3">Label</div>
           <div className="col-span-2">Release Date</div>
           <div className="col-span-2">Status</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
-        {items.length === 0 ? <div className="p-8 text-center text-slate-500 text-sm">Tidak ada rilisan.</div> : items.map((r) => (
-          <div key={r.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-slate-50 last:border-0 hover:bg-slate-50/40">
+        {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Tidak ada rilisan.</div> : items.map((r) => (
+          <div key={r.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
             <div className="col-span-12 md:col-span-4">
               <div className="font-semibold">{r.release_title}</div>
-              <div className="text-xs text-slate-500">{r.artist_name} • {r.release_type}</div>
+              <div className="text-xs text-zinc-500">{r.artist_name} • {r.release_type}</div>
             </div>
             <div className="col-span-6 md:col-span-3 text-sm">{r.label_name || "—"}</div>
             <div className="col-span-6 md:col-span-2 text-sm">{r.release_date}</div>
             <div className="col-span-6 md:col-span-2"><StatusBadge status={r.status} /></div>
-            <div className="col-span-6 md:col-span-1 text-right"><Link to={`/admin/releases/${r.id}`} className="text-sm font-semibold text-[#FF3B30]" data-testid={`admin-release-detail-${r.id}`}>Review →</Link></div>
+            <div className="col-span-6 md:col-span-1 text-right"><Link to={`/admin/releases/${r.id}`} className="text-sm font-semibold rm-gradient-text" data-testid={`admin-release-detail-${r.id}`}>Review →</Link></div>
           </div>
         ))}
       </div>

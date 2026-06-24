@@ -48,15 +48,15 @@ export default function AdminLabelDetail() {
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
   };
 
-  if (!data) return <div className="text-slate-500">Memuat…</div>;
+  if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const l = data.label;
 
   return (
     <div className="space-y-5">
-      <Link to="/admin/labels" className="text-sm text-slate-600 hover:text-[#FF3B30]">← Label Management</Link>
+      <Link to="/admin/labels" className="text-sm text-zinc-400 hover:rm-gradient-text">← Label Management</Link>
       <h1 className="font-display text-3xl font-extrabold tracking-tighter">{l.label_name}</h1>
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="rm-card p-5 space-y-2">
@@ -79,7 +79,7 @@ export default function AdminLabelDetail() {
             <button className="rm-btn-ghost text-sm" onClick={() => setStatus("blacklisted")} data-testid="admin-label-blacklist">Blacklist</button>
           </div>
           {canFinance && (
-            <div className="pt-3 border-t border-slate-100 space-y-3">
+            <div className="pt-3 border-t border-white/5 space-y-3">
               <div>
                 <label className="rm-label">Bagian Royalti Label (%)</label>
                 <input className="rm-input" type="number" min="0" max="100" value={royalty} onChange={(e) => setRoyalty(e.target.value)} data-testid="admin-label-royalty-input" />
@@ -89,7 +89,7 @@ export default function AdminLabelDetail() {
                 <input className="rm-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Misal: review tahunan" data-testid="admin-label-royalty-reason" />
               </div>
               <button className="rm-btn-primary text-sm" onClick={setRoyaltyPct} data-testid="admin-label-royalty-save">Simpan Royalti</button>
-              <div className="text-[11px] text-slate-500">Perubahan berlaku mulai bulan berjalan. Histori disimpan otomatis.</div>
+              <div className="text-[11px] text-zinc-500">Perubahan berlaku mulai bulan berjalan. Histori disimpan otomatis.</div>
             </div>
           )}
         </div>
@@ -105,7 +105,7 @@ export default function AdminLabelDetail() {
                 <button className="rm-btn-primary text-sm mt-2" onClick={verifyBank} data-testid="admin-label-verify-bank">Verifikasi Rekening</button>
               )}
             </>
-          ) : <div className="text-sm text-slate-500">Label belum input rekening.</div>}
+          ) : <div className="text-sm text-zinc-500">Label belum input rekening.</div>}
         </div>
         <div className="rm-card p-5 space-y-2">
           <h3 className="font-display font-bold tracking-tight text-lg">Statistik</h3>
@@ -118,4 +118,4 @@ export default function AdminLabelDetail() {
     </div>
   );
 }
-function Row({ k, v }) { return <div className="flex justify-between text-sm py-1.5 border-b border-slate-50 last:border-0"><span className="text-slate-500">{k}</span><span className="font-semibold capitalize">{v ?? "—"}</span></div>; }
+function Row({ k, v }) { return <div className="flex justify-between text-sm py-1.5 border-b border-white/5 last:border-0"><span className="text-zinc-500">{k}</span><span className="font-semibold capitalize">{v ?? "—"}</span></div>; }

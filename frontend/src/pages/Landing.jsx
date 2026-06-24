@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, fileUrl } from "@/api/client";
+import { api } from "@/api/client";
 import { LANDING } from "@/constants/testIds";
+import { LogoMark, LogoFull, BrandInline } from "@/components/shared/Brand";
 import { ChevronDown, Sparkles, Music2, Wallet, TrendingUp, ShieldCheck, Headphones, Globe2, Users } from "lucide-react";
 
 const ICONS = [Music2, TrendingUp, Wallet, Headphones, ShieldCheck, Users, Sparkles, Globe2];
@@ -16,7 +17,7 @@ export default function Landing() {
   }, []);
 
   if (!s) {
-    return <div className="min-h-screen grid place-items-center text-slate-500">Memuat…</div>;
+    return <div className="min-h-screen grid place-items-center text-zinc-500">Memuat…</div>;
   }
 
   const fee = s.pricing?.distributor_fee_percent ?? 5;
@@ -26,21 +27,21 @@ export default function Landing() {
   const labelIdr = labelEur * sim.rate;
 
   return (
-    <div className="rm-mesh min-h-screen">
+    <div className="rm-mesh min-h-screen text-white">
       {/* Floating glass navbar */}
-      <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 rm-glass rounded-full px-5 py-2.5 flex items-center justify-between">
+      <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 rm-glass rounded-full px-4 py-2 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl bg-[#FF3B30] text-white grid place-items-center font-bold">R</div>
-          <span className="font-display font-extrabold tracking-tight text-[#1D1D1F]">RILIS MUSIK</span>
+          <LogoMark size={36} />
+          <span className="font-display font-extrabold tracking-tight text-white hidden sm:inline">RILIS MUSIK</span>
         </Link>
-        <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-700">
-          <a href="#benefits" className="hover:text-[#FF3B30] transition">Fitur</a>
-          <a href="#royalty" className="hover:text-[#FF3B30] transition">Royalti</a>
-          <a href="#pricing" className="hover:text-[#FF3B30] transition">Harga</a>
-          <a href="#faq" className="hover:text-[#FF3B30] transition">FAQ</a>
+        <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-zinc-300">
+          <a href="#benefits" className="hover:text-white transition">Fitur</a>
+          <a href="#royalty" className="hover:text-white transition">Royalti</a>
+          <a href="#pricing" className="hover:text-white transition">Harga</a>
+          <a href="#faq" className="hover:text-white transition">FAQ</a>
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/login" data-testid={LANDING.navLogin} className="hidden sm:inline-block text-sm font-semibold text-slate-800 px-3 py-2 rounded-full hover:bg-white/60 transition">
+          <Link to="/login" data-testid={LANDING.navLogin} className="hidden sm:inline-block text-sm font-semibold text-zinc-200 px-3 py-2 rounded-full hover:bg-white/5 transition">
             Login
           </Link>
           <Link to="/register" data-testid={LANDING.navRegister} className="rm-btn-primary text-sm">
@@ -53,13 +54,13 @@ export default function Landing() {
       <section className="pt-36 md:pt-44 pb-24 px-6 md:px-12 lg:px-24 relative overflow-hidden">
         <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-12 items-center">
           <div className="md:col-span-7 rm-fade-up">
-            <div className="inline-flex items-center gap-2 rm-glass rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 mb-6">
-              <Sparkles className="w-3.5 h-3.5 text-[#FF3B30]" /> Distribusi via Believe ke 150+ DSP
+            <div className="inline-flex items-center gap-2 rm-glass rounded-full px-3 py-1.5 text-xs font-semibold text-zinc-300 mb-6">
+              <Sparkles className="w-3.5 h-3.5 text-[#FF1F8E]" /> Distribusi via Believe ke 150+ DSP
             </div>
-            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.02] tracking-tighter text-[#1D1D1F]">
-              {s.hero?.headline || "Distribusi Musik Lebih Rapi, Royalti Lebih Transparan."}
+            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.02] tracking-tighter">
+              Distribusi Musik <span className="rm-gradient-text">Lebih Rapi</span>, Royalti <span className="rm-gradient-text">Lebih Transparan.</span>
             </h1>
-            <p className="mt-6 text-lg text-slate-600 leading-relaxed max-w-xl">
+            <p className="mt-6 text-lg text-zinc-400 leading-relaxed max-w-xl">
               {s.hero?.subheadline}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -70,46 +71,52 @@ export default function Landing() {
                 {s.hero?.cta_secondary_text || "Login Dashboard"}
               </Link>
             </div>
-            <div className="mt-10 flex items-center gap-5 text-xs text-slate-500">
-              <div><span className="font-bold text-slate-800">5%</span> fee distributor</div>
-              <div className="w-px h-4 bg-slate-300" />
-              <div><span className="font-bold text-slate-800">60%</span> default bagian label</div>
-              <div className="w-px h-4 bg-slate-300" />
-              <div><span className="font-bold text-slate-800">7 hari</span> minimal release date</div>
+            <div className="mt-10 flex items-center gap-5 text-xs text-zinc-500">
+              <div><span className="font-bold text-white">5%</span> fee distributor</div>
+              <div className="w-px h-4 bg-zinc-700" />
+              <div><span className="font-bold text-white">60%</span> default bagian label</div>
+              <div className="w-px h-4 bg-zinc-700" />
+              <div><span className="font-bold text-white">7 hari</span> minimal release date</div>
             </div>
           </div>
 
           {/* Hero floating glass artifacts */}
-          <div className="md:col-span-5 relative h-[440px]">
-            <div className="absolute top-0 right-0 w-72 rm-glass-strong rounded-3xl p-5 rm-float">
-              <div className="text-xs text-slate-500 font-semibold uppercase tracking-widest">Saldo Tersedia</div>
+          <div className="md:col-span-5 relative h-[460px]">
+            {/* Big brand mark glow */}
+            <div className="absolute -top-6 -right-6 w-56 h-56 opacity-90 rm-pulse-glow rm-float">
+              <LogoMark size={224} />
+            </div>
+            <div className="absolute top-44 right-0 w-72 rm-glass-strong rounded-3xl p-5 rm-float">
+              <div className="text-xs text-zinc-400 font-semibold uppercase tracking-widest">Saldo Tersedia</div>
               <div className="font-display text-3xl font-extrabold tracking-tight mt-1">Rp 4.275.000</div>
-              <div className="text-xs text-emerald-600 font-bold mt-1">+12% vs bulan lalu</div>
+              <div className="text-xs font-bold mt-1 rm-gradient-text">+12% vs bulan lalu</div>
               <div className="mt-4 h-16 flex items-end gap-1.5">
                 {[40, 55, 38, 70, 62, 80, 95].map((h, i) => (
-                  <div key={i} className="flex-1 rounded-md bg-gradient-to-t from-[#FF3B30] to-[#FF8A80]" style={{ height: `${h}%` }} />
+                  <div key={i} className="flex-1 rounded-md" style={{ background: `linear-gradient(180deg, #FF1F8E 0%, #A24EFF 100%)`, height: `${h}%` }} />
                 ))}
               </div>
             </div>
             <div className="absolute bottom-10 left-0 w-64 rm-glass-strong rounded-3xl p-4 rm-float" style={{ animationDelay: "1.2s" }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-pink-500" />
+                <div className="w-12 h-12 rounded-xl" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }} />
                 <div>
-                  <div className="text-xs text-slate-500 font-semibold">Now Streaming</div>
+                  <div className="text-xs text-zinc-400 font-semibold">Now Streaming</div>
                   <div className="font-semibold text-sm">Senja di Jakarta</div>
-                  <div className="text-xs text-slate-500">Adit Soemardi</div>
+                  <div className="text-xs text-zinc-500">Adit Soemardi</div>
                 </div>
               </div>
-              <div className="mt-3 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-[#FF3B30] w-2/3" /></div>
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5"><span>1:42</span><span>3:08</span></div>
+              <div className="mt-3 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-full w-2/3" style={{ background: "linear-gradient(90deg, #FF1F8E, #A24EFF)" }} />
+              </div>
+              <div className="flex justify-between text-[10px] text-zinc-500 mt-1.5"><span>1:42</span><span>3:08</span></div>
             </div>
-            <div className="absolute top-32 left-8 w-44 rm-glass rounded-3xl p-4 rm-float" style={{ animationDelay: "0.6s" }}>
-              <div className="text-xs font-semibold text-slate-500">Status</div>
-              <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <div className="absolute top-72 left-8 w-44 rm-glass rounded-3xl p-4 rm-float" style={{ animationDelay: "0.6s" }}>
+              <div className="text-xs font-semibold text-zinc-400">Status</div>
+              <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 LIVE on Spotify
               </div>
-              <div className="mt-3 text-[11px] text-slate-500">ISRC: ID-A1Z-25-12345</div>
+              <div className="mt-3 text-[11px] text-zinc-500">ISRC: ID-A1Z-25-12345</div>
             </div>
           </div>
         </div>
@@ -119,20 +126,20 @@ export default function Landing() {
       <section id="benefits" className="px-6 md:px-12 lg:px-24 py-20">
         <div className="max-w-6xl mx-auto">
           <div className="max-w-2xl">
-            <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">FITUR PLATFORM</div>
+            <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">FITUR PLATFORM</div>
             <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Semua yang Anda butuhkan, dalam satu dashboard.</h2>
-            <p className="mt-4 text-slate-600 text-lg">Dari upload rilisan, kelola artist, sampai withdraw. Tanpa WhatsApp.</p>
+            <p className="mt-4 text-zinc-400 text-lg">Dari upload rilisan, kelola artist, sampai withdraw. Tanpa WhatsApp.</p>
           </div>
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 rm-stagger">
             {(s.benefits || []).map((b, i) => {
               const Icon = ICONS[i % ICONS.length];
               return (
-                <div key={i} className="rm-glass rounded-3xl p-6 rm-fade-up hover:-translate-y-1 transition-transform duration-300">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-pink-500 grid place-items-center text-white mb-4">
+                <div key={i} className="rm-glass rounded-3xl p-6 rm-fade-up hover:-translate-y-1 transition-transform duration-300 hover:border-[rgba(255,31,142,0.35)]">
+                  <div className="w-12 h-12 rounded-2xl grid place-items-center text-white mb-4" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <div className="font-display font-bold text-lg tracking-tight">{b.title}</div>
-                  <div className="text-sm text-slate-600 mt-2 leading-relaxed">{b.desc}</div>
+                  <div className="text-sm text-zinc-400 mt-2 leading-relaxed">{b.desc}</div>
                 </div>
               );
             })}
@@ -143,12 +150,12 @@ export default function Landing() {
       {/* HOW IT WORKS */}
       <section className="px-6 md:px-12 lg:px-24 py-20">
         <div className="max-w-6xl mx-auto">
-          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">ALUR</div>
+          <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">ALUR</div>
           <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter mb-12">Dari demo ke 150+ platform.</h2>
           <div className="grid md:grid-cols-2 gap-x-12 gap-y-10">
             {(s.how_it_works || []).map((step, i) => (
               <div key={i} className="flex gap-5 rm-fade-up">
-                <div className="text-7xl font-display font-extrabold tracking-tighter text-[#FF3B30]/15 leading-none -mt-2">{String(i + 1).padStart(2, "0")}</div>
+                <div className="text-7xl font-display font-extrabold tracking-tighter leading-none -mt-2 rm-gradient-text opacity-25">{String(i + 1).padStart(2, "0")}</div>
                 <div className="pt-2">
                   <div className="font-display font-bold text-xl tracking-tight">{step}</div>
                 </div>
@@ -162,42 +169,42 @@ export default function Landing() {
       <section id="pricing" className="px-6 md:px-12 lg:px-24 py-24">
         <div className="max-w-6xl mx-auto">
           <div className="text-center max-w-2xl mx-auto">
-            <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">HARGA</div>
+            <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">HARGA</div>
             <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Pilih yang cocok untuk skala Anda.</h2>
-            <p className="mt-4 text-slate-600 text-lg">{s.pricing?.description}</p>
+            <p className="mt-4 text-zinc-400 text-lg">{s.pricing?.description}</p>
           </div>
           <div className="mt-12 grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <div data-testid={LANDING.pricingPay} className="rm-glass rounded-3xl p-8">
-              <div className="text-sm font-bold text-slate-500 uppercase tracking-wider">Pay Per Release</div>
+              <div className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Pay Per Release</div>
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="font-display text-5xl font-extrabold tracking-tighter">Rp{(s.pricing?.pay_per_release_price ?? 35000).toLocaleString("id-ID")}</span>
-                <span className="text-slate-500 text-sm">/ rilis</span>
+                <span className="text-zinc-500 text-sm">/ rilis</span>
               </div>
-              <p className="text-sm text-slate-600 mt-2">Cocok untuk yang baru memulai atau ingin coba.</p>
-              <ul className="mt-6 space-y-2.5 text-sm text-slate-700">
+              <p className="text-sm text-zinc-400 mt-2">Cocok untuk yang baru memulai atau ingin coba.</p>
+              <ul className="mt-6 space-y-2.5 text-sm text-zinc-200">
                 {(s.pricing?.features_pay || []).map((f, i) => (
-                  <li key={i} className="flex items-start gap-2"><span className="text-[#FF3B30] font-bold mt-0.5">✓</span>{f}</li>
+                  <li key={i} className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
               <Link to="/register" className="rm-btn-ghost mt-8 inline-block">Daftar Pay Per Release</Link>
             </div>
-            <div data-testid={LANDING.pricingSub} className="rm-glass-strong rounded-3xl p-8 ring-1 ring-[#FF3B30]/30 relative">
-              <div className="absolute -top-3 left-8 bg-[#FF3B30] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">Recommended</div>
-              <div className="text-sm font-bold text-slate-500 uppercase tracking-wider">Annual Subscription</div>
+            <div data-testid={LANDING.pricingSub} className="rm-glass-strong rounded-3xl p-8 relative" style={{ borderColor: "rgba(255,31,142,0.35)" }}>
+              <div className="absolute -top-3 left-8 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}>Recommended</div>
+              <div className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Annual Subscription</div>
               <div className="mt-3 flex items-baseline gap-1">
-                <span className="font-display text-5xl font-extrabold tracking-tighter">Rp{(s.pricing?.annual_subscription_price ?? 500000).toLocaleString("id-ID")}</span>
-                <span className="text-slate-500 text-sm">/ tahun</span>
+                <span className="font-display text-5xl font-extrabold tracking-tighter rm-gradient-text">Rp{(s.pricing?.annual_subscription_price ?? 500000).toLocaleString("id-ID")}</span>
+                <span className="text-zinc-500 text-sm">/ tahun</span>
               </div>
-              <p className="text-sm text-slate-600 mt-2">Submit unlimited rilisan. Cocok untuk label aktif.</p>
-              <ul className="mt-6 space-y-2.5 text-sm text-slate-700">
+              <p className="text-sm text-zinc-400 mt-2">Submit unlimited rilisan. Cocok untuk label aktif.</p>
+              <ul className="mt-6 space-y-2.5 text-sm text-zinc-200">
                 {(s.pricing?.features_sub || []).map((f, i) => (
-                  <li key={i} className="flex items-start gap-2"><span className="text-[#FF3B30] font-bold mt-0.5">✓</span>{f}</li>
+                  <li key={i} className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>{f}</li>
                 ))}
               </ul>
               <Link to="/register" className="rm-btn-primary mt-8 inline-block">Mulai Subscription</Link>
             </div>
           </div>
-          <p className="text-center text-xs text-slate-500 mt-8">Fee distributor: {fee}% — Bagian label default: {labelPercent}%</p>
+          <p className="text-center text-xs text-zinc-500 mt-8">Fee distributor: {fee}% — Bagian label default: {labelPercent}%</p>
         </div>
       </section>
 
@@ -206,9 +213,9 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto rm-glass-strong rounded-[32px] p-8 md:p-12">
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">SIMULASI ROYALTI</div>
+              <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">SIMULASI ROYALTI</div>
               <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Hitung estimasi pendapatan Anda.</h2>
-              <p className="mt-3 text-slate-600">Masukkan revenue Believe dan kurs EUR/IDR. Hasil bersifat estimasi.</p>
+              <p className="mt-3 text-zinc-400">Masukkan revenue Believe dan kurs EUR/IDR. Hasil bersifat estimasi.</p>
               <div className="mt-6 space-y-4 max-w-sm">
                 <div>
                   <label className="rm-label">Revenue (EUR)</label>
@@ -233,8 +240,8 @@ export default function Landing() {
               </div>
             </div>
             <div className="rm-card p-6 md:p-8">
-              <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Estimasi Bagian Anda</div>
-              <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 text-[#1D1D1F]">
+              <div className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Estimasi Bagian Anda</div>
+              <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 rm-gradient-text">
                 Rp {Math.round(labelIdr).toLocaleString("id-ID")}
               </div>
               <div className="mt-5 space-y-2 text-sm">
@@ -244,7 +251,7 @@ export default function Landing() {
                 <Row k={`× Bagian label (${labelPercent}%)`} v={`€${labelEur.toFixed(2)}`} />
                 <Row k={`× Kurs IDR`} v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
               </div>
-              <div className="text-[11px] text-slate-400 mt-4">* Estimasi, bukan angka final. Bagian label dapat berbeda per label.</div>
+              <div className="text-[11px] text-zinc-500 mt-4">* Estimasi, bukan angka final. Bagian label dapat berbeda per label.</div>
             </div>
           </div>
         </div>
@@ -253,18 +260,18 @@ export default function Landing() {
       {/* TESTIMONIALS */}
       <section className="px-6 md:px-12 lg:px-24 py-20">
         <div className="max-w-6xl mx-auto">
-          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">TESTIMONI</div>
+          <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">TESTIMONI</div>
           <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter mb-10">Dipercaya oleh label & artis Indonesia.</h2>
           <div className="grid md:grid-cols-2 gap-5">
             {(s.testimonials || []).map((t, i) => (
               <div key={i} className="rm-glass rounded-3xl p-7">
-                <div className="text-2xl text-[#FF3B30] font-display font-extrabold leading-none mb-3">&ldquo;</div>
-                <p className="text-lg text-slate-800 leading-relaxed font-display">{t.quote}</p>
+                <div className="text-2xl font-display font-extrabold leading-none mb-3 rm-gradient-text">&ldquo;</div>
+                <p className="text-lg text-zinc-100 leading-relaxed font-display">{t.quote}</p>
                 <div className="mt-5 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-300 to-pink-500" />
+                  <div className="w-10 h-10 rounded-full" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }} />
                   <div>
                     <div className="font-semibold text-sm">{t.name}</div>
-                    <div className="text-xs text-slate-500">{t.role}</div>
+                    <div className="text-xs text-zinc-500">{t.role}</div>
                   </div>
                 </div>
               </div>
@@ -276,16 +283,16 @@ export default function Landing() {
       {/* FAQ */}
       <section id="faq" className="px-6 md:px-12 lg:px-24 py-20">
         <div className="max-w-3xl mx-auto">
-          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3 text-center">FAQ</div>
+          <div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3 text-center">FAQ</div>
           <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter text-center mb-10">Pertanyaan yang sering diajukan.</h2>
-          <div className="divide-y divide-slate-200/80">
+          <div className="divide-y divide-white/5">
             {(s.faq || []).map((f, i) => (
               <div key={i} data-testid={`${LANDING.faqItem}-${i}`} className="py-5">
                 <button onClick={() => setOpenFaq(openFaq === i ? -1 : i)} className="w-full flex justify-between items-center text-left">
                   <div className="font-display font-bold text-lg tracking-tight pr-4">{f.q}</div>
-                  <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-5 h-5 text-zinc-400 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
                 </button>
-                {openFaq === i && <div className="mt-3 text-slate-600 leading-relaxed">{f.a}</div>}
+                {openFaq === i && <div className="mt-3 text-zinc-400 leading-relaxed">{f.a}</div>}
               </div>
             ))}
           </div>
@@ -294,43 +301,44 @@ export default function Landing() {
 
       {/* CTA FINAL */}
       <section className="px-6 md:px-12 lg:px-24 pb-24">
-        <div className="max-w-5xl mx-auto rm-glass-strong rounded-[32px] p-10 md:p-14 text-center">
-          <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Siap distribusikan musik Anda?</h2>
-          <p className="mt-3 text-slate-600 text-lg">Daftar dalam 2 menit, mulai upload hari ini.</p>
-          <div className="mt-7 flex justify-center gap-3 flex-wrap">
-            <Link to="/register" className="rm-btn-primary">Daftar Sekarang</Link>
-            <Link to="/login" className="rm-btn-ghost">Login Dashboard</Link>
+        <div className="max-w-5xl mx-auto rm-glass-strong rounded-[32px] p-10 md:p-14 text-center relative overflow-hidden">
+          <div className="absolute inset-0 opacity-30 pointer-events-none" style={{ background: "radial-gradient(60% 50% at 50% 0%, rgba(255,31,142,0.5), transparent 70%)" }} />
+          <div className="relative">
+            <LogoFull width={140} className="mx-auto mb-6" />
+            <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Siap distribusikan musik Anda?</h2>
+            <p className="mt-3 text-zinc-400 text-lg">Daftar dalam 2 menit, mulai upload hari ini.</p>
+            <div className="mt-7 flex justify-center gap-3 flex-wrap">
+              <Link to="/register" className="rm-btn-primary">Daftar Sekarang</Link>
+              <Link to="/login" className="rm-btn-ghost">Login Dashboard</Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="px-6 md:px-12 lg:px-24 pb-14 pt-6 border-t border-slate-200/70">
+      <footer className="px-6 md:px-12 lg:px-24 pb-14 pt-6 border-t border-white/5">
         <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-8">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#FF3B30] text-white grid place-items-center font-bold">R</div>
-              <span className="font-display font-extrabold tracking-tight">RILIS MUSIK</span>
-            </div>
-            <p className="text-sm text-slate-500 mt-3 max-w-xs">{s.footer?.description}</p>
+            <BrandInline size={36} />
+            <p className="text-sm text-zinc-500 mt-3 max-w-xs">{s.footer?.description}</p>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3">Support</div>
-            <div className="text-sm text-slate-700">{s.footer?.support_email}</div>
-            <div className="text-sm text-slate-500 mt-1">{s.general?.whatsapp}</div>
+            <div className="text-xs uppercase tracking-widest font-bold text-zinc-400 mb-3">Support</div>
+            <div className="text-sm text-zinc-200">{s.footer?.support_email}</div>
+            <div className="text-sm text-zinc-500 mt-1">{s.general?.whatsapp}</div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3">Legal</div>
-            <ul className="space-y-2 text-sm text-slate-700">
+            <div className="text-xs uppercase tracking-widest font-bold text-zinc-400 mb-3">Legal</div>
+            <ul className="space-y-2 text-sm text-zinc-200">
               {(s.footer?.legal_links || []).map((l, i) => (
-                <li key={i}><a href={l.url} className="hover:text-[#FF3B30]">{l.text}</a></li>
+                <li key={i}><a href={l.url} className="hover:rm-gradient-text">{l.text}</a></li>
               ))}
             </ul>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-slate-200/70 text-xs text-slate-500 flex justify-between">
+        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-white/5 text-xs text-zinc-500 flex justify-between">
           <div>© {new Date().getFullYear()} RILIS MUSIK. All rights reserved.</div>
-          <Link to="/login" className="hover:text-[#FF3B30]">Login Dashboard →</Link>
+          <Link to="/login" className="hover:text-white">Login Dashboard →</Link>
         </div>
       </footer>
     </div>
@@ -339,7 +347,7 @@ export default function Landing() {
 
 function Row({ k, v, bold, muted }) {
   return (
-    <div className={`flex justify-between ${muted ? "text-slate-500" : "text-slate-700"} ${bold ? "font-bold text-[#1D1D1F]" : ""}`}>
+    <div className={`flex justify-between ${muted ? "text-zinc-500" : "text-zinc-300"} ${bold ? "font-bold text-white" : ""}`}>
       <span>{k}</span>
       <span>{v}</span>
     </div>

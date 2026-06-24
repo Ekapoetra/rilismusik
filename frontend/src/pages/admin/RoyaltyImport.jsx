@@ -48,20 +48,20 @@ export default function AdminRoyaltyImport() {
     <div className="space-y-5">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Finance</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Finance</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Royalty Import</h1>
-          <p className="text-sm text-slate-600 mt-1">Upload CSV Believe (EUR) + set kurs IDR per periode.</p>
+          <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR) + set kurs IDR per periode.</p>
         </div>
         <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid="admin-royalty-upload-button">
           <Upload className="w-4 h-4" /> Upload CSV
         </button>
       </div>
 
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
       <div className="rm-card overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-slate-500 bg-slate-50/60 border-b border-slate-100">
+        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-2">Periode</div>
           <div className="col-span-2">Kurs</div>
           <div className="col-span-2">Revenue EUR</div>
@@ -69,16 +69,16 @@ export default function AdminRoyaltyImport() {
           <div className="col-span-2">Lines (matched/total)</div>
           <div className="col-span-2">Status</div>
         </div>
-        {imports.length === 0 ? <div className="p-10 text-center text-slate-500 text-sm">Belum ada import. Klik &quot;Upload CSV&quot; untuk mulai.</div> : imports.map((i) => (
-          <Link key={i.id} to={`/admin/royalty/${i.id}`} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-slate-50 last:border-0 hover:bg-slate-50/40">
+        {imports.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada import. Klik &quot;Upload CSV&quot; untuk mulai.</div> : imports.map((i) => (
+          <Link key={i.id} to={`/admin/royalty/${i.id}`} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
             <div className="col-span-12 md:col-span-2 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/100/15 text-amber-300 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
               <div className="font-display font-bold">{i.period}</div>
             </div>
             <div className="col-span-6 md:col-span-2 text-sm">Rp {i.exchange_rate_eur_idr?.toLocaleString("id-ID")}/€</div>
             <div className="col-span-6 md:col-span-2 text-sm">{fmtEUR(i.total_revenue_eur)}</div>
             <div className="col-span-6 md:col-span-2 text-sm font-semibold">{fmtIDR(i.total_label_idr)}</div>
-            <div className="col-span-6 md:col-span-2 text-xs"><span className="text-emerald-700 font-bold">{i.matched_lines}</span> / {i.total_lines} {i.unmatched_lines > 0 && <span className="text-amber-700"> ({i.unmatched_lines} unmatched)</span>}</div>
+            <div className="col-span-6 md:col-span-2 text-xs"><span className="text-emerald-300 font-bold">{i.matched_lines}</span> / {i.total_lines} {i.unmatched_lines > 0 && <span className="text-amber-300"> ({i.unmatched_lines} unmatched)</span>}</div>
             <div className="col-span-12 md:col-span-2">
               <StatusBadge s={i.status} />
             </div>
@@ -97,12 +97,12 @@ export default function AdminRoyaltyImport() {
             <div>
               <label className="rm-label">Kurs EUR → IDR</label>
               <input type="number" min="1000" step="0.01" className="rm-input" value={form.rate_eur_idr} onChange={(e) => setForm({ ...form, rate_eur_idr: parseFloat(e.target.value) })} data-testid="admin-royalty-rate" required />
-              <div className="text-[11px] text-slate-500 mt-1">Kurs diinput manual per periode. Tidak bisa diubah setelah publish.</div>
+              <div className="text-[11px] text-zinc-500 mt-1">Kurs diinput manual per periode. Tidak bisa diubah setelah publish.</div>
             </div>
             <div>
               <label className="rm-label">File CSV Believe</label>
               <input type="file" accept=".csv,text/csv" className="rm-input" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} data-testid="admin-royalty-file" />
-              <div className="text-[11px] text-slate-500 mt-1">Auto-detect kolom ISRC, UPC, Title, Artist, Platform, Country, Quantity, Revenue (EUR).</div>
+              <div className="text-[11px] text-zinc-500 mt-1">Auto-detect kolom ISRC, UPC, Title, Artist, Platform, Country, Quantity, Revenue (EUR).</div>
             </div>
             <div>
               <label className="rm-label">Catatan (opsional)</label>
@@ -121,10 +121,10 @@ export default function AdminRoyaltyImport() {
 
 function StatusBadge({ s }) {
   const map = {
-    pending_review: { bg: "bg-amber-50", color: "text-amber-700", label: "Pending Review", icon: FileSpreadsheet },
-    published: { bg: "bg-sky-50", color: "text-sky-700", label: "Published", icon: CheckCircle2 },
-    dana_received: { bg: "bg-emerald-50", color: "text-emerald-700", label: "Dana Diterima", icon: Banknote },
-  }[s] || { bg: "bg-slate-100", color: "text-slate-600", label: s };
+    pending_review: { bg: "bg-amber-500/15", color: "text-amber-300", label: "Pending Review", icon: FileSpreadsheet },
+    published: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Published", icon: CheckCircle2 },
+    dana_received: { bg: "bg-emerald-500/15", color: "text-emerald-300", label: "Dana Diterima", icon: Banknote },
+  }[s] || { bg: "bg-white/[0.06]", color: "text-zinc-300", label: s };
   const Icon = map.icon;
   return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${map.bg} ${map.color}`}>{Icon && <Icon className="w-3 h-3" />}{map.label}</span>;
 }

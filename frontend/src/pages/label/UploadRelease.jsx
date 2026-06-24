@@ -133,14 +133,14 @@ export default function UploadRelease() {
   return (
     <div className="space-y-5 max-w-4xl">
       <div>
-        <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Submit Rilisan</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Submit Rilisan</div>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter">Upload Rilisan Baru</h1>
-        <p className="text-sm text-slate-600 mt-2">Audio WAV, cover square 3000×3000, tanggal rilis minimal 7 hari setelah hari ini.</p>
+        <p className="text-sm text-zinc-400 mt-2">Audio WAV, cover square 3000×3000, tanggal rilis minimal 7 hari setelah hari ini.</p>
       </div>
 
       <Stepper step={step} />
 
-      {err && <div className="rounded-2xl bg-red-50 text-red-700 px-4 py-3 text-sm border border-red-100">{err}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
 
       {step === 1 && (
         <div className="rm-card p-6 space-y-5">
@@ -193,9 +193,9 @@ export default function UploadRelease() {
           </div>
           <div className="space-y-4">
             {form.tracks.map((t, i) => (
-              <div key={i} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/30">
+              <div key={i} className="border border-white/5 rounded-2xl p-4 bg-white/[0.02]">
                 <div className="flex justify-between items-center mb-3">
-                  <div className="text-sm font-bold text-slate-700">Track #{i + 1}</div>
+                  <div className="text-sm font-bold text-zinc-200">Track #{i + 1}</div>
                   {form.tracks.length > 1 && <button className="text-red-500 hover:text-red-700" onClick={() => removeTrack(i)} data-testid={`upload-release-remove-track-${i}`}><Trash2 className="w-4 h-4" /></button>}
                 </div>
                 <div className="grid md:grid-cols-2 gap-3">
@@ -226,17 +226,17 @@ export default function UploadRelease() {
             {/* Cover */}
             <div>
               <label className="rm-label flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Cover Art (square 3000×3000, JPG/PNG)</label>
-              <label htmlFor="cover-up" className={`flex items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition ${release.cover_url ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 bg-slate-50/30 hover:bg-slate-50"}`}>
+              <label htmlFor="cover-up" className={`flex items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition ${release.cover_url ? "border-emerald-300 bg-emerald-50/40" : "border-white/10 bg-white/[0.02] hover:bg-white/5"}`}>
                 {release.cover_url ? (
                   <div className="flex items-center gap-4">
                     <img src={`${process.env.REACT_APP_BACKEND_URL}${release.cover_url}`} alt="cover" className="w-24 h-24 rounded-xl object-cover" />
                     <div>
-                      <div className="font-semibold text-sm text-emerald-700">Cover terupload</div>
-                      <div className="text-xs text-slate-500">Klik untuk ganti</div>
+                      <div className="font-semibold text-sm text-emerald-300">Cover terupload</div>
+                      <div className="text-xs text-zinc-500">Klik untuk ganti</div>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-slate-500">
+                  <div className="text-center text-zinc-500">
                     <UploadCloud className="w-7 h-7 mx-auto mb-2" />
                     <div className="text-sm font-semibold">Klik untuk upload cover</div>
                     <div className="text-xs">JPG / PNG, minimal 3000×3000 square</div>
@@ -251,16 +251,16 @@ export default function UploadRelease() {
               <label className="rm-label flex items-center gap-2"><Music className="w-4 h-4" /> Audio per Track (WAV)</label>
               <div className="space-y-2">
                 {release.tracks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 border border-slate-100 rounded-xl p-3">
+                  <div key={t.id} className="flex items-center justify-between gap-3 border border-white/5 rounded-xl p-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-sm">#{t.track_number} — {t.track_title}</div>
-                      <div className="text-xs text-slate-500">{t.artist_name}</div>
+                      <div className="text-xs text-zinc-500">{t.artist_name}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {t.audio_url ? (
-                        <span className="text-xs font-semibold text-emerald-700">✓ Terupload</span>
+                        <span className="text-xs font-semibold text-emerald-300">✓ Terupload</span>
                       ) : (
-                        <span className="text-xs text-slate-400">Belum ada audio</span>
+                        <span className="text-xs text-zinc-600">Belum ada audio</span>
                       )}
                       <label className="rm-btn-ghost cursor-pointer text-xs" data-testid={`${UPLOAD_RELEASE.audioUpload}-${t.id}`}>
                         Upload WAV
@@ -276,7 +276,7 @@ export default function UploadRelease() {
           {/* Declaration & Submit */}
           <div className="rm-card p-6 space-y-4">
             <h3 className="font-display font-bold text-xl tracking-tight">Deklarasi Hak Cipta</h3>
-            <label className="flex items-start gap-3 text-sm text-slate-700 leading-relaxed cursor-pointer">
+            <label className="flex items-start gap-3 text-sm text-zinc-200 leading-relaxed cursor-pointer">
               <input type="checkbox" checked={declaration} onChange={(e) => setDeclaration(e.target.checked)} className="mt-1" data-testid={UPLOAD_RELEASE.declarationCheckbox} />
               <span>
                 Saya menyatakan memiliki <b>hak distribusi atas audio dan cover</b>, metadata yang saya isi benar,
@@ -306,7 +306,7 @@ function Stepper({ step }) {
         const done = step > idx;
         return (
           <React.Fragment key={i}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${active ? "bg-[#FF3B30] text-white" : done ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${active ? "bg-[#FF1F8E] text-white" : done ? "bg-emerald-500/15 text-emerald-300" : "bg-white/[0.06] text-zinc-500"}`}>
               <span className="w-5 h-5 rounded-full grid place-items-center bg-white/30">{done ? "✓" : idx}</span>
               {label}
             </div>

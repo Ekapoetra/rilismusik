@@ -34,7 +34,7 @@ export default function LabelArtists() {
     <div className="space-y-5 max-w-5xl">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Artist</div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Artist</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Kelola Artist</h1>
         </div>
         <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid={ARTIST_MGMT.addButton}>
@@ -44,25 +44,25 @@ export default function LabelArtists() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.length === 0 ? (
-          <div className="col-span-full rm-card p-10 text-center text-slate-500 text-sm">Belum ada artist. Klik &quot;Tambah Artist&quot; untuk membuat akun artist baru.</div>
+          <div className="col-span-full rm-card p-10 text-center text-zinc-500 text-sm">Belum ada artist. Klik &quot;Tambah Artist&quot; untuk membuat akun artist baru.</div>
         ) : items.map((a) => (
           <div key={a.id} className="rm-card p-5">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-pink-500 grid place-items-center text-white"><UserSquare2 className="w-5 h-5" /></div>
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white"><UserSquare2 className="w-5 h-5" /></div>
               <div className="min-w-0">
                 <div className="font-display font-bold tracking-tight truncate">{a.artist_name}</div>
-                <div className="text-xs text-slate-500 truncate">{a.email}</div>
+                <div className="text-xs text-zinc-500 truncate">{a.email}</div>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
               <Cap k="Status" v={a.status} />
               <Cap k="WhatsApp" v={a.whatsapp || "—"} />
             </div>
-            <div className="mt-4 text-xs text-slate-500">
+            <div className="mt-4 text-xs text-zinc-500">
               <div className="font-bold mb-1.5">Visibilitas royalti:</div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(a.visibility_settings || {}).map(([k, v]) => (
-                  <span key={k} className={`px-2 py-0.5 rounded-full text-[10px] ${v ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{k}: {v ? "yes" : "no"}</span>
+                  <span key={k} className={`px-2 py-0.5 rounded-full text-[10px] ${v ? "bg-emerald-500/15 text-emerald-300" : "bg-white/[0.06] text-zinc-500"}`}>{k}: {v ? "yes" : "no"}</span>
                 ))}
               </div>
             </div>
@@ -92,7 +92,7 @@ export default function LabelArtists() {
             <div>
               <label className="rm-label">Password Sementara</label>
               <input data-testid={ARTIST_MGMT.passwordInput} type="text" className="rm-input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} placeholder="Min. 8 karakter" />
-              <div className="text-[11px] text-slate-500 mt-1">Bagikan password ini ke artist Anda.</div>
+              <div className="text-[11px] text-zinc-500 mt-1">Bagikan password ini ke artist Anda.</div>
             </div>
             {err && <div className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{err}</div>}
             <div className="flex justify-end gap-2">
@@ -105,4 +105,4 @@ export default function LabelArtists() {
     </div>
   );
 }
-function Cap({ k, v }) { return <div><div className="text-slate-500">{k}</div><div className="font-semibold capitalize">{v}</div></div>; }
+function Cap({ k, v }) { return <div><div className="text-zinc-500">{k}</div><div className="font-semibold capitalize">{v}</div></div>; }
