@@ -1,0 +1,269 @@
+"""Authentication router."""
+from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone, timedelta, date
+import os
+import csv
+import io
+import shutil
+import secrets
+
+from .deps import (
+    db, logger, UPLOAD_DIR,
+    get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
+    log_activity, notify, notify_many, admin_user_ids, label_user_ids,
+    LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+)
+from models import (
+    RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
+    LabelProfileUpdate, BankAccountIn,
+    ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
+    ArtistIn, ArtistUpdateIn,
+    CreateReleasePaymentIn,
+    CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
+    ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
+    WithdrawRequestIn, WithdrawAdminAction,
+    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
+    ContractCreateIn, ContractExtendIn, ContractTerminateIn,
+    BlacklistIn, NotificationMarkIn,
+    CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
+    now_iso, new_id,
+)
+from auth_utils import (
+    hash_password, verify_password,
+    create_access_token, create_refresh_token,
+    set_auth_cookies, clear_auth_cookies, decode_token,
+)
+from royalty_utils import (
+    parse_csv_bytes, detect_columns, parse_amount, normalize_header,
+    parse_period_from_value, calculate_line, label_percentage_at,
+    strip_sensitive,
+)
+from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+
+# =============================================================================
+#                                AUTH
+# =============================================================================
+auth = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@auth.post("/register")
+async def register(body: RegisterLabelIn, response: Response):
+    email = body.email.lower().strip()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=409, detail="Email sudah terdaftar")
+
+    user_id = new_id()
+    user_doc = {
+        "id": user_id,
+        "name": body.pic_name,
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "role": LABEL_ROLE,
+        "email_verified_at": None,
+        "status": "active",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.users.insert_one(user_doc)
+
+    label_id = new_id()
+    label_doc = {
+        "id": label_id,
+        "user_id": user_id,
+        "label_name": body.label_name,
+        "pic_name": body.pic_name,
+        "email": email,
+        "whatsapp": body.whatsapp,
+        "address": None,
+        "city": None,
+        "country": "Indonesia",
+        "label_type": body.account_type,
+        "royalty_percentage_default": 60.0,
+        "payment_type": "pay_per_release",
+        "subscription_status": "inactive",
+        "subscription_expires_at": None,
+        "contract_status": "pending_contract",
+        "account_status": "active",
+        "bank_verified": False,
+        "blacklisted": False,
+        "balance_available_idr": 0,
+        "balance_pending_idr": 0,
+        "balance_withdraw_requested_idr": 0,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.labels.insert_one(label_doc)
+    label_doc.pop("_id", None)
+
+    # Email verification token (logged in dev, no email service in MVP)
+    verify_token = secrets.token_urlsafe(32)
+    await db.email_verification_tokens.insert_one({
+        "id": new_id(),
+        "user_id": user_id,
+        "token": verify_token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        "used": False,
+        "created_at": now_iso(),
+    })
+    logger.info("[DEV] Verification token for %s: %s", email, verify_token)
+
+    access = create_access_token(user_id, email, LABEL_ROLE)
+    refresh = create_refresh_token(user_id)
+    set_auth_cookies(response, access, refresh)
+
+    return {
+        "user": public_user(user_doc),
+        "label": redact_label_for_self(label_doc),
+        "access_token": access,
+        "refresh_token": refresh,
+        "verification_token": verify_token,  # exposed only in MVP (no email service)
+    }
+
+
+@auth.post("/login")
+async def login(body: LoginIn, response: Response, request: Request):
+    email = body.email.lower().strip()
+    # brute force check — use X-Forwarded-For (set by ingress) for stable client IP
+    fwd = request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip")
+    client_ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "na"))
+    identifier = f"{client_ip}:{email}"
+    attempt = await db.login_attempts.find_one({"identifier": identifier})
+    now = datetime.now(timezone.utc)
+    if attempt and attempt.get("locked_until"):
+        locked_until = datetime.fromisoformat(attempt["locked_until"])
+        if locked_until > now:
+            raise HTTPException(status_code=429, detail="Terlalu banyak percobaan, coba lagi nanti")
+
+    user = await db.users.find_one({"email": email})
+    if not user or not verify_password(body.password, user["password_hash"]):
+        # increment attempts
+        attempts = (attempt or {}).get("count", 0) + 1
+        update = {"identifier": identifier, "count": attempts, "last_at": now.isoformat()}
+        if attempts >= 5:
+            update["locked_until"] = (now + timedelta(minutes=15)).isoformat()
+            update["count"] = 0
+        await db.login_attempts.update_one({"identifier": identifier}, {"$set": update}, upsert=True)
+        raise HTTPException(status_code=401, detail="Email atau password salah")
+
+    if user.get("status") == "suspended":
+        raise HTTPException(status_code=403, detail="Akun ditangguhkan")
+
+    # Block blacklisted labels at login
+    if user["role"] == LABEL_ROLE:
+        lab = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "account_status": 1, "blacklist_reason": 1})
+        if lab and lab.get("account_status") == "blacklisted":
+            raise HTTPException(status_code=403, detail=f"Akun di-blacklist. Alasan: {lab.get('blacklist_reason') or 'Hubungi admin'}")
+
+    await db.login_attempts.delete_one({"identifier": identifier})
+
+    access = create_access_token(user["id"], user["email"], user["role"])
+    refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, refresh)
+
+    payload = {"user": public_user(user), "access_token": access, "refresh_token": refresh}
+    if user["role"] == LABEL_ROLE:
+        label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
+        payload["label"] = redact_label_for_self(label) if label else None
+    elif user["role"] == ARTIST_ROLE:
+        artist = await db.artists.find_one({"user_id": user["id"]}, {"_id": 0})
+        payload["artist"] = artist
+    return payload
+
+
+@auth.post("/logout")
+async def logout(response: Response):
+    clear_auth_cookies(response)
+    return {"ok": True}
+
+
+@auth.get("/me")
+async def me(user: dict = Depends(get_current_user)):
+    payload = {"user": public_user(user)}
+    if user["role"] == LABEL_ROLE:
+        label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
+        payload["label"] = redact_label_for_self(label) if label else None
+    elif user["role"] == ARTIST_ROLE:
+        artist = await db.artists.find_one({"user_id": user["id"]}, {"_id": 0})
+        payload["artist"] = artist
+    return payload
+
+
+@auth.post("/refresh")
+async def refresh(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    payload = decode_token(token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    user = await db.users.find_one({"id": payload["sub"]})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    access = create_access_token(user["id"], user["email"], user["role"])
+    new_refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, new_refresh)
+    return {"ok": True}
+
+
+@auth.post("/verify-email")
+async def verify_email(body: VerifyEmailIn):
+    rec = await db.email_verification_tokens.find_one({"token": body.token, "used": False})
+    if not rec:
+        raise HTTPException(status_code=400, detail="Token tidak valid")
+    if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Token kadaluarsa")
+    await db.email_verification_tokens.update_one({"id": rec["id"]}, {"$set": {"used": True}})
+    await db.users.update_one({"id": rec["user_id"]}, {"$set": {"email_verified_at": now_iso()}})
+    return {"ok": True}
+
+
+@auth.post("/resend-verification")
+async def resend_verification(user: dict = Depends(get_current_user)):
+    if user.get("email_verified_at"):
+        return {"ok": True, "already_verified": True}
+    token = secrets.token_urlsafe(32)
+    await db.email_verification_tokens.insert_one({
+        "id": new_id(),
+        "user_id": user["id"],
+        "token": token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        "used": False,
+        "created_at": now_iso(),
+    })
+    logger.info("[DEV] Verification token for %s: %s", user["email"], token)
+    return {"ok": True, "verification_token": token}
+
+
+@auth.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordIn):
+    user = await db.users.find_one({"email": body.email.lower().strip()})
+    # Always return ok to prevent email enumeration
+    if not user:
+        return {"ok": True}
+    token = secrets.token_urlsafe(32)
+    await db.password_reset_tokens.insert_one({
+        "id": new_id(),
+        "user_id": user["id"],
+        "token": token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        "used": False,
+        "created_at": now_iso(),
+    })
+    logger.info("[DEV] Password reset token for %s: %s", user["email"], token)
+    return {"ok": True, "reset_token": token}  # exposed only in MVP
+
+
+@auth.post("/reset-password")
+async def reset_password(body: ResetPasswordIn):
+    rec = await db.password_reset_tokens.find_one({"token": body.token, "used": False})
+    if not rec:
+        raise HTTPException(status_code=400, detail="Token tidak valid")
+    if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Token kadaluarsa")
+    await db.users.update_one({"id": rec["user_id"]}, {"$set": {"password_hash": hash_password(body.password), "updated_at": now_iso()}})
+    await db.password_reset_tokens.update_one({"id": rec["id"]}, {"$set": {"used": True}})
+    return {"ok": True}
+
+

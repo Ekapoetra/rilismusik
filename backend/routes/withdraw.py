@@ -1,0 +1,227 @@
+"""Withdraw requests & admin actions router."""
+from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone, timedelta, date
+import os
+import csv
+import io
+import shutil
+import secrets
+
+from .deps import (
+    db, logger, UPLOAD_DIR,
+    get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
+    log_activity, notify, notify_many, admin_user_ids, label_user_ids,
+    LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+)
+from models import (
+    RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
+    LabelProfileUpdate, BankAccountIn,
+    ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
+    ArtistIn, ArtistUpdateIn,
+    CreateReleasePaymentIn,
+    CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
+    ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
+    WithdrawRequestIn, WithdrawAdminAction,
+    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
+    ContractCreateIn, ContractExtendIn, ContractTerminateIn,
+    BlacklistIn, NotificationMarkIn,
+    CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
+    now_iso, new_id,
+)
+from auth_utils import (
+    hash_password, verify_password,
+    create_access_token, create_refresh_token,
+    set_auth_cookies, clear_auth_cookies, decode_token,
+)
+from royalty_utils import (
+    parse_csv_bytes, detect_columns, parse_amount, normalize_header,
+    parse_period_from_value, calculate_line, label_percentage_at,
+    strip_sensitive,
+)
+from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+
+# =============================================================================
+#                              WITHDRAW
+# =============================================================================
+withdraw_r = APIRouter(prefix="/withdraw", tags=["withdraw"])
+
+
+@withdraw_r.get("/window")
+async def get_window_state(user: dict = Depends(get_current_user)):
+    return withdraw_window_state()
+
+
+@withdraw_r.post("/label/request")
+async def label_request_withdraw(body: WithdrawRequestIn, user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    state = withdraw_window_state()
+    if not state["request_open"]:
+        raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
+    if body.amount_idr < MIN_WITHDRAW_IDR:
+        raise HTTPException(status_code=400, detail=f"Minimum withdraw Rp {MIN_WITHDRAW_IDR:,.0f}")
+    if body.amount_idr > (label.get("balance_available_idr") or 0):
+        raise HTTPException(status_code=400, detail="Saldo tersedia tidak mencukupi")
+    if not label.get("bank_verified"):
+        # MVP: allow if bank account exists; admin must verify it manually
+        bank = await db.bank_accounts.find_one({"label_id": label["id"]})
+        if not bank:
+            raise HTTPException(status_code=400, detail="Rekening bank belum diinput")
+    bank = await db.bank_accounts.find_one({"label_id": label["id"]}, {"_id": 0})
+
+    wd_id = new_id()
+    await db.labels.update_one({"id": label["id"]}, {"$inc": {
+        "balance_available_idr": -body.amount_idr,
+        "balance_withdraw_requested_idr": body.amount_idr,
+    }, "$set": {"updated_at": now_iso()}})
+    await db.balance_transactions.insert_one({
+        "id": new_id(),
+        "label_id": label["id"],
+        "type": "withdraw_request",
+        "amount_idr": -body.amount_idr,
+        "reference_type": "withdraw",
+        "reference_id": wd_id,
+        "description": "Withdraw diminta",
+        "created_at": now_iso(),
+    })
+    wd = {
+        "id": wd_id,
+        "label_id": label["id"],
+        "amount_idr": body.amount_idr,
+        "status": "requested",
+        "request_date": now_iso(),
+        "approved_date": None,
+        "paid_date": None,
+        "approved_by": None,
+        "paid_by": None,
+        "bank_snapshot": bank,
+        "payment_proof_url": None,
+        "payment_reference": None,
+        "admin_note": None,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.withdraw_requests.insert_one(wd)
+    await log_activity(user["id"], "withdraw_request", "withdraw", wd_id, after={"amount_idr": body.amount_idr})
+    wd.pop("_id", None)
+    return wd
+
+
+@withdraw_r.get("/label")
+async def label_list_withdraws(user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    items = await db.withdraw_requests.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@withdraw_r.get("/admin")
+async def admin_list_withdraws(user: dict = Depends(require_admin), status: Optional[str] = None):
+    filt: Dict[str, Any] = {}
+    if status:
+        filt["status"] = status
+    items = await db.withdraw_requests.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # enrich with label_name
+    label_ids = list({i["label_id"] for i in items})
+    labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
+    name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    for it in items:
+        it["label_name"] = name_map.get(it["label_id"])
+    return items
+
+
+@withdraw_r.post("/admin/{wd_id}/action")
+async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    wd = await db.withdraw_requests.find_one({"id": wd_id})
+    if not wd:
+        raise HTTPException(status_code=404, detail="Withdraw tidak ditemukan")
+
+    if body.action == "approve":
+        if wd["status"] != "requested":
+            raise HTTPException(status_code=400, detail="Hanya request yang bisa di-approve")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "approved", "approved_date": now_iso(), "approved_by": user["id"], "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    elif body.action == "reject":
+        if wd["status"] not in ("requested", "approved"):
+            raise HTTPException(status_code=400, detail="Tidak bisa ditolak pada status saat ini")
+        # refund balance
+        await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
+            "balance_available_idr": wd["amount_idr"],
+            "balance_withdraw_requested_idr": -wd["amount_idr"],
+        }, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_refund",
+            "amount_idr": wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
+            "description": f"Withdraw ditolak — refund ke saldo tersedia. {body.note or ''}",
+            "created_at": now_iso(),
+        })
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "rejected", "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    elif body.action == "mark_paid":
+        if wd["status"] != "approved":
+            raise HTTPException(status_code=400, detail="Hanya yang sudah approved bisa di-mark paid")
+        # Finance dapat memproses kapan saja; window 15-20 hanya sebagai panduan operasional.
+        await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
+            "balance_withdraw_requested_idr": -wd["amount_idr"],
+        }, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_paid",
+            "amount_idr": -wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
+            "description": f"Withdraw dibayar. Ref: {body.payment_reference or '-'}",
+            "created_at": now_iso(),
+        })
+        # mark linked royalty_lines as withdrawn for this label (FIFO simplified: mark proportionally is complex; for MVP we don't lock specific lines)
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "paid", "paid_date": now_iso(), "paid_by": user["id"],
+            "payment_proof_url": body.payment_proof_url, "payment_reference": body.payment_reference,
+            "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    else:
+        raise HTTPException(status_code=400, detail="Aksi tidak dikenal")
+
+    await log_activity(user["id"], f"withdraw_{body.action}", "withdraw", wd_id)
+    # Notify label
+    wd = await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0})
+    user_ids = await label_user_ids(wd["label_id"])
+    titles = {
+        "approve": ("Withdraw disetujui", "Permintaan withdraw Anda telah disetujui. Menunggu pembayaran."),
+        "reject": ("Withdraw ditolak", f"Permintaan withdraw ditolak. Alasan: {body.note or 'Lihat detail'}"),
+        "mark_paid": ("Withdraw dibayar ✓", "Pembayaran telah dilakukan. Cek bukti transfer di dashboard."),
+    }
+    if body.action in titles:
+        title, msg = titles[body.action]
+        await notify_many(user_ids, f"withdraw_{body.action}", title, msg, "/label/withdraw", {"withdraw_id": wd_id})
+    return wd
+
+
+@withdraw_r.post("/admin/upload-proof")
+async def admin_upload_proof(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    ext = (file.filename or "").lower().split(".")[-1]
+    if ext not in ("jpg", "jpeg", "png", "pdf"):
+        raise HTTPException(status_code=400, detail="Format harus JPG/PNG/PDF")
+    fid = new_id()
+    target = UPLOAD_DIR / "contract" / f"proof_{fid}.{ext}"
+    with open(target, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"url": f"/api/files/contract/proof_{fid}.{ext}"}
+
+
+@withdraw_r.post("/admin/verify-bank/{label_id}")
+async def admin_verify_bank(label_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    bank = await db.bank_accounts.find_one({"label_id": label_id})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Rekening tidak ditemukan")
+    await db.bank_accounts.update_one({"label_id": label_id}, {"$set": {"verified_status": "verified", "verified_by": user["id"], "verified_at": now_iso()}})
+    await db.labels.update_one({"id": label_id}, {"$set": {"bank_verified": True, "updated_at": now_iso()}})
+    await log_activity(user["id"], "verify_bank", "label", label_id)
+    return {"ok": True}
+
+
