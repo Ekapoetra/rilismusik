@@ -72,9 +72,9 @@ export default function Landing() {
               </Link>
             </div>
             <div className="mt-10 flex items-center gap-5 text-xs text-zinc-500">
-              <div><span className="font-bold text-white">5%</span> fee distributor</div>
-              <div className="w-px h-4 bg-zinc-700" />
               <div><span className="font-bold text-white">150+</span> platform digital</div>
+              <div className="w-px h-4 bg-zinc-700" />
+              <div><span className="font-bold text-white">Royalti</span> tepat waktu</div>
               <div className="w-px h-4 bg-zinc-700" />
               <div><span className="font-bold text-white">7 hari</span> minimal release date</div>
             </div>
@@ -224,7 +224,7 @@ export default function Landing() {
               <Link to="/register" className="rm-btn-primary mt-8 inline-block">Mulai Subscription</Link>
             </div>
           </div>
-          <p className="text-center text-xs text-zinc-500 mt-8">Fee distributor: {fee}%</p>
+          <p className="text-center text-xs text-zinc-500 mt-8">Semua paket sudah termasuk distribusi ke 150+ platform digital.</p>
         </div>
       </section>
 
@@ -260,18 +260,19 @@ export default function Landing() {
               </div>
             </div>
             <div className="rm-card p-6 md:p-8">
-              <div className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Estimasi Bagian Anda</div>
+              <div className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Estimasi Royalti Anda</div>
               <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 rm-gradient-text">
                 Rp {Math.round(labelIdr).toLocaleString("id-ID")}
               </div>
-              <div className="mt-5 space-y-2 text-sm">
+              <div className="text-xs text-zinc-500 mt-1">/ periode estimasi</div>
+              <div className="mt-6 space-y-2 text-sm">
                 <Row k="Revenue Believe" v={`€${sim.revenue.toLocaleString()}`} />
-                <Row k={`− Fee distributor (${fee}%)`} v={`€${(sim.revenue * fee / 100).toFixed(2)}`} />
-                <Row k="Net revenue" v={`€${netEur.toFixed(2)}`} muted />
-                <Row k={`× Bagian label (${labelPercent}%)`} v={`€${labelEur.toFixed(2)}`} />
-                <Row k={`× Kurs IDR`} v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
+                <Row k="Kurs EUR → IDR" v={`Rp ${sim.rate.toLocaleString("id-ID")}`} muted />
+                <div className="border-t border-white/5 pt-3 mt-2">
+                  <Row k="Estimasi royalti" v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
+                </div>
               </div>
-              <div className="text-[11px] text-zinc-500 mt-4">* Estimasi, bukan angka final. Bagian label dapat berbeda per label.</div>
+              <div className="text-[11px] text-zinc-500 mt-4">* Estimasi berdasarkan revenue Believe & kurs manual. Angka final akan ditampilkan di dashboard Anda setiap periode royalti masuk.</div>
             </div>
           </div>
         </div>

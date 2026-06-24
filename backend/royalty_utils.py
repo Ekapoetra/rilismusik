@@ -107,6 +107,15 @@ INTERNAL_EUR_FIELDS = (
     "distributor_eur",
 )
 
+# Percentage / fee fields — must NEVER be exposed to label/artist. The royalty
+# IDR amount shown to them is FINAL; they should not see how the cut is split.
+INTERNAL_PERCENT_FIELDS = (
+    "label_percentage_applied",
+    "fee_percent_applied",
+    "distributor_idr",
+    "exchange_rate",
+)
+
 
 def normalize_header(h: str) -> str:
     return (h or "").strip().lower().replace("\ufeff", "")
@@ -250,8 +259,8 @@ def label_percentage_at(history: List[Dict[str, Any]], default_pct: float, perio
 
 def strip_sensitive(line: Dict[str, Any]) -> Dict[str, Any]:
     """Return a shallow copy of a royalty line with admin-only fields removed.
-    Strips both the 4 SENSITIVE_FIELDS and the 5 INTERNAL_EUR_FIELDS — labels
-    only see IDR amounts (EUR conversion happens at admin import time).
+    Strips SENSITIVE_FIELDS + INTERNAL_EUR_FIELDS + INTERNAL_PERCENT_FIELDS —
+    labels only see FINAL IDR amounts (no percentage breakdown, no EUR conversion).
     """
-    hidden = SENSITIVE_FIELDS + INTERNAL_EUR_FIELDS
+    hidden = SENSITIVE_FIELDS + INTERNAL_EUR_FIELDS + INTERNAL_PERCENT_FIELDS
     return {k: v for k, v in line.items() if k not in hidden}
