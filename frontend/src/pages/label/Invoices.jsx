@@ -87,6 +87,14 @@ export default function Invoices() {
       </div>
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
 
+      <div className="rm-card p-4 text-xs text-zinc-400 flex flex-col md:flex-row md:items-center justify-between gap-2" data-testid="invoices-legal-entity">
+        <div>
+          <div className="text-zinc-200 font-semibold">Ditagihkan oleh: PT. Jeeres Group Indonesia</div>
+          <div>Jl. Sintang Pontianak RT 12 / RW 5, Kec. Sintang 78614, Indonesia</div>
+        </div>
+        <div className="text-zinc-500">NIB <span className="text-zinc-300 font-mono">2202260059749</span> • WA 085864137150</div>
+      </div>
+
       <div className="rm-card overflow-hidden">
         {items.length === 0 ? (
           <div className="p-10 text-center text-zinc-500 text-sm">Belum ada invoice.</div>

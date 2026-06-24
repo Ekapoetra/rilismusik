@@ -2942,6 +2942,16 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
         "support_email": "support@rilismusik.com",
         "legal_links": [{"text": "Syarat & Ketentuan", "url": "/terms"}, {"text": "Privacy Policy", "url": "/privacy"}],
     },
+    "legal_entity": {
+        "company_name": "PT. Jeeres Group Indonesia",
+        "address_line1": "Jl. Sintang Pontianak",
+        "address_line2": "RT 12 / RW 5, Kec. Sintang",
+        "city": "Sintang",
+        "postal_code": "78614",
+        "country": "Indonesia",
+        "whatsapp": "085864137150",
+        "nib": "2202260059749",
+    },
 }
 
 

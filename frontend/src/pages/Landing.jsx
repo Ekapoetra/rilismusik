@@ -361,16 +361,28 @@ export default function Landing() {
       </section>
 
       {/* FOOTER */}
-      <footer className="px-6 md:px-12 lg:px-24 pb-14 pt-6 border-t border-white/5">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-8">
+      <footer className="px-6 md:px-12 lg:px-24 pb-14 pt-6 border-t border-white/5" data-testid="landing-footer">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-4 gap-8">
           <div>
             <BrandInline size={36} />
             <p className="text-sm text-zinc-500 mt-3 max-w-xs">{s.footer?.description}</p>
           </div>
+          <div data-testid="footer-legal-entity">
+            <div className="text-xs uppercase tracking-widest font-bold text-zinc-400 mb-3">Badan Hukum</div>
+            <div className="text-sm text-zinc-200 font-semibold">{s.legal_entity?.company_name || "PT. Jeeres Group Indonesia"}</div>
+            <div className="text-xs text-zinc-500 mt-2 leading-relaxed">
+              {s.legal_entity?.address_line1 || "Jl. Sintang Pontianak"}<br/>
+              {s.legal_entity?.address_line2 || "RT 12 / RW 5, Kec. Sintang"}<br/>
+              {(s.legal_entity?.city || "Sintang")} {(s.legal_entity?.postal_code || "78614")}, {(s.legal_entity?.country || "Indonesia")}
+            </div>
+            <div className="text-xs text-zinc-500 mt-2">
+              NIB: <span className="text-zinc-300 font-mono">{s.legal_entity?.nib || "2202260059749"}</span>
+            </div>
+          </div>
           <div>
             <div className="text-xs uppercase tracking-widest font-bold text-zinc-400 mb-3">Support</div>
-            <div className="text-sm text-zinc-200">{s.footer?.support_email}</div>
-            <div className="text-sm text-zinc-500 mt-1">{s.general?.whatsapp}</div>
+            <div className="text-sm text-zinc-200" data-testid="footer-support-email">{s.footer?.support_email}</div>
+            <div className="text-sm text-zinc-500 mt-1" data-testid="footer-whatsapp">WA/HP: {s.legal_entity?.whatsapp || "085864137150"}</div>
           </div>
           <div>
             <div className="text-xs uppercase tracking-widest font-bold text-zinc-400 mb-3">Legal</div>
@@ -381,8 +393,8 @@ export default function Landing() {
             </ul>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-white/5 text-xs text-zinc-500 flex justify-between">
-          <div>© {new Date().getFullYear()} RILIS MUSIK. All rights reserved.</div>
+        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-white/5 text-xs text-zinc-500 flex flex-col md:flex-row md:justify-between gap-2">
+          <div data-testid="footer-copyright">© {new Date().getFullYear()} RILIS MUSIK — dikelola oleh {s.legal_entity?.company_name || "PT. Jeeres Group Indonesia"}. All rights reserved.</div>
           <Link to="/login" className="hover:text-white">Login Dashboard →</Link>
         </div>
       </footer>
