@@ -79,7 +79,22 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 - **CMS-driven**: PT. Jeeres Group Indonesia + NIB 2202260059749 + WA 085864137150 merged dynamically from `landing_settings.legal_entity`.
 - **Public preview** at `GET /api/cms/mda/preview` (no auth) — renders sample PDF with placeholder label data so prospects can review before registering. Does NOT mutate DB.
 - **UI**: Register page (`/register`) has MDA checkbox + link to preview PDF; submit button disabled until ticked. Label `/label/contract` shows "Tanpa Batas Waktu" + violet UU-ITE banner for the auto-generated MDA.
-- **Tests**: `test_phase7_mda.py` 5/5 PASS. Full regression: 119/120 pass + 1 intentional skip (Phase 1-7 + refactor smoke).
+- **Tests**: `test_phase7_mda.py` 5/5 PASS.
+
+### Phase 8 — Bulk Migration & Account Claim (DONE 2026-06-24)
+**For post-deploy migration of 15K legacy songs + 5-6K legacy labels + multi-year withdraw history + Believe royalty CSVs.**
+
+- **Multi-period royalty CSV**: `POST /api/royalty/admin/imports` now accepts CSVs containing multiple months in one upload. When `period` form field is omitted, parser uses each row's `Bulan Laporan` column. Import doc gets `is_multi_period=true`, `period_start`, `period_end`, `period_breakdown={"2024-01": N, ...}`. Each line tagged with its own `period`. Publish/dana_received use period range "2024-01 s/d 2024-03" in transaction descriptions. After initial migration, monthly CSVs continue working with single `period`.
+- **Bulk Labels CSV** (`POST /api/admin/migrate/labels`): 13 columns (label_name, pic_name, whatsapp, address, city, country, label_type, payment_type, subscription_tier, subscription_expires_at, account_status, royalty_percentage_default, notes). Idempotent by (label_name + city) composite key. `user_id=null`, `account_status='legacy_unclaimed'`, `legacy_import=true`. Returns per-row report (OK/SKIPPED/ERROR).
+- **Bulk Releases CSV**: lookup label by legacy_id or name, `imported_legacy=true`, audio_url optional, ISRC/UPC dedupe.
+- **Bulk Tracks CSV**: lookup release by legacy_id or release_isrc, ISRC dedupe.
+- **Bulk Withdraws CSV**: inserts withdraw_requests + balance_transactions silently (NO notifications, NO balance mutation — pure historical record).
+- **Account Claim flow**: label registers with `claim_existing=true` + `legacy_label_name='X'` → does NOT create label doc; user gets `claim_status='pending_link'`. Admin sees pending claims at `/admin/migrate` → Claims tab → searches legacy labels by name → clicks Link → existing legacy label's `user_id` is set + `account_status='active'` + auto-generated MDA PDF.
+- **Admin UI** at `/admin/migrate` (Super Admin only): 5 tabs (Labels/Releases/Tracks/Withdraws/Claims). Each tab has Download Template + File picker + Dry-run toggle + Submit + per-row error report CSV download.
+- **Dry-run mode**: All 4 CSV imports support `dry_run=true` to preview without DB mutation.
+- **File size cap**: 30 MB per upload (chunked inserts at 1000 rows per batch).
+- **Permissions**: only `super_admin` can run bulk migrations; super_admin + admin_release + admin_support can resolve claims.
+- **Tests**: `test_phase8_migrate.py` 9/9 + `test_phase8_extras.py` 10/10 = 19/19 PASS.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
