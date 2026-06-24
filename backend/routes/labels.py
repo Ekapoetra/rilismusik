@@ -50,6 +50,17 @@ label_r = APIRouter(prefix="/label", tags=["label"])
 
 @label_r.get("/me")
 async def label_me(user: dict = Depends(require_label)):
+    # Claim-pending users haven't been linked to a label yet — return a stub
+    # that the frontend can use to show the "claim pending" state.
+    if user.get("claim_status") == "pending_link":
+        return {
+            "claim_pending": True,
+            "claim_legacy_name": user.get("claim_legacy_name"),
+            "claim_label_name_new": user.get("claim_label_name_new"),
+            "claim_requested_at": user.get("claim_requested_at"),
+            "pic_name": user.get("name"),
+            "email": user.get("email"),
+        }
     label = await get_label_by_user(user)
     return redact_label_for_self(label)
 

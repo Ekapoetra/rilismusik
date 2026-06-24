@@ -58,6 +58,11 @@ async def register(body: RegisterLabelIn, response: Response):
             status_code=400,
             detail="Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.",
         )
+    if body.claim_existing and not (body.legacy_label_name and body.legacy_label_name.strip()):
+        raise HTTPException(
+            status_code=400,
+            detail="Nama label lama wajib diisi jika Anda mencentang 'Saya sudah punya data lama'.",
+        )
 
     user_id = new_id()
     user_doc = {
@@ -71,9 +76,70 @@ async def register(body: RegisterLabelIn, response: Response):
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
+    if body.claim_existing:
+        user_doc.update({
+            "claim_status": "pending_link",
+            "claim_legacy_name": body.legacy_label_name.strip(),
+            "claim_requested_at": now_iso(),
+            "claim_label_name_new": body.label_name,
+            "claim_whatsapp": body.whatsapp,
+        })
     await db.users.insert_one(user_doc)
 
     accepted_at = now_iso()
+
+    if body.claim_existing:
+        # ---- Claim flow: DO NOT create label doc yet. Admin will link to legacy label. ----
+        logger.info(
+            "Claim request: user=%s name='%s' legacy='%s'",
+            email, body.label_name, body.legacy_label_name,
+        )
+        # Notify all admins so they can resolve the claim
+        admin_ids = []
+        async for au in db.users.find(
+            {"role": {"$in": ["super_admin", "admin_release", "admin_support"]}, "status": {"$ne": "suspended"}},
+            {"_id": 0, "id": 1},
+        ):
+            admin_ids.append(au["id"])
+        if admin_ids:
+            now = now_iso()
+            await db.notifications.insert_many([{
+                "id": new_id(), "user_id": aid, "type": "claim_request",
+                "title": "Permintaan claim akun lama",
+                "body": f"User {body.pic_name} ({email}) mengaku punya label lama: '{body.legacy_label_name}'. Tinjau di Admin → Migrasi → Claims.",
+                "link": "/admin/migrate?tab=claims",
+                "meta": {"user_id": user_id, "legacy_label_name": body.legacy_label_name},
+                "read_at": None, "created_at": now,
+            } for aid in admin_ids])
+        label_doc_response = {
+            "claim_pending": True,
+            "claim_legacy_name": body.legacy_label_name,
+            "label_name": body.label_name,
+            "pic_name": body.pic_name,
+            "email": email,
+        }
+        verify_token = secrets.token_urlsafe(32)
+        await db.email_verification_tokens.insert_one({
+            "id": new_id(),
+            "user_id": user_id,
+            "token": verify_token,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+            "used": False,
+            "created_at": now_iso(),
+        })
+        access = create_access_token(user_id, email, LABEL_ROLE)
+        refresh = create_refresh_token(user_id)
+        set_auth_cookies(response, access, refresh)
+        return {
+            "user": public_user(user_doc),
+            "label": label_doc_response,
+            "claim_pending": True,
+            "access_token": access,
+            "refresh_token": refresh,
+            "verification_token": verify_token,
+        }
+
+    # ---- Normal flow: create label doc + auto-MDA ----
     label_id = new_id()
     label_doc = {
         "id": label_id,

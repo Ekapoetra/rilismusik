@@ -6,7 +6,7 @@ import { BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
 import {
   LayoutDashboard, Building2, UserSquare, Disc3, CreditCard, FileSpreadsheet,
-  Banknote, MessageSquare, LayoutTemplate, FileSignature, Music, Users2, ScrollText, LogOut
+  Banknote, MessageSquare, LayoutTemplate, FileSignature, Music, Users2, ScrollText, LogOut, DatabaseZap
 } from "lucide-react";
 
 const NAV = [
@@ -22,6 +22,7 @@ const NAV = [
   { to: "/admin/cms", label: "Landing Page CMS", icon: LayoutTemplate, tid: ADMIN_NAV.cms, roles: ["super_admin", "admin_content"] },
   { to: "/admin/contracts", label: "Contracts", icon: FileSignature, tid: ADMIN_NAV.contracts, roles: ["super_admin", "admin_release"] },
   { to: "/admin/admin-users", label: "Admin Users", icon: Users2, tid: ADMIN_NAV.adminUsers, roles: ["super_admin"] },
+  { to: "/admin/migrate", label: "Migrasi Data", icon: DatabaseZap, tid: "admin-nav-migrate", roles: ["super_admin"] },
   { to: "/admin/activity-logs", label: "Activity Logs", icon: ScrollText, tid: ADMIN_NAV.activityLogs, roles: ["super_admin", "admin_finance", "admin_release"] },
 ];
 

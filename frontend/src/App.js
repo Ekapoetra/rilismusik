@@ -41,6 +41,7 @@ import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminContracts from "@/pages/admin/Contracts";
 import AdminWami from "@/pages/admin/Wami";
+import AdminMigrate from "@/pages/admin/Migrate";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -100,6 +101,7 @@ function App() {
             <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
             <Route path="/admin/contracts" element={<AdminContracts />} />
             <Route path="/admin/wami" element={<AdminWami />} />
+            <Route path="/admin/migrate" element={<AdminMigrate />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

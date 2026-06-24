@@ -36,6 +36,7 @@ from routes.withdraw import withdraw_r
 from routes.tickets import ticket_r
 from routes.notifications import notif_r
 from routes.contracts import contract_r
+from routes.migrate import migrate_r
 from routes.cron_jobs import cron_r, start_scheduler, stop_scheduler
 from routes.seed import seed_indexes_and_admins
 
@@ -60,6 +61,7 @@ api.include_router(royalty_r)
 api.include_router(withdraw_r)
 api.include_router(ticket_r)
 api.include_router(contract_r)
+api.include_router(migrate_r)
 api.include_router(notif_r)
 api.include_router(cron_r)
 

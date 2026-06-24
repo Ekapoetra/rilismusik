@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 8 — Bulk Migration + Claim Flow tested end-to-end. Backend pytest: 19/19 PASS (9 original phase8 + 10 supplementary I added). Frontend smoke: /admin/migrate route renders with all 5 tabs + sidebar 'Migrasi Data' nav (super-admin only), label tab has Download Template + file picker + dry-run checkbox + submit. Register page claim flow verified end-to-end — amber claim checkbox above MDA, conditional legacy_label_name input, post-submit 'Akun Anda menunggu verifikasi admin' pending card renders correctly (no dashboard redirect). All claim_pending → admin-link → MDA auto-generation chain works (verified by test_register_with_claim_does_not_create_label assertion on /contracts/label after link). Multi-period royalty CSV auto-split, single-period override, missing-period 400, idempotent label re-upload, ISRC/UPC dedupe, withdraw without balance mutation, reject claim, RBAC 403 for non-super-admin all verified. Zero regressions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase8_migrate.py",
+    "/app/backend/tests/test_phase8_extras.py",
+    "/app/test_reports/pytest/iter11_phase8.xml",
+    "/app/test_reports/pytest/iter11_phase8_extras.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/migrate.py is clean — uses composite key (label_name+city) for label idempotency, correctly handles dry_run, caps file at 30MB, returns capped report[]. Good pattern.",
+    "MDA generation on claim link is wrapped in try/except (routes/migrate.py L647-677) — silent failure is intentional but could be logged at error level instead of warning to make audit easier.",
+    "routes/auth.py register endpoint: claim flow correctly skips label creation, stores claim_legacy_name/claim_label_name_new/claim_whatsapp on user doc, and notifies (super_admin, admin_release, admin_support). Good.",
+    "Minor: in routes/migrate.py L572-575, withdraw balance_transaction inserted with amount=0 for non-paid statuses but still creates a transaction row — by design (audit trail) but consider explicit 'voided' type for clarity.",
+    "routes/royalty.py multi-period publish: period_label correctly assigned BEFORE the aggregate loop (L376-379) — the bug E1 mentioned mid-implementation is fixed.",
+    "Frontend /admin/migrate Migrate.jsx is gated to super_admin via sidebar — confirmed not visible to other roles."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase8_extras.py (new — 10 supplementary tests covering releases, tracks, withdraws, multi-period publish, reject claim, RBAC, templates)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 pytest)",
+    "frontend": "100% (migrate panel + claim flow E2E)"
+  },
+  "test_credentials": "Super admin superadmin@rilismusik.com/SuperAdmin#2026, finance1@rilismusik.com/Finance#2026 — both working.",
+  "seed_data_creation": "Tests create TEST_ prefixed labels with uuid suffix; no cleanup needed (idempotent re-runs handled by composite key skip).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 8 fully tested. /app/backend/tests/test_phase8_migrate.py (9) and test_phase8_extras.py (10) form complete regression. Run with REACT_APP_BACKEND_URL env var set. Frontend Migrate.jsx panel (5 tabs) + Register claim flow are stable. Next phases: ensure new bulk-migration regressions stay green when extending /admin/migrate (e.g., artists, contracts migration) or claim auto-link heuristics.",
+  "rca of the issue": "No bugs found in Phase 8. Initial pytest failure was a test environment misconfig (REACT_APP_BACKEND_URL env var not exported in shell). Resolved by passing the env var inline (REACT_APP_BACKEND_URL=https://lanjut-core.preview.emergentagent.com pytest ...). Tests themselves are correct."
+}

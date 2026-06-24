@@ -83,20 +83,26 @@ def _match_line(row: Dict[str, Any], col_idx: Dict[str, Optional[int]], headers:
 
 @royalty_r.post("/admin/imports")
 async def admin_upload_royalty_csv(
-    period: str = Form(...),
+    period: Optional[str] = Form(None),
     rate_eur_idr: float = Form(...),
     file: UploadFile = File(...),
     note: Optional[str] = Form(None),
     user: dict = Depends(require_admin),
 ):
-    """Upload CSV royalti Believe. Hanya menyimpan + parsing + matching. Belum mempengaruhi saldo."""
+    """Upload CSV royalti Believe. Hanya menyimpan + parsing + matching. Belum mempengaruhi saldo.
+
+    Period dapat dikosongkan — jika kolom 'Bulan Laporan' (atau period) ada di CSV,
+    setiap baris akan menggunakan period-nya sendiri (multi-period import). Jika
+    period diberikan, semua baris akan diforce ke period tersebut (single-month).
+    """
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
-    # validate period
-    try:
-        datetime.strptime(period, "%Y-%m")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Format period harus YYYY-MM")
+    # validate period if provided
+    if period:
+        try:
+            datetime.strptime(period, "%Y-%m")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Format period harus YYYY-MM")
     if rate_eur_idr <= 0:
         raise HTTPException(status_code=400, detail="Kurs harus > 0")
 
@@ -107,6 +113,14 @@ async def admin_upload_royalty_csv(
     col_idx = detect_columns(headers)
     if col_idx["revenue_eur"] is None:
         raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
+
+    # If period not provided, the CSV MUST have a period column with valid values
+    if not period and col_idx.get("period") is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Period tidak diberikan dan kolom 'Bulan Laporan'/period tidak ditemukan di CSV. "
+                   "Tambahkan kolom atau isi field period.",
+        )
 
     import_id = new_id()
     # save file
@@ -141,12 +155,21 @@ async def admin_upload_royalty_csv(
     total_label_idr = 0
     matched = 0
     unmatched = 0
+    invalid_period_rows = 0
     line_docs: List[Dict[str, Any]] = []
+    period_counts: Dict[str, int] = {}  # period -> row count
 
     for row in rows:
         raw = _match_line(row, col_idx, headers)
         revenue_eur = raw["revenue_eur"]
         total_revenue_eur += revenue_eur
+
+        # Determine line period: explicit form override > row's own period
+        line_period = period or raw.get("row_period")
+        if not line_period:
+            invalid_period_rows += 1
+            continue
+        period_counts[line_period] = period_counts.get(line_period, 0) + 1
 
         track = None
         release = None
@@ -179,7 +202,7 @@ async def admin_upload_royalty_csv(
             label = labels.get(label_id, {})
             default_pct = float(label.get("royalty_percentage_default", 60) or 60)
             history = pct_history.get(label_id, [])
-            label_pct = label_percentage_at(history, default_pct, period)
+            label_pct = label_percentage_at(history, default_pct, line_period)
             calc = calculate_line(revenue_eur, fee_percent, label_pct, rate_eur_idr)
             total_label_idr += calc["label_idr"]
         else:
@@ -190,7 +213,7 @@ async def admin_upload_royalty_csv(
         line_docs.append({
             "id": new_id(),
             "import_id": import_id,
-            "period": period,
+            "period": line_period,
             "isrc": raw["isrc"],
             "upc": raw["upc"],
             "track_title_raw": raw["track_title"],
@@ -219,16 +242,25 @@ async def admin_upload_royalty_csv(
             "exchange_rate": rate_eur_idr,
             **calc,
             "match_status": match_status,
-            "status": "draft",  # draft -> pending (on publish) -> available (when dana received)
+            "status": "draft",
             "created_at": now_iso(),
         })
 
     if line_docs:
         await db.royalty_lines.insert_many(line_docs)
 
+    # Determine aggregate period info
+    sorted_periods = sorted(period_counts.keys())
+    is_multi_period = len(sorted_periods) > 1
+    display_period = period if period else (sorted_periods[0] if len(sorted_periods) == 1 else "multi")
+
     import_doc = {
         "id": import_id,
-        "period": period,
+        "period": display_period,
+        "period_start": sorted_periods[0] if sorted_periods else (period or None),
+        "period_end": sorted_periods[-1] if sorted_periods else (period or None),
+        "period_breakdown": period_counts,  # {"2024-01": 1500, "2024-02": 1800, ...}
+        "is_multi_period": is_multi_period,
         "source": "believe",
         "filename": file.filename,
         "file_url": file_url,
@@ -237,9 +269,10 @@ async def admin_upload_royalty_csv(
         "total_lines": len(line_docs),
         "matched_lines": matched,
         "unmatched_lines": unmatched,
+        "invalid_period_rows": invalid_period_rows,
         "total_revenue_eur": round(total_revenue_eur, 4),
         "total_label_idr": total_label_idr,
-        "status": "pending_review",  # pending_review -> published -> dana_received
+        "status": "pending_review",
         "dana_received_at": None,
         "published_at": None,
         "uploaded_by": user["id"],
@@ -248,7 +281,10 @@ async def admin_upload_royalty_csv(
         "updated_at": now_iso(),
     }
     await db.royalty_imports.insert_one(import_doc)
-    await log_activity(user["id"], "upload_royalty_csv", "royalty", import_id, after={"period": period, "matched": matched, "unmatched": unmatched})
+    await log_activity(
+        user["id"], "upload_royalty_csv", "royalty", import_id,
+        after={"period": display_period, "matched": matched, "unmatched": unmatched, "multi_period": is_multi_period},
+    )
     import_doc.pop("_id", None)
     return import_doc
 
@@ -299,7 +335,9 @@ async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyL
         raise HTTPException(status_code=404, detail="Track tidak ditemukan")
     label = await db.labels.find_one({"id": track["label_id"]}, {"_id": 0})
     history = await db.royalty_percentage_history.find({"label_id": track["label_id"]}, {"_id": 0}).to_list(500)
-    label_pct = label_percentage_at(history, float(label.get("royalty_percentage_default", 60) or 60), imp["period"])
+    # Use line's own period (supports multi-period imports); fall back to import.period
+    line_period = line.get("period") or imp.get("period") or imp.get("period_start") or ""
+    label_pct = label_percentage_at(history, float(label.get("royalty_percentage_default", 60) or 60), line_period)
     calc = calculate_line(line["revenue_eur"], imp["fee_percent"], label_pct, imp["exchange_rate_eur_idr"])
     new_total_label_idr = imp["total_label_idr"] - line.get("label_idr", 0) + calc["label_idr"]
     await db.royalty_lines.update_one({"id": line_id}, {"$set": {
@@ -335,6 +373,10 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
         {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
     ]
     per_label = []
+    period_label = (
+        f"{imp.get('period_start')} s/d {imp.get('period_end')}"
+        if imp.get("is_multi_period") else imp.get("period", "")
+    )
     async for r in db.royalty_lines.aggregate(pipeline):
         per_label.append(r)
         await db.labels.update_one({"id": r["_id"]}, {"$inc": {"balance_pending_idr": int(r["total_idr"])}, "$set": {"updated_at": now_iso()}})
@@ -345,7 +387,7 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
             "amount_idr": int(r["total_idr"]),
             "reference_type": "royalty_import",
             "reference_id": import_id,
-            "description": f"Royalti periode {imp['period']} ke saldo pending",
+            "description": f"Royalti periode {period_label} ke saldo pending",
             "created_at": now_iso(),
         })
 
@@ -361,9 +403,9 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
         amt = f"Rp {int(r['total_idr']):,}".replace(",", ".")
         await notify_many(
             user_ids, "royalty_published",
-            f"Royalti periode {imp['period']} terbit",
+            f"Royalti periode {period_label} terbit",
             f"{amt} masuk ke saldo pending. Lihat detail di dashboard.",
-            "/label/royalty", {"period": imp["period"]},
+            "/label/royalty", {"period": imp.get("period"), "import_id": import_id},
         )
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
 
@@ -385,6 +427,10 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
         {"$match": {"import_id": import_id, "status": "pending"}},
         {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
     ]
+    period_label = (
+        f"{imp.get('period_start')} s/d {imp.get('period_end')}"
+        if imp.get("is_multi_period") else imp.get("period", "")
+    )
     async for r in db.royalty_lines.aggregate(pipeline):
         await db.labels.update_one({"id": r["_id"]}, {"$inc": {
             "balance_pending_idr": -int(r["total_idr"]),
@@ -397,7 +443,7 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
             "amount_idr": int(r["total_idr"]),
             "reference_type": "royalty_import",
             "reference_id": import_id,
-            "description": f"Dana royalti periode {imp['period']} diterima — saldo tersedia",
+            "description": f"Dana royalti periode {period_label} diterima — saldo tersedia",
             "created_at": now_iso(),
         })
 

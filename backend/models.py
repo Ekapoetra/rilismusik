@@ -22,6 +22,9 @@ class RegisterLabelIn(BaseModel):
     password: str = Field(min_length=8, max_length=200)
     account_type: Literal["label", "independent_artist"] = "label"
     mda_accepted: bool = Field(default=False, description="Label MUST tick this to acknowledge the Master Distribution Agreement")
+    # ----- Optional: claim existing legacy label data -----
+    claim_existing: bool = Field(default=False, description="True if user has pre-migration data with RILIS MUSIK")
+    legacy_label_name: Optional[str] = Field(default=None, max_length=200, description="The label name as known to RILIS MUSIK before migration")
 
 
 class LoginIn(BaseModel):

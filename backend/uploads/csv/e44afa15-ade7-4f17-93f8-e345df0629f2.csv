@@ -1,0 +1,6 @@
+Bulan Laporan,ISRC,UPC,Judul Lagu,Artis,Album,Label,Platform,Negara,Kuantias,Pendapatan Bersih
+2024-01,IDXXX2400001,3650000000001,Lagu Satu,Joko,Album A,Migration Test A,Spotify,ID,12500,15.42
+2024-01,IDXXX2400002,3650000000001,Lagu Dua,Joko,Album A,Migration Test A,Apple Music,ID,3200,4.21
+2024-02,IDXXX2400001,3650000000001,Lagu Satu,Joko,Album A,Migration Test A,Spotify,ID,15800,19.84
+2024-02,IDXXX2400003,3650000000002,Lagu Baru,Sari,Album B,Migration Test B,Spotify,ID,8900,11.05
+2024-03,IDXXX2400001,3650000000001,Lagu Satu,Joko,Album A,Migration Test A,Spotify,US,5400,7.21

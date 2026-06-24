@@ -16,10 +16,13 @@ export default function Register() {
     password_confirm: "",
     account_type: "label",
     mda_accepted: false,
+    claim_existing: false,
+    legacy_label_name: "",
   });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
+  const [claimPending, setClaimPending] = useState(false);
 
   const onChange = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -38,18 +41,46 @@ export default function Register() {
       setErr("Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.");
       return;
     }
+    if (form.claim_existing && !form.legacy_label_name.trim()) {
+      setErr("Mohon isi nama label lama Anda untuk klaim akun.");
+      return;
+    }
     setLoading(true);
     try {
       const { password_confirm, ...payload } = form;
       const data = await register(payload);
       setVerifyToken(data.verification_token || "");
-      setTimeout(() => navigate("/label/dashboard"), 1200);
+      if (data.claim_pending) {
+        setClaimPending(true);
+      } else {
+        setTimeout(() => navigate("/label/dashboard"), 1200);
+      }
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail) || "Registrasi gagal");
     } finally {
       setLoading(false);
     }
   };
+
+  if (claimPending) {
+    return (
+      <div className="min-h-screen rm-mesh flex items-center justify-center px-4 py-12 text-white">
+        <div className="w-full max-w-md rm-glass-strong rounded-[28px] p-8 text-center rm-fade-up" data-testid="register-claim-pending">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 grid place-items-center mb-4 text-3xl">⌛</div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tighter">Akun Anda menunggu verifikasi admin</h1>
+          <p className="text-sm text-zinc-400 mt-3">
+            Permintaan klaim akun lama untuk <b className="text-zinc-200">{form.legacy_label_name}</b> sedang diproses tim kami. Admin akan menghubungkan data lama Anda dalam 1-3 hari kerja.
+          </p>
+          <p className="text-xs text-zinc-500 mt-3">
+            Anda akan menerima notifikasi setelah akun terhubung. Hubungi WhatsApp admin (085864137150) jika urgent.
+          </p>
+          <button onClick={() => navigate("/label/dashboard")} className="rm-btn-primary mt-6 w-full">
+            Masuk Dashboard (Mode Terbatas)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (verifyToken) {
     return (
@@ -120,6 +151,31 @@ export default function Register() {
             </div>
           </div>
           {err && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
+
+          <label className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3 cursor-pointer hover:border-amber-500/40 transition" data-testid="register-claim-block">
+            <input
+              type="checkbox"
+              className="mt-1 w-4 h-4 accent-amber-400"
+              checked={form.claim_existing}
+              onChange={(e) => setForm({ ...form, claim_existing: e.target.checked })}
+              data-testid="register-claim-checkbox"
+            />
+            <span className="text-xs text-zinc-300 leading-relaxed">
+              <b className="text-amber-200">Saya sudah punya data lama di RILIS MUSIK</b><br/>
+              <span className="text-zinc-500">Centang ini jika Anda label/artis lama (pre-migrasi). Admin akan menghubungkan data lama (royalti, withdraw, rilisan) ke akun baru ini dalam 1-3 hari kerja.</span>
+            </span>
+          </label>
+          {form.claim_existing && (
+            <input
+              required={form.claim_existing}
+              value={form.legacy_label_name}
+              onChange={onChange("legacy_label_name")}
+              placeholder="Nama label lama (persis seperti yang dulu dikenal RILIS MUSIK)"
+              className="rm-input"
+              data-testid="register-legacy-label-name"
+            />
+          )}
+
           <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 cursor-pointer hover:border-white/20 transition" data-testid="register-mda-block">
             <input
               type="checkbox"
