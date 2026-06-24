@@ -97,6 +97,16 @@ SENSITIVE_FIELDS = (
     "client_share_rate",
 )
 
+# Internal EUR fields — labels work in Rupiah only. Stored for admin audit
+# but stripped from label/artist responses (alongside SENSITIVE_FIELDS).
+INTERNAL_EUR_FIELDS = (
+    "revenue_eur",
+    "fee_eur",
+    "net_eur",
+    "label_eur",
+    "distributor_eur",
+)
+
 
 def normalize_header(h: str) -> str:
     return (h or "").strip().lower().replace("\ufeff", "")
@@ -239,5 +249,9 @@ def label_percentage_at(history: List[Dict[str, Any]], default_pct: float, perio
 
 
 def strip_sensitive(line: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a shallow copy of a royalty line with admin-only fields removed."""
-    return {k: v for k, v in line.items() if k not in SENSITIVE_FIELDS}
+    """Return a shallow copy of a royalty line with admin-only fields removed.
+    Strips both the 4 SENSITIVE_FIELDS and the 5 INTERNAL_EUR_FIELDS — labels
+    only see IDR amounts (EUR conversion happens at admin import time).
+    """
+    hidden = SENSITIVE_FIELDS + INTERNAL_EUR_FIELDS
+    return {k: v for k, v in line.items() if k not in hidden}

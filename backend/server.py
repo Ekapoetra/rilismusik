@@ -46,6 +46,8 @@ from models import (
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
     WithdrawRequestIn, WithdrawAdminAction,
     TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
+    ContractCreateIn, ContractExtendIn, ContractTerminateIn,
+    BlacklistIn, NotificationMarkIn,
     now_iso, new_id,
 )
 from royalty_utils import (
@@ -240,6 +242,12 @@ async def login(body: LoginIn, response: Response, request: Request):
 
     if user.get("status") == "suspended":
         raise HTTPException(status_code=403, detail="Akun ditangguhkan")
+
+    # Block blacklisted labels at login
+    if user["role"] == LABEL_ROLE:
+        lab = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "account_status": 1, "blacklist_reason": 1})
+        if lab and lab.get("account_status") == "blacklisted":
+            raise HTTPException(status_code=403, detail=f"Akun di-blacklist. Alasan: {lab.get('blacklist_reason') or 'Hubungi admin'}")
 
     await db.login_attempts.delete_one({"identifier": identifier})
 
@@ -811,6 +819,19 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         # apply to first track if only one provided
         await db.tracks.update_many({"release_id": release_id}, {"$set": {"isrc": body.isrc}})
     await log_activity(user["id"], f"admin_{body.action}", "release", release_id, before={"status": rel["status"]}, after={"status": new_status})
+    # Notify label
+    label_user_ids = await _label_user_ids(rel["label_id"])
+    titles = {
+        "approve": ("Rilisan disetujui ✓", f"'{rel.get('release_title')}' telah disetujui."),
+        "need_revision": ("Rilisan perlu revisi", f"'{rel.get('release_title')}' perlu revisi. {body.note or ''}"),
+        "reject": ("Rilisan ditolak", f"'{rel.get('release_title')}' ditolak. {body.note or ''}"),
+        "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),
+        "mark_live": ("Rilisan LIVE 🎉", f"'{rel.get('release_title')}' sudah live di platform."),
+        "takedown": ("Rilisan di-takedown", f"'{rel.get('release_title')}' telah di-takedown."),
+    }
+    if body.action in titles:
+        t, msg = titles[body.action]
+        await notify_many(label_user_ids, f"release_{body.action}", t, msg, f"/label/releases/{release_id}", {"release_id": release_id})
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -1534,12 +1555,14 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
     if imp["status"] != "pending_review":
         raise HTTPException(status_code=400, detail="Import sudah dipublish atau status tidak valid")
 
-    # Aggregate per label
+    # Aggregate per label & notify
     pipeline = [
         {"$match": {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}}},
         {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
     ]
+    per_label = []
     async for r in db.royalty_lines.aggregate(pipeline):
+        per_label.append(r)
         await db.labels.update_one({"id": r["_id"]}, {"$inc": {"balance_pending_idr": int(r["total_idr"])}, "$set": {"updated_at": now_iso()}})
         await db.balance_transactions.insert_one({
             "id": new_id(),
@@ -1558,6 +1581,16 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
     )
     await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "published", "published_at": now_iso(), "updated_at": now_iso()}})
     await log_activity(user["id"], "publish_royalty", "royalty", import_id)
+    # Notify each label with a personalized amount
+    for r in per_label:
+        user_ids = await _label_user_ids(r["_id"])
+        amt = f"Rp {int(r['total_idr']):,}".replace(",", ".")
+        await notify_many(
+            user_ids, "royalty_published",
+            f"Royalti periode {imp['period']} terbit",
+            f"{amt} masuk ke saldo pending. Lihat detail di dashboard.",
+            "/label/royalty", {"period": imp["period"]},
+        )
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
 
 
@@ -1945,7 +1978,18 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
         raise HTTPException(status_code=400, detail="Aksi tidak dikenal")
 
     await log_activity(user["id"], f"withdraw_{body.action}", "withdraw", wd_id)
-    return await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0})
+    # Notify label
+    wd = await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0})
+    user_ids = await _label_user_ids(wd["label_id"])
+    titles = {
+        "approve": ("Withdraw disetujui", "Permintaan withdraw Anda telah disetujui. Menunggu pembayaran."),
+        "reject": ("Withdraw ditolak", f"Permintaan withdraw ditolak. Alasan: {body.note or 'Lihat detail'}"),
+        "mark_paid": ("Withdraw dibayar ✓", "Pembayaran telah dilakukan. Cek bukti transfer di dashboard."),
+    }
+    if body.action in titles:
+        title, msg = titles[body.action]
+        await notify_many(user_ids, f"withdraw_{body.action}", title, msg, "/label/withdraw", {"withdraw_id": wd_id})
+    return wd
 
 
 @withdraw_r.post("/admin/upload-proof")
@@ -2129,6 +2173,14 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         "created_at": now_iso(),
     })
     await log_activity(user["id"], "ticket_create", "support", ticket_id, after={"category": body.category, "release_id": body.release_id})
+    # Notify admins
+    admin_ids = await _admin_user_ids(("super_admin", "admin_support", "admin_release"))
+    await notify_many(
+        admin_ids, "ticket_new",
+        f"Tiket baru {short_no}",
+        f"{label.get('label_name')} mengajukan {TICKET_CATEGORY_LABELS[body.category]}.",
+        f"/admin/tickets/{ticket_id}", {"ticket_id": ticket_id},
+    )
     doc.pop("_id", None)
     return doc
 
@@ -2220,6 +2272,7 @@ async def post_ticket_comment(ticket_id: str, body: TicketCommentIn, user: dict 
     if new_status != ticket["status"]:
         update_doc["status"] = new_status
     await db.support_tickets.update_one({"id": ticket_id}, {"$set": update_doc})
+    await _notify_ticket_event(ticket_id, actor=user, kind="comment")
     comment.pop("_id", None)
     return {"comment": comment, "new_status": update_doc.get("status", ticket["status"])}
 
@@ -2277,7 +2330,294 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
             "attachments": [], "is_system": True, "created_at": now_iso(),
         })
     await log_activity(user["id"], "ticket_update", "support", ticket_id, after=upd)
+    # Notify label about status change / admin reply
+    await _notify_ticket_event(ticket_id, actor=user, kind=("status" if body.status else "note"))
     return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
+
+
+# =============================================================================
+#                              NOTIFICATIONS
+# =============================================================================
+notif_r = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+async def notify(user_id: str, ntype: str, title: str, body: str, link: Optional[str] = None, meta: Optional[Dict[str, Any]] = None):
+    """Create an in-app notification for a user."""
+    doc = {
+        "id": new_id(),
+        "user_id": user_id,
+        "type": ntype,
+        "title": title,
+        "body": body,
+        "link": link,
+        "meta": meta or {},
+        "read_at": None,
+        "created_at": now_iso(),
+    }
+    await db.notifications.insert_one(doc)
+    return doc
+
+
+async def notify_many(user_ids: List[str], ntype: str, title: str, body: str, link: Optional[str] = None, meta: Optional[Dict[str, Any]] = None):
+    if not user_ids:
+        return
+    now = now_iso()
+    docs = [{
+        "id": new_id(), "user_id": uid, "type": ntype, "title": title, "body": body,
+        "link": link, "meta": meta or {}, "read_at": None, "created_at": now,
+    } for uid in user_ids]
+    await db.notifications.insert_many(docs)
+
+
+async def _admin_user_ids(allowed_roles: tuple = ADMIN_ROLES) -> List[str]:
+    ids = []
+    async for u in db.users.find({"role": {"$in": list(allowed_roles)}, "status": {"$ne": "suspended"}}, {"_id": 0, "id": 1}):
+        ids.append(u["id"])
+    return ids
+
+
+async def _label_user_ids(label_id: str) -> List[str]:
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0, "user_id": 1})
+    return [label["user_id"]] if label and label.get("user_id") else []
+
+
+async def _notify_ticket_event(ticket_id: str, actor: Dict[str, Any], kind: str = "comment"):
+    """When a comment/status change happens, notify the OTHER side."""
+    ticket = await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        return
+    actor_is_admin = actor.get("role") in ADMIN_ROLES
+    link_label = f"/label/support/{ticket_id}"
+    link_admin = f"/admin/tickets/{ticket_id}"
+    if actor_is_admin:
+        # Notify label
+        user_ids = await _label_user_ids(ticket["label_id"])
+        title = f"Tiket {ticket['ticket_no']} — Update Admin"
+        body = f"Admin {'mengubah status' if kind == 'status' else 'membalas'} tiket Anda."
+        await notify_many(user_ids, "ticket_update", title, body, link_label, {"ticket_id": ticket_id})
+    else:
+        # Notify admins (support + super_admin)
+        user_ids = await _admin_user_ids(("super_admin", "admin_support", "admin_release"))
+        title = f"Tiket {ticket['ticket_no']} — Label membalas"
+        body = f"{actor.get('name') or 'Label'} membalas tiket."
+        await notify_many(user_ids, "ticket_update", title, body, link_admin, {"ticket_id": ticket_id})
+
+
+@notif_r.get("/me")
+async def my_notifications(user: dict = Depends(get_current_user), limit: int = 20, unread_only: bool = False):
+    filt = {"user_id": user["id"]}
+    if unread_only:
+        filt["read_at"] = None
+    items = await db.notifications.find(filt, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    unread = await db.notifications.count_documents({"user_id": user["id"], "read_at": None})
+    return {"items": items, "unread_count": unread}
+
+
+@notif_r.post("/mark-read/{nid}")
+async def mark_read(nid: str, user: dict = Depends(get_current_user)):
+    n = await db.notifications.find_one({"id": nid})
+    if not n or n["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Notifikasi tidak ditemukan")
+    await db.notifications.update_one({"id": nid}, {"$set": {"read_at": now_iso()}})
+    return {"ok": True}
+
+
+@notif_r.post("/mark-all-read")
+async def mark_all_read(user: dict = Depends(get_current_user)):
+    res = await db.notifications.update_many(
+        {"user_id": user["id"], "read_at": None},
+        {"$set": {"read_at": now_iso()}},
+    )
+    return {"ok": True, "updated": res.modified_count}
+
+
+# =============================================================================
+#                              CONTRACTS
+# =============================================================================
+contract_r = APIRouter(prefix="/contracts", tags=["contracts"])
+
+
+def _contract_effective_status(c: Dict[str, Any]) -> str:
+    """Compute effective status from stored status + dates."""
+    if c.get("status") == "terminated":
+        return "terminated"
+    today = datetime.now(timezone.utc).date().isoformat()
+    end = c.get("end_date") or ""
+    if end and end < today:
+        return "expired"
+    # within 30 days?
+    try:
+        end_dt = datetime.strptime(end, "%Y-%m-%d").date()
+        today_dt = datetime.now(timezone.utc).date()
+        days_left = (end_dt - today_dt).days
+        if 0 <= days_left <= 30:
+            return "expiring_soon"
+    except Exception:
+        pass
+    return "active"
+
+
+def _enrich_contract(c: Dict[str, Any]) -> Dict[str, Any]:
+    c["effective_status"] = _contract_effective_status(c)
+    try:
+        end_dt = datetime.strptime(c.get("end_date", ""), "%Y-%m-%d").date()
+        today_dt = datetime.now(timezone.utc).date()
+        c["days_left"] = (end_dt - today_dt).days
+    except Exception:
+        c["days_left"] = None
+    return c
+
+
+@contract_r.post("/admin/upload-pdf")
+async def contract_upload_pdf(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    ext = (file.filename or "").lower().rsplit(".", 1)[-1]
+    if ext != "pdf":
+        raise HTTPException(status_code=400, detail="File kontrak harus PDF")
+    fid = new_id()
+    target = UPLOAD_DIR / "contract" / f"{fid}.pdf"
+    with open(target, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"url": f"/api/files/contract/{fid}.pdf", "filename": file.filename}
+
+
+@contract_r.post("/admin")
+async def contract_create(body: ContractCreateIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    label = await db.labels.find_one({"id": body.label_id}, {"_id": 0, "id": 1, "label_name": 1, "user_id": 1})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    if body.end_date <= body.start_date:
+        raise HTTPException(status_code=400, detail="Tanggal berakhir harus setelah tanggal mulai")
+    cid = new_id()
+    doc = {
+        "id": cid,
+        "label_id": body.label_id,
+        "label_name": label.get("label_name"),
+        "file_url": body.file_url,
+        "filename": body.filename,
+        "start_date": body.start_date,
+        "end_date": body.end_date,
+        "notes": body.notes,
+        "status": "active",
+        "terminated_at": None,
+        "terminated_reason": None,
+        "created_by": user["id"],
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.contracts.insert_one(doc)
+    await log_activity(user["id"], "contract_create", "contract", cid, after={"label_id": body.label_id, "end_date": body.end_date})
+    if label.get("user_id"):
+        await notify(
+            label["user_id"], "contract_created",
+            "Kontrak baru ditambahkan",
+            f"Kontrak berlaku {body.start_date} → {body.end_date}.",
+            "/label/contract", {"contract_id": cid},
+        )
+    return _enrich_contract({k: v for k, v in doc.items() if k != "_id"})
+
+
+@contract_r.get("/admin")
+async def contract_list_admin(
+    user: dict = Depends(require_admin),
+    label_id: Optional[str] = None,
+    status: Optional[str] = None,  # active|expiring_soon|expired|terminated
+):
+    filt: Dict[str, Any] = {}
+    if label_id:
+        filt["label_id"] = label_id
+    items = await db.contracts.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    items = [_enrich_contract(c) for c in items]
+    if status:
+        items = [c for c in items if c["effective_status"] == status]
+    return items
+
+
+@contract_r.get("/admin/{cid}")
+async def contract_detail_admin(cid: str, user: dict = Depends(require_admin)):
+    c = await db.contracts.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Kontrak tidak ditemukan")
+    return _enrich_contract(c)
+
+
+@contract_r.post("/admin/{cid}/extend")
+async def contract_extend(cid: str, body: ContractExtendIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    c = await db.contracts.find_one({"id": cid})
+    if not c:
+        raise HTTPException(status_code=404, detail="Kontrak tidak ditemukan")
+    if body.new_end_date <= c["start_date"]:
+        raise HTTPException(status_code=400, detail="Tanggal baru harus setelah tanggal mulai")
+    await db.contracts.update_one({"id": cid}, {"$set": {
+        "end_date": body.new_end_date, "status": "active", "terminated_at": None, "terminated_reason": None,
+        "notes": body.notes or c.get("notes"), "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "contract_extend", "contract", cid, after={"new_end_date": body.new_end_date})
+    user_ids = await _label_user_ids(c["label_id"])
+    await notify_many(user_ids, "contract_extended", "Kontrak diperpanjang",
+                      f"Berlaku hingga {body.new_end_date}.", "/label/contract", {"contract_id": cid})
+    return _enrich_contract(await db.contracts.find_one({"id": cid}, {"_id": 0}))
+
+
+@contract_r.post("/admin/{cid}/terminate")
+async def contract_terminate(cid: str, body: ContractTerminateIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    c = await db.contracts.find_one({"id": cid})
+    if not c:
+        raise HTTPException(status_code=404, detail="Kontrak tidak ditemukan")
+    await db.contracts.update_one({"id": cid}, {"$set": {
+        "status": "terminated", "terminated_at": now_iso(),
+        "terminated_reason": body.reason, "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "contract_terminate", "contract", cid, after={"reason": body.reason})
+    user_ids = await _label_user_ids(c["label_id"])
+    await notify_many(user_ids, "contract_terminated", "Kontrak diakhiri",
+                      f"Alasan: {body.reason}", "/label/contract", {"contract_id": cid})
+    return _enrich_contract(await db.contracts.find_one({"id": cid}, {"_id": 0}))
+
+
+@contract_r.get("/label")
+async def contract_list_label(user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    items = await db.contracts.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [_enrich_contract(c) for c in items]
+
+
+# =============================================================================
+#                              BLACKLIST (Admin action)
+# =============================================================================
+@admin_r.post("/labels/{label_id}/blacklist")
+async def admin_blacklist_label(label_id: str, body: BlacklistIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin",):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    label = await db.labels.find_one({"id": label_id})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    await db.labels.update_one({"id": label_id}, {"$set": {
+        "account_status": "blacklisted", "blacklisted": True,
+        "blacklist_reason": body.reason, "blacklisted_at": now_iso(),
+        "blacklisted_by": user["id"], "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "blacklist_label", "label", label_id, after={"reason": body.reason})
+    return {"ok": True}
+
+
+@admin_r.post("/labels/{label_id}/unblacklist")
+async def admin_unblacklist_label(label_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin",):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    await db.labels.update_one({"id": label_id}, {"$set": {
+        "account_status": "active", "blacklisted": False,
+        "blacklist_reason": None, "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "unblacklist_label", "label", label_id)
+    return {"ok": True}
 
 
 # =============================================================================
@@ -2293,6 +2633,8 @@ api.include_router(admin_r)
 api.include_router(royalty_r)
 api.include_router(withdraw_r)
 api.include_router(ticket_r)
+api.include_router(contract_r)
+api.include_router(notif_r)
 
 
 @api.get("/")
@@ -2445,6 +2787,12 @@ async def seed_indexes_and_admins():
     await db.support_tickets.create_index("category")
     await db.support_tickets.create_index("created_at")
     await db.ticket_comments.create_index("ticket_id")
+    await db.contracts.create_index("label_id")
+    await db.contracts.create_index("status")
+    await db.contracts.create_index("end_date")
+    await db.notifications.create_index("user_id")
+    await db.notifications.create_index([("user_id", 1), ("read_at", 1)])
+    await db.notifications.create_index("created_at")
 
     # Seed super admin
     admin_email = os.environ.get("ADMIN_EMAIL", "superadmin@rilismusik.com").lower().strip()

@@ -3,7 +3,6 @@ import { AuthProvider } from "@/api/AuthContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import LabelLayout from "@/components/shared/LabelLayout";
 import AdminLayout from "@/components/shared/AdminLayout";
-import ComingSoon from "@/components/shared/ComingSoon";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/auth/Login";
@@ -22,6 +21,7 @@ import LabelRoyalty from "@/pages/label/Royalty";
 import LabelWithdraw from "@/pages/label/Withdraw";
 import LabelSupportTickets from "@/pages/label/SupportTickets";
 import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
+import LabelContract from "@/pages/label/Contract";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminLabels from "@/pages/admin/Labels";
@@ -38,6 +38,7 @@ import AdminRoyaltyDetail from "@/pages/admin/RoyaltyDetail";
 import AdminWithdraw from "@/pages/admin/Withdraw";
 import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
+import AdminContracts from "@/pages/admin/Contracts";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -71,6 +72,7 @@ function App() {
             <Route path="/label/withdraw" element={<LabelWithdraw />} />
             <Route path="/label/support" element={<LabelSupportTickets />} />
             <Route path="/label/support/:id" element={<LabelSupportTicketDetail />} />
+            <Route path="/label/contract" element={<LabelContract />} />
           </Route>
 
           {/* Artist */}
@@ -93,7 +95,7 @@ function App() {
             <Route path="/admin/withdraw" element={<AdminWithdraw />} />
             <Route path="/admin/tickets" element={<AdminTickets />} />
             <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
-            <Route path="/admin/contracts" element={<ComingSoon title="Contracts" description="Upload kontrak, set masa berlaku, perpanjang. (Fase 3)" />} />
+            <Route path="/admin/contracts" element={<AdminContracts />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

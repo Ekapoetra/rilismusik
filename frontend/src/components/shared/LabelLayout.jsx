@@ -3,8 +3,9 @@ import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/api/AuthContext";
 import { LABEL_NAV } from "@/constants/testIds";
 import { LogoMark, BrandInline } from "@/components/shared/Brand";
+import NotificationBell from "@/components/shared/NotificationBell";
 import {
-  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, Settings, LogOut, Menu, X
+  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Settings, LogOut, Menu, X
 } from "lucide-react";
 
 const NAV = [
@@ -15,6 +16,7 @@ const NAV = [
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
   { to: "/label/withdraw", label: "Withdraw", icon: Wallet, tid: LABEL_NAV.withdraw },
   { to: "/label/support", label: "Support", icon: LifeBuoy, tid: LABEL_NAV.support },
+  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract" },
   { to: "/label/invoices", label: "Invoice", icon: FileText, tid: LABEL_NAV.invoices },
   { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile },
 ];
@@ -37,9 +39,12 @@ export default function LabelLayout() {
         <Link to="/label/dashboard">
           <BrandInline size={32} />
         </Link>
-        <button onClick={() => setOpen(!open)} className="p-2 text-white" data-testid="label-mobile-menu-button">
-          {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button onClick={() => setOpen(!open)} className="p-2 text-white" data-testid="label-mobile-menu-button">
+            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile drawer */}
@@ -72,7 +77,11 @@ export default function LabelLayout() {
           </div>
         </aside>
 
-        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-x-hidden relative">
+          {/* Floating bell - desktop only */}
+          <div className="hidden md:flex absolute top-4 right-6 z-30">
+            <NotificationBell />
+          </div>
           <Outlet />
         </main>
       </div>

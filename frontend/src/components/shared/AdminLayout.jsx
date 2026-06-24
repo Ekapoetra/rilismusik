@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/api/AuthContext";
 import { ADMIN_NAV } from "@/constants/testIds";
 import { BrandInline } from "@/components/shared/Brand";
+import NotificationBell from "@/components/shared/NotificationBell";
 import {
   LayoutDashboard, Building2, UserSquare, Disc3, CreditCard, FileSpreadsheet,
   Banknote, MessageSquare, LayoutTemplate, FileSignature, Users2, ScrollText, LogOut
@@ -85,10 +86,16 @@ export default function AdminLayout() {
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#0B0915] border-b border-white/5 text-white p-4 flex justify-between items-center">
         <Link to="/admin/dashboard"><BrandInline size={30} /></Link>
-        <button onClick={onLogout} className="text-sm text-zinc-300" data-testid="admin-logout-mobile">Logout</button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <button onClick={onLogout} className="text-sm text-zinc-300" data-testid="admin-logout-mobile">Logout</button>
+        </div>
       </div>
 
-      <main className="flex-1 p-4 md:p-8 mt-16 md:mt-0 max-w-full overflow-x-hidden text-zinc-100">
+      <main className="flex-1 p-4 md:p-8 mt-16 md:mt-0 max-w-full overflow-x-hidden text-zinc-100 relative">
+        <div className="hidden md:flex absolute top-4 right-6 z-30">
+          <NotificationBell />
+        </div>
         <Outlet />
       </main>
     </div>

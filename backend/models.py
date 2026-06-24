@@ -238,3 +238,35 @@ class TicketCommentIn(BaseModel):
 class TicketAdminUpdateIn(BaseModel):
     status: Optional[TicketStatus] = None
     internal_note: Optional[str] = None
+
+
+# ============ CONTRACTS ============
+ContractStatus = Literal["active", "expiring_soon", "expired", "terminated"]
+
+
+class ContractCreateIn(BaseModel):
+    label_id: str
+    file_url: str
+    filename: str
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    notes: Optional[str] = None
+
+
+class ContractExtendIn(BaseModel):
+    new_end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    notes: Optional[str] = None
+
+
+class ContractTerminateIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+# ============ BLACKLIST ============
+class BlacklistIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+# ============ NOTIFICATIONS ============
+class NotificationMarkIn(BaseModel):
+    notification_ids: List[str] = Field(default_factory=list)
