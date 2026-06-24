@@ -5,7 +5,7 @@ import { LABEL_NAV } from "@/constants/testIds";
 import { LogoMark, BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
 import {
-  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Settings, LogOut, Menu, X
+  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X
 } from "lucide-react";
 
 const NAV = [
@@ -15,6 +15,7 @@ const NAV = [
   { to: "/label/artists", label: "Artist", icon: Users, tid: LABEL_NAV.artists },
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
   { to: "/label/withdraw", label: "Withdraw", icon: Wallet, tid: LABEL_NAV.withdraw },
+  { to: "/label/wami", label: "WAMI", icon: Music, tid: "label-nav-wami" },
   { to: "/label/support", label: "Support", icon: LifeBuoy, tid: LABEL_NAV.support },
   { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract" },
   { to: "/label/invoices", label: "Invoice", icon: FileText, tid: LABEL_NAV.invoices },

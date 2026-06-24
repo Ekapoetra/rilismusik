@@ -48,6 +48,7 @@ from models import (
     TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
+    CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
     now_iso, new_id,
 )
 from royalty_utils import (
@@ -948,18 +949,28 @@ async def update_artist(artist_id: str, body: ArtistUpdateIn, user: dict = Depen
 pay_r = APIRouter(prefix="/payments", tags=["payments"])
 
 
+SUBSCRIPTION_PRICES = {"annual_normal": 350000, "annual_vip": 500000}
+WAMI_ADDON_PRICE = 100000
+WAMI_FREE_TIERS = ("annual_vip",)  # tiers that get WAMI for free
+
+
 @pay_r.post("/subscription")
-async def create_subscription_invoice(user: dict = Depends(require_label)):
+async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
+    tier = body.tier or "annual_vip"
+    if tier not in SUBSCRIPTION_PRICES:
+        raise HTTPException(status_code=400, detail="Tier tidak valid")
     invoice_id = new_id()
     invoice = {
         "id": invoice_id,
         "label_id": label["id"],
         "release_id": None,
+        "track_id": None,
         "type": "annual_subscription",
+        "tier": tier,
         "xendit_invoice_id": f"mock_{invoice_id[:12]}",
         "xendit_invoice_url": f"/payments/mock-checkout/{invoice_id}",
-        "amount": 500000,
+        "amount": SUBSCRIPTION_PRICES[tier],
         "currency": "IDR",
         "status": "pending",
         "paid_at": None,
@@ -969,6 +980,84 @@ async def create_subscription_invoice(user: dict = Depends(require_label)):
     await db.payments.insert_one(invoice)
     invoice.pop("_id", None)
     return invoice
+
+
+@pay_r.post("/wami")
+async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(require_label)):
+    """Create Xendit invoice for WAMI registration of a single track (Rp 100.000/lagu)."""
+    label = await get_label_by_user(user)
+    # Find track + verify ownership
+    track = await db.tracks.find_one({"id": body.track_id}, {"_id": 0})
+    if not track:
+        raise HTTPException(status_code=404, detail="Track tidak ditemukan")
+    rel = await db.releases.find_one({"id": track.get("release_id")}, {"_id": 0})
+    if not rel or rel.get("label_id") != label["id"]:
+        raise HTTPException(status_code=403, detail="Track ini bukan milik Anda")
+    # Eligibility: only when release is LIVE
+    if rel.get("status") != "live":
+        raise HTTPException(status_code=400, detail="Pendaftaran WAMI hanya dapat dilakukan setelah rilisan LIVE")
+    # VIP gets WAMI free → no invoice needed; just create order with status=pending
+    is_vip = label.get("payment_type") == "annual_subscription" and label.get("subscription_tier") == "annual_vip"
+    # Prevent duplicate active orders
+    existing = await db.wami_orders.find_one({"track_id": body.track_id, "status": {"$nin": ["cancelled", "rejected"]}})
+    if existing:
+        raise HTTPException(status_code=400, detail="Track ini sudah memiliki pendaftaran WAMI aktif")
+
+    order_id = new_id()
+    order = {
+        "id": order_id,
+        "label_id": label["id"],
+        "release_id": rel["id"],
+        "release_title": rel.get("release_title"),
+        "track_id": body.track_id,
+        "track_title": track.get("track_title"),
+        "isrc": track.get("isrc"),
+        "is_free_vip": is_vip,
+        "amount_idr": 0 if is_vip else WAMI_ADDON_PRICE,
+        "status": "pending" if is_vip else "unpaid",
+        "wami_reference": None,
+        "admin_note": None,
+        "paid_at": now_iso() if is_vip else None,
+        "registered_at": None,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.wami_orders.insert_one(order)
+
+    if is_vip:
+        # VIP → no Xendit needed, just notify admins
+        admin_ids = await _admin_user_ids(("super_admin", "admin_release"))
+        await notify_many(
+            admin_ids, "wami_new",
+            "WAMI baru (VIP — gratis)",
+            f"{label.get('label_name')} mengajukan WAMI untuk '{track.get('track_title')}'.",
+            "/admin/wami", {"wami_order_id": order_id},
+        )
+        order.pop("_id", None)
+        return {"order": order, "invoice": None, "free_vip": True}
+
+    # Non-VIP → Xendit invoice
+    invoice_id = new_id()
+    invoice = {
+        "id": invoice_id,
+        "label_id": label["id"],
+        "release_id": rel["id"],
+        "track_id": body.track_id,
+        "type": "wami_addon",
+        "wami_order_id": order_id,
+        "xendit_invoice_id": f"mock_{invoice_id[:12]}",
+        "xendit_invoice_url": f"/payments/mock-checkout/{invoice_id}",
+        "amount": WAMI_ADDON_PRICE,
+        "currency": "IDR",
+        "status": "pending",
+        "paid_at": None,
+        "expired_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        "created_at": now_iso(),
+    }
+    await db.payments.insert_one(invoice)
+    order.pop("_id", None)
+    invoice.pop("_id", None)
+    return {"order": order, "invoice": invoice, "free_vip": False}
 
 
 @pay_r.post("/mock-pay/{invoice_id}")
@@ -999,14 +1088,30 @@ async def mock_pay(invoice_id: str, user: dict = Depends(get_current_user)):
     elif inv["type"] == "annual_subscription":
         now = datetime.now(timezone.utc)
         expires = (now + timedelta(days=365)).isoformat()
+        tier = inv.get("tier") or "annual_vip"
         await db.labels.update_one(
             {"id": inv["label_id"]},
             {"$set": {
                 "subscription_status": "active",
                 "subscription_expires_at": expires,
                 "payment_type": "annual_subscription",
+                "subscription_tier": tier,
                 "updated_at": now_iso(),
             }},
+        )
+    elif inv["type"] == "wami_addon":
+        # Mark WAMI order as pending (waiting for admin to process)
+        await db.wami_orders.update_one(
+            {"id": inv.get("wami_order_id")},
+            {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()}},
+        )
+        order = await db.wami_orders.find_one({"id": inv.get("wami_order_id")}, {"_id": 0})
+        admin_ids = await _admin_user_ids(("super_admin", "admin_release"))
+        await notify_many(
+            admin_ids, "wami_new",
+            "WAMI baru — sudah dibayar",
+            f"WAMI '{order.get('track_title')}' menunggu diproses.",
+            "/admin/wami", {"wami_order_id": order["id"]},
         )
 
     await log_activity(user["id"], "mock_pay", "payment", invoice_id)
@@ -1031,15 +1136,79 @@ async def xendit_webhook(payload: Dict[str, Any]):
             await db.releases.update_one({"id": inv["release_id"]}, {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()}})
         elif inv["type"] == "annual_subscription":
             now = datetime.now(timezone.utc)
+            tier = inv.get("tier") or "annual_vip"
             await db.labels.update_one({"id": inv["label_id"]}, {"$set": {
                 "subscription_status": "active",
                 "subscription_expires_at": (now + timedelta(days=365)).isoformat(),
                 "payment_type": "annual_subscription",
+                "subscription_tier": tier,
                 "updated_at": now_iso(),
             }})
+        elif inv["type"] == "wami_addon":
+            await db.wami_orders.update_one(
+                {"id": inv.get("wami_order_id")},
+                {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()}},
+            )
     elif status in ("expired", "failed", "cancelled"):
         await db.payments.update_one({"id": inv["id"]}, {"$set": {"status": status}})
     return {"ok": True}
+
+
+# =============================================================================
+#                              WAMI ORDERS
+# =============================================================================
+wami_r = APIRouter(prefix="/wami", tags=["wami"])
+
+
+@wami_r.get("/label")
+async def label_list_wami(user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    items = await db.wami_orders.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@wami_r.get("/admin")
+async def admin_list_wami(user: dict = Depends(require_admin), status: Optional[str] = None):
+    filt: Dict[str, Any] = {}
+    if status:
+        filt["status"] = status
+    items = await db.wami_orders.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    label_ids = list({i["label_id"] for i in items})
+    labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1, "user_id": 1}).to_list(1000)
+    name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    for it in items:
+        it["label_name"] = name_map.get(it["label_id"])
+    return items
+
+
+@wami_r.post("/admin/{order_id}/status")
+async def admin_update_wami(order_id: str, body: AdminWamiUpdateIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    order = await db.wami_orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order tidak ditemukan")
+    upd: Dict[str, Any] = {"status": body.status, "updated_at": now_iso()}
+    if body.note is not None:
+        upd["admin_note"] = body.note
+    if body.wami_reference is not None:
+        upd["wami_reference"] = body.wami_reference
+    if body.status == "registered":
+        upd["registered_at"] = now_iso()
+    await db.wami_orders.update_one({"id": order_id}, {"$set": upd})
+    # Notify label
+    user_ids = await _label_user_ids(order["label_id"])
+    titles = {
+        "in_progress": ("WAMI sedang diproses", f"Pendaftaran WAMI '{order.get('track_title')}' sedang diproses."),
+        "registered": ("WAMI berhasil terdaftar ✓", f"'{order.get('track_title')}' telah terdaftar di LMKN/WAMI."),
+        "rejected": ("WAMI ditolak", f"Pendaftaran '{order.get('track_title')}' ditolak. {body.note or ''}"),
+        "cancelled": ("WAMI dibatalkan", f"Pendaftaran '{order.get('track_title')}' dibatalkan."),
+    }
+    if body.status in titles:
+        title, msg = titles[body.status]
+        await notify_many(user_ids, f"wami_{body.status}", title, msg, "/label/wami", {"wami_order_id": order_id})
+    await log_activity(user["id"], f"wami_{body.status}", "wami", order_id, after={"status": body.status})
+    return await db.wami_orders.find_one({"id": order_id}, {"_id": 0})
 
 
 # =============================================================================
@@ -2648,6 +2817,7 @@ api.include_router(label_r)
 api.include_router(release_r)
 api.include_router(artist_r)
 api.include_router(pay_r)
+api.include_router(wami_r)
 api.include_router(cms_r)
 api.include_router(admin_r)
 api.include_router(royalty_r)
@@ -2728,11 +2898,14 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
     ],
     "pricing": {
         "pay_per_release_price": 35000,
-        "annual_subscription_price": 500000,
+        "annual_normal_price": 350000,
+        "annual_subscription_price": 500000,  # VIP — kept key for backwards compat
+        "wami_addon_price": 100000,
         "distributor_fee_percent": 5,
         "description": "Pilih skema yang paling cocok untuk skala katalog Anda.",
         "features_pay": ["Unlimited revisi sebelum approve", "Audit metadata oleh admin", "Distribusi ke 150+ DSP via Believe"],
-        "features_sub": ["Submit unlimited release", "Prioritas review", "Diskon Content ID & layanan tambahan"],
+        "features_annual_normal": ["Submit unlimited release", "Prioritas review", "Tanpa biaya per release"],
+        "features_sub": ["Submit unlimited release", "Prioritas review", "GRATIS pendaftaran LMKN-WAMI semua lagu", "GRATIS konten promosi (JPG postingan)", "Status WAMI real-time"],
     },
     "royalty_sim": {
         "default_revenue_eur": 100,
@@ -2749,7 +2922,7 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
     ],
     "faq": [
         {"q": "Apa itu RILIS MUSIK?", "a": "Platform distribusi musik digital ke 150+ DSP via Believe. Cocok untuk label dan artis independen Indonesia."},
-        {"q": "Berapa biaya distribusi?", "a": "Rp35.000 per rilis (Pay Per Release) atau Rp500.000 per tahun (Annual Subscription)."},
+        {"q": "Berapa biaya distribusi?", "a": "Tiga paket: Rp 35.000 per rilis (Pay Per Release), Rp 350.000 per tahun (Annual Normal), atau Rp 500.000 per tahun (Annual VIP — gratis WAMI + konten promosi)."},
         {"q": "Apakah bisa upload album?", "a": "Bisa. Kami mendukung Single, EP, Album, dan Compilation."},
         {"q": "Kapan royalti cair?", "a": "Request withdraw tanggal 1–14, pembayaran tanggal 15–20 setiap bulan."},
         {"q": "Apakah ada YouTube Content ID?", "a": "Ada. Anda bisa mengajukan klaim Content ID via support ticket."},
@@ -2813,6 +2986,20 @@ async def seed_indexes_and_admins():
     await db.notifications.create_index("user_id")
     await db.notifications.create_index([("user_id", 1), ("read_at", 1)])
     await db.notifications.create_index("created_at")
+    await db.wami_orders.create_index("label_id")
+    await db.wami_orders.create_index("track_id")
+    await db.wami_orders.create_index("status")
+
+    # Migrate legacy "annual_subscription" labels without subscription_tier to VIP (Rp 500K legacy paid plan)
+    try:
+        result = await db.labels.update_many(
+            {"payment_type": "annual_subscription", "subscription_tier": {"$exists": False}},
+            {"$set": {"subscription_tier": "annual_vip", "updated_at": now_iso()}},
+        )
+        if result.modified_count:
+            logger.info("Migrated %s legacy annual subscribers to VIP tier", result.modified_count)
+    except Exception as e:
+        logger.warning("Legacy subscription migration skipped: %s", e)
 
     # Seed super admin
     admin_email = os.environ.get("ADMIN_EMAIL", "superadmin@rilismusik.com").lower().strip()

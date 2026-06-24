@@ -22,6 +22,7 @@ import LabelWithdraw from "@/pages/label/Withdraw";
 import LabelSupportTickets from "@/pages/label/SupportTickets";
 import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
 import LabelContract from "@/pages/label/Contract";
+import LabelWami from "@/pages/label/Wami";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminLabels from "@/pages/admin/Labels";
@@ -39,6 +40,7 @@ import AdminWithdraw from "@/pages/admin/Withdraw";
 import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminContracts from "@/pages/admin/Contracts";
+import AdminWami from "@/pages/admin/Wami";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -73,6 +75,7 @@ function App() {
             <Route path="/label/support" element={<LabelSupportTickets />} />
             <Route path="/label/support/:id" element={<LabelSupportTicketDetail />} />
             <Route path="/label/contract" element={<LabelContract />} />
+            <Route path="/label/wami" element={<LabelWami />} />
           </Route>
 
           {/* Artist */}
@@ -96,6 +99,7 @@ function App() {
             <Route path="/admin/tickets" element={<AdminTickets />} />
             <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
             <Route path="/admin/contracts" element={<AdminContracts />} />
+            <Route path="/admin/wami" element={<AdminWami />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

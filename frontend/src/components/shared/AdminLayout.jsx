@@ -6,7 +6,7 @@ import { BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
 import {
   LayoutDashboard, Building2, UserSquare, Disc3, CreditCard, FileSpreadsheet,
-  Banknote, MessageSquare, LayoutTemplate, FileSignature, Users2, ScrollText, LogOut
+  Banknote, MessageSquare, LayoutTemplate, FileSignature, Music, Users2, ScrollText, LogOut
 } from "lucide-react";
 
 const NAV = [
@@ -17,6 +17,7 @@ const NAV = [
   { to: "/admin/payments", label: "Xendit Payments", icon: CreditCard, tid: ADMIN_NAV.payments, roles: ["super_admin", "admin_finance"] },
   { to: "/admin/royalty", label: "Royalty Import", icon: FileSpreadsheet, tid: ADMIN_NAV.royaltyImport, roles: ["super_admin", "admin_finance"] },
   { to: "/admin/withdraw", label: "Withdraw", icon: Banknote, tid: ADMIN_NAV.withdraw, roles: ["super_admin", "admin_finance"] },
+  { to: "/admin/wami", label: "WAMI Registrations", icon: Music, tid: "admin-nav-wami", roles: ["super_admin", "admin_release"] },
   { to: "/admin/tickets", label: "Support Tickets", icon: MessageSquare, tid: ADMIN_NAV.tickets, roles: ["super_admin", "admin_support"] },
   { to: "/admin/cms", label: "Landing Page CMS", icon: LayoutTemplate, tid: ADMIN_NAV.cms, roles: ["super_admin", "admin_content"] },
   { to: "/admin/contracts", label: "Contracts", icon: FileSignature, tid: ADMIN_NAV.contracts, roles: ["super_admin", "admin_release"] },

@@ -137,12 +137,29 @@ class ArtistUpdateIn(BaseModel):
 
 
 # ============ PAYMENTS ============
+SubscriptionTier = Literal["annual_normal", "annual_vip"]
+
+
 class CreateReleasePaymentIn(BaseModel):
     release_id: str
 
 
 class CreateSubscriptionPaymentIn(BaseModel):
-    pass
+    tier: SubscriptionTier = "annual_vip"
+
+
+# ============ WAMI ============
+WamiStatus = Literal["unpaid", "pending", "in_progress", "registered", "rejected", "cancelled"]
+
+
+class CreateWamiOrderIn(BaseModel):
+    track_id: str
+
+
+class AdminWamiUpdateIn(BaseModel):
+    status: WamiStatus
+    note: Optional[str] = None
+    wami_reference: Optional[str] = None
 
 
 # ============ CMS ============

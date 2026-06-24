@@ -74,7 +74,7 @@ export default function Landing() {
             <div className="mt-10 flex items-center gap-5 text-xs text-zinc-500">
               <div><span className="font-bold text-white">150+</span> platform digital</div>
               <div className="w-px h-4 bg-zinc-700" />
-              <div><span className="font-bold text-white">Royalti</span> tepat waktu</div>
+              <div><span className="font-bold text-white">5%</span> fee distributor</div>
               <div className="w-px h-4 bg-zinc-700" />
               <div><span className="font-bold text-white">7 hari</span> minimal release date</div>
             </div>
@@ -193,38 +193,61 @@ export default function Landing() {
             <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Pilih yang cocok untuk skala Anda.</h2>
             <p className="mt-4 text-zinc-400 text-lg">{s.pricing?.description}</p>
           </div>
-          <div className="mt-12 grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <div data-testid={LANDING.pricingPay} className="rm-glass rounded-3xl p-8">
-              <div className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Pay Per Release</div>
+          <div className="mt-12 grid md:grid-cols-3 gap-5 max-w-6xl mx-auto">
+            {/* Pay Per Release */}
+            <div data-testid={LANDING.pricingPay} className="rm-glass rounded-3xl p-7 flex flex-col">
+              <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Pay Per Release</div>
               <div className="mt-3 flex items-baseline gap-1">
-                <span className="font-display text-5xl font-extrabold tracking-tighter">Rp{(s.pricing?.pay_per_release_price ?? 35000).toLocaleString("id-ID")}</span>
-                <span className="text-zinc-500 text-sm">/ rilis</span>
+                <span className="font-display text-4xl font-extrabold tracking-tighter">Rp{(s.pricing?.pay_per_release_price ?? 35000).toLocaleString("id-ID")}</span>
+                <span className="text-zinc-500 text-xs">/ rilis</span>
               </div>
               <p className="text-sm text-zinc-400 mt-2">Cocok untuk yang baru memulai atau ingin coba.</p>
-              <ul className="mt-6 space-y-2.5 text-sm text-zinc-200">
+              <ul className="mt-5 space-y-2 text-sm text-zinc-200 flex-1">
                 {(s.pricing?.features_pay || []).map((f, i) => (
                   <li key={i} className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>{f}</li>
                 ))}
+                <li className="flex items-start gap-2 text-zinc-400 italic"><span className="text-zinc-600 mt-0.5">+</span>WAMI add-on Rp 100.000/lagu (opsional)</li>
               </ul>
-              <Link to="/register" className="rm-btn-ghost mt-8 inline-block">Daftar Pay Per Release</Link>
+              <Link to="/register" className="rm-btn-ghost mt-7 text-center">Daftar Pay Per Release</Link>
             </div>
-            <div data-testid={LANDING.pricingSub} className="rm-glass-strong rounded-3xl p-8 relative" style={{ borderColor: "rgba(255,31,142,0.35)" }}>
-              <div className="absolute -top-3 left-8 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}>Recommended</div>
-              <div className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Annual Subscription</div>
+
+            {/* Annual Normal */}
+            <div data-testid="landing-pricing-annual-normal" className="rm-glass rounded-3xl p-7 flex flex-col">
+              <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Annual Normal</div>
               <div className="mt-3 flex items-baseline gap-1">
-                <span className="font-display text-5xl font-extrabold tracking-tighter rm-gradient-text">Rp{(s.pricing?.annual_subscription_price ?? 500000).toLocaleString("id-ID")}</span>
-                <span className="text-zinc-500 text-sm">/ tahun</span>
+                <span className="font-display text-4xl font-extrabold tracking-tighter">Rp{(s.pricing?.annual_normal_price ?? 350000).toLocaleString("id-ID")}</span>
+                <span className="text-zinc-500 text-xs">/ tahun</span>
               </div>
-              <p className="text-sm text-zinc-400 mt-2">Submit unlimited rilisan. Cocok untuk label aktif.</p>
-              <ul className="mt-6 space-y-2.5 text-sm text-zinc-200">
-                {(s.pricing?.features_sub || []).map((f, i) => (
+              <p className="text-sm text-zinc-400 mt-2">Submit unlimited rilisan tanpa biaya per release.</p>
+              <ul className="mt-5 space-y-2 text-sm text-zinc-200 flex-1">
+                {(s.pricing?.features_annual_normal || ["Submit unlimited release", "Prioritas review", "Tanpa biaya per release"]).map((f, i) => (
                   <li key={i} className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>{f}</li>
                 ))}
+                <li className="flex items-start gap-2 text-zinc-400 italic"><span className="text-zinc-600 mt-0.5">+</span>WAMI add-on Rp 100.000/lagu (opsional)</li>
               </ul>
-              <Link to="/register" className="rm-btn-primary mt-8 inline-block">Mulai Subscription</Link>
+              <Link to="/register" className="rm-btn-ghost mt-7 text-center">Mulai Annual</Link>
+            </div>
+
+            {/* Annual VIP */}
+            <div data-testid={LANDING.pricingSub} className="rm-glass-strong rounded-3xl p-7 relative flex flex-col" style={{ borderColor: "rgba(255,31,142,0.45)", borderWidth: 1, borderStyle: "solid" }}>
+              <div className="absolute -top-3 left-7 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}>VIP — Recommended</div>
+              <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Annual VIP</div>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="font-display text-4xl font-extrabold tracking-tighter rm-gradient-text">Rp{(s.pricing?.annual_subscription_price ?? 500000).toLocaleString("id-ID")}</span>
+                <span className="text-zinc-500 text-xs">/ tahun</span>
+              </div>
+              <p className="text-sm text-zinc-400 mt-2">Untuk label aktif yang serius — lengkap dengan WAMI gratis & konten promosi.</p>
+              <ul className="mt-5 space-y-2 text-sm text-zinc-200 flex-1">
+                <li className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>Submit unlimited release</li>
+                <li className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5">✓</span>Prioritas review</li>
+                <li className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5 text-pink-300">★</span><b>GRATIS</b> daftar LMKN — WAMI semua lagu</li>
+                <li className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5 text-pink-300">★</span><b>GRATIS</b> konten promosi (JPG)</li>
+                <li className="flex items-start gap-2"><span className="rm-gradient-text font-bold mt-0.5 text-pink-300">★</span>Status pendaftaran WAMI real-time</li>
+              </ul>
+              <Link to="/register" className="rm-btn-primary mt-7 text-center">Mulai VIP</Link>
             </div>
           </div>
-          <p className="text-center text-xs text-zinc-500 mt-8">Semua paket sudah termasuk distribusi ke 150+ platform digital.</p>
+          <p className="text-center text-xs text-zinc-500 mt-8">Semua paket sudah termasuk distribusi ke 150+ platform digital. Fee distributor 5% (sudah termasuk di setiap pencairan royalti).</p>
         </div>
       </section>
 
@@ -260,19 +283,20 @@ export default function Landing() {
               </div>
             </div>
             <div className="rm-card p-6 md:p-8">
-              <div className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Estimasi Royalti Anda</div>
+              <div className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Estimasi Royalti Final</div>
               <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 rm-gradient-text">
                 Rp {Math.round(labelIdr).toLocaleString("id-ID")}
               </div>
-              <div className="text-xs text-zinc-500 mt-1">/ periode estimasi</div>
+              <div className="text-xs text-zinc-500 mt-1">/ periode estimasi (sudah final, fee 5% sudah dipotong)</div>
               <div className="mt-6 space-y-2 text-sm">
                 <Row k="Revenue Believe" v={`€${sim.revenue.toLocaleString()}`} />
+                <Row k={`− Fee distributor (${fee}%)`} v={`−€${(sim.revenue * fee / 100).toFixed(2)}`} muted />
                 <Row k="Kurs EUR → IDR" v={`Rp ${sim.rate.toLocaleString("id-ID")}`} muted />
                 <div className="border-t border-white/5 pt-3 mt-2">
-                  <Row k="Estimasi royalti" v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
+                  <Row k="Estimasi royalti final" v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
                 </div>
               </div>
-              <div className="text-[11px] text-zinc-500 mt-4">* Estimasi berdasarkan revenue Believe & kurs manual. Angka final akan ditampilkan di dashboard Anda setiap periode royalti masuk.</div>
+              <div className="text-[11px] text-zinc-500 mt-4">* Estimasi. Angka final akan ditampilkan di dashboard Anda setiap periode royalti masuk.</div>
             </div>
           </div>
         </div>
