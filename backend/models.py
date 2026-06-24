@@ -162,3 +162,30 @@ class LabelStatusUpdate(BaseModel):
     account_status: Optional[Literal["active", "suspended", "blacklisted"]] = None
     royalty_percentage_default: Optional[float] = None
     royalty_change_reason: Optional[str] = None
+
+
+# ============ ROYALTY ============
+class ExchangeRateIn(BaseModel):
+    period: str  # YYYY-MM
+    rate_eur_idr: float
+
+
+class RoyaltyImportPublishIn(BaseModel):
+    confirm: bool = True
+
+
+class RoyaltyLineMatchIn(BaseModel):
+    track_id: Optional[str] = None  # set to link line to track manually
+    isrc_override: Optional[str] = None
+
+
+# ============ WITHDRAW ============
+class WithdrawRequestIn(BaseModel):
+    amount_idr: int = Field(ge=1_000_000)
+
+
+class WithdrawAdminAction(BaseModel):
+    action: Literal["approve", "reject", "mark_paid"]
+    payment_proof_url: Optional[str] = None
+    payment_reference: Optional[str] = None
+    note: Optional[str] = None

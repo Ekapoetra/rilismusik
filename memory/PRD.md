@@ -38,32 +38,24 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Admin user creation (super_admin only). Multi-role sidebar filtering.
 - Activity logs on every important admin action.
 
-## What's Been Implemented (Phase 1 MVP) — 2026-06-24
-- **Landing page** — full iOS-inspired glassmorphism: floating pill navbar, hero with floating cards, 8 benefit cards, how-it-works timeline, pricing 2-column (PPR + Subscription), interactive royalty simulator, testimonials, FAQ accordion, footer, all CMS-driven.
-- **Auth** — register/login/logout/refresh/me, email verification (dev token), forgot/reset password (dev token), brute force protection (5 attempts → 15 min lockout), httpOnly cookies, bcrypt, JWT.
-- **Label dashboard** — overview metrics, status pills (subscription/contract/bank), recent releases.
-- **Releases** — list (filter + search), 3-step upload wizard (metadata → tracks → cover+audio), validation (WAV / 3000×3000 / date ≥7d), submit flow with pay-per-release MOCK invoice OR subscription bypass, detail view with audio player, edit (draft / need_revision only).
-- **Artists** — label can create artist sub-accounts (with password + visibility settings); artist dashboard with linked releases + visibility flags.
-- **Profile + Bank** — edit profile, submit bank account (one-time only, requires admin verification).
-- **Invoices** — label can buy Annual Subscription, see invoice list, mock-pay invoices.
-- **Admin dashboard** — 12 metrics + royalty + last CSV info.
-- **Admin Labels** — list/search/filter, detail page with status actions (activate/suspend/blacklist) + royalty %_default update (saves history).
-- **Admin Releases** — list with status filter, detail page with approve/need_revision/reject/deliver/mark_live/takedown actions + ISRC/UPC entry, payment-blocked workflow.
-- **Admin Artists** — list with label name.
-- **Admin Payments** — invoice list with filters + MOCK mark-paid.
-- **Admin CMS** — tabs for General/Hero/Benefits/Pricing/FAQ/SEO/Footer; live updates to landing page.
-- **Admin Users** — super_admin creates other admins with role.
-- **Activity Logs** — read-only log of all admin/label important actions.
+## What's Been Implemented (Phase 1 MVP + Phase 2 Royalty & Finance) — 2026-06-24
+### Phase 1 (initial release)
+- **Landing page** — full iOS-inspired glassmorphism (floating navbar, hero floating cards, royalty simulator, pricing, FAQ accordion), 100% CMS-driven.
+- **Auth** — register/login/logout/refresh/me, email verification (dev token), forgot/reset, brute-force lockout (X-Forwarded-For aware), httpOnly cookies + JWT + bcrypt.
+- **Label** — dashboard stats, releases (list + 3-step upload wizard with WAV / 3000×3000 / date ≥7d validation + audio player + edit), artist sub-accounts, profile + bank, invoices + subscription (MOCK Xendit).
+- **Admin** — multi-role console (5 roles, role-filtered sidebar): 12 metrics, label management (status + royalty %), release review (approve/need_revision/reject/deliver/mark_live/takedown + ISRC/UPC + payment guard), artists, payments, CMS (7 tabs), admin users (super admin only), activity logs.
+
+### Phase 2 (Royalty & Finance) — newly added
+- **CSV royalty import** — admin uploads Believe CSV (EUR), auto-detect headers (ISRC, UPC, Title, Artist, Platform, Country, Quantity, Revenue), tries ISRC → UPC matching, calculates per-line distributor fee (5%) and label share with **history-aware percentage** (royalty_percentage_history per period).
+- **Manual exchange rate** EUR→IDR per period (no auto-fetch).
+- **Status flow**: `pending_review` → `published` (kredit ke `balance_pending_idr` semua label) → `dana_received` (pindah ke `balance_available_idr`). Setiap transaksi dicatat di `balance_transactions` ledger.
+- **Withdraw window**: Asia/Jakarta `withdraw_window_state()` — request open 1–14, payment window 15–20, closed 21+ (button disabled). Min Rp 1.000.000. Bank account required (admin verify bank).
+- **Withdraw admin actions**: approve / reject (refund) / mark_paid (upload bukti pembayaran PDF/JPG + payment reference).
+- **Label royalty report** — period selector, summary cards (total IDR, streams, lines), breakdown per platform & country, top tracks list, filterable line table (platform, country), **CSV export** endpoint streaming.
+- **Bank verification** — admin can verify bank account (sets `bank_verified=True`).
 
 ## Prioritized Backlog
-### P0 (next session — Phase 2: Royalty & Finance)
-- CSV royalty import (Believe format), kurs EUR/IDR per period, matching by ISRC/UPC, auto-create unknown lines with admin review.
-- Royalty calculation engine (fee 5%, label %, history-aware).
-- Balance ledger (`royalty_pending` → `royalty_available` when admin marks `dana_received`).
-- Withdraw system with date window (1–14 request, 15–20 payment, 21+ disabled), min Rp1.000.000.
-- Royalty report page for label (filter month/artist/song/release/platform/country) + PDF/Excel export.
-
-### P1 (Phase 3: Support, Legal, Notifications)
+### P0 (next session — Phase 3: Support & Legal)
 - Support ticketing (8 categories incl. takedown, edit metadata/audio/cover, Content ID).
 - Contracts upload + status (Contract Active/Expired/Pending/Terminated).
 - Blacklist management UI.
@@ -71,12 +63,18 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Dashboard in-app notifications.
 - Subscription expiry transition + reminder.
 
-### P2 (Phase 4+ — Polish)
+### P1 (Polish / Production-ready)
 - Real Xendit live integration (key gathering + webhook signature verification).
+- Real email provider (replace dev token returns).
 - Google OAuth login (Emergent managed).
+- PDF export of royalty report (currently CSV only).
 - Bulk admin actions (import old labels CSV).
-- Tax/PPN automation, multi-artist royalty splits.
-- Public artist profile pages, royalty forecasting, mobile native app.
+- Tax/PPN automation, multi-artist royalty splits per track.
+
+### P2 (Phase 4+ — Growth)
+- Public artist profile pages, royalty forecasting.
+- Referral program (1 month subscription credit per onboarding).
+- Mobile native app.
 
 ## Next Tasks
 1. Implement Phase 2 (Royalty + Withdraw) when user confirms.

@@ -39,6 +39,15 @@ export default function AdminLabelDetail() {
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
   };
 
+  const verifyBank = async () => {
+    setErr(""); setMsg("");
+    try {
+      await api.post(`/withdraw/admin/verify-bank/${id}`);
+      await load();
+      setMsg("Rekening diverifikasi.");
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+  };
+
   if (!data) return <div className="text-slate-500">Memuat…</div>;
   const l = data.label;
 
@@ -92,6 +101,9 @@ export default function AdminLabelDetail() {
               <Row k="Nomor" v={data.bank_account.account_number} />
               <Row k="Atas Nama" v={data.bank_account.account_holder_name} />
               <Row k="Verifikasi" v={data.bank_account.verified_status} />
+              {canFinance && data.bank_account.verified_status !== "verified" && (
+                <button className="rm-btn-primary text-sm mt-2" onClick={verifyBank} data-testid="admin-label-verify-bank">Verifikasi Rekening</button>
+              )}
             </>
           ) : <div className="text-sm text-slate-500">Label belum input rekening.</div>}
         </div>

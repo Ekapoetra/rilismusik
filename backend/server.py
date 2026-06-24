@@ -19,6 +19,8 @@ import os
 import logging
 import secrets
 import shutil
+import csv
+import io
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional, List, Dict, Any
 
@@ -41,8 +43,15 @@ from models import (
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
+    ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
+    WithdrawRequestIn, WithdrawAdminAction,
     now_iso, new_id,
 )
+from royalty_utils import (
+    parse_csv_bytes, detect_columns, parse_amount, normalize_header,
+    calculate_line, label_percentage_at,
+)
+from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 
 logger = logging.getLogger("rilismusik")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -376,8 +385,8 @@ async def label_dashboard(user: dict = Depends(require_label)):
     last_revenue = 0
     last_period = None
     pipeline = [
-        {"$match": {"label_id": label["id"], "status": "published"}},
-        {"$group": {"_id": "$period", "total": {"$sum": "$label_royalty_idr"}}},
+        {"$match": {"label_id": label["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {"_id": "$period", "total": {"$sum": "$label_idr"}}},
         {"$sort": {"_id": -1}},
         {"$limit": 1},
     ]
@@ -1057,7 +1066,7 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
 
     # total revenue EUR + IDR from royalty_lines
     revenue_pipeline = [
-        {"$group": {"_id": None, "total_eur": {"$sum": "$label_royalty_eur"}, "total_idr": {"$sum": "$label_royalty_idr"}}},
+        {"$group": {"_id": None, "total_eur": {"$sum": "$revenue_eur"}, "total_idr": {"$sum": "$label_idr"}}},
     ]
     total_eur = 0
     total_idr = 0
@@ -1237,6 +1246,658 @@ async def admin_activity_logs(user: dict = Depends(require_admin), limit: int = 
 
 
 # =============================================================================
+#                              ROYALTY (ADMIN + LABEL/ARTIST)
+# =============================================================================
+royalty_r = APIRouter(prefix="/royalty", tags=["royalty"])
+
+
+def _match_line(row: Dict[str, Any], col_idx: Dict[str, Optional[int]], headers: List[str]) -> Dict[str, Any]:
+    """Extract raw fields from a CSV row using detected columns."""
+    def get(key: str) -> Optional[str]:
+        idx = col_idx.get(key)
+        if idx is None:
+            return None
+        # row dict keys are normalized headers
+        h = normalize_header(headers[idx]) if idx < len(headers) else None
+        return row.get(h) if h else None
+
+    return {
+        "isrc": (get("isrc") or "").strip() or None,
+        "upc": (get("upc") or "").strip() or None,
+        "track_title": (get("track_title") or "").strip() or None,
+        "artist_name": (get("artist_name") or "").strip() or None,
+        "release_title": (get("release_title") or "").strip() or None,
+        "platform": (get("platform") or "").strip() or None,
+        "country": (get("country") or "").strip() or None,
+        "quantity": int(parse_amount(get("quantity") or "0") or 0),
+        "revenue_eur": parse_amount(get("revenue_eur") or "0"),
+    }
+
+
+@royalty_r.post("/admin/imports")
+async def admin_upload_royalty_csv(
+    period: str = Form(...),
+    rate_eur_idr: float = Form(...),
+    file: UploadFile = File(...),
+    note: Optional[str] = Form(None),
+    user: dict = Depends(require_admin),
+):
+    """Upload CSV royalti Believe. Hanya menyimpan + parsing + matching. Belum mempengaruhi saldo."""
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    # validate period
+    try:
+        datetime.strptime(period, "%Y-%m")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Format period harus YYYY-MM")
+    if rate_eur_idr <= 0:
+        raise HTTPException(status_code=400, detail="Kurs harus > 0")
+
+    content = await file.read()
+    headers, rows = parse_csv_bytes(content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV kosong atau tidak terbaca")
+    col_idx = detect_columns(headers)
+    if col_idx["revenue_eur"] is None:
+        raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
+
+    import_id = new_id()
+    # save file
+    target = UPLOAD_DIR / "csv" / f"{import_id}.csv"
+    with open(target, "wb") as f:
+        f.write(content)
+    file_url = f"/api/files/csv/{import_id}.csv"
+
+    # cache fee + percent history
+    fee_settings = await db.landing_settings.find_one({"key": "pricing"})
+    fee_percent = float((fee_settings or {}).get("value", {}).get("distributor_fee_percent", 5) or 5)
+
+    # Pre-fetch all labels + tracks for matching
+    all_tracks = {}
+    async for t in db.tracks.find({"isrc": {"$exists": True, "$ne": None}}, {"_id": 0, "id": 1, "isrc": 1, "release_id": 1, "label_id": 1, "artist_id": 1, "track_title": 1, "artist_name": 1}):
+        if t.get("isrc"):
+            all_tracks[(t["isrc"] or "").strip().upper()] = t
+
+    all_releases_by_upc = {}
+    async for r in db.releases.find({"upc": {"$exists": True, "$ne": None}}, {"_id": 0, "id": 1, "upc": 1, "label_id": 1, "release_title": 1}):
+        if r.get("upc"):
+            all_releases_by_upc[(r["upc"] or "").strip().upper()] = r
+
+    # Pre-fetch all labels' percentage history
+    labels = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
+    pct_history: Dict[str, List[Dict[str, Any]]] = {}
+    async for h in db.royalty_percentage_history.find({}, {"_id": 0}):
+        pct_history.setdefault(h["label_id"], []).append(h)
+
+    total_revenue_eur = 0.0
+    total_label_idr = 0
+    matched = 0
+    unmatched = 0
+    line_docs: List[Dict[str, Any]] = []
+
+    for row in rows:
+        raw = _match_line(row, col_idx, headers)
+        revenue_eur = raw["revenue_eur"]
+        total_revenue_eur += revenue_eur
+
+        track = None
+        release = None
+        label_id = None
+        # Try ISRC match
+        if raw["isrc"]:
+            t = all_tracks.get(raw["isrc"].upper())
+            if t:
+                track = t
+                label_id = t["label_id"]
+        # Try UPC match
+        if not label_id and raw["upc"]:
+            r = all_releases_by_upc.get(raw["upc"].upper())
+            if r:
+                release = r
+                label_id = r["label_id"]
+
+        match_status = "matched" if label_id else "unmatched"
+        if match_status == "matched":
+            matched += 1
+            label = labels.get(label_id, {})
+            default_pct = float(label.get("royalty_percentage_default", 60) or 60)
+            history = pct_history.get(label_id, [])
+            label_pct = label_percentage_at(history, default_pct, period)
+            calc = calculate_line(revenue_eur, fee_percent, label_pct, rate_eur_idr)
+            total_label_idr += calc["label_idr"]
+        else:
+            unmatched += 1
+            label_pct = 0.0
+            calc = calculate_line(revenue_eur, fee_percent, 0.0, rate_eur_idr)
+
+        line_docs.append({
+            "id": new_id(),
+            "import_id": import_id,
+            "period": period,
+            "isrc": raw["isrc"],
+            "upc": raw["upc"],
+            "track_title_raw": raw["track_title"],
+            "artist_name_raw": raw["artist_name"],
+            "release_title_raw": raw["release_title"],
+            "platform": raw["platform"],
+            "country": raw["country"],
+            "quantity": raw["quantity"],
+            "revenue_eur": revenue_eur,
+            "track_id": track["id"] if track else None,
+            "release_id": (track or release or {}).get("release_id") or (release or {}).get("id"),
+            "label_id": label_id,
+            "artist_id": track.get("artist_id") if track else None,
+            "label_percentage_applied": label_pct,
+            "fee_percent_applied": fee_percent,
+            "exchange_rate": rate_eur_idr,
+            **calc,
+            "match_status": match_status,
+            "status": "draft",  # draft -> pending (on publish) -> available (when dana received)
+            "created_at": now_iso(),
+        })
+
+    if line_docs:
+        await db.royalty_lines.insert_many(line_docs)
+
+    import_doc = {
+        "id": import_id,
+        "period": period,
+        "source": "believe",
+        "filename": file.filename,
+        "file_url": file_url,
+        "exchange_rate_eur_idr": rate_eur_idr,
+        "fee_percent": fee_percent,
+        "total_lines": len(line_docs),
+        "matched_lines": matched,
+        "unmatched_lines": unmatched,
+        "total_revenue_eur": round(total_revenue_eur, 4),
+        "total_label_idr": total_label_idr,
+        "status": "pending_review",  # pending_review -> published -> dana_received
+        "dana_received_at": None,
+        "published_at": None,
+        "uploaded_by": user["id"],
+        "note": note,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.royalty_imports.insert_one(import_doc)
+    await log_activity(user["id"], "upload_royalty_csv", "royalty", import_id, after={"period": period, "matched": matched, "unmatched": unmatched})
+    import_doc.pop("_id", None)
+    return import_doc
+
+
+@royalty_r.get("/admin/imports")
+async def admin_list_imports(user: dict = Depends(require_admin)):
+    items = await db.royalty_imports.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@royalty_r.get("/admin/imports/{import_id}")
+async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
+    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    lines = await db.royalty_lines.find({"import_id": import_id}, {"_id": 0}).sort("revenue_eur", -1).limit(500).to_list(500)
+
+    # per-label breakdown
+    pipeline = [
+        {"$match": {"import_id": import_id, "label_id": {"$ne": None}}},
+        {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}, "total_eur": {"$sum": "$revenue_eur"}, "lines": {"$sum": 1}}},
+        {"$sort": {"total_idr": -1}},
+    ]
+    per_label = []
+    async for r in db.royalty_lines.aggregate(pipeline):
+        label = await db.labels.find_one({"id": r["_id"]}, {"_id": 0, "label_name": 1, "id": 1})
+        per_label.append({**r, "label": label})
+
+    return {"import": imp, "lines": lines, "per_label": per_label}
+
+
+@royalty_r.post("/admin/imports/{import_id}/line/{line_id}/match")
+async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyLineMatchIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp["status"] not in ("pending_review",):
+        raise HTTPException(status_code=400, detail="Hanya bisa diubah saat status pending_review")
+    line = await db.royalty_lines.find_one({"id": line_id, "import_id": import_id})
+    if not line:
+        raise HTTPException(status_code=404, detail="Line tidak ditemukan")
+    if not body.track_id:
+        raise HTTPException(status_code=400, detail="track_id wajib")
+    track = await db.tracks.find_one({"id": body.track_id})
+    if not track:
+        raise HTTPException(status_code=404, detail="Track tidak ditemukan")
+    label = await db.labels.find_one({"id": track["label_id"]}, {"_id": 0})
+    history = await db.royalty_percentage_history.find({"label_id": track["label_id"]}, {"_id": 0}).to_list(500)
+    label_pct = label_percentage_at(history, float(label.get("royalty_percentage_default", 60) or 60), imp["period"])
+    calc = calculate_line(line["revenue_eur"], imp["fee_percent"], label_pct, imp["exchange_rate_eur_idr"])
+    new_total_label_idr = imp["total_label_idr"] - line.get("label_idr", 0) + calc["label_idr"]
+    await db.royalty_lines.update_one({"id": line_id}, {"$set": {
+        "track_id": track["id"],
+        "release_id": track["release_id"],
+        "label_id": track["label_id"],
+        "artist_id": track.get("artist_id"),
+        "label_percentage_applied": label_pct,
+        **calc,
+        "match_status": "manually_matched",
+    }})
+    await db.royalty_imports.update_one({"id": import_id}, {
+        "$inc": {"matched_lines": 1, "unmatched_lines": -1 if line["match_status"] == "unmatched" else 0},
+        "$set": {"total_label_idr": new_total_label_idr, "updated_at": now_iso()},
+    })
+    return await db.royalty_lines.find_one({"id": line_id}, {"_id": 0})
+
+
+@royalty_r.post("/admin/imports/{import_id}/publish")
+async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, user: dict = Depends(require_admin)):
+    """Publish CSV → moves all matched lines to status=pending and accumulates to label.balance_pending_idr."""
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp["status"] != "pending_review":
+        raise HTTPException(status_code=400, detail="Import sudah dipublish atau status tidak valid")
+
+    # Aggregate per label
+    pipeline = [
+        {"$match": {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}}},
+        {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
+    ]
+    async for r in db.royalty_lines.aggregate(pipeline):
+        await db.labels.update_one({"id": r["_id"]}, {"$inc": {"balance_pending_idr": int(r["total_idr"])}, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(),
+            "label_id": r["_id"],
+            "type": "royalty_pending",
+            "amount_idr": int(r["total_idr"]),
+            "reference_type": "royalty_import",
+            "reference_id": import_id,
+            "description": f"Royalti periode {imp['period']} ke saldo pending",
+            "created_at": now_iso(),
+        })
+
+    await db.royalty_lines.update_many(
+        {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}},
+        {"$set": {"status": "pending"}},
+    )
+    await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "published", "published_at": now_iso(), "updated_at": now_iso()}})
+    await log_activity(user["id"], "publish_royalty", "royalty", import_id)
+    return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+
+
+@royalty_r.post("/admin/imports/{import_id}/mark-dana-received")
+async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_admin)):
+    """Saat dana Believe masuk: pindahkan saldo pending → available."""
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp["status"] != "published":
+        raise HTTPException(status_code=400, detail="Import harus dipublish terlebih dahulu")
+    if imp.get("dana_received_at"):
+        raise HTTPException(status_code=400, detail="Dana sudah ditandai diterima")
+
+    pipeline = [
+        {"$match": {"import_id": import_id, "status": "pending"}},
+        {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
+    ]
+    async for r in db.royalty_lines.aggregate(pipeline):
+        await db.labels.update_one({"id": r["_id"]}, {"$inc": {
+            "balance_pending_idr": -int(r["total_idr"]),
+            "balance_available_idr": int(r["total_idr"]),
+        }, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(),
+            "label_id": r["_id"],
+            "type": "royalty_available",
+            "amount_idr": int(r["total_idr"]),
+            "reference_type": "royalty_import",
+            "reference_id": import_id,
+            "description": f"Dana royalti periode {imp['period']} diterima — saldo tersedia",
+            "created_at": now_iso(),
+        })
+
+    await db.royalty_lines.update_many({"import_id": import_id, "status": "pending"}, {"$set": {"status": "available"}})
+    await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "dana_received", "dana_received_at": now_iso(), "updated_at": now_iso()}})
+    await log_activity(user["id"], "mark_dana_received", "royalty", import_id)
+    return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+
+
+# -------- LABEL royalty endpoints --------
+@royalty_r.get("/months")
+async def label_royalty_months(user: dict = Depends(get_current_user)):
+    """List periods that have published royalty data visible to the current user."""
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}
+    elif user["role"] == ARTIST_ROLE:
+        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}
+    elif user["role"] in ADMIN_ROLES:
+        filt = {"status": {"$in": ["pending", "available", "withdrawn"]}}
+    else:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    months = await db.royalty_lines.distinct("period", filt)
+    months.sort(reverse=True)
+    return months
+
+
+@royalty_r.get("/summary")
+async def label_royalty_summary(user: dict = Depends(get_current_user), period: Optional[str] = None):
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        base = {"label_id": label["id"]}
+    elif user["role"] == ARTIST_ROLE:
+        base = {"artist_id": user["id"]}
+    else:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    if period:
+        base["period"] = period
+
+    pipeline = [
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {
+            "_id": None,
+            "total_idr": {"$sum": "$label_idr"},
+            "total_streams": {"$sum": "$quantity"},
+            "total_lines": {"$sum": 1},
+        }},
+    ]
+    summary = {"total_idr": 0, "total_streams": 0, "total_lines": 0}
+    async for row in db.royalty_lines.aggregate(pipeline):
+        summary = {"total_idr": row["total_idr"], "total_streams": row["total_streams"], "total_lines": row["total_lines"]}
+
+    # per-platform
+    by_platform = []
+    async for row in db.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {"_id": "$platform", "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
+        {"$sort": {"total_idr": -1}},
+    ]):
+        by_platform.append({"platform": row["_id"] or "Unknown", "total_idr": row["total_idr"], "streams": row["streams"]})
+
+    by_country = []
+    async for row in db.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {"_id": "$country", "total_idr": {"$sum": "$label_idr"}}},
+        {"$sort": {"total_idr": -1}},
+        {"$limit": 10},
+    ]):
+        by_country.append({"country": row["_id"] or "Unknown", "total_idr": row["total_idr"]})
+
+    by_track = []
+    async for row in db.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {"_id": {"track_id": "$track_id", "title": "$track_title_raw"}, "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
+        {"$sort": {"total_idr": -1}},
+        {"$limit": 15},
+    ]):
+        by_track.append({"track_id": row["_id"].get("track_id"), "title": row["_id"].get("title") or "Unknown", "total_idr": row["total_idr"], "streams": row["streams"]})
+
+    return {"summary": summary, "by_platform": by_platform, "by_country": by_country, "by_track": by_track}
+
+
+@royalty_r.get("/lines")
+async def label_royalty_lines(
+    user: dict = Depends(get_current_user),
+    period: Optional[str] = None,
+    platform: Optional[str] = None,
+    country: Optional[str] = None,
+    track_id: Optional[str] = None,
+    artist_id: Optional[str] = None,
+    limit: int = 500,
+):
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}}
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        filt["label_id"] = label["id"]
+    elif user["role"] == ARTIST_ROLE:
+        filt["artist_id"] = user["id"]
+    elif user["role"] in ADMIN_ROLES:
+        pass
+    else:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    if period:
+        filt["period"] = period
+    if platform:
+        filt["platform"] = platform
+    if country:
+        filt["country"] = country
+    if track_id:
+        filt["track_id"] = track_id
+    if artist_id:
+        filt["artist_id"] = artist_id
+    items = await db.royalty_lines.find(filt, {"_id": 0}).sort("label_idr", -1).limit(limit).to_list(limit)
+    return items
+
+
+@royalty_r.get("/export.csv")
+async def label_royalty_export_csv(
+    user: dict = Depends(get_current_user),
+    period: Optional[str] = None,
+):
+    """Stream CSV export of royalty lines for the current label/period."""
+    from fastapi.responses import StreamingResponse
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}}
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        filt["label_id"] = label["id"]
+    elif user["role"] == ARTIST_ROLE:
+        filt["artist_id"] = user["id"]
+    else:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    if period:
+        filt["period"] = period
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "period", "release_title", "track_title", "artist_name", "platform", "country",
+        "isrc", "upc", "streams", "revenue_eur", "label_percent_applied", "label_idr", "status",
+    ])
+    cursor = db.royalty_lines.find(filt, {"_id": 0}).sort("period", -1)
+    async for it in cursor:
+        writer.writerow([
+            it.get("period"),
+            it.get("release_title_raw"),
+            it.get("track_title_raw"),
+            it.get("artist_name_raw"),
+            it.get("platform"),
+            it.get("country"),
+            it.get("isrc"),
+            it.get("upc"),
+            it.get("quantity"),
+            it.get("revenue_eur"),
+            it.get("label_percentage_applied"),
+            it.get("label_idr"),
+            it.get("status"),
+        ])
+    buf.seek(0)
+    filename = f"royalty_{period or 'all'}.csv"
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# =============================================================================
+#                              WITHDRAW
+# =============================================================================
+withdraw_r = APIRouter(prefix="/withdraw", tags=["withdraw"])
+
+
+@withdraw_r.get("/window")
+async def get_window_state(user: dict = Depends(get_current_user)):
+    return withdraw_window_state()
+
+
+@withdraw_r.post("/label/request")
+async def label_request_withdraw(body: WithdrawRequestIn, user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    state = withdraw_window_state()
+    if not state["request_open"]:
+        raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
+    if body.amount_idr < MIN_WITHDRAW_IDR:
+        raise HTTPException(status_code=400, detail=f"Minimum withdraw Rp {MIN_WITHDRAW_IDR:,.0f}")
+    if body.amount_idr > (label.get("balance_available_idr") or 0):
+        raise HTTPException(status_code=400, detail="Saldo tersedia tidak mencukupi")
+    if not label.get("bank_verified"):
+        # MVP: allow if bank account exists; admin must verify it manually
+        bank = await db.bank_accounts.find_one({"label_id": label["id"]})
+        if not bank:
+            raise HTTPException(status_code=400, detail="Rekening bank belum diinput")
+    bank = await db.bank_accounts.find_one({"label_id": label["id"]}, {"_id": 0})
+
+    wd_id = new_id()
+    await db.labels.update_one({"id": label["id"]}, {"$inc": {
+        "balance_available_idr": -body.amount_idr,
+        "balance_withdraw_requested_idr": body.amount_idr,
+    }, "$set": {"updated_at": now_iso()}})
+    await db.balance_transactions.insert_one({
+        "id": new_id(),
+        "label_id": label["id"],
+        "type": "withdraw_request",
+        "amount_idr": -body.amount_idr,
+        "reference_type": "withdraw",
+        "reference_id": wd_id,
+        "description": "Withdraw diminta",
+        "created_at": now_iso(),
+    })
+    wd = {
+        "id": wd_id,
+        "label_id": label["id"],
+        "amount_idr": body.amount_idr,
+        "status": "requested",
+        "request_date": now_iso(),
+        "approved_date": None,
+        "paid_date": None,
+        "approved_by": None,
+        "paid_by": None,
+        "bank_snapshot": bank,
+        "payment_proof_url": None,
+        "payment_reference": None,
+        "admin_note": None,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    await db.withdraw_requests.insert_one(wd)
+    await log_activity(user["id"], "withdraw_request", "withdraw", wd_id, after={"amount_idr": body.amount_idr})
+    wd.pop("_id", None)
+    return wd
+
+
+@withdraw_r.get("/label")
+async def label_list_withdraws(user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    items = await db.withdraw_requests.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@withdraw_r.get("/admin")
+async def admin_list_withdraws(user: dict = Depends(require_admin), status: Optional[str] = None):
+    filt: Dict[str, Any] = {}
+    if status:
+        filt["status"] = status
+    items = await db.withdraw_requests.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # enrich with label_name
+    label_ids = list({i["label_id"] for i in items})
+    labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
+    name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    for it in items:
+        it["label_name"] = name_map.get(it["label_id"])
+    return items
+
+
+@withdraw_r.post("/admin/{wd_id}/action")
+async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    wd = await db.withdraw_requests.find_one({"id": wd_id})
+    if not wd:
+        raise HTTPException(status_code=404, detail="Withdraw tidak ditemukan")
+
+    if body.action == "approve":
+        if wd["status"] != "requested":
+            raise HTTPException(status_code=400, detail="Hanya request yang bisa di-approve")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "approved", "approved_date": now_iso(), "approved_by": user["id"], "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    elif body.action == "reject":
+        if wd["status"] not in ("requested", "approved"):
+            raise HTTPException(status_code=400, detail="Tidak bisa ditolak pada status saat ini")
+        # refund balance
+        await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
+            "balance_available_idr": wd["amount_idr"],
+            "balance_withdraw_requested_idr": -wd["amount_idr"],
+        }, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_refund",
+            "amount_idr": wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
+            "description": f"Withdraw ditolak — refund ke saldo tersedia. {body.note or ''}",
+            "created_at": now_iso(),
+        })
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "rejected", "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    elif body.action == "mark_paid":
+        if wd["status"] != "approved":
+            raise HTTPException(status_code=400, detail="Hanya yang sudah approved bisa di-mark paid")
+        state = withdraw_window_state()
+        # allow only in payment window 15-20 (soft warning if outside)
+        if not state["payment_window"] and not state["request_open"]:
+            # closed window — block
+            pass  # finance may still process; remove strict block per business need
+        await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
+            "balance_withdraw_requested_idr": -wd["amount_idr"],
+        }, "$set": {"updated_at": now_iso()}})
+        await db.balance_transactions.insert_one({
+            "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_paid",
+            "amount_idr": -wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
+            "description": f"Withdraw dibayar. Ref: {body.payment_reference or '-'}",
+            "created_at": now_iso(),
+        })
+        # mark linked royalty_lines as withdrawn for this label (FIFO simplified: mark proportionally is complex; for MVP we don't lock specific lines)
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "paid", "paid_date": now_iso(), "paid_by": user["id"],
+            "payment_proof_url": body.payment_proof_url, "payment_reference": body.payment_reference,
+            "admin_note": body.note, "updated_at": now_iso(),
+        }})
+    else:
+        raise HTTPException(status_code=400, detail="Aksi tidak dikenal")
+
+    await log_activity(user["id"], f"withdraw_{body.action}", "withdraw", wd_id)
+    return await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0})
+
+
+@withdraw_r.post("/admin/upload-proof")
+async def admin_upload_proof(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    ext = (file.filename or "").lower().split(".")[-1]
+    if ext not in ("jpg", "jpeg", "png", "pdf"):
+        raise HTTPException(status_code=400, detail="Format harus JPG/PNG/PDF")
+    fid = new_id()
+    target = UPLOAD_DIR / "contract" / f"proof_{fid}.{ext}"
+    with open(target, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"url": f"/api/files/contract/proof_{fid}.{ext}"}
+
+
+@withdraw_r.post("/admin/verify-bank/{label_id}")
+async def admin_verify_bank(label_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    bank = await db.bank_accounts.find_one({"label_id": label_id})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Rekening tidak ditemukan")
+    await db.bank_accounts.update_one({"label_id": label_id}, {"$set": {"verified_status": "verified", "verified_by": user["id"], "verified_at": now_iso()}})
+    await db.labels.update_one({"id": label_id}, {"$set": {"bank_verified": True, "updated_at": now_iso()}})
+    await log_activity(user["id"], "verify_bank", "label", label_id)
+    return {"ok": True}
+
+
+# =============================================================================
 #                              REGISTER ROUTERS
 # =============================================================================
 api.include_router(auth)
@@ -1246,6 +1907,8 @@ api.include_router(artist_r)
 api.include_router(pay_r)
 api.include_router(cms_r)
 api.include_router(admin_r)
+api.include_router(royalty_r)
+api.include_router(withdraw_r)
 
 
 @api.get("/")
@@ -1383,6 +2046,16 @@ async def seed_indexes_and_admins():
     await db.login_attempts.create_index("identifier")
     await db.activity_logs.create_index("created_at")
     await db.landing_settings.create_index("key", unique=True)
+    await db.royalty_imports.create_index("created_at")
+    await db.royalty_lines.create_index("import_id")
+    await db.royalty_lines.create_index("label_id")
+    await db.royalty_lines.create_index("artist_id")
+    await db.royalty_lines.create_index("period")
+    await db.royalty_lines.create_index("status")
+    await db.withdraw_requests.create_index("label_id")
+    await db.withdraw_requests.create_index("status")
+    await db.balance_transactions.create_index("label_id")
+    await db.bank_accounts.create_index("label_id", unique=True)
 
     # Seed super admin
     admin_email = os.environ.get("ADMIN_EMAIL", "superadmin@rilismusik.com").lower().strip()

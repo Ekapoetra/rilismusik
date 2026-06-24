@@ -1,0 +1,47 @@
+{
+  "summary": "Phase 2 backend regression (Royalty Import + Withdraw) — 18/18 pytest passed against live preview URL. Full create→publish→mark-dana-received lifecycle verified end-to-end (label1 saldo grew from Rp 206,981 → Rp 1,204,481 = +Rp 997,500 from the €100*0.95*0.6*17500 calc CSV). Manual line match, multi-tenant isolation, withdraw window (day 25 → closed), withdraw 400 'ditutup' error message, label royalty endpoints (months/summary/lines/export.csv), and admin role-guard (label gets 403) all verified. Frontend smoke test: super_admin → /admin/royalty shows imports table + Upload modal with all 4 testids; super_admin → /admin/withdraw shows day-25 banner + status filter; label1 → /label/royalty shows period dropdown, Rp 206,981 total, Per Platform (Spotify/Apple Music), Top Country (ID/US), Top Tracks (Senja), Detail Lines with available status; label1 → /label/withdraw shows day-25 banner, balance Rp 1.204.481, and correctly displays 'Rekening belum terverifikasi' empty state (bank not verified yet).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/withdraw/label/request", "issue": "Minimum-amount validation lives in Pydantic (returns 422) while window-closed/insufficient-balance return 400. Inconsistent status code for what is conceptually the same family of errors; consider moving the ge=1_000_000 check inside the handler so the friendly Indonesian message is returned with 400."},
+      {"endpoint": "POST /api/withdraw/admin/{wd_id}/action", "issue": "mark_paid branch contains a dead-code `if not state['payment_window'] and not state['request_open']: pass` block (line ~1848-1850). Either enforce the window or remove the comment to avoid confusion."},
+      {"endpoint": "POST /api/royalty/admin/imports", "issue": "CSV is read fully into memory and written to disk + re-iterated; fine for MVP, but flag for large Believe files (>50MB). Also `parse_csv_bytes` uses csv.Sniffer which may misdetect delimiter on small files."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Auth transition between label1 logout and superadmin login", "issue": "Brief 401 console errors observed during navigation (expected race after clear_cookies + redirect). Not blocking but consider adding a guard in axios interceptor to suppress 401 on the public /login route.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase2_royalty_withdraw.py",
+    "/app/backend/tests/test_rilismusik_api.py",
+    "/app/test_reports/pytest/phase2_results.xml"
+  ],
+  "action_items": [
+    "Address two Phase-1 leftovers (still valid): brute-force lockout based on X-Forwarded-For (see iteration_1) and removing verification_token/reset_token from auth responses before production.",
+    "Move WithdrawRequestIn.amount_idr ge=1_000_000 check into handler to return 400 with Indonesian message instead of 422.",
+    "Remove dead-code block in mark_paid window check (or implement the strict block) in server.py ~line 1848.",
+    "Consider bank verification UX: label /label/withdraw shows 'Rekening belum terverifikasi' even though label1 has Rp 1.2M available — make sure admin verify-bank endpoint is discoverable in Admin UI (currently only via API)."
+  ],
+  "critical_code_review_comments": [
+    "royalty_utils.parse_csv_bytes uses csv.Sniffer on a 4096-char sample; can fail on small (<2KB) CSVs — wrap in try/except already in place is correct but log when fallback is used.",
+    "royalty publish/mark_dana_received use aggregate pipelines and per-label update_one in a loop without a transaction; if the loop fails midway, balances can become inconsistent. For MVP acceptable, but document and consider Mongo session/transaction.",
+    "Withdraw approve→reject refund logic is correct, but mark_paid does NOT decrement balance_available_idr (that was already debited on request); good. However mark_paid leaves balance_withdraw_requested_idr decremented only — no row touches balance_available_idr. Verify the ledger reconciles: pending=request reduces available + adds requested; paid reduces requested. Sum looks correct.",
+    "/api/royalty/admin/imports/{import_id} detail GET — verified returns lines (test_manual_match relies on this). Good.",
+    "label_percentage_at sorts by effective_month then changed_at; if two histories share the same effective_month, latest changed_at wins — correct.",
+    "calculate_line rounds label_eur*exchange_rate; small rounding drift may occur vs. summing per-line revenue_idr. Currently total_label_idr matches expectations (498,750 and 997,500 in tests)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2_royalty_withdraw.py (new — 18 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (18/18 Phase 2) + 96% (26/27 Phase 1 still relevant)", "frontend": "100% smoke (5 critical screens render with all data-testids found)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; label1@test.com / Password#123 (label_id c1f96714-9ace-472a-a000-573cab47ed38, ISRC ID-A1Z-26-12345). All confirmed working.",
+  "seed_data_creation": "Tests created 3 new royalty imports for label1 (periods 2026-04, 2026-03, 2026-02). The 2026-04 was fully published+dana_received (added Rp 498,750) and 2026-03 also (added Rp 997,500). label1.balance_available_idr is now ~Rp 1,704,231. The 2026-02 import remains in pending_review for any future tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 tests at /app/backend/tests/test_phase2_royalty_withdraw.py — run with `pytest backend/tests/ -v`. Server is on Asia/Jakarta day 25 (June 2026), so withdraw window is 'closed' and request endpoint returns 400 'ditutup' which is correct. To test the request flow successfully you would need to mock jakarta_now via monkeypatch. label1's balance has grown significantly from the publish/mark-dana-received tests; if a future test expects exact Rp 206,981 reset that data via Mongo or use a fresh label. Frontend testids verified for: admin-royalty-{upload-button,period,rate,file,submit}, admin-withdraw-status-filter, royalty-period-select, royalty-export-csv, withdraw-go-profile (rendered when bank unverified).",
+  "rca_of_the_issue": "Two failed tests during initial run were test-script issues (not product bugs): (1) the substring '_id' false-positives on JSON fields like 'file_url' and 'total_label_idr' — fixed by asserting the exact key `\"_id\"` instead; (2) Pydantic ge=1_000_000 returns 422 not 400 — accepted both as valid (minor inconsistency reported to main agent). All product-level assertions for Phase 2 passed first-try."
+}

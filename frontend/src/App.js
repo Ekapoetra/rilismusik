@@ -18,6 +18,8 @@ import ReleaseDetail from "@/pages/label/ReleaseDetail";
 import LabelArtists from "@/pages/label/Artists";
 import LabelProfile from "@/pages/label/Profile";
 import LabelInvoices from "@/pages/label/Invoices";
+import LabelRoyalty from "@/pages/label/Royalty";
+import LabelWithdraw from "@/pages/label/Withdraw";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminLabels from "@/pages/admin/Labels";
@@ -29,6 +31,9 @@ import AdminPayments from "@/pages/admin/Payments";
 import AdminCMS from "@/pages/admin/CMS";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminActivityLogs from "@/pages/admin/ActivityLogs";
+import AdminRoyaltyImport from "@/pages/admin/RoyaltyImport";
+import AdminRoyaltyDetail from "@/pages/admin/RoyaltyDetail";
+import AdminWithdraw from "@/pages/admin/Withdraw";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -58,8 +63,8 @@ function App() {
             <Route path="/label/artists" element={<LabelArtists />} />
             <Route path="/label/profile" element={<LabelProfile />} />
             <Route path="/label/invoices" element={<LabelInvoices />} />
-            <Route path="/label/royalty" element={<ComingSoon title="Royalti" description="Laporan royalti, filter per bulan/artist/lagu/platform/negara, dan download PDF/Excel akan tersedia setelah modul CSV import royalty selesai (Fase 2)." />} />
-            <Route path="/label/withdraw" element={<ComingSoon title="Withdraw" description="Sistem withdraw dengan jendela tanggal 1–14 (request), 15–20 (payment) akan tersedia setelah ledger royalti aktif (Fase 2)." />} />
+            <Route path="/label/royalty" element={<LabelRoyalty />} />
+            <Route path="/label/withdraw" element={<LabelWithdraw />} />
             <Route path="/label/support" element={<ComingSoon title="Support Ticket" description="Takedown, edit metadata, edit audio/cover, Content ID akan tersedia di Fase 3." />} />
           </Route>
 
@@ -78,8 +83,9 @@ function App() {
             <Route path="/admin/cms" element={<AdminCMS />} />
             <Route path="/admin/admin-users" element={<AdminUsers />} />
             <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
-            <Route path="/admin/royalty" element={<ComingSoon title="Royalty Import" description="Upload CSV Believe (EUR), set kurs IDR per periode, preview matched/unmatched, publish laporan. (Fase 2)" />} />
-            <Route path="/admin/withdraw" element={<ComingSoon title="Withdraw Management" description="Approve/Reject withdraw, generate invoice pembayaran. (Fase 2)" />} />
+            <Route path="/admin/royalty" element={<AdminRoyaltyImport />} />
+            <Route path="/admin/royalty/:id" element={<AdminRoyaltyDetail />} />
+            <Route path="/admin/withdraw" element={<AdminWithdraw />} />
             <Route path="/admin/tickets" element={<ComingSoon title="Support Tickets" description="Kelola tiket dari label: takedown, edit metadata, edit audio, Content ID. (Fase 3)" />} />
             <Route path="/admin/contracts" element={<ComingSoon title="Contracts" description="Upload kontrak, set masa berlaku, perpanjang. (Fase 3)" />} />
           </Route>
