@@ -181,7 +181,7 @@ class RoyaltyLineMatchIn(BaseModel):
 
 # ============ WITHDRAW ============
 class WithdrawRequestIn(BaseModel):
-    amount_idr: int = Field(ge=1_000_000)
+    amount_idr: int
 
 
 class WithdrawAdminAction(BaseModel):

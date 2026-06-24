@@ -77,10 +77,10 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - Mobile native app.
 
 ## Next Tasks
-1. Implement Phase 2 (Royalty + Withdraw) when user confirms.
-2. Gather Xendit live keys + email provider key when ready to move out of MOCK.
-3. Add export PDF/Excel reports.
-4. Future: Google login + WhatsApp notifications.
+1. **Phase 3 — Support & Legal** (when user requests): support tickets (8 categories), contracts, blacklist UI, notifications.
+2. Real Xendit + Resend/SendGrid integration when production keys are provided.
+3. PDF export (currently CSV only).
+4. Multi-artist royalty splits per track (currently 100% to label, artist views via track linkage).
 
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py`, `/app/backend/auth_utils.py`, `/app/backend/models.py`.

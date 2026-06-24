@@ -1843,11 +1843,7 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
     elif body.action == "mark_paid":
         if wd["status"] != "approved":
             raise HTTPException(status_code=400, detail="Hanya yang sudah approved bisa di-mark paid")
-        state = withdraw_window_state()
-        # allow only in payment window 15-20 (soft warning if outside)
-        if not state["payment_window"] and not state["request_open"]:
-            # closed window — block
-            pass  # finance may still process; remove strict block per business need
+        # Finance dapat memproses kapan saja; window 15-20 hanya sebagai panduan operasional.
         await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
             "balance_withdraw_requested_idr": -wd["amount_idr"],
         }, "$set": {"updated_at": now_iso()}})
