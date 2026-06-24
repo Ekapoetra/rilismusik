@@ -1,0 +1,347 @@
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api, fileUrl } from "@/api/client";
+import { LANDING } from "@/constants/testIds";
+import { ChevronDown, Sparkles, Music2, Wallet, TrendingUp, ShieldCheck, Headphones, Globe2, Users } from "lucide-react";
+
+const ICONS = [Music2, TrendingUp, Wallet, Headphones, ShieldCheck, Users, Sparkles, Globe2];
+
+export default function Landing() {
+  const [s, setS] = useState(null);
+  const [openFaq, setOpenFaq] = useState(0);
+  const [sim, setSim] = useState({ revenue: 100, rate: 17500 });
+
+  useEffect(() => {
+    api.get("/cms/landing").then((r) => setS(r.data)).catch(() => setS({}));
+  }, []);
+
+  if (!s) {
+    return <div className="min-h-screen grid place-items-center text-slate-500">Memuat…</div>;
+  }
+
+  const fee = s.pricing?.distributor_fee_percent ?? 5;
+  const labelPercent = s.royalty_sim?.label_percent_default ?? 60;
+  const netEur = sim.revenue * (1 - fee / 100);
+  const labelEur = netEur * (labelPercent / 100);
+  const labelIdr = labelEur * sim.rate;
+
+  return (
+    <div className="rm-mesh min-h-screen">
+      {/* Floating glass navbar */}
+      <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 rm-glass rounded-full px-5 py-2.5 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-2xl bg-[#FF3B30] text-white grid place-items-center font-bold">R</div>
+          <span className="font-display font-extrabold tracking-tight text-[#1D1D1F]">RILIS MUSIK</span>
+        </Link>
+        <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-700">
+          <a href="#benefits" className="hover:text-[#FF3B30] transition">Fitur</a>
+          <a href="#royalty" className="hover:text-[#FF3B30] transition">Royalti</a>
+          <a href="#pricing" className="hover:text-[#FF3B30] transition">Harga</a>
+          <a href="#faq" className="hover:text-[#FF3B30] transition">FAQ</a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <Link to="/login" data-testid={LANDING.navLogin} className="hidden sm:inline-block text-sm font-semibold text-slate-800 px-3 py-2 rounded-full hover:bg-white/60 transition">
+            Login
+          </Link>
+          <Link to="/register" data-testid={LANDING.navRegister} className="rm-btn-primary text-sm">
+            Daftar
+          </Link>
+        </div>
+      </header>
+
+      {/* HERO */}
+      <section className="pt-36 md:pt-44 pb-24 px-6 md:px-12 lg:px-24 relative overflow-hidden">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-12 gap-12 items-center">
+          <div className="md:col-span-7 rm-fade-up">
+            <div className="inline-flex items-center gap-2 rm-glass rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 mb-6">
+              <Sparkles className="w-3.5 h-3.5 text-[#FF3B30]" /> Distribusi via Believe ke 150+ DSP
+            </div>
+            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.02] tracking-tighter text-[#1D1D1F]">
+              {s.hero?.headline || "Distribusi Musik Lebih Rapi, Royalti Lebih Transparan."}
+            </h1>
+            <p className="mt-6 text-lg text-slate-600 leading-relaxed max-w-xl">
+              {s.hero?.subheadline}
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to={s.hero?.cta_primary_url || "/register"} data-testid={LANDING.heroCtaPrimary} className="rm-btn-primary inline-flex items-center gap-2">
+                {s.hero?.cta_primary_text || "Daftar Sekarang"}
+              </Link>
+              <Link to={s.hero?.cta_secondary_url || "/login"} data-testid={LANDING.heroCtaSecondary} className="rm-btn-ghost inline-flex items-center gap-2">
+                {s.hero?.cta_secondary_text || "Login Dashboard"}
+              </Link>
+            </div>
+            <div className="mt-10 flex items-center gap-5 text-xs text-slate-500">
+              <div><span className="font-bold text-slate-800">5%</span> fee distributor</div>
+              <div className="w-px h-4 bg-slate-300" />
+              <div><span className="font-bold text-slate-800">60%</span> default bagian label</div>
+              <div className="w-px h-4 bg-slate-300" />
+              <div><span className="font-bold text-slate-800">7 hari</span> minimal release date</div>
+            </div>
+          </div>
+
+          {/* Hero floating glass artifacts */}
+          <div className="md:col-span-5 relative h-[440px]">
+            <div className="absolute top-0 right-0 w-72 rm-glass-strong rounded-3xl p-5 rm-float">
+              <div className="text-xs text-slate-500 font-semibold uppercase tracking-widest">Saldo Tersedia</div>
+              <div className="font-display text-3xl font-extrabold tracking-tight mt-1">Rp 4.275.000</div>
+              <div className="text-xs text-emerald-600 font-bold mt-1">+12% vs bulan lalu</div>
+              <div className="mt-4 h-16 flex items-end gap-1.5">
+                {[40, 55, 38, 70, 62, 80, 95].map((h, i) => (
+                  <div key={i} className="flex-1 rounded-md bg-gradient-to-t from-[#FF3B30] to-[#FF8A80]" style={{ height: `${h}%` }} />
+                ))}
+              </div>
+            </div>
+            <div className="absolute bottom-10 left-0 w-64 rm-glass-strong rounded-3xl p-4 rm-float" style={{ animationDelay: "1.2s" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-pink-500" />
+                <div>
+                  <div className="text-xs text-slate-500 font-semibold">Now Streaming</div>
+                  <div className="font-semibold text-sm">Senja di Jakarta</div>
+                  <div className="text-xs text-slate-500">Adit Soemardi</div>
+                </div>
+              </div>
+              <div className="mt-3 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-[#FF3B30] w-2/3" /></div>
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5"><span>1:42</span><span>3:08</span></div>
+            </div>
+            <div className="absolute top-32 left-8 w-44 rm-glass rounded-3xl p-4 rm-float" style={{ animationDelay: "0.6s" }}>
+              <div className="text-xs font-semibold text-slate-500">Status</div>
+              <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                LIVE on Spotify
+              </div>
+              <div className="mt-3 text-[11px] text-slate-500">ISRC: ID-A1Z-25-12345</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BENEFITS */}
+      <section id="benefits" className="px-6 md:px-12 lg:px-24 py-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl">
+            <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">FITUR PLATFORM</div>
+            <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Semua yang Anda butuhkan, dalam satu dashboard.</h2>
+            <p className="mt-4 text-slate-600 text-lg">Dari upload rilisan, kelola artist, sampai withdraw. Tanpa WhatsApp.</p>
+          </div>
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 rm-stagger">
+            {(s.benefits || []).map((b, i) => {
+              const Icon = ICONS[i % ICONS.length];
+              return (
+                <div key={i} className="rm-glass rounded-3xl p-6 rm-fade-up hover:-translate-y-1 transition-transform duration-300">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-pink-500 grid place-items-center text-white mb-4">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="font-display font-bold text-lg tracking-tight">{b.title}</div>
+                  <div className="text-sm text-slate-600 mt-2 leading-relaxed">{b.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="px-6 md:px-12 lg:px-24 py-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">ALUR</div>
+          <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter mb-12">Dari demo ke 150+ platform.</h2>
+          <div className="grid md:grid-cols-2 gap-x-12 gap-y-10">
+            {(s.how_it_works || []).map((step, i) => (
+              <div key={i} className="flex gap-5 rm-fade-up">
+                <div className="text-7xl font-display font-extrabold tracking-tighter text-[#FF3B30]/15 leading-none -mt-2">{String(i + 1).padStart(2, "0")}</div>
+                <div className="pt-2">
+                  <div className="font-display font-bold text-xl tracking-tight">{step}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section id="pricing" className="px-6 md:px-12 lg:px-24 py-24">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto">
+            <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">HARGA</div>
+            <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Pilih yang cocok untuk skala Anda.</h2>
+            <p className="mt-4 text-slate-600 text-lg">{s.pricing?.description}</p>
+          </div>
+          <div className="mt-12 grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div data-testid={LANDING.pricingPay} className="rm-glass rounded-3xl p-8">
+              <div className="text-sm font-bold text-slate-500 uppercase tracking-wider">Pay Per Release</div>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="font-display text-5xl font-extrabold tracking-tighter">Rp{(s.pricing?.pay_per_release_price ?? 35000).toLocaleString("id-ID")}</span>
+                <span className="text-slate-500 text-sm">/ rilis</span>
+              </div>
+              <p className="text-sm text-slate-600 mt-2">Cocok untuk yang baru memulai atau ingin coba.</p>
+              <ul className="mt-6 space-y-2.5 text-sm text-slate-700">
+                {(s.pricing?.features_pay || []).map((f, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-[#FF3B30] font-bold mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link to="/register" className="rm-btn-ghost mt-8 inline-block">Daftar Pay Per Release</Link>
+            </div>
+            <div data-testid={LANDING.pricingSub} className="rm-glass-strong rounded-3xl p-8 ring-1 ring-[#FF3B30]/30 relative">
+              <div className="absolute -top-3 left-8 bg-[#FF3B30] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">Recommended</div>
+              <div className="text-sm font-bold text-slate-500 uppercase tracking-wider">Annual Subscription</div>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="font-display text-5xl font-extrabold tracking-tighter">Rp{(s.pricing?.annual_subscription_price ?? 500000).toLocaleString("id-ID")}</span>
+                <span className="text-slate-500 text-sm">/ tahun</span>
+              </div>
+              <p className="text-sm text-slate-600 mt-2">Submit unlimited rilisan. Cocok untuk label aktif.</p>
+              <ul className="mt-6 space-y-2.5 text-sm text-slate-700">
+                {(s.pricing?.features_sub || []).map((f, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-[#FF3B30] font-bold mt-0.5">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link to="/register" className="rm-btn-primary mt-8 inline-block">Mulai Subscription</Link>
+            </div>
+          </div>
+          <p className="text-center text-xs text-slate-500 mt-8">Fee distributor: {fee}% — Bagian label default: {labelPercent}%</p>
+        </div>
+      </section>
+
+      {/* ROYALTY SIMULATOR */}
+      <section id="royalty" className="px-6 md:px-12 lg:px-24 py-20">
+        <div className="max-w-6xl mx-auto rm-glass-strong rounded-[32px] p-8 md:p-12">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">SIMULASI ROYALTI</div>
+              <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Hitung estimasi pendapatan Anda.</h2>
+              <p className="mt-3 text-slate-600">Masukkan revenue Believe dan kurs EUR/IDR. Hasil bersifat estimasi.</p>
+              <div className="mt-6 space-y-4 max-w-sm">
+                <div>
+                  <label className="rm-label">Revenue (EUR)</label>
+                  <input
+                    type="number"
+                    data-testid={LANDING.simRevenueInput}
+                    className="rm-input"
+                    value={sim.revenue}
+                    onChange={(e) => setSim({ ...sim, revenue: parseFloat(e.target.value || 0) })}
+                  />
+                </div>
+                <div>
+                  <label className="rm-label">Kurs EUR → IDR</label>
+                  <input
+                    type="number"
+                    data-testid={LANDING.simRateInput}
+                    className="rm-input"
+                    value={sim.rate}
+                    onChange={(e) => setSim({ ...sim, rate: parseFloat(e.target.value || 0) })}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="rm-card p-6 md:p-8">
+              <div className="text-xs uppercase tracking-widest text-slate-500 font-bold">Estimasi Bagian Anda</div>
+              <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 text-[#1D1D1F]">
+                Rp {Math.round(labelIdr).toLocaleString("id-ID")}
+              </div>
+              <div className="mt-5 space-y-2 text-sm">
+                <Row k="Revenue Believe" v={`€${sim.revenue.toLocaleString()}`} />
+                <Row k={`− Fee distributor (${fee}%)`} v={`€${(sim.revenue * fee / 100).toFixed(2)}`} />
+                <Row k="Net revenue" v={`€${netEur.toFixed(2)}`} muted />
+                <Row k={`× Bagian label (${labelPercent}%)`} v={`€${labelEur.toFixed(2)}`} />
+                <Row k={`× Kurs IDR`} v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />
+              </div>
+              <div className="text-[11px] text-slate-400 mt-4">* Estimasi, bukan angka final. Bagian label dapat berbeda per label.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section className="px-6 md:px-12 lg:px-24 py-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3">TESTIMONI</div>
+          <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter mb-10">Dipercaya oleh label & artis Indonesia.</h2>
+          <div className="grid md:grid-cols-2 gap-5">
+            {(s.testimonials || []).map((t, i) => (
+              <div key={i} className="rm-glass rounded-3xl p-7">
+                <div className="text-2xl text-[#FF3B30] font-display font-extrabold leading-none mb-3">&ldquo;</div>
+                <p className="text-lg text-slate-800 leading-relaxed font-display">{t.quote}</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-300 to-pink-500" />
+                  <div>
+                    <div className="font-semibold text-sm">{t.name}</div>
+                    <div className="text-xs text-slate-500">{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="px-6 md:px-12 lg:px-24 py-20">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#FF3B30] mb-3 text-center">FAQ</div>
+          <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter text-center mb-10">Pertanyaan yang sering diajukan.</h2>
+          <div className="divide-y divide-slate-200/80">
+            {(s.faq || []).map((f, i) => (
+              <div key={i} data-testid={`${LANDING.faqItem}-${i}`} className="py-5">
+                <button onClick={() => setOpenFaq(openFaq === i ? -1 : i)} className="w-full flex justify-between items-center text-left">
+                  <div className="font-display font-bold text-lg tracking-tight pr-4">{f.q}</div>
+                  <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                </button>
+                {openFaq === i && <div className="mt-3 text-slate-600 leading-relaxed">{f.a}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="px-6 md:px-12 lg:px-24 pb-24">
+        <div className="max-w-5xl mx-auto rm-glass-strong rounded-[32px] p-10 md:p-14 text-center">
+          <h2 className="font-display text-4xl md:text-5xl font-extrabold tracking-tighter">Siap distribusikan musik Anda?</h2>
+          <p className="mt-3 text-slate-600 text-lg">Daftar dalam 2 menit, mulai upload hari ini.</p>
+          <div className="mt-7 flex justify-center gap-3 flex-wrap">
+            <Link to="/register" className="rm-btn-primary">Daftar Sekarang</Link>
+            <Link to="/login" className="rm-btn-ghost">Login Dashboard</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="px-6 md:px-12 lg:px-24 pb-14 pt-6 border-t border-slate-200/70">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-8">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-[#FF3B30] text-white grid place-items-center font-bold">R</div>
+              <span className="font-display font-extrabold tracking-tight">RILIS MUSIK</span>
+            </div>
+            <p className="text-sm text-slate-500 mt-3 max-w-xs">{s.footer?.description}</p>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3">Support</div>
+            <div className="text-sm text-slate-700">{s.footer?.support_email}</div>
+            <div className="text-sm text-slate-500 mt-1">{s.general?.whatsapp}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-3">Legal</div>
+            <ul className="space-y-2 text-sm text-slate-700">
+              {(s.footer?.legal_links || []).map((l, i) => (
+                <li key={i}><a href={l.url} className="hover:text-[#FF3B30]">{l.text}</a></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-slate-200/70 text-xs text-slate-500 flex justify-between">
+          <div>© {new Date().getFullYear()} RILIS MUSIK. All rights reserved.</div>
+          <Link to="/login" className="hover:text-[#FF3B30]">Login Dashboard →</Link>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function Row({ k, v, bold, muted }) {
+  return (
+    <div className={`flex justify-between ${muted ? "text-slate-500" : "text-slate-700"} ${bold ? "font-bold text-[#1D1D1F]" : ""}`}>
+      <span>{k}</span>
+      <span>{v}</span>
+    </div>
+  );
+}
