@@ -51,6 +51,7 @@ def fresh_label_session():
     r = s.post(f"{API}/auth/register", json={
         "label_name": "TEST P2 Label", "pic_name": "PIC", "email": email,
         "whatsapp": "+62811", "password": "Password#123", "account_type": "label",
+            "mda_accepted": True,
     })
     assert r.status_code == 200, r.text
     data = r.json()

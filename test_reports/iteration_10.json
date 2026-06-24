@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 7 (Master Distribution Agreement auto-generation) verified end-to-end. Backend: all 5 new tests in test_phase7_mda.py PASS (register-without-mda 400, register-with-mda creates mda contract with kind='mda'+status='active'+end_date=null+is_lifetime=true+accepted_by_name=pic_name+file_url=/api/files/contract/<id>.pdf, PDF downloadable starts %PDF- and >3000 bytes, public /api/cms/mda/preview returns valid PDF with application/pdf content-type and is publicly accessible without auth, preview does NOT create a contracts doc in DB). Full backend regression: 173 passed / 1 skipped / 1 xpassed / 3 failed — the 3 failures are pre-existing and unrelated to Phase 7 (TestStripSensitive in test_believe_royalty.py was flagged by main agent as already-broken pre-Phase-7; the 2 test_rilismusik_api.py::TestPayments failures are pre-existing — endpoint /api/payments/subscription now requires CreateSubscriptionPaymentIn body but those legacy tests still POST empty body, returning 422). Frontend: /register renders MDA block (data-testid='register-mda-block') with checkbox (data-testid='register-mda-checkbox') and preview link (data-testid='register-mda-link' → REACT_APP_BACKEND_URL/api/cms/mda/preview, target=_blank) above 'Daftar Sekarang' button; button is correctly DISABLED until checkbox ticked and ENABLES on tick; successful registration navigates to /label/dashboard within ~1s; /label/contract renders MDA card with filename 'MDA-<label_name>.pdf', Berakhir='Tanpa Batas Waktu' (green), Sisa='Lifetime', violet info banner 'Master Distribution Agreement — disetujui via checkbox elektronik pada <date> oleh <pic_name>. UU ITE No. 11/2008.' — all 6 assertions PASS. One minor UX observation: the literal inline error string 'Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.' is unreachable in practice because (1) the submit button is disabled until checked and (2) the checkbox carries HTML5 'required' so a JS-bypassed click triggers the browser's native validation tooltip ('Please check this box if you want to proceed.') before the React submit handler runs. Functionally MORE protective than spec, but the exact Indonesian-language inline error never displays.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payments/subscription", "issue": "Pre-existing Phase 6 test_rilismusik_api.py::TestPayments tests POST empty body and expect 200, but the endpoint now requires CreateSubscriptionPaymentIn (tier field) → returns 422. Update the legacy tests to send {tier: 'annual_vip'}. NOT a Phase 7 regression."},
+      {"endpoint": "test_believe_royalty.py::TestStripSensitive::test_strip_sensitive_removes_all_4_fields", "issue": "Pre-existing failure flagged by main agent as broken before Phase 7. KeyError on 'revenue_eur'. NOT a Phase 7 regression."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/register", "issues": ["The literal inline error 'Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.' (Register.jsx line 38) is currently unreachable: the submit button is disabled until checkbox ticked AND the checkbox carries the HTML5 'required' attribute, so any JS-bypass attempt triggers the browser-native validation tooltip first. Either remove the 'required' attribute on the checkbox so React's onSubmit handler can run and surface the custom message, OR delete the dead-code branch since the disabled button already enforces consent. Low priority — current UX is functionally MORE protective than spec."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase7_mda.py",
+    "/app/test_reports/pytest/iter10_phase7.xml",
+    "/app/test_reports/pytest/iter10_full.xml"
+  ],
+  "action_items": [
+    "(Optional, low-priority) Remove 'required' attribute on register-mda-checkbox OR drop the redundant inline-error branch in Register.jsx::submit(), so the UX is internally consistent (one source of truth for blocking submission).",
+    "(Optional, NOT Phase 7) Update test_rilismusik_api.py::TestPayments tests to send {tier: 'annual_vip'} body to POST /api/payments/subscription — currently failing 422 due to body schema tightening from Phase 6.",
+    "(Optional, NOT Phase 7) Fix or remove test_believe_royalty.py::TestStripSensitive (pre-existing breakage)."
+  ],
+  "critical_code_review_comments": [
+    "Phase 7 backend is clean: routes/auth.py register endpoint guards mda_accepted; routes/mda_generator.py builds PDF via reportlab with CMS legal_entity merge (PT. Jeeres Group Indonesia, NIB 2202260059749, WA 085864137150 confirmed in generated PDF); routes/cms.py exposes /api/cms/mda/preview as a public (no Depends(get_current_user)) cached-file endpoint that does NOT touch the contracts collection (verified by before/after count assertion).",
+    "routes/contracts.py::_contract_effective_status correctly returns 'active' for end_date=None AND status!='terminated', and the dated-contract branch continues to compute expiring_soon/expired/active correctly (Phase 6 tests still green).",
+    "models.RegisterLabelIn now has mda_accepted: bool (no default), so missing-field requests get a Pydantic 422; explicit false yields the 400 'MDA' message expected by the spec — both paths exercised in test_phase7_mda.py.",
+    "Frontend Register.jsx duplicates the consent enforcement: (a) button disabled={!form.mda_accepted}, (b) checkbox 'required', (c) JS guard with custom error string. Three layers of defense are fine, but (b) prevents (c) from ever firing — pick two and remove the third for clarity.",
+    "/label/contract UI gracefully handles the lifetime case: 'Tanpa Batas Waktu' rendered in emerald, 'Lifetime' as Sisa, and the violet UU-ITE banner displays the accepted_at + accepted_by_name from the contract document. Confirmed visually."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% Phase 7 (5/5). Full regression: 173/178 pass — 3 pre-existing failures unrelated to Phase 7, 1 xpassed, 1 intentional skip.", "frontend": "100% Phase 7 (all 12 spec assertions pass, 1 minor unreachable-error-string observation)"},
+  "test_credentials": "Super Admin: superadmin@rilismusik.com / SuperAdmin#2026 (OK). Created test labels on the fly via /api/auth/register with random test_mda_<uuid>@example.com / MdaPass#2026 (OK).",
+  "seed_data_creation": "A few throwaway MDA test labels created via the registration flow (email pattern test_mda_<uuid>@example.com). They each have one auto-generated MDA contract. No cleanup performed; these are inert to other tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 7 MDA is COMPLETE and verified. Tests of record now: test_phase2/3/4/5/6/7 + test_refactor_smoke + test_rilismusik_api + test_believe_royalty. Pre-existing failures to be aware of: (1) TestStripSensitive in test_believe_royalty.py, (2) two TestPayments tests in test_rilismusik_api.py that POST empty body to /api/payments/subscription (which now requires {tier}). Neither is a Phase 7 regression. CRITICAL: pytest needs REACT_APP_BACKEND_URL exported in the shell environment — it does NOT auto-load from /app/frontend/.env. Use: `export REACT_APP_BACKEND_URL=https://lanjut-core.preview.emergentagent.com && pytest backend/tests/`. The MDA preview endpoint /api/cms/mda/preview is intentionally public (no auth) and writes to a cache file only, never to the contracts collection.",
+  "rca of the issue": "N/A — Phase 7 is functioning as designed. The only soft observation is the unreachable inline-error branch in Register.jsx, which is a code-clarity issue, not a functional bug: the disabled submit button + HTML5 'required' attribute already enforce MDA consent, so the React-level error string never renders. Reproduce by JS-disabling the button and clicking submit → browser-native 'Please check this box if you want to proceed.' tooltip appears (screenshot captured). Mitigation: drop the 'required' attribute on the checkbox OR drop the inline-error branch in submit()."
+}

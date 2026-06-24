@@ -49,12 +49,18 @@ contract_r = APIRouter(prefix="/contracts", tags=["contracts"])
 
 
 def _contract_effective_status(c: Dict[str, Any]) -> str:
-    """Compute effective status from stored status + dates."""
+    """Compute effective status from stored status + dates.
+
+    A null end_date means lifetime / no expiry — always 'active' unless
+    explicitly terminated.
+    """
     if c.get("status") == "terminated":
         return "terminated"
+    end = c.get("end_date")
+    if not end:  # lifetime contract
+        return "active"
     today = datetime.now(timezone.utc).date().isoformat()
-    end = c.get("end_date") or ""
-    if end and end < today:
+    if end < today:
         return "expired"
     # within 30 days?
     try:
@@ -70,12 +76,17 @@ def _contract_effective_status(c: Dict[str, Any]) -> str:
 
 def _enrich_contract(c: Dict[str, Any]) -> Dict[str, Any]:
     c["effective_status"] = _contract_effective_status(c)
+    if not c.get("end_date"):
+        c["days_left"] = None  # lifetime contract
+        c["is_lifetime"] = True
+        return c
     try:
         end_dt = datetime.strptime(c.get("end_date", ""), "%Y-%m-%d").date()
         today_dt = datetime.now(timezone.utc).date()
         c["days_left"] = (end_dt - today_dt).days
     except Exception:
         c["days_left"] = None
+    c["is_lifetime"] = False
     return c
 
 
@@ -100,7 +111,7 @@ async def contract_create(body: ContractCreateIn, user: dict = Depends(require_a
     label = await db.labels.find_one({"id": body.label_id}, {"_id": 0, "id": 1, "label_name": 1, "user_id": 1})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
-    if body.end_date <= body.start_date:
+    if body.end_date and body.end_date <= body.start_date:
         raise HTTPException(status_code=400, detail="Tanggal berakhir harus setelah tanggal mulai")
     cid = new_id()
     doc = {

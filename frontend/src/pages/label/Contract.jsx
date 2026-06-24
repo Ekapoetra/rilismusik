@@ -86,17 +86,23 @@ function ContractCard({ c }) {
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Berakhir</div>
-          <div className="font-semibold">{c.end_date}</div>
+          <div className="font-semibold">
+            {c.is_lifetime || !c.end_date ? (
+              <span className="text-emerald-300">Tanpa Batas Waktu</span>
+            ) : c.end_date}
+          </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Sisa</div>
           <div className="font-semibold">
             {c.effective_status === "terminated" ? "—" :
-              c.days_left !== null ? (
+              c.is_lifetime || c.days_left === null ? (
+                <span className="text-zinc-400">Lifetime</span>
+              ) : (
                 <span className={c.days_left < 0 ? "text-red-300" : c.days_left <= 30 ? "text-amber-300" : ""}>
                   {c.days_left < 0 ? `${Math.abs(c.days_left)} hari lewat` : `${c.days_left} hari`}
                 </span>
-              ) : "—"}
+              )}
           </div>
         </div>
         <div className="flex items-end">
@@ -111,6 +117,15 @@ function ContractCard({ c }) {
           </a>
         </div>
       </div>
+
+      {c.kind === "mda" && (
+        <div className="mt-4 rounded-xl bg-violet-500/10 border border-violet-500/20 p-3 text-xs text-violet-200 flex items-start gap-2">
+          <FileSignature className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            <b>Master Distribution Agreement</b> — disetujui via checkbox elektronik pada {c.accepted_at?.slice(0, 10)} oleh <b>{c.accepted_by_name}</b>. UU ITE No. 11/2008.
+          </span>
+        </div>
+      )}
 
       {c.notes && (
         <div className="mt-4 rounded-xl bg-white/[0.03] border border-white/5 p-3 text-xs text-zinc-400">

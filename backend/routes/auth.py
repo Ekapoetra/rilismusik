@@ -53,6 +53,11 @@ async def register(body: RegisterLabelIn, response: Response):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Email sudah terdaftar")
+    if not body.mda_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.",
+        )
 
     user_id = new_id()
     user_doc = {
@@ -68,6 +73,7 @@ async def register(body: RegisterLabelIn, response: Response):
     }
     await db.users.insert_one(user_doc)
 
+    accepted_at = now_iso()
     label_id = new_id()
     label_doc = {
         "id": label_id,
@@ -84,18 +90,55 @@ async def register(body: RegisterLabelIn, response: Response):
         "payment_type": "pay_per_release",
         "subscription_status": "inactive",
         "subscription_expires_at": None,
-        "contract_status": "pending_contract",
+        "contract_status": "active",
         "account_status": "active",
         "bank_verified": False,
         "blacklisted": False,
         "balance_available_idr": 0,
         "balance_pending_idr": 0,
         "balance_withdraw_requested_idr": 0,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
+        "mda_accepted_at": accepted_at,
+        "created_at": accepted_at,
+        "updated_at": accepted_at,
     }
     await db.labels.insert_one(label_doc)
     label_doc.pop("_id", None)
+
+    # ---- Auto-generate Master Distribution Agreement PDF ----
+    try:
+        from .mda_generator import generate_mda_pdf
+        legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
+        legal_entity = (legal_setting or {}).get("value") or {}
+        contract_id = new_id()
+        pdf_path = UPLOAD_DIR / "contract" / f"{contract_id}.pdf"
+        generate_mda_pdf(label_doc, legal_entity, pdf_path)
+        file_url = f"/api/files/contract/{contract_id}.pdf"
+        contract_doc = {
+            "id": contract_id,
+            "label_id": label_id,
+            "label_name": body.label_name,
+            "title": "Master Distribution Agreement",
+            "kind": "mda",
+            "file_url": file_url,
+            "filename": f"MDA-{body.label_name[:20]}.pdf",
+            "start_date": accepted_at[:10],
+            "end_date": None,  # lifetime — no expiry
+            "is_lifetime": True,
+            "status": "active",
+            "notes": "Auto-generated saat registrasi via persetujuan elektronik (checkbox).",
+            "accepted_at": accepted_at,
+            "accepted_by_name": body.pic_name,
+            "accepted_by_email": email,
+            "created_at": accepted_at,
+            "updated_at": accepted_at,
+            "created_by": "system",
+        }
+        await db.contracts.insert_one(contract_doc)
+        logger.info("MDA generated for %s -> %s", body.label_name, pdf_path)
+    except Exception as e:
+        logger.exception("MDA generation failed for label %s: %s", body.label_name, e)
+        # Don't block registration on MDA failure — admin can re-generate later
+
 
     # Email verification token (logged in dev, no email service in MVP)
     verify_token = secrets.token_urlsafe(32)

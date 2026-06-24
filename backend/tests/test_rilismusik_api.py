@@ -36,6 +36,7 @@ def label_session():
     r = s.post(f"{API}/auth/register", json={
         "label_name": "TEST Label", "pic_name": "PIC", "email": email,
         "whatsapp": "+628111", "password": "Password#123", "account_type": "label",
+            "mda_accepted": True,
     })
     assert r.status_code == 200, r.text
     data = r.json()
@@ -65,8 +66,7 @@ class TestAuth:
         email = _rand_email("reg")
         r = s.post(f"{API}/auth/register", json={
             "label_name": "TEST Reg", "pic_name": "PIC", "email": email,
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         assert r.status_code == 200, r.text
         body = r.json()
         assert "verification_token" in body
@@ -82,8 +82,7 @@ class TestAuth:
         s = _session()
         r = s.post(f"{API}/auth/register", json={
             "label_name": "Dup", "pic_name": "PIC", "email": label_session["email"],
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         assert r.status_code == 409
 
     def test_login_wrong_password_returns_401(self):
@@ -91,8 +90,7 @@ class TestAuth:
         email = _rand_email("wrong")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         r = s.post(f"{API}/auth/login", json={"email": email, "password": "wrongPass#1"})
         assert r.status_code == 401
 
@@ -102,8 +100,7 @@ class TestAuth:
         email = _rand_email("bf")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         codes = []
         for _ in range(6):
             r = s.post(f"{API}/auth/login", json={"email": email, "password": "wrong"})
@@ -124,8 +121,7 @@ class TestAuth:
         email = _rand_email("logout")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         assert s.post(f"{API}/auth/logout").status_code == 200
         # cookies should be cleared - me should 401
         s.cookies.clear()
@@ -271,8 +267,7 @@ class TestAdminActions:
         email = _rand_email("ppr")
         reg = ns.post(f"{API}/auth/register", json={
             "label_name": "PPR Label", "pic_name": "PIC", "email": email,
-            "whatsapp": "+628111", "password": "Password#123",
-        })
+            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         assert reg.status_code == 200, f"register failed: {reg.status_code} {reg.text}"
         good_date = (date.today() + timedelta(days=10)).isoformat()
         dr = ns.post(f"{API}/releases/draft", json={

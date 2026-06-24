@@ -68,6 +68,7 @@ def other_label():
         "label_name": "TEST P3 Other Label", "pic_name": "PIC",
         "email": email, "whatsapp": "+62811", "password": "Password#123",
         "account_type": "label",
+            "mda_accepted": True,
     })
     assert r.status_code == 200, r.text
     label_id = r.json()["label"]["id"]

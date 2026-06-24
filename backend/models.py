@@ -21,6 +21,7 @@ class RegisterLabelIn(BaseModel):
     whatsapp: str = Field(min_length=6, max_length=20)
     password: str = Field(min_length=8, max_length=200)
     account_type: Literal["label", "independent_artist"] = "label"
+    mda_accepted: bool = Field(default=False, description="Label MUST tick this to acknowledge the Master Distribution Agreement")
 
 
 class LoginIn(BaseModel):
@@ -266,7 +267,7 @@ class ContractCreateIn(BaseModel):
     file_url: str
     filename: str
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     notes: Optional[str] = None
 
 

@@ -15,6 +15,7 @@ export default function Register() {
     password: "",
     password_confirm: "",
     account_type: "label",
+    mda_accepted: false,
   });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -31,6 +32,10 @@ export default function Register() {
     }
     if (form.password.length < 8) {
       setErr("Password minimal 8 karakter");
+      return;
+    }
+    if (!form.mda_accepted) {
+      setErr("Anda harus menyetujui Master Distribution Agreement (MDA) untuk mendaftar.");
       return;
     }
     setLoading(true);
@@ -115,7 +120,31 @@ export default function Register() {
             </div>
           </div>
           {err && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
-          <button data-testid={REGISTER.submitButton} type="submit" className="rm-btn-primary mt-2" disabled={loading}>
+          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 cursor-pointer hover:border-white/20 transition" data-testid="register-mda-block">
+            <input
+              type="checkbox"
+              className="mt-1 w-4 h-4 accent-[#FF1F8E]"
+              checked={form.mda_accepted}
+              onChange={(e) => setForm({ ...form, mda_accepted: e.target.checked })}
+              required
+              data-testid="register-mda-checkbox"
+            />
+            <span className="text-xs text-zinc-300 leading-relaxed">
+              Saya telah membaca dan menyetujui{" "}
+              <a
+                href={`${process.env.REACT_APP_BACKEND_URL || ""}/api/cms/mda/preview`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold rm-gradient-text underline-offset-2 hover:underline"
+                data-testid="register-mda-link"
+              >
+                Master Distribution Agreement (MDA)
+              </a>
+              {" "}— perjanjian distribusi musik digital antara label dan PT. Jeeres Group Indonesia.
+              Persetujuan checkbox ini memiliki kekuatan hukum sesuai UU ITE No. 11/2008.
+            </span>
+          </label>
+          <button data-testid={REGISTER.submitButton} type="submit" className="rm-btn-primary mt-2" disabled={loading || !form.mda_accepted}>
             {loading ? "Memproses…" : "Daftar Sekarang"}
           </button>
         </form>

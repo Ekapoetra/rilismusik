@@ -134,6 +134,7 @@ class TestLabelProfileRedaction:
             "pic_name": "Redact Tester",
             "whatsapp": "+628111111111",
             "account_type": "label",
+            "mda_accepted": True,
         }
         r = requests.post(f"{API}/auth/register", json=payload, timeout=30)
         if r.status_code not in (200, 201):

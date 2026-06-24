@@ -85,3 +85,33 @@ async def upload_landing_image(file: UploadFile = File(...), user: dict = Depend
     return {"url": f"/api/files/landing/{fid}.{ext}"}
 
 
+@cms_r.get("/mda/preview")
+async def mda_preview():
+    """Public endpoint — generates and streams a sample MDA PDF with placeholder
+    label data so prospective users can review the contract BEFORE registering.
+
+    Caches one preview PDF on disk and re-renders on demand only if the legal
+    entity has changed (we just re-render every call for simplicity; it's a
+    rare operation).
+    """
+    from fastapi.responses import FileResponse
+    from .mda_generator import generate_mda_pdf
+    legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
+    legal_entity = (legal_setting or {}).get("value") or {}
+    sample_label = {
+        "label_name": "[Nama Label Anda]",
+        "pic_name": "[Nama PIC]",
+        "email": "[email anda]",
+        "whatsapp": "[WhatsApp]",
+        "label_type": "label",
+        "created_at": now_iso(),
+    }
+    out_path = UPLOAD_DIR / "contract" / "_mda_preview.pdf"
+    generate_mda_pdf(sample_label, legal_entity, out_path)
+    return FileResponse(
+        str(out_path),
+        media_type="application/pdf",
+        filename="RILIS-MUSIK-Master-Distribution-Agreement-Preview.pdf",
+    )
+
+

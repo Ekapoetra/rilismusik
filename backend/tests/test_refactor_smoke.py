@@ -66,6 +66,7 @@ def test_register_returns_verification_token_then_logout():
         "pic_name": "Refactor Tester",
         "country": "ID",
         "whatsapp": "+6281234567890",
+        "mda_accepted": True,
     }
     r = requests.post(f"{BASE}/api/auth/register", json=payload, timeout=30)
     assert r.status_code in (200, 201), r.text
