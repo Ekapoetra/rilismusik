@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -24,6 +24,30 @@ export default function AdminRoyaltyImport() {
 
   const load = async () => { const { data } = await api.get("/royalty/admin/imports"); setImports(data); };
   useEffect(() => { load(); }, []);
+
+  // Auto-poll every 4s while any import is still 'processing'
+  const pollRef = useRef(null);
+  useEffect(() => {
+    const anyProcessing = imports.some((i) => i.status === "processing");
+    if (anyProcessing && !pollRef.current) {
+      pollRef.current = setInterval(load, 4000);
+    } else if (!anyProcessing && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [imports]);
+
+  const retry = async (id, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setErr(""); setMsg("");
+    try {
+      await api.post(`/royalty/admin/imports/${id}/retry`);
+      setMsg("Retry dijadwalkan — proses akan jalan di background.");
+      load();
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -101,14 +125,41 @@ export default function AdminRoyaltyImport() {
           <Link key={i.id} to={`/admin/royalty/${i.id}`} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
             <div className="col-span-12 md:col-span-2 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/100/15 text-amber-300 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
-              <div className="font-display font-bold">{i.period}</div>
+              <div>
+                <div className="font-display font-bold">{i.period}</div>
+                {i.is_multi_period && <div className="text-[10px] text-zinc-500">multi-period</div>}
+              </div>
             </div>
             <div className="col-span-6 md:col-span-2 text-sm">Rp {i.exchange_rate_eur_idr?.toLocaleString("id-ID")}/€</div>
             <div className="col-span-6 md:col-span-2 text-sm">{fmtEUR(i.total_revenue_eur)}</div>
             <div className="col-span-6 md:col-span-2 text-sm font-semibold">{fmtIDR(i.total_label_idr)}</div>
-            <div className="col-span-6 md:col-span-2 text-xs"><span className="text-emerald-300 font-bold">{i.matched_lines}</span> / {i.total_lines} {i.unmatched_lines > 0 && <span className="text-amber-300"> ({i.unmatched_lines} unmatched)</span>}</div>
-            <div className="col-span-12 md:col-span-2">
+            <div className="col-span-6 md:col-span-2 text-xs">
+              {i.status === "processing" ? (
+                <div data-testid={`royalty-import-progress-${i.id}`}>
+                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-sky-400 transition-all" style={{ width: `${i.progress_pct || 0}%` }} />
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-1">{(i.processed_lines || 0).toLocaleString("id-ID")} baris • {i.progress_pct || 0}%</div>
+                </div>
+              ) : (
+                <>
+                  <span className="text-emerald-300 font-bold">{i.matched_lines}</span> / {i.total_lines}
+                  {i.unmatched_lines > 0 && <span className="text-amber-300"> ({i.unmatched_lines} unmatched)</span>}
+                </>
+              )}
+            </div>
+            <div className="col-span-12 md:col-span-2 flex items-center gap-2">
               <StatusBadge s={i.status} />
+              {(i.status === "processing" || i.status === "error") && (
+                <button
+                  onClick={(e) => retry(i.id, e)}
+                  className="rm-btn-ghost flex items-center gap-1 text-[10px] px-2 py-1"
+                  data-testid={`royalty-import-retry-${i.id}`}
+                  title="Retry background processing"
+                >
+                  <RefreshCw className="w-3 h-3" /> Retry
+                </button>
+              )}
             </div>
           </Link>
         ))}
@@ -195,10 +246,12 @@ export default function AdminRoyaltyImport() {
 
 function StatusBadge({ s }) {
   const map = {
+    processing: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Processing", icon: Loader2, spin: true },
     pending_review: { bg: "bg-amber-500/15", color: "text-amber-300", label: "Pending Review", icon: FileSpreadsheet },
     published: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Published", icon: CheckCircle2 },
     dana_received: { bg: "bg-emerald-500/15", color: "text-emerald-300", label: "Dana Diterima", icon: Banknote },
+    error: { bg: "bg-red-500/15", color: "text-red-300", label: "Error", icon: XCircle },
   }[s] || { bg: "bg-white/[0.06]", color: "text-zinc-300", label: s };
   const Icon = map.icon;
-  return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${map.bg} ${map.color}`}>{Icon && <Icon className="w-3 h-3" />}{map.label}</span>;
+  return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${map.bg} ${map.color}`} data-testid={`royalty-status-${s}`}>{Icon && <Icon className={`w-3 h-3 ${map.spin ? "animate-spin" : ""}`} />}{map.label}</span>;
 }

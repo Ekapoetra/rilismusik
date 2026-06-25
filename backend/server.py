@@ -31,7 +31,7 @@ from routes.payments import pay_r
 from routes.wami import wami_r
 from routes.cms import cms_r
 from routes.admin import admin_r
-from routes.royalty import royalty_r
+from routes.royalty import royalty_r, resume_interrupted_imports
 from routes.withdraw import withdraw_r
 from routes.tickets import ticket_r
 from routes.notifications import notif_r
@@ -103,6 +103,10 @@ app.add_middleware(
 async def on_startup():
     await seed_indexes_and_admins()
     start_scheduler()
+    # Resume any royalty CSV imports that were left in 'processing' state by a
+    # previous container shutdown/hot-reload — must run AFTER db is ready.
+    import asyncio
+    asyncio.create_task(resume_interrupted_imports())
     logger.info("RILIS MUSIK API started — scheduler online")
 
 

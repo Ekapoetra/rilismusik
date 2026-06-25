@@ -543,29 +543,30 @@ async def _process_csv_import_bg(
         )
 
 
-@royalty_r.get("/admin/imports/{import_id}")
-async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
-    """Get a single royalty_import doc — used by the frontend to poll background-processing progress."""
-    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
-    if not imp:
-        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    # Compute live progress_pct on the fly (defensive, even though _flush updates it).
-    if imp.get("status") == "processing" and imp.get("total_lines"):
-        imp["progress_pct"] = min(99, int((imp.get("processed_lines", 0) / max(imp["total_lines"], 1)) * 100))
-    return imp
-
-
 @royalty_r.get("/admin/imports")
 async def admin_list_imports(user: dict = Depends(require_admin)):
     items = await db.royalty_imports.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Compute live progress_pct on the fly for in-flight imports.
+    for it in items:
+        if it.get("status") == "processing" and it.get("total_lines"):
+            it["progress_pct"] = min(99, int((it.get("processed_lines", 0) / max(it["total_lines"], 1)) * 100))
     return items
 
 
 @royalty_r.get("/admin/imports/{import_id}")
 async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
+    """Get a single royalty_import doc + sample lines + per-label breakdown.
+
+    For in-flight imports (status='processing'), lines/per_label reflect only
+    rows flushed so far — frontend polls this to render live progress.
+    """
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    # Compute live progress_pct on the fly (defensive, _flush already updates it).
+    if imp.get("status") == "processing" and imp.get("total_lines"):
+        imp["progress_pct"] = min(99, int((imp.get("processed_lines", 0) / max(imp["total_lines"], 1)) * 100))
+
     lines = await db.royalty_lines.find({"import_id": import_id}, {"_id": 0}).sort("revenue_eur", -1).limit(500).to_list(500)
 
     # per-label breakdown
@@ -920,3 +921,145 @@ async def label_royalty_export_csv(
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+# ============================================================
+# Recovery & Retry for interrupted background imports
+# ============================================================
+def _import_file_path(import_id: str, filename: Optional[str] = None) -> Optional[str]:
+    """Locate the CSV file on disk for an import. Tries both .csv and .csv.gz."""
+    base = UPLOAD_DIR / "csv"
+    # Primary location uses the import id as filename (see upload handler)
+    for ext in (".csv", ".csv.gz"):
+        p = base / f"{import_id}{ext}"
+        if p.exists():
+            return str(p)
+    return None
+
+
+async def _reset_import_for_retry(import_id: str) -> None:
+    """Wipe partial side-effects of a previous failed/interrupted run so we can
+    safely restart the processing without double-inserting rows.
+
+    - Delete royalty_lines tied to this import
+    - Delete auto-created labels/releases/tracks (only ones with auto_created_from=this import)
+    - Reset counters on the import doc
+    """
+    await db.royalty_lines.delete_many({"import_id": import_id})
+    await db.labels.delete_many({"auto_created_from": import_id})
+    await db.releases.delete_many({"auto_created_from": import_id})
+    await db.tracks.delete_many({"auto_created_from": import_id})
+    await db.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "total_lines": 0,
+            "processed_lines": 0,
+            "progress_pct": 0,
+            "matched_lines": 0,
+            "unmatched_lines": 0,
+            "invalid_period_rows": 0,
+            "auto_created_labels": 0,
+            "auto_created_releases": 0,
+            "auto_created_tracks": 0,
+            "total_revenue_eur": 0.0,
+            "total_label_idr": 0,
+            "period_breakdown": {},
+            "status": "processing",
+            "error_message": None,
+            "finished_at": None,
+            "updated_at": now_iso(),
+        }},
+    )
+
+
+@royalty_r.post("/admin/imports/{import_id}/retry")
+async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)):
+    """Manually re-trigger background processing for a stuck (processing) or failed (error) import.
+
+    Only Super Admin / Admin Finance. The original uploaded CSV file must still
+    exist on disk — otherwise we return 400 and the admin must re-upload.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp["status"] not in ("processing", "error"):
+        raise HTTPException(status_code=400, detail=f"Retry hanya untuk status processing/error (status saat ini: {imp['status']})")
+
+    file_path = _import_file_path(import_id, imp.get("filename"))
+    if not file_path:
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "error",
+                "error_message": "File CSV hilang setelah container restart. Silakan upload ulang.",
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+            }},
+        )
+        raise HTTPException(status_code=400, detail="File CSV asli tidak ditemukan di disk. Upload ulang.")
+
+    await _reset_import_for_retry(import_id)
+    import asyncio
+    asyncio.create_task(_process_csv_import_bg(
+        import_id=import_id,
+        file_path=file_path,
+        period=imp.get("period_start") if imp.get("is_multi_period") is False else None,
+        rate_eur_idr=imp["exchange_rate_eur_idr"],
+        fee_percent=imp["fee_percent"],
+        user_id=user["id"],
+    ))
+    await log_activity(user["id"], "retry_royalty_import", "royalty", import_id)
+    return {"ok": True, "import_id": import_id, "status": "processing"}
+
+
+async def resume_interrupted_imports():
+    """Called on backend startup. For every royalty_import stuck in 'processing'
+    (hot-reload or pod restart killed the task), either:
+      - Resume it if the CSV file is still on disk; or
+      - Mark it as 'error' so admin can re-upload or manually retry.
+    """
+    try:
+        stuck = await db.royalty_imports.find(
+            {"status": "processing"},
+            {"_id": 0, "id": 1, "filename": 1, "exchange_rate_eur_idr": 1,
+             "fee_percent": 1, "period": 1, "period_start": 1, "is_multi_period": 1,
+             "uploaded_by": 1},
+        ).to_list(100)
+    except Exception as e:
+        logger.exception("resume_interrupted_imports: cannot query imports: %s", e)
+        return
+
+    if not stuck:
+        return
+    logger.info("resume_interrupted_imports: found %d stuck import(s)", len(stuck))
+    import asyncio
+    for imp in stuck:
+        import_id = imp["id"]
+        file_path = _import_file_path(import_id, imp.get("filename"))
+        if not file_path:
+            await db.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {
+                    "status": "error",
+                    "error_message": "Container restart — file CSV asli hilang. Upload ulang.",
+                    "finished_at": now_iso(),
+                    "updated_at": now_iso(),
+                }},
+            )
+            logger.warning("resume_interrupted_imports: %s marked as error (file missing)", import_id)
+            continue
+        # Wipe partial inserts then re-spawn background task
+        await _reset_import_for_retry(import_id)
+        # Use period only if the import was a single-period upload
+        period = None
+        if imp.get("is_multi_period") is False and imp.get("period_start"):
+            period = imp["period_start"]
+        asyncio.create_task(_process_csv_import_bg(
+            import_id=import_id,
+            file_path=file_path,
+            period=period,
+            rate_eur_idr=imp["exchange_rate_eur_idr"],
+            fee_percent=imp["fee_percent"],
+            user_id=imp.get("uploaded_by") or "system",
+        ))
+        logger.info("resume_interrupted_imports: %s resumed from %s", import_id, file_path)

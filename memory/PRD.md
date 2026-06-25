@@ -106,6 +106,18 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
   - VIP: `demo_vip@rilismusik.com / DemoVIP#2026` — Annual VIP active (expires 2027-04-21), Rp 15jt balance + Rp 3.2jt pending, 3 releases, 1 historical paid withdraw, 1 free WAMI registration.
 - **Tests**: `test_phase9_autocreate.py` 10/10 + 42/42 regression = 52/52 PASS, zero regression.
 
+### Phase 10 — Background CSV Import Recovery (DONE 2026-06-25)
+**Solves: 80MB+ Believe CSV imports surviving container restart / uvicorn --reload.**
+
+- **Auto-resume on startup**: `resume_interrupted_imports()` runs in `server.py` startup. Scans for `royalty_imports` with `status='processing'`. For each stuck doc:
+  - If CSV file is still on disk → wipe partial inserts (`royalty_lines` + auto-created labels/releases/tracks for that `import_id`) and re-spawn the background task.
+  - If file is gone (container restart wiped tmpfs) → mark `status='error'` with descriptive `error_message`.
+- **Manual retry endpoint**: `POST /api/royalty/admin/imports/{id}/retry` (super_admin / admin_finance) — same idempotent reset-then-rerun flow for cases where auto-resume failed or admin wants to retry a previously-errored import. Returns 400 if status is not `processing`/`error` or if file is missing.
+- **New status `error`**: import_doc now has 5 statuses (`processing`, `pending_review`, `published`, `dana_received`, `error`) with `error_message` field surfaced to admin UI.
+- **Bug fix**: removed duplicate `GET /admin/imports/{id}` endpoint that was shadowing the rich `{import, lines, per_label}` response — RoyaltyDetail page was broken before this fix.
+- **UI**: Admin `/admin/royalty` page now polls every 4s while any import is processing. Each row shows live progress bar + matched lines counter. Status badge supports new `Processing` (animated spinner icon) and `Error` (red X) states. Retry button (`data-testid="royalty-import-retry-{id}"`) appears for both states. RoyaltyDetail page polls every 3s and shows a hero progress card (sky→violet gradient) with `processed_lines / matched_lines / auto_created_labels / auto_created_tracks` plus an error banner.
+- **Tests**: `test_phase10_csv_recovery.py` 5/5 PASS + 24/24 regression = 29/29 PASS.
+
 ## Test credentials
 See `/app/memory/test_credentials.md`.
 

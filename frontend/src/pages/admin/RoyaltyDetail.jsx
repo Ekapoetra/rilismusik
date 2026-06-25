@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
+import { Loader2, RefreshCw, XCircle } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -19,6 +20,20 @@ export default function AdminRoyaltyDetail() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
+  // Auto-poll every 3s while status === 'processing'
+  const pollRef = useRef(null);
+  useEffect(() => {
+    const processing = data?.import?.status === "processing";
+    if (processing && !pollRef.current) {
+      pollRef.current = setInterval(load, 3000);
+    } else if (!processing && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+    // eslint-disable-next-line
+  }, [data?.import?.status]);
+
   const publish = async () => {
     setBusy(true); setErr(""); setMsg("");
     try { await api.post(`/royalty/admin/imports/${id}/publish`, { confirm: true }); setMsg("Royalti dipublish — saldo pending bertambah ke label."); load(); }
@@ -27,6 +42,11 @@ export default function AdminRoyaltyDetail() {
   const markDana = async () => {
     setBusy(true); setErr(""); setMsg("");
     try { await api.post(`/royalty/admin/imports/${id}/mark-dana-received`); setMsg("Dana ditandai diterima — saldo pending dipindah ke tersedia."); load(); }
+    catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
+  };
+  const retry = async () => {
+    setBusy(true); setErr(""); setMsg("");
+    try { await api.post(`/royalty/admin/imports/${id}/retry`); setMsg("Retry dijadwalkan — refresh otomatis akan menampilkan progress."); load(); }
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
   };
 
@@ -43,11 +63,48 @@ export default function AdminRoyaltyDetail() {
           <div className="text-sm text-zinc-400">File: {imp.filename} • Kurs: Rp {imp.exchange_rate_eur_idr?.toLocaleString("id-ID")} / €1 • Fee distributor: {imp.fee_percent}%</div>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {imp.status === "processing" && (
+            <span className="px-3 py-2 rounded-full text-xs font-bold bg-sky-500/15 text-sky-300 flex items-center gap-2" data-testid="royalty-detail-status-processing">
+              <Loader2 className="w-3 h-3 animate-spin" /> Processing… {imp.progress_pct || 0}%
+            </span>
+          )}
+          {(imp.status === "processing" || imp.status === "error") && (
+            <button className="rm-btn-ghost flex items-center gap-2" disabled={busy} onClick={retry} data-testid="admin-royalty-retry">
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          )}
           {imp.status === "pending_review" && <button className="rm-btn-primary" disabled={busy} onClick={publish} data-testid="admin-royalty-publish">Publish (kredit ke pending)</button>}
           {imp.status === "published" && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">Tandai Dana Diterima</button>}
           {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">✓ Dana sudah diterima</span>}
         </div>
       </div>
+
+      {imp.status === "processing" && (
+        <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-progress">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-zinc-400">Memproses CSV di background…</span>
+            <span className="font-bold text-sky-300">{imp.progress_pct || 0}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-sky-400 to-violet-400 transition-all" style={{ width: `${imp.progress_pct || 0}%` }} />
+          </div>
+          <div className="text-[11px] text-zinc-500">
+            {(imp.processed_lines || 0).toLocaleString("id-ID")} baris diproses • {(imp.matched_lines || 0).toLocaleString("id-ID")} matched • {(imp.auto_created_labels || 0)} label / {(imp.auto_created_tracks || 0)} track baru auto-dibuat
+          </div>
+          <div className="text-[11px] text-zinc-500">Auto-refresh setiap 3 detik. Jika container restart, processing akan otomatis dilanjutkan saat backend start kembali.</div>
+        </div>
+      )}
+
+      {imp.status === "error" && imp.error_message && (
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200 flex items-start gap-3" data-testid="royalty-detail-error-banner">
+          <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="font-bold">Import gagal</div>
+            <div className="text-red-200/80 mt-1">{imp.error_message}</div>
+            <div className="text-[11px] text-red-200/60 mt-1">Klik <b>Retry</b> jika file CSV masih ada di server, atau upload ulang.</div>
+          </div>
+        </div>
+      )}
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
