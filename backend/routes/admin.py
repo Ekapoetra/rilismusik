@@ -279,3 +279,119 @@ async def admin_unblacklist_label(label_id: str, user: dict = Depends(require_ad
     return {"ok": True}
 
 
+# ============================================================
+# Create user account for an unclaimed legacy label
+# ============================================================
+@admin_r.post("/labels/{label_id}/create-account")
+async def admin_create_label_account(
+    label_id: str,
+    email: str = Form(...),
+    pic_name: Optional[str] = Form(None),
+    whatsapp: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    user: dict = Depends(require_admin),
+):
+    """Admin creates a user account for a legacy/unclaimed label.
+
+    - Auto-generates a 12-char password if `password` is not provided.
+    - Auto-generates MDA PDF (lifetime contract).
+    - Returns the plaintext password ONCE for the admin to share with the label.
+    """
+    if user["role"] not in ("super_admin", "admin_release", "admin_support"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Release / Support")
+
+    label = await db.labels.find_one({"id": label_id})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    if label.get("user_id"):
+        raise HTTPException(status_code=400, detail="Label ini sudah punya akun user")
+
+    email_clean = (email or "").lower().strip()
+    if not email_clean or "@" not in email_clean:
+        raise HTTPException(status_code=400, detail="Email tidak valid")
+    if await db.users.find_one({"email": email_clean}):
+        raise HTTPException(status_code=409, detail="Email sudah terdaftar")
+
+    # Generate 12-char password if not supplied
+    if not password:
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+        password = "".join(secrets.choice(alphabet) for _ in range(12))
+    elif len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password minimal 8 karakter")
+
+    user_id = new_id()
+    pic = (pic_name or label.get("pic_name") or label.get("label_name") or "").strip() or "Label PIC"
+    wa = (whatsapp or label.get("whatsapp") or "").strip()
+    now = now_iso()
+    await db.users.insert_one({
+        "id": user_id,
+        "name": pic,
+        "email": email_clean,
+        "password_hash": hash_password(password),
+        "role": "label",
+        "email_verified_at": now,  # admin-created → assume verified
+        "status": "active",
+        "created_at": now,
+        "updated_at": now,
+        "created_by_admin": user["id"],
+    })
+    await db.labels.update_one(
+        {"id": label_id},
+        {"$set": {
+            "user_id": user_id,
+            "email": email_clean,
+            "pic_name": pic,
+            "whatsapp": wa or label.get("whatsapp"),
+            "account_status": "active",
+            "mda_accepted_at": now,
+            "updated_at": now,
+        }},
+    )
+
+    # Auto-generate MDA PDF
+    try:
+        from .mda_generator import generate_mda_pdf
+        legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
+        legal_entity = (legal_setting or {}).get("value") or {}
+        merged = {**label, "user_id": user_id, "email": email_clean, "pic_name": pic, "whatsapp": wa or label.get("whatsapp")}
+        contract_id = new_id()
+        pdf_path = UPLOAD_DIR / "contract" / f"{contract_id}.pdf"
+        generate_mda_pdf(merged, legal_entity, pdf_path)
+        await db.contracts.insert_one({
+            "id": contract_id,
+            "label_id": label_id,
+            "label_name": label.get("label_name"),
+            "title": "Master Distribution Agreement",
+            "kind": "mda",
+            "file_url": f"/api/files/contract/{contract_id}.pdf",
+            "filename": f"MDA-{(label.get('label_name') or '')[:20]}.pdf",
+            "start_date": now[:10],
+            "end_date": None,
+            "is_lifetime": True,
+            "status": "active",
+            "notes": f"Auto-generated saat admin {user.get('email')} membuat akun untuk legacy label.",
+            "accepted_at": now,
+            "accepted_by_name": pic,
+            "accepted_by_email": email_clean,
+            "created_at": now,
+            "updated_at": now,
+            "created_by": user["id"],
+        })
+    except Exception as e:
+        logger.warning("MDA generation on admin create-account failed: %s", e)
+
+    await log_activity(
+        user["id"], "create_label_account", "label", label_id,
+        after={"user_id": user_id, "email": email_clean, "label_name": label.get("label_name")},
+    )
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "email": email_clean,
+        "password": password,  # plaintext — show ONCE to admin
+        "label_id": label_id,
+        "label_name": label.get("label_name"),
+        "warning": "Password ini hanya ditampilkan SEKALI. Salin sekarang untuk dibagikan ke label.",
+    }
+
+

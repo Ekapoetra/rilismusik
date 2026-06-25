@@ -48,6 +48,15 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 royalty_r = APIRouter(prefix="/royalty", tags=["royalty"])
 
 
+def _norm_name(s: Optional[str]) -> str:
+    """Fuzzy-match key: lowercase + trim + collapse whitespace.
+    Used to match Believe CSV label/artist names that may differ in case or spacing.
+    """
+    if not s:
+        return ""
+    return " ".join(s.strip().lower().split())
+
+
 def _match_line(row: Dict[str, Any], col_idx: Dict[str, Optional[int]], headers: List[str]) -> Dict[str, Any]:
     """Extract raw fields from a CSV row using detected columns."""
     def get(key: str) -> Optional[str]:
@@ -146,7 +155,7 @@ async def admin_upload_royalty_csv(
 
     # Pre-fetch all labels' percentage history
     labels = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
-    labels_by_name = {(lab.get("label_name") or "").strip().lower(): lab for lab in labels.values()}
+    labels_by_name = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
     pct_history: Dict[str, List[Dict[str, Any]]] = {}
     async for h in db.royalty_percentage_history.find({}, {"_id": 0}):
         pct_history.setdefault(h["label_id"], []).append(h)
@@ -158,6 +167,13 @@ async def admin_upload_royalty_csv(
     invalid_period_rows = 0
     line_docs: List[Dict[str, Any]] = []
     period_counts: Dict[str, int] = {}  # period -> row count
+    auto_created_labels = 0
+    auto_created_releases = 0
+    auto_created_tracks = 0
+    new_label_docs: List[Dict[str, Any]] = []
+    new_release_docs: List[Dict[str, Any]] = []
+    new_track_docs: List[Dict[str, Any]] = []
+    now = now_iso()
 
     for row in rows:
         raw = _match_line(row, col_idx, headers)
@@ -189,12 +205,98 @@ async def admin_upload_royalty_csv(
                 release = r
                 label_id = r["label_id"]
                 match_by = "upc"
-        # Fallback: match by label name (lowercase)
+        # Fallback: fuzzy match by label name
         if not label_id and raw["label_name"]:
-            lab = labels_by_name.get(raw["label_name"].strip().lower())
+            lab = labels_by_name.get(_norm_name(raw["label_name"]))
             if lab:
                 label_id = lab["id"]
                 match_by = "label_name"
+
+        # ---- Auto-create legacy entities if still unmatched ----
+        # We create a placeholder Label (legacy_unclaimed) when CSV mentions a brand
+        # new label_name. If ISRC is present, we also create a placeholder Release+Track.
+        # This lets admin "Buatkan Akun" later for the label and see the catalog populated.
+        if not label_id and raw["label_name"]:
+            new_label_id = new_id()
+            new_label = {
+                "id": new_label_id,
+                "user_id": None,
+                "label_name": raw["label_name"].strip(),
+                "pic_name": None,
+                "email": None,
+                "whatsapp": None,
+                "address": None,
+                "city": None,
+                "country": "Indonesia",
+                "label_type": "label",
+                "royalty_percentage_default": 60.0,
+                "payment_type": "pay_per_release",
+                "subscription_status": "inactive",
+                "subscription_expires_at": None,
+                "contract_status": "active",
+                "account_status": "legacy_unclaimed",
+                "bank_verified": False,
+                "blacklisted": False,
+                "balance_available_idr": 0,
+                "balance_pending_idr": 0,
+                "balance_withdraw_requested_idr": 0,
+                "mda_accepted_at": None,
+                "legacy_import": True,
+                "auto_created_from": import_id,
+                "created_at": now,
+                "updated_at": now,
+            }
+            new_label_docs.append(new_label)
+            labels[new_label_id] = new_label
+            labels_by_name[_norm_name(new_label["label_name"])] = new_label
+            label_id = new_label_id
+            match_by = "auto_created_label"
+            auto_created_labels += 1
+
+        if label_id and raw["isrc"] and not track:
+            # Auto-create release + track (placeholder for legacy catalog)
+            new_release_id = release["id"] if release else new_id()
+            if not release:
+                new_release = {
+                    "id": new_release_id,
+                    "label_id": label_id,
+                    "release_title": raw.get("release_title") or "Legacy Release",
+                    "primary_artist": raw.get("artist_name") or "Unknown",
+                    "isrc_release": None,
+                    "upc": raw["upc"],
+                    "release_type": "single",
+                    "release_date": (line_period + "-01") if line_period else "2021-01-01",
+                    "status": "live",
+                    "cover_url": None,
+                    "imported_legacy": True,
+                    "auto_created_from": import_id,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                new_release_docs.append(new_release)
+                auto_created_releases += 1
+                if raw["upc"]:
+                    all_releases_by_upc[raw["upc"].upper()] = new_release
+            new_track = {
+                "id": new_id(),
+                "release_id": new_release_id,
+                "label_id": label_id,
+                "artist_id": None,
+                "track_title": raw.get("track_title") or "Legacy Track",
+                "artist_name": raw.get("artist_name") or "Unknown",
+                "isrc": raw["isrc"],
+                "duration_sec": None,
+                "composer": None,
+                "audio_url": None,
+                "imported_legacy": True,
+                "auto_created_from": import_id,
+                "created_at": now,
+                "updated_at": now,
+            }
+            new_track_docs.append(new_track)
+            all_tracks[raw["isrc"].upper()] = new_track
+            track = new_track
+            auto_created_tracks += 1
 
         match_status = "matched" if label_id else "unmatched"
         if match_status == "matched":
@@ -248,6 +350,15 @@ async def admin_upload_royalty_csv(
 
     if line_docs:
         await db.royalty_lines.insert_many(line_docs)
+    if new_label_docs:
+        for k in range(0, len(new_label_docs), 1000):
+            await db.labels.insert_many(new_label_docs[k:k + 1000])
+    if new_release_docs:
+        for k in range(0, len(new_release_docs), 1000):
+            await db.releases.insert_many(new_release_docs[k:k + 1000])
+    if new_track_docs:
+        for k in range(0, len(new_track_docs), 1000):
+            await db.tracks.insert_many(new_track_docs[k:k + 1000])
 
     # Determine aggregate period info
     sorted_periods = sorted(period_counts.keys())
@@ -259,7 +370,7 @@ async def admin_upload_royalty_csv(
         "period": display_period,
         "period_start": sorted_periods[0] if sorted_periods else (period or None),
         "period_end": sorted_periods[-1] if sorted_periods else (period or None),
-        "period_breakdown": period_counts,  # {"2024-01": 1500, "2024-02": 1800, ...}
+        "period_breakdown": period_counts,
         "is_multi_period": is_multi_period,
         "source": "believe",
         "filename": file.filename,
@@ -270,6 +381,9 @@ async def admin_upload_royalty_csv(
         "matched_lines": matched,
         "unmatched_lines": unmatched,
         "invalid_period_rows": invalid_period_rows,
+        "auto_created_labels": auto_created_labels,
+        "auto_created_releases": auto_created_releases,
+        "auto_created_tracks": auto_created_tracks,
         "total_revenue_eur": round(total_revenue_eur, 4),
         "total_label_idr": total_label_idr,
         "status": "pending_review",
@@ -283,7 +397,13 @@ async def admin_upload_royalty_csv(
     await db.royalty_imports.insert_one(import_doc)
     await log_activity(
         user["id"], "upload_royalty_csv", "royalty", import_id,
-        after={"period": display_period, "matched": matched, "unmatched": unmatched, "multi_period": is_multi_period},
+        after={
+            "period": display_period, "matched": matched, "unmatched": unmatched,
+            "multi_period": is_multi_period,
+            "auto_labels": auto_created_labels,
+            "auto_releases": auto_created_releases,
+            "auto_tracks": auto_created_tracks,
+        },
     )
     import_doc.pop("_id", None)
     return import_doc

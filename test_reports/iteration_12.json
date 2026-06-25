@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 9 — Auto-create from Believe CSV + Admin 'Buatkan Akun' tested end-to-end. Backend pytest: 10/10 PASS (new test_phase9_autocreate.py) + 42/42 regression PASS across Phase 2/7/8 suites. Frontend smoke (Playwright): super-admin /admin/labels page shows 'Legacy / Unclaimed' filter option, 25 unclaimed labels with amber 'Unclaimed' badges + 'Buatkan Akun' buttons, 16 violet 'From CSV' badges for auto-created labels. CreateAccountModal opens correctly, submission returns credentials modal showing email + 12-char plaintext password (e.g. Z7Yr3Sd6sVq8) with Salin (Copy) + 'Sudah Saya Salin' close. Demo PPR (demo_ppr@rilismusik.com) and Demo VIP (demo_vip@rilismusik.com) both log in successfully; VIP dashboard shows tier Annual, balance Rp 15.000.000, balance pending Rp 3.200.000, 3 releases (Cinta Sederhana, Kota Mati, Symphony Kecil). PPR balance Rp 5.000.000. Auto-create / fuzzy match / RBAC / validations / password-login all verified. Zero regressions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase9_autocreate.py",
+    "/app/test_reports/pytest/iter12_phase9.xml",
+    "/app/test_reports/pytest/iter12_regress.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/royalty.py _norm_name (L51-57) is clean — lowercase+trim+collapse-whitespace is correct and matches Believe export quirks. labels_by_name index is updated when auto-creating so the SAME CSV with duplicate label_name rows won't multi-create the label within one import.",
+    "routes/royalty.py auto-create loop (L215-299): label is auto-created BEFORE the release/track block, so a row with new label_name but no ISRC still creates the placeholder Label. Good. Note: release_date fallback to '2021-01-01' (L268) is dead code in practice since line_period is required (invalid_period_rows continue skips earlier).",
+    "routes/admin.py create_label_account (L285-395): password gen uses secrets.choice over a 56-char unambiguous alphabet → safe. 12 chars × log2(56) ≈ 69 bits — acceptable for admin-shared credentials. MDA generation wrapped in try/except — fails silently on PDF errors (logged at warning); consider escalating to error level for audit.",
+    "routes/admin.py L300: RBAC list ('super_admin', 'admin_release', 'admin_support') correctly excludes admin_finance and admin_marketing — matches the spec (finance gets 403 verified).",
+    "Frontend Labels.jsx unclaimed detection (L57) uses `!l.user_id || account_status === 'legacy_unclaimed'` — works for both auto-created (user_id null) and any manually-flagged legacy label. From-CSV badge driven by `auto_created_from` field, correctly violet/distinct from Unclaimed badge.",
+    "Minor: CreateAccountModal in Labels.jsx (around L141-180) does not surface 409 (email taken) and 400 (invalid email / short password) error messages from the API beyond a generic alert/console. Confirmed via code review — there's no per-field error display, so the admin sees only a generic error toast/text. Not blocking, but UX nicety to add.",
+    "scripts/seed_demo_labels.py is idempotent (re-running produces 'Demo PPR ...' / 'Demo VIP ...' confirmation lines) — safe to re-execute."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase9_autocreate.py (new — 10 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 phase9 + 42/42 regression = 52/52)",
+    "frontend": "100% (admin create-account flow + demo PPR/VIP login + VIP dashboard + releases page)"
+  },
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; release1@rilismusik.com / Release#2026 ; finance1@rilismusik.com / Finance#2026 ; demo_ppr@rilismusik.com / DemoPPR#2026 ; demo_vip@rilismusik.com / DemoVIP#2026 — all verified working.",
+  "seed_data_creation": "Ran `cd /app/backend && python3 -m scripts.seed_demo_labels` once at start of testing — both demo labels provisioned. Test creates TEST_AutoLabel_/TEST_Fuzzy_/TEST_Defaults_/TEST_CA_/Phase8X auto-labels per run (no cleanup; idempotency guaranteed by uuid suffix).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 9 fully green. test_phase9_autocreate.py is the regression for this phase — uses Believe-format semicolon CSV (Bulan laporan;Nama Label;Nama Artis;Judul rilis;Judul track;UPC;ISRC;Pendapatan Bersih) and confirms auto_created_labels/releases/tracks counters + fuzzy-match dedupe + release/track defaults + create-account validations + RBAC (release_admin allowed, finance forbidden). Demo PPR/VIP seed script must be run before label-dashboard tests. UI testids in place: admin-labels-status, admin-label-create-account-<id>, admin-create-account-modal, admin-create-email, admin-create-account-submit, admin-credentials-modal, admin-credentials-close. Future enhancement: surface per-field server errors (409/400) in CreateAccountModal.",
+  "rca of the issue": "No bugs. Initial 9 pytest failures were entirely in the test file itself — backend list endpoints return raw JSON arrays (not {items:[...]}); fixed by adding a _items() normalizer helper and pointing withdraw history to /api/withdraw/label (not /withdraw/label/history). Once test code adjusted, all 10 passed. Behavior under test is correct."
+}
