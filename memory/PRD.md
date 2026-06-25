@@ -96,6 +96,16 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 - **Permissions**: only `super_admin` can run bulk migrations; super_admin + admin_release + admin_support can resolve claims.
 - **Tests**: `test_phase8_migrate.py` 9/9 + `test_phase8_extras.py` 10/10 = 19/19 PASS.
 
+### Phase 9 — Auto-create from CSV + Admin "Buatkan Akun" (DONE 2026-06-25)
+- **Auto-create legacy entities from Believe CSV**: when admin uploads royalty CSV, any new `label_name` / new ISRC / new UPC automatically creates placeholder Label (account_status='legacy_unclaimed', user_id=null), Release (imported_legacy=true, status='live'), and Track (imported_legacy=true, audio_url=null). Import doc reports `auto_created_labels/releases/tracks` counts. Royalty line matches the new entities → no more `unmatched_lines` cluttering admin queue.
+- **Fuzzy match**: `_norm_name()` helper (lowercase + trim + collapse whitespace) matches "NADA Records" to "nada records  " — prevents duplicate labels from case/spacing variations.
+- **Admin "Buatkan Akun"**: `POST /api/admin/labels/{label_id}/create-account` (super_admin / admin_release / admin_support only) creates a user account for a legacy unclaimed label. Auto-generates 12-char unambiguous password if not supplied, returns it ONCE in JSON, generates MDA PDF, links user_id to label, sets account_status='active'.
+- **UI**: `/admin/labels` filter dropdown now includes 'Legacy / Unclaimed'. Each unclaimed row shows amber `Unclaimed` badge + violet `From CSV` badge (if auto-created) + 'Buatkan Akun' button → modal with email/pic_name/whatsapp/password fields → credentials modal showing plaintext password with Copy button.
+- **2 demo accounts** seeded via `python3 -m scripts.seed_demo_labels`:
+  - PPR: `demo_ppr@rilismusik.com / DemoPPR#2026` — Pay Per Release, Rp 5jt balance, 2 releases.
+  - VIP: `demo_vip@rilismusik.com / DemoVIP#2026` — Annual VIP active (expires 2027-04-21), Rp 15jt balance + Rp 3.2jt pending, 3 releases, 1 historical paid withdraw, 1 free WAMI registration.
+- **Tests**: `test_phase9_autocreate.py` 10/10 + 42/42 regression = 52/52 PASS, zero regression.
+
 ## Test credentials
 See `/app/memory/test_credentials.md`.
 
