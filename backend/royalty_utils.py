@@ -185,6 +185,9 @@ def parse_period_from_value(value: Any) -> Optional[str]:
 def parse_csv_bytes(content: bytes) -> Tuple[List[str], List[Dict[str, Any]]]:
     """Return (headers, rows-as-dicts) from CSV bytes.
     Auto-detects delimiter (`;`, `,`, `\\t`, `|`) and tolerates UTF-8 BOM / latin-1 fallback.
+
+    NOTE: This loads the entire CSV into memory. For very large files (>10K rows),
+    use `iter_csv_file()` instead which streams row-by-row from disk.
     """
     # Try utf-8 first then latin-1 fallback (Believe uses UTF-8 with BOM).
     try:
@@ -218,6 +221,71 @@ def parse_csv_bytes(content: bytes) -> Tuple[List[str], List[Dict[str, Any]]]:
             for j, h in enumerate(headers)
         })
     return headers, rows
+
+
+def _open_csv_text(path: str):
+    """Open a CSV file as a text stream with auto-detected encoding + gzip support.
+
+    Returns (text_stream, sample_first_8KB).
+    Supports plain .csv and .csv.gz (some Believe exports use gzip).
+    """
+    import gzip
+    is_gz = path.endswith(".gz")
+    # Read first 8 KB to sniff delimiter + decode
+    if is_gz:
+        with gzip.open(path, "rb") as f:
+            raw_sample = f.read(8192)
+    else:
+        with open(path, "rb") as f:
+            raw_sample = f.read(8192)
+    try:
+        sample_text = raw_sample.decode("utf-8-sig")
+        encoding = "utf-8-sig"
+    except UnicodeDecodeError:
+        sample_text = raw_sample.decode("latin-1", errors="replace")
+        encoding = "latin-1"
+    # Open the real stream
+    if is_gz:
+        stream = gzip.open(path, "rt", encoding=encoding, errors="replace", newline="")
+    else:
+        stream = open(path, "rt", encoding=encoding, errors="replace", newline="")
+    return stream, sample_text
+
+
+def iter_csv_file(path: str):
+    """Yield (headers, row_dict) one row at a time from a CSV file on disk.
+
+    Memory-safe for files of any size (millions of rows). Supports .csv and .csv.gz.
+    First yielded value is (headers, None) — caller should capture and discard.
+    Subsequent yields are (headers, row_dict).
+    """
+    stream, sample = _open_csv_text(path)
+    try:
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=";,\t|")
+            delim = dialect.delimiter
+            quote = dialect.quotechar or '"'
+        except Exception:
+            first_line = sample.splitlines()[0] if sample else ""
+            counts = {d: first_line.count(d) for d in (";", ",", "\t", "|")}
+            delim = max(counts, key=counts.get) or ","
+            quote = '"'
+
+        reader = csv.reader(stream, delimiter=delim, quotechar=quote)
+        headers: List[str] = []
+        for i, row in enumerate(reader):
+            if i == 0:
+                headers = row
+                yield headers, None
+                continue
+            if not any((c or "").strip() for c in row):
+                continue
+            yield headers, {
+                normalize_header(h): (row[j] if j < len(row) else "")
+                for j, h in enumerate(headers)
+            }
+    finally:
+        stream.close()
 
 
 def calculate_line(

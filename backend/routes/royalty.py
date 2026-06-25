@@ -38,7 +38,7 @@ from auth_utils import (
 from royalty_utils import (
     parse_csv_bytes, detect_columns, parse_amount, normalize_header,
     parse_period_from_value, calculate_line, label_percentage_at,
-    strip_sensitive,
+    strip_sensitive, iter_csv_file,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 
@@ -98,7 +98,15 @@ async def admin_upload_royalty_csv(
     note: Optional[str] = Form(None),
     user: dict = Depends(require_admin),
 ):
-    """Upload CSV royalti Believe. Hanya menyimpan + parsing + matching. Belum mempengaruhi saldo.
+    """Upload CSV royalti Believe.
+
+    Untuk file kecil (<5000 baris): proses langsung, kembalikan hasil dengan
+    counter matched/unmatched. Untuk file besar (>=5000 baris OR >5 MB): proses
+    di background, kembalikan import_doc dengan status='processing' — frontend
+    polling endpoint GET /royalty/admin/imports/{id} untuk progress real-time.
+
+    Mendukung file hingga 200 MB (Believe royalty bulanan ~80 MB normal).
+    Mendukung .csv dan .csv.gz.
 
     Period dapat dikosongkan — jika kolom 'Bulan Laporan' (atau period) ada di CSV,
     setiap baris akan menggunakan period-nya sendiri (multi-period import). Jika
@@ -106,7 +114,6 @@ async def admin_upload_royalty_csv(
     """
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
-    # validate period if provided
     if period:
         try:
             datetime.strptime(period, "%Y-%m")
@@ -115,15 +122,50 @@ async def admin_upload_royalty_csv(
     if rate_eur_idr <= 0:
         raise HTTPException(status_code=400, detail="Kurs harus > 0")
 
-    content = await file.read()
-    headers, rows = parse_csv_bytes(content)
-    if not rows:
+    # ---- Stream file to disk in chunks (memory-safe for 80+ MB files) ----
+    MAX_BYTES = 200 * 1024 * 1024  # 200 MB hard cap
+    import_id = new_id()
+    fname = file.filename or "upload.csv"
+    ext = ".csv.gz" if fname.lower().endswith(".gz") else ".csv"
+    target = UPLOAD_DIR / "csv" / f"{import_id}{ext}"
+    total_size = 0
+    with open(target, "wb") as f:
+        while True:
+            chunk = await file.read(1 * 1024 * 1024)  # 1 MB chunks
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > MAX_BYTES:
+                f.close()
+                target.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File terlalu besar (>{MAX_BYTES // (1024*1024)} MB). Pecah jadi beberapa CSV.",
+                )
+            f.write(chunk)
+    file_url = f"/api/files/csv/{target.name}"
+
+    # ---- Quick header validation by peeking the first row ----
+    headers: List[str] = []
+    sample_rows: List[Dict[str, Any]] = []
+    try:
+        for hdrs, row_dict in iter_csv_file(str(target)):
+            if row_dict is None:
+                headers = hdrs
+                continue
+            sample_rows.append(row_dict)
+            if len(sample_rows) >= 50:
+                break
+    except Exception as e:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Gagal membaca CSV: {e}")
+    if not headers or not sample_rows:
+        target.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="CSV kosong atau tidak terbaca")
+
     col_idx = detect_columns(headers)
     if col_idx["revenue_eur"] is None:
         raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
-
-    # If period not provided, the CSV MUST have a period column with valid values
     if not period and col_idx.get("period") is None:
         raise HTTPException(
             status_code=400,
@@ -131,59 +173,192 @@ async def admin_upload_royalty_csv(
                    "Tambahkan kolom atau isi field period.",
         )
 
-    import_id = new_id()
-    # save file
-    target = UPLOAD_DIR / "csv" / f"{import_id}.csv"
-    with open(target, "wb") as f:
-        f.write(content)
-    file_url = f"/api/files/csv/{import_id}.csv"
+    # ---- Determine sync vs async based on file size ----
+    # Files <= 5 MB → process synchronously (preserves existing API behavior
+    # for small CSVs and pytest fixtures). Files > 5 MB → background.
+    SYNC_THRESHOLD = 5 * 1024 * 1024
+    process_async = total_size > SYNC_THRESHOLD
 
-    # cache fee + percent history
     fee_settings = await db.landing_settings.find_one({"key": "pricing"})
     fee_percent = float((fee_settings or {}).get("value", {}).get("distributor_fee_percent", 5) or 5)
 
-    # Pre-fetch all labels + tracks for matching
-    all_tracks = {}
-    async for t in db.tracks.find({"isrc": {"$exists": True, "$ne": None}}, {"_id": 0, "id": 1, "isrc": 1, "release_id": 1, "label_id": 1, "artist_id": 1, "track_title": 1, "artist_name": 1}):
-        if t.get("isrc"):
-            all_tracks[(t["isrc"] or "").strip().upper()] = t
+    now = now_iso()
+    import_doc = {
+        "id": import_id,
+        "period": period or "multi",
+        "period_start": period,
+        "period_end": period,
+        "period_breakdown": {},
+        "is_multi_period": False,
+        "source": "believe",
+        "filename": fname,
+        "file_url": file_url,
+        "file_size_bytes": total_size,
+        "exchange_rate_eur_idr": rate_eur_idr,
+        "fee_percent": fee_percent,
+        "total_lines": 0,
+        "processed_lines": 0,
+        "progress_pct": 0,
+        "matched_lines": 0,
+        "unmatched_lines": 0,
+        "invalid_period_rows": 0,
+        "auto_created_labels": 0,
+        "auto_created_releases": 0,
+        "auto_created_tracks": 0,
+        "total_revenue_eur": 0.0,
+        "total_label_idr": 0,
+        "status": "processing" if process_async else "pending_review",
+        "error_message": None,
+        "dana_received_at": None,
+        "published_at": None,
+        "uploaded_by": user["id"],
+        "note": note,
+        "started_at": now,
+        "finished_at": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.royalty_imports.insert_one(import_doc)
 
-    all_releases_by_upc = {}
-    async for r in db.releases.find({"upc": {"$exists": True, "$ne": None}}, {"_id": 0, "id": 1, "upc": 1, "label_id": 1, "release_title": 1}):
-        if r.get("upc"):
-            all_releases_by_upc[(r["upc"] or "").strip().upper()] = r
+    if process_async:
+        # Spawn background processing — return immediately
+        import asyncio
+        asyncio.create_task(_process_csv_import_bg(
+            import_id=import_id,
+            file_path=str(target),
+            period=period,
+            rate_eur_idr=rate_eur_idr,
+            fee_percent=fee_percent,
+            user_id=user["id"],
+        ))
+        await log_activity(user["id"], "upload_royalty_csv_async", "royalty", import_id, after={"size_mb": round(total_size / 1024 / 1024, 2)})
+        import_doc.pop("_id", None)
+        return import_doc
 
-    # Pre-fetch all labels' percentage history
-    labels = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
+    # Sync path (small files) — process inline and update doc with final stats
+    result = await _process_csv_import_inline(
+        import_id=import_id,
+        file_path=str(target),
+        period=period,
+        rate_eur_idr=rate_eur_idr,
+        fee_percent=fee_percent,
+    )
+    await log_activity(
+        user["id"], "upload_royalty_csv", "royalty", import_id,
+        after={
+            "period": result.get("period"),
+            "matched": result.get("matched_lines"),
+            "unmatched": result.get("unmatched_lines"),
+            "multi_period": result.get("is_multi_period"),
+            "auto_labels": result.get("auto_created_labels"),
+            "auto_releases": result.get("auto_created_releases"),
+            "auto_tracks": result.get("auto_created_tracks"),
+        },
+    )
+    return result
+
+
+# ============================================================
+# Streaming CSV processor (shared by sync + async paths)
+# ============================================================
+async def _process_csv_import_inline(
+    *, import_id: str, file_path: str, period: Optional[str],
+    rate_eur_idr: float, fee_percent: float,
+) -> Dict[str, Any]:
+    """Process the CSV file at `file_path` row-by-row in batches.
+
+    For each batch (BATCH_SIZE rows):
+      - Auto-create new label / release / track if needed
+      - Compute royalty per line
+      - Flush new entities + lines to MongoDB
+      - Update import_doc with progress
+
+    Returns the final import_doc.
+    """
+    BATCH_SIZE = 2000
+
+    # ---- Build lookup maps once (memory-friendly: 6K labels + 15K tracks ≈ 4 MB) ----
+    labels: Dict[str, Dict[str, Any]] = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
     labels_by_name = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
     pct_history: Dict[str, List[Dict[str, Any]]] = {}
     async for h in db.royalty_percentage_history.find({}, {"_id": 0}):
         pct_history.setdefault(h["label_id"], []).append(h)
+    all_tracks: Dict[str, Dict[str, Any]] = {}
+    async for t in db.tracks.find(
+        {"isrc": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1, "isrc": 1, "release_id": 1, "label_id": 1, "artist_id": 1, "track_title": 1, "artist_name": 1},
+    ):
+        if t.get("isrc"):
+            all_tracks[(t["isrc"] or "").strip().upper()] = t
+    all_releases_by_upc: Dict[str, Dict[str, Any]] = {}
+    async for r in db.releases.find(
+        {"upc": {"$exists": True, "$ne": None}},
+        {"_id": 0, "id": 1, "upc": 1, "label_id": 1, "release_title": 1},
+    ):
+        if r.get("upc"):
+            all_releases_by_upc[(r["upc"] or "").strip().upper()] = r
 
-    total_revenue_eur = 0.0
-    total_label_idr = 0
-    matched = 0
-    unmatched = 0
-    invalid_period_rows = 0
-    line_docs: List[Dict[str, Any]] = []
-    period_counts: Dict[str, int] = {}  # period -> row count
-    auto_created_labels = 0
-    auto_created_releases = 0
-    auto_created_tracks = 0
-    new_label_docs: List[Dict[str, Any]] = []
-    new_release_docs: List[Dict[str, Any]] = []
-    new_track_docs: List[Dict[str, Any]] = []
+    # ---- Streaming accumulators ----
+    headers: List[str] = []
+    col_idx: Optional[Dict[str, Optional[int]]] = None
+    line_batch: List[Dict[str, Any]] = []
+    new_label_batch: List[Dict[str, Any]] = []
+    new_release_batch: List[Dict[str, Any]] = []
+    new_track_batch: List[Dict[str, Any]] = []
+    period_counts: Dict[str, int] = {}
+    counters = {
+        "matched": 0, "unmatched": 0, "invalid_period_rows": 0,
+        "auto_labels": 0, "auto_releases": 0, "auto_tracks": 0,
+        "total_revenue_eur": 0.0, "total_label_idr": 0, "total_lines": 0,
+    }
     now = now_iso()
 
-    for row in rows:
-        raw = _match_line(row, col_idx, headers)
-        revenue_eur = raw["revenue_eur"]
-        total_revenue_eur += revenue_eur
+    async def _flush():
+        if new_label_batch:
+            await db.labels.insert_many(new_label_batch)
+            new_label_batch.clear()
+        if new_release_batch:
+            await db.releases.insert_many(new_release_batch)
+            new_release_batch.clear()
+        if new_track_batch:
+            await db.tracks.insert_many(new_track_batch)
+            new_track_batch.clear()
+        if line_batch:
+            await db.royalty_lines.insert_many(line_batch)
+            counters["total_lines"] += len(line_batch)
+            line_batch.clear()
+        # Update progress
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "total_lines": counters["total_lines"],
+                "processed_lines": counters["total_lines"],
+                "matched_lines": counters["matched"],
+                "unmatched_lines": counters["unmatched"],
+                "invalid_period_rows": counters["invalid_period_rows"],
+                "auto_created_labels": counters["auto_labels"],
+                "auto_created_releases": counters["auto_releases"],
+                "auto_created_tracks": counters["auto_tracks"],
+                "total_revenue_eur": round(counters["total_revenue_eur"], 4),
+                "total_label_idr": counters["total_label_idr"],
+                "period_breakdown": period_counts,
+                "updated_at": now_iso(),
+            }},
+        )
 
-        # Determine line period: explicit form override > row's own period
+    for hdrs, row_dict in iter_csv_file(file_path):
+        if row_dict is None:
+            headers = hdrs
+            col_idx = detect_columns(headers)
+            continue
+
+        raw = _match_line(row_dict, col_idx, headers)
+        revenue_eur = raw["revenue_eur"]
+        counters["total_revenue_eur"] += revenue_eur
+
         line_period = period or raw.get("row_period")
         if not line_period:
-            invalid_period_rows += 1
+            counters["invalid_period_rows"] += 1
             continue
         period_counts[line_period] = period_counts.get(line_period, 0) + 1
 
@@ -191,145 +366,108 @@ async def admin_upload_royalty_csv(
         release = None
         label_id = None
         match_by = None
-        # Try ISRC match
         if raw["isrc"]:
             t = all_tracks.get(raw["isrc"].upper())
             if t:
                 track = t
                 label_id = t["label_id"]
                 match_by = "isrc"
-        # Try UPC match
         if not label_id and raw["upc"]:
             r = all_releases_by_upc.get(raw["upc"].upper())
             if r:
                 release = r
                 label_id = r["label_id"]
                 match_by = "upc"
-        # Fallback: fuzzy match by label name
         if not label_id and raw["label_name"]:
             lab = labels_by_name.get(_norm_name(raw["label_name"]))
             if lab:
                 label_id = lab["id"]
                 match_by = "label_name"
 
-        # ---- Auto-create legacy entities if still unmatched ----
-        # We create a placeholder Label (legacy_unclaimed) when CSV mentions a brand
-        # new label_name. If ISRC is present, we also create a placeholder Release+Track.
-        # This lets admin "Buatkan Akun" later for the label and see the catalog populated.
+        # ---- Auto-create placeholders ----
         if not label_id and raw["label_name"]:
             new_label_id = new_id()
             new_label = {
-                "id": new_label_id,
-                "user_id": None,
+                "id": new_label_id, "user_id": None,
                 "label_name": raw["label_name"].strip(),
-                "pic_name": None,
-                "email": None,
-                "whatsapp": None,
-                "address": None,
-                "city": None,
-                "country": "Indonesia",
+                "pic_name": None, "email": None, "whatsapp": None,
+                "address": None, "city": None, "country": "Indonesia",
                 "label_type": "label",
                 "royalty_percentage_default": 60.0,
                 "payment_type": "pay_per_release",
-                "subscription_status": "inactive",
-                "subscription_expires_at": None,
-                "contract_status": "active",
-                "account_status": "legacy_unclaimed",
-                "bank_verified": False,
-                "blacklisted": False,
-                "balance_available_idr": 0,
-                "balance_pending_idr": 0,
+                "subscription_status": "inactive", "subscription_expires_at": None,
+                "contract_status": "active", "account_status": "legacy_unclaimed",
+                "bank_verified": False, "blacklisted": False,
+                "balance_available_idr": 0, "balance_pending_idr": 0,
                 "balance_withdraw_requested_idr": 0,
                 "mda_accepted_at": None,
-                "legacy_import": True,
-                "auto_created_from": import_id,
-                "created_at": now,
-                "updated_at": now,
+                "legacy_import": True, "auto_created_from": import_id,
+                "created_at": now, "updated_at": now,
             }
-            new_label_docs.append(new_label)
+            new_label_batch.append(new_label)
             labels[new_label_id] = new_label
             labels_by_name[_norm_name(new_label["label_name"])] = new_label
             label_id = new_label_id
             match_by = "auto_created_label"
-            auto_created_labels += 1
+            counters["auto_labels"] += 1
 
         if label_id and raw["isrc"] and not track:
-            # Auto-create release + track (placeholder for legacy catalog)
             new_release_id = release["id"] if release else new_id()
             if not release:
                 new_release = {
-                    "id": new_release_id,
-                    "label_id": label_id,
+                    "id": new_release_id, "label_id": label_id,
                     "release_title": raw.get("release_title") or "Legacy Release",
                     "primary_artist": raw.get("artist_name") or "Unknown",
-                    "isrc_release": None,
-                    "upc": raw["upc"],
+                    "isrc_release": None, "upc": raw["upc"],
                     "release_type": "single",
                     "release_date": (line_period + "-01") if line_period else "2021-01-01",
-                    "status": "live",
-                    "cover_url": None,
-                    "imported_legacy": True,
-                    "auto_created_from": import_id,
-                    "created_at": now,
-                    "updated_at": now,
+                    "status": "live", "cover_url": None,
+                    "imported_legacy": True, "auto_created_from": import_id,
+                    "created_at": now, "updated_at": now,
                 }
-                new_release_docs.append(new_release)
-                auto_created_releases += 1
+                new_release_batch.append(new_release)
+                counters["auto_releases"] += 1
                 if raw["upc"]:
                     all_releases_by_upc[raw["upc"].upper()] = new_release
             new_track = {
-                "id": new_id(),
-                "release_id": new_release_id,
-                "label_id": label_id,
+                "id": new_id(), "release_id": new_release_id, "label_id": label_id,
                 "artist_id": None,
                 "track_title": raw.get("track_title") or "Legacy Track",
                 "artist_name": raw.get("artist_name") or "Unknown",
                 "isrc": raw["isrc"],
-                "duration_sec": None,
-                "composer": None,
-                "audio_url": None,
-                "imported_legacy": True,
-                "auto_created_from": import_id,
-                "created_at": now,
-                "updated_at": now,
+                "duration_sec": None, "composer": None, "audio_url": None,
+                "imported_legacy": True, "auto_created_from": import_id,
+                "created_at": now, "updated_at": now,
             }
-            new_track_docs.append(new_track)
+            new_track_batch.append(new_track)
             all_tracks[raw["isrc"].upper()] = new_track
             track = new_track
-            auto_created_tracks += 1
+            counters["auto_tracks"] += 1
 
         match_status = "matched" if label_id else "unmatched"
         if match_status == "matched":
-            matched += 1
+            counters["matched"] += 1
             label = labels.get(label_id, {})
             default_pct = float(label.get("royalty_percentage_default", 60) or 60)
             history = pct_history.get(label_id, [])
             label_pct = label_percentage_at(history, default_pct, line_period)
             calc = calculate_line(revenue_eur, fee_percent, label_pct, rate_eur_idr)
-            total_label_idr += calc["label_idr"]
+            counters["total_label_idr"] += calc["label_idr"]
         else:
-            unmatched += 1
+            counters["unmatched"] += 1
             label_pct = 0.0
             calc = calculate_line(revenue_eur, fee_percent, 0.0, rate_eur_idr)
 
-        line_docs.append({
-            "id": new_id(),
-            "import_id": import_id,
-            "period": line_period,
-            "isrc": raw["isrc"],
-            "upc": raw["upc"],
-            "track_title_raw": raw["track_title"],
-            "artist_name_raw": raw["artist_name"],
-            "release_title_raw": raw["release_title"],
-            "label_name_raw": raw["label_name"],
-            "platform": raw["platform"],
-            "country": raw["country"],
-            "quantity": raw["quantity"],
-            "revenue_eur": revenue_eur,
+        line_batch.append({
+            "id": new_id(), "import_id": import_id, "period": line_period,
+            "isrc": raw["isrc"], "upc": raw["upc"],
+            "track_title_raw": raw["track_title"], "artist_name_raw": raw["artist_name"],
+            "release_title_raw": raw["release_title"], "label_name_raw": raw["label_name"],
+            "platform": raw["platform"], "country": raw["country"],
+            "quantity": raw["quantity"], "revenue_eur": revenue_eur,
             "sales_type": raw.get("sales_type"),
             "subscription_type": raw.get("subscription_type"),
             "row_period": raw.get("row_period"),
-            # admin-only sensitive fields:
             "gross_revenue_eur": raw.get("gross_revenue_eur"),
             "unit_price_eur": raw.get("unit_price_eur"),
             "mechanical_cost_eur": raw.get("mechanical_cost_eur"),
@@ -348,65 +486,73 @@ async def admin_upload_royalty_csv(
             "created_at": now_iso(),
         })
 
-    if line_docs:
-        await db.royalty_lines.insert_many(line_docs)
-    if new_label_docs:
-        for k in range(0, len(new_label_docs), 1000):
-            await db.labels.insert_many(new_label_docs[k:k + 1000])
-    if new_release_docs:
-        for k in range(0, len(new_release_docs), 1000):
-            await db.releases.insert_many(new_release_docs[k:k + 1000])
-    if new_track_docs:
-        for k in range(0, len(new_track_docs), 1000):
-            await db.tracks.insert_many(new_track_docs[k:k + 1000])
+        if len(line_batch) >= BATCH_SIZE:
+            await _flush()
 
-    # Determine aggregate period info
+    # Final flush
+    if line_batch or new_label_batch or new_release_batch or new_track_batch:
+        await _flush()
+
     sorted_periods = sorted(period_counts.keys())
     is_multi_period = len(sorted_periods) > 1
     display_period = period if period else (sorted_periods[0] if len(sorted_periods) == 1 else "multi")
 
-    import_doc = {
-        "id": import_id,
-        "period": display_period,
-        "period_start": sorted_periods[0] if sorted_periods else (period or None),
-        "period_end": sorted_periods[-1] if sorted_periods else (period or None),
-        "period_breakdown": period_counts,
-        "is_multi_period": is_multi_period,
-        "source": "believe",
-        "filename": file.filename,
-        "file_url": file_url,
-        "exchange_rate_eur_idr": rate_eur_idr,
-        "fee_percent": fee_percent,
-        "total_lines": len(line_docs),
-        "matched_lines": matched,
-        "unmatched_lines": unmatched,
-        "invalid_period_rows": invalid_period_rows,
-        "auto_created_labels": auto_created_labels,
-        "auto_created_releases": auto_created_releases,
-        "auto_created_tracks": auto_created_tracks,
-        "total_revenue_eur": round(total_revenue_eur, 4),
-        "total_label_idr": total_label_idr,
-        "status": "pending_review",
-        "dana_received_at": None,
-        "published_at": None,
-        "uploaded_by": user["id"],
-        "note": note,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    }
-    await db.royalty_imports.insert_one(import_doc)
-    await log_activity(
-        user["id"], "upload_royalty_csv", "royalty", import_id,
-        after={
-            "period": display_period, "matched": matched, "unmatched": unmatched,
-            "multi_period": is_multi_period,
-            "auto_labels": auto_created_labels,
-            "auto_releases": auto_created_releases,
-            "auto_tracks": auto_created_tracks,
-        },
+    await db.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "period": display_period,
+            "period_start": sorted_periods[0] if sorted_periods else (period or None),
+            "period_end": sorted_periods[-1] if sorted_periods else (period or None),
+            "is_multi_period": is_multi_period,
+            "progress_pct": 100,
+            "status": "pending_review",
+            "finished_at": now_iso(),
+            "updated_at": now_iso(),
+        }},
     )
-    import_doc.pop("_id", None)
-    return import_doc
+
+    final = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    return final
+
+
+async def _process_csv_import_bg(
+    *, import_id: str, file_path: str, period: Optional[str],
+    rate_eur_idr: float, fee_percent: float, user_id: str,
+):
+    """Background variant — catches and logs exceptions instead of letting them
+    crash the event loop. Marks the import as 'error' on failure.
+    """
+    try:
+        await _process_csv_import_inline(
+            import_id=import_id, file_path=file_path, period=period,
+            rate_eur_idr=rate_eur_idr, fee_percent=fee_percent,
+        )
+        await log_activity(
+            user_id, "upload_royalty_csv_async_finished", "royalty", import_id,
+        )
+    except Exception as e:
+        logger.exception("Background CSV import %s failed: %s", import_id, e)
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "error",
+                "error_message": str(e)[:500],
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+            }},
+        )
+
+
+@royalty_r.get("/admin/imports/{import_id}")
+async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
+    """Get a single royalty_import doc — used by the frontend to poll background-processing progress."""
+    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    # Compute live progress_pct on the fly (defensive, even though _flush updates it).
+    if imp.get("status") == "processing" and imp.get("total_lines"):
+        imp["progress_pct"] = min(99, int((imp.get("processed_lines", 0) / max(imp["total_lines"], 1)) * 100))
+    return imp
 
 
 @royalty_r.get("/admin/imports")

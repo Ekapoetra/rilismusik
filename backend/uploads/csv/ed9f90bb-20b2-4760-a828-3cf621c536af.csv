@@ -1,0 +1,5 @@
+Bulan Laporan,ISRC,UPC,Judul Lagu,Artis,Album,Label,Platform,Negara,Kuantias,Pendapatan Bersih
+2024-01,IDPH8000001,3650800000001,Lagu Satu,Tester,Album A,Phase8 Test Label A 29fe0a22,Spotify,ID,10000,12.50
+2024-01,IDPH8000002,3650800000001,Lagu Dua,Tester,Album A,Phase8 Test Label A 29fe0a22,Apple Music,ID,2500,3.10
+2024-02,IDPH8000001,3650800000001,Lagu Satu,Tester,Album A,Phase8 Test Label A 29fe0a22,Spotify,ID,15000,18.75
+2024-03,IDPH8000001,3650800000001,Lagu Satu,Tester,Album A,Phase8 Test Label A 29fe0a22,Spotify,US,5000,7.20

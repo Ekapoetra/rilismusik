@@ -8,7 +8,6 @@ from .cms_defaults import DEFAULT_LANDING_SETTINGS
 
 async def seed_indexes_and_admins():
     # ---- Indexes ----
-    await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.labels.create_index("user_id")
     await db.labels.create_index("id", unique=True)
