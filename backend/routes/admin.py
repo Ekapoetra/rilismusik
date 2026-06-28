@@ -397,3 +397,98 @@ async def admin_create_label_account(
     }
 
 
+# ============================================================
+# DANGER: Full Production Reset (Super Admin only)
+# ============================================================
+@admin_r.post("/admin/danger/reset-all-data")
+async def admin_reset_all_data(
+    confirm: str = Form(...),
+    delete_r2_files: bool = Form(True),
+    user: dict = Depends(require_super_admin),
+):
+    """⚠️ DESTRUCTIVE: wipe ALL business data so the system can be tested
+    from a clean slate. Preserves only:
+      - Admin users (any role in ADMIN_ROLES + super_admin)
+      - CMS landing settings (hero, pricing, FAQ, footer, legal entity)
+      - Database indexes
+
+    Deletes (across all 22 collections):
+      - All non-admin users (labels & artists)
+      - All labels, releases, tracks, artists
+      - All royalty data (imports, lines, percentage history, balance txns)
+      - All contracts, withdraws, tickets, comments
+      - All payments, subscriptions, WAMI orders
+      - All notifications, activity logs, login attempts
+      - All email/password tokens, bank accounts
+    Optionally deletes ALL files in the R2 bucket (cover/, audio/, contract/,
+    ticket/, landing/, smoketest/) — pass `delete_r2_files=False` to keep them.
+
+    Requires `confirm='RESET-ALL-DATA'` to proceed. Super Admin only.
+    """
+    if confirm != "RESET-ALL-DATA":
+        raise HTTPException(
+            status_code=400,
+            detail="Konfirmasi tidak cocok. Ketik tepat: RESET-ALL-DATA",
+        )
+
+    report: Dict[str, int] = {}
+
+    # 1) Wipe non-admin users (keep admins)
+    res = await db.users.delete_many({"role": {"$nin": list(ADMIN_ROLES) + [SUPER_ADMIN]}})
+    report["users_deleted_non_admin"] = res.deleted_count
+
+    # 2) Wipe ALL business data
+    business_collections = [
+        "labels", "releases", "tracks", "artists", "bank_accounts",
+        "royalty_imports", "royalty_lines", "royalty_percentage_history",
+        "balance_transactions",
+        "withdraw_requests",
+        "contracts",
+        "support_tickets", "ticket_comments",
+        "payments",
+        "wami_orders",
+        "notifications", "activity_logs", "login_attempts",
+        "email_verification_tokens", "password_reset_tokens",
+    ]
+    for col in business_collections:
+        res = await db[col].delete_many({})
+        report[col] = res.deleted_count
+
+    # 3) Optionally wipe R2 bucket (all user-uploaded files)
+    if delete_r2_files:
+        try:
+            import storage_service
+            if storage_service.is_configured():
+                client = storage_service._client()
+                bucket = storage_service.R2_BUCKET
+                deleted = 0
+                # Paginate through all objects and delete in batches of 1000
+                paginator = client.get_paginator("list_objects_v2")
+                for page in paginator.paginate(Bucket=bucket):
+                    objs = page.get("Contents") or []
+                    if not objs:
+                        continue
+                    client.delete_objects(
+                        Bucket=bucket,
+                        Delete={"Objects": [{"Key": o["Key"]} for o in objs]},
+                    )
+                    deleted += len(objs)
+                report["r2_objects_deleted"] = deleted
+        except Exception as e:
+            logger.exception("R2 cleanup during reset failed: %s", e)
+            report["r2_cleanup_error"] = str(e)
+
+    # 4) Re-seed defaults (idempotent)
+    from .seed import seed_indexes_and_admins
+    try:
+        await seed_indexes_and_admins()
+        report["reseed"] = "ok"
+    except Exception as e:
+        logger.exception("Reseed after reset failed: %s", e)
+        report["reseed_error"] = str(e)
+
+    await log_activity(user["id"], "danger_reset_all_data", "system", "global", after=report)
+    logger.warning("[DANGER] Full data reset by super_admin %s: %s", user["email"], report)
+    return {"ok": True, "report": report}
+
+

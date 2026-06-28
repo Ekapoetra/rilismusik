@@ -1,0 +1,44 @@
+{
+  "summary": "Phase 13 DESTRUCTIVE reset (POST /api/admin/admin/danger/reset-all-data) tested end-to-end on PREVIEW. 13/14 backend pytest passed + UI flow verified after I fixed a missing multipart header in AdminUsers.jsx. Two real bugs found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/admin/danger/reset-all-data", "issue": "ADMIN_ROLES set in /app/backend/auth_utils.py:119 is missing 'admin_marketing'. seed.py:93 seeds 4 sub-admins INCLUDING admin_marketing. The reset query {role: {$nin: ADMIN_ROLES + [SUPER_ADMIN]}} therefore DELETES the admin_marketing user every run, then reseed re-creates it. Net effect: reset is not truly idempotent for admin_marketing — `users_deleted_non_admin: 1` on every subsequent run instead of 0. Fix: add 'admin_marketing' to ADMIN_ROLES set in auth_utils.py."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminUsers.jsx submitReset()", "issue": "FormData posted to /admin/admin/danger/reset-all-data was sent with the global axios `Content-Type: application/json` header (api/client.js:9) → FastAPI form parser failed with 422 'Field required'. Reset modal never resolved in UI. FIXED by passing `{ headers: { 'Content-Type': 'multipart/form-data' } }` (matches pattern in Withdraw.jsx, RoyaltyImport.jsx, Migrate.jsx).", "selector": "[data-testid=admin-reset-submit-btn]", "priority": "HIGH-FIXED"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Review request docs", "issues": ["Review mentions navigation to /admin/users; actual mounted route is /admin/admin-users (App.js:95). Not a bug, just a doc nit."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase13_reset_all_data.py",
+    "/app/test_reports/pytest/iter14_phase13.xml",
+    "/app/test_reports/reset_report_after_fix.png"
+  ],
+  "action_items": [
+    "BACKEND (1 line): In /app/backend/auth_utils.py line 119 add 'admin_marketing' to ADMIN_ROLES set so it isn't wiped by reset (and so test_phase13's test_d1 idempotent assertion turns green).",
+    "Optional: also include admin_marketing in routes/cms.py admin_role gates if you want it to use CMS; not required for reset correctness."
+  ],
+  "critical_code_review_comments": [
+    "ADMIN_ROLES drift: seed.py seeds 4 sub-admin roles but auth_utils.ADMIN_ROLES only lists 3 of them — admin_marketing is orphaned. Same bug would affect any other endpoint using require_admin (it works because require_admin checks against ADMIN_ROLES; admin_marketing currently has NO admin powers despite being seeded as one).",
+    "AdminUsers.jsx submitReset() omitted multipart header — easy regression. Recommend a tiny helper `apiForm.post(url, fd)` to wrap multipart calls and avoid repeating the header literal in 5+ places.",
+    "Reset endpoint correctly paginates R2 deletes in batches of 1000 ✓. Reseed-after-reset works ✓. Activity log entry written ✓.",
+    "Phase 13 test data still shows ~10 'TEST Adm' admin users from earlier iterations that the reset DOES preserve (they have role=admin_release/admin_finance). Consider letting super_admin bulk-delete these test sub-admin accounts via an extra UI button."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase13_reset_all_data.py (new)",
+    "/app/frontend/src/pages/admin/AdminUsers.jsx (1-line fix: multipart Content-Type header on submitReset)"
+  ],
+  "success_rate": {"backend": "93% (13/14)", "frontend": "100% (3/3 after fix)"},
+  "test_credentials": "Used superadmin@rilismusik.com / SuperAdmin#2026 and finance1@rilismusik.com / Finance#2026. Demo VIP and Demo PPR accounts were WIPED by the destructive test as intended.",
+  "seed_data_creation": "Test created (then destroyed) one label account TEST_reset_<ts>@example.com + 1 release draft + 1 royalty import with 2 lines + 1 R2 PNG. All wiped by the reset under test.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 13 reset is functionally correct and the UI works after the multipart header fix. The ONLY remaining bug is the admin_marketing role missing from ADMIN_ROLES set in auth_utils.py — 1-line fix. After fixing, re-run `pytest /app/backend/tests/test_phase13_reset_all_data.py` and expect 14/14 green. DB is currently in CLEAN STATE: only super_admin + 4 sub-admins + ~10 TEST_ admin accounts left over from previous iterations exist; no labels/releases/royalty. CMS landing settings preserved.",
+  "rca_of_admin_marketing_bug": "Reset query uses ADMIN_ROLES (set in auth_utils.py:119) to decide which users to preserve. ADMIN_ROLES = {super_admin, admin_release, admin_finance, admin_support, admin_content}. seed.py:93 inserts an admin_marketing sub-admin which is NOT in this set. Result: every reset deletes admin_marketing, reseed recreates it, next reset deletes it again — endless 1-user delta. Fix: add 'admin_marketing' (and 'admin_content' if not seeded — currently it IS in ADMIN_ROLES but NOT seeded, which is the inverse half of the same drift) to keep seed.py and auth_utils.py in sync."
+}

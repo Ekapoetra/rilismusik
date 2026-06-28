@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
+import { useAuth } from "@/api/AuthContext";
 import { ADMIN_USER } from "@/constants/testIds";
-import { Plus, X, Shield } from "lucide-react";
+import { Plus, X, Shield, AlertTriangle, Loader2 } from "lucide-react";
 
 const ROLES = [
   { v: "super_admin", l: "Super Admin" },
@@ -12,11 +13,19 @@ const ROLES = [
 ];
 
 export default function AdminUsers() {
+  const { user: me } = useAuth();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "admin_release" });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  // Danger zone — full data reset
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetDeleteFiles, setResetDeleteFiles] = useState(true);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetErr, setResetErr] = useState("");
+  const [resetReport, setResetReport] = useState(null);
 
   const load = async () => {
     const { data } = await api.get("/admin/admin-users");
@@ -35,6 +44,22 @@ export default function AdminUsers() {
       await load();
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setSaving(false); }
+  };
+
+  const submitReset = async (e) => {
+    e.preventDefault();
+    setResetErr("");
+    setResetReport(null);
+    setResetBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("confirm", resetConfirm);
+      fd.append("delete_r2_files", resetDeleteFiles ? "true" : "false");
+      const { data } = await api.post("/admin/admin/danger/reset-all-data", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setResetReport(data.report || {});
+      setResetConfirm("");
+    } catch (e) { setResetErr(formatApiError(e.response?.data?.detail)); }
+    finally { setResetBusy(false); }
   };
 
   return (
@@ -96,6 +121,112 @@ export default function AdminUsers() {
               <button type="button" className="rm-btn-ghost" onClick={() => setOpen(false)}>Batal</button>
               <button className="rm-btn-primary" disabled={saving} data-testid={ADMIN_USER.saveButton}>{saving ? "Menyimpan…" : "Simpan"}</button>
             </div>
+          </form>
+        </div>
+      )}
+
+      {/* DANGER ZONE — Super Admin only */}
+      {me?.role === "super_admin" && (
+        <div className="rounded-[24px] border border-red-500/30 bg-red-500/[0.04] p-5 mt-12" data-testid="admin-danger-zone">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-300 grid place-items-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <div className="text-xs uppercase tracking-widest text-red-300 font-bold">Danger Zone</div>
+              <h2 className="font-display text-2xl font-extrabold tracking-tighter mt-1">Reset Semua Data</h2>
+              <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+                Menghapus <strong>SEMUA</strong> data bisnis: label, user (non-admin), rilisan, track, royalti, kontrak, withdraw, ticket, invoice, notifikasi, dan opsional file di R2.
+                <br />
+                <strong>Yang dipertahankan</strong>: admin users (super_admin & sub-admin), CMS landing settings, database indexes.
+              </p>
+              <button
+                type="button"
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-500/30 text-sm font-bold transition-colors"
+                onClick={() => { setResetOpen(true); setResetReport(null); setResetErr(""); }}
+                data-testid="admin-reset-open-btn"
+              >
+                <AlertTriangle className="w-4 h-4" /> Reset Semua Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => !resetBusy && setResetOpen(false)}>
+          <form onClick={(e) => e.stopPropagation()} onSubmit={submitReset} className="w-full max-w-lg rm-glass-strong rounded-[24px] p-6 space-y-4 border border-red-500/30">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-300" />
+                <h3 className="font-display font-extrabold text-xl tracking-tighter text-red-200">Reset Semua Data</h3>
+              </div>
+              {!resetBusy && <button type="button" onClick={() => setResetOpen(false)}><X className="w-5 h-5" /></button>}
+            </div>
+            {!resetReport && (
+              <>
+                <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200 leading-relaxed">
+                  Aksi ini <strong>TIDAK BISA DIBATALKAN</strong>. Semua label, rilisan, royalti, dan file akan terhapus permanen.
+                  Pastikan Anda sudah backup data penting.
+                </div>
+                <div>
+                  <label className="rm-label">
+                    Ketik <span className="font-mono text-red-300">RESET-ALL-DATA</span> untuk konfirmasi
+                  </label>
+                  <input
+                    className="rm-input font-mono"
+                    value={resetConfirm}
+                    onChange={(e) => setResetConfirm(e.target.value)}
+                    placeholder="RESET-ALL-DATA"
+                    autoComplete="off"
+                    data-testid="admin-reset-confirm-input"
+                    required
+                  />
+                </div>
+                <label className="flex items-start gap-3 text-sm text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={resetDeleteFiles}
+                    onChange={(e) => setResetDeleteFiles(e.target.checked)}
+                    className="mt-1"
+                    data-testid="admin-reset-delete-files-checkbox"
+                  />
+                  <span>
+                    Hapus juga <strong>semua file</strong> di Cloudflare R2 (cover, audio, contract PDF, dll). Centang jika ingin clean slate total.
+                  </span>
+                </label>
+                {resetErr && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">{resetErr}</div>}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" className="rm-btn-ghost" onClick={() => setResetOpen(false)} disabled={resetBusy}>Batal</button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/80 hover:bg-red-500 text-white font-bold text-sm disabled:opacity-50"
+                    disabled={resetBusy || resetConfirm !== "RESET-ALL-DATA"}
+                    data-testid="admin-reset-submit-btn"
+                  >
+                    {resetBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Mereset…</> : "Konfirmasi Reset"}
+                  </button>
+                </div>
+              </>
+            )}
+            {resetReport && (
+              <div data-testid="admin-reset-report">
+                <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 px-4 py-3 text-sm text-emerald-200 mb-3">
+                  ✓ Reset selesai. Sistem sudah kembali ke kondisi awal (hanya admin & CMS yang dipertahankan).
+                </div>
+                <div className="text-xs font-mono bg-black/30 rounded-xl p-3 max-h-72 overflow-auto space-y-1">
+                  {Object.entries(resetReport).map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-2">
+                      <span className="text-zinc-400">{k}</span>
+                      <span className="text-emerald-300 font-bold">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end pt-3">
+                  <button type="button" className="rm-btn-primary" onClick={() => { setResetOpen(false); window.location.reload(); }}>Reload Halaman</button>
+                </div>
+              </div>
+            )}
           </form>
         </div>
       )}
