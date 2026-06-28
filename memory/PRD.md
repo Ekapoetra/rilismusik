@@ -140,15 +140,26 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 **Lets the super admin wipe ALL business data with one click to test the platform end-to-end with real data on a clean slate.**
 
 - **Endpoint**: `POST /api/admin/admin/danger/reset-all-data` (form-data) — Super Admin only.
-  - Required: `confirm="RESET-ALL-DATA"` (exact match, else 400).
-  - Optional: `delete_r2_files=true|false` (default true).
-- **Preserves**: all admin users (super_admin + 5 sub-admin roles: release, finance, support, content, marketing), CMS landing settings (legal entity, hero, pricing, FAQ), database indexes.
-- **Wipes** (22 collections): labels, users (non-admin), releases, tracks, artists, bank_accounts, royalty_imports, royalty_lines, royalty_percentage_history, balance_transactions, withdraw_requests, contracts, support_tickets, ticket_comments, payments, wami_orders, notifications, activity_logs, login_attempts, email_verification_tokens, password_reset_tokens.
-- **R2 cleanup**: paginates the entire bucket and bulk-deletes 1000 keys per batch (boto3 `delete_objects`). Optional via checkbox.
-- **Re-seeds admins idempotently** after wipe → super admin login always works post-reset.
-- **UI**: super-admin-only "Danger Zone" card on `/admin/admin-users` page with double-confirm modal — typed `RESET-ALL-DATA` token + R2 deletion checkbox. data-testids: `admin-danger-zone`, `admin-reset-open-btn`, `admin-reset-confirm-input`, `admin-reset-delete-files-checkbox`, `admin-reset-submit-btn`, `admin-reset-report`.
-- **Bug fix during testing**: ADMIN_ROLES set in `auth_utils.py` was missing `admin_marketing` → caused reset/reseed churn. Fixed + added `admin_content` to seed list (was orphaned: in ADMIN_ROLES but not seeded). All 5 sub-admins now in sync between seed.py and ADMIN_ROLES.
-- **Tests**: `test_phase13_reset_all_data.py` 14/14 PASS — including 3 back-to-back idempotent resets showing `users_deleted_non_admin=0` from run 2 onward.
+- **Preserves**: admin users (5 sub-admins + super_admin) + CMS landing settings + DB indexes.
+- **Wipes** 22 collections + R2 bucket files (paginated batches of 1000).
+- **Re-seeds admins** idempotently after wipe.
+- **UI**: super-admin-only "Danger Zone" card on `/admin/admin-users` with double-confirm modal.
+- **Bug fixes during testing**: synced `admin_marketing` (was orphan in seed) and `admin_content` (was orphan in ADMIN_ROLES set).
+- **Tests**: 14/14 PASS (3 back-to-back idempotent resets confirmed).
+
+### Phase 14 — Direct-to-R2 Large CSV Upload (DONE 2026-06-28)
+**Solves: Believe royalty CSV uploads >100 MB failing in production due to Kubernetes ingress body cap.**
+
+- **3-step flow** to bypass the ~100 MB ingress limit. Frontend uploads file DIRECTLY to Cloudflare R2 (no backend hop) — supports up to 5 GB.
+  1. `POST /api/royalty/admin/imports/initiate` (super_admin / admin_finance) — body `{filename, rate_eur_idr, period, note, file_size_bytes}` → returns `{import_id, presigned_put_url, r2_key, content_type, expires_in:7200}`. Creates stub doc with `status='awaiting_upload'` + stores `r2_key`.
+  2. Browser `PUT` directly to `presigned_put_url` with exact Content-Type (`text/csv` or `application/gzip`). XHR with `upload.onprogress` for real-time progress bar.
+  3. `POST /api/royalty/admin/imports/{id}/finalize` → backend `head_object` verifies R2 has the file → `download_to_file` (boto3 multipart-aware) stages it to local disk → kicks off existing `_process_csv_import_bg`.
+- **R2 CORS auto-config**: `storage_service.ensure_cors()` runs on backend startup with `AllowedOrigins=[FRONTEND_URL, preview URL, production URL]`, `AllowedMethods=[GET, PUT, HEAD]`, `MaxAgeSeconds=3600`. Idempotent, best-effort.
+- **Resume/retry hardened**: new `_ensure_local_csv()` re-downloads from R2 if the staging file is missing (e.g. container restart wiped tmpfs but R2 still has the original). `resume_interrupted_imports()` + `admin_retry_import` both use this fallback.
+- **Frontend UI** (`RoyaltyImport.jsx`): upload modal shows a 3-stage progress card with gradient bar — `Meminta URL upload…` → `Upload ke R2 (X%)` (real bytes uploaded with MB counter) → `Memulai background processing…`. Supports `.csv` and `.csv.gz`. data-testid `admin-royalty-upload-progress`.
+- **Backward compat**: original `POST /royalty/admin/imports` multipart endpoint still works for small files (<5 MB sync, <50 MB direct-multipart) — verified by E2E test.
+- **Tests**: `test_phase14_direct_r2_upload.py` 10/10 PASS — auth gates, RBAC (admin_release rejected 403), Pydantic validation (rate_eur_idr>0 → 422), period format (400), happy path with real PUT+finalize+poll-until-pending_review, error states (finalize-before-PUT 400, duplicate finalize 400), CORS preflight against presigned URL.
+- **Testing agent E2E**: super_admin → /admin/royalty → Upload modal → progress UI cycled → modal closed → import landed `pending_review` with auto-created label & tracks.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
