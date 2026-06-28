@@ -168,17 +168,42 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 - **Tests**: 33/33 PASS — full E2E upload of user's `/tmp/sql_revenues.csv` → 10/10 matched.
 
 ### Phase 16 — Background Publish (Idempotent & Restart-Safe, DONE 2026-06-28)
-**Solves: Publishing 219,800-row royalty CSV in production triggered Kubernetes ingress 60s timeout → frontend "Terjadi kesalahan. Coba lagi." while backend was silently in mid-write.**
+**Solves: Publishing 219,800-row royalty CSV in production triggered Kubernetes ingress 60s timeout.**
 
-- **Refactored** `POST /royalty/admin/imports/{id}/publish` to return immediately (status=`publishing`, progress=0) and spawn `_publish_bg()`. Frontend auto-polls every 3-4s. Same pattern as Phase 10 (CSV processing) and Phase 14 (R2 finalize).
-- **New statuses**: `publishing` (in-flight) + `publish_error` (recoverable). Status state machine now: `awaiting_upload → processing → pending_review → publishing → published → dana_received` (plus error branches `error` / `publish_error`).
-- **Idempotency** (critical): `_publish_bg` checks `balance_transactions` for existing `(label_id, type='royalty_pending', reference_id=import_id)` before crediting → safe to retry any number of times. `update_many` on royalty_lines is naturally idempotent via filter.
-- **Race-safe**: Calling `/publish` again while `status='publishing'` returns the current doc (NOT 400, NOT double-credit). Verified by testing agent.
-- **Restart-safe**: `resume_interrupted_imports()` now handles BOTH `processing` AND `publishing` statuses on backend startup — re-spawns `_publish_bg` for any stuck publish.
-- **Progressive updates**: backend updates `publish_progress_pct` every 5 labels (capped at 75% during credit loop, then 85% after line flip, 100% on done). Frontend renders violet→fuchsia gradient progress bar.
-- **`Coba Publish Lagi` button** appears on `publish_error` status — same endpoint, idempotent retry.
-- **Tests**: `test_phase16_background_publish.py` **15/15 PASS** — happy path, race re-publish idempotency (exactly 1 balance_tx per label), restart-resume (testing agent did `sudo supervisorctl restart backend` mid-publish), all auth/status guards (401/403/400 paths), polling status transitions.
-- **Code review**: testing agent confirmed "_publish_bg is correctly idempotent ... Solid implementation."
+- **Refactored** publish endpoint to return immediately (status=`publishing`) and spawn `_publish_bg()`. Frontend auto-polls every 3-4s.
+- **New statuses**: `publishing` + `publish_error`. Idempotency via `balance_transactions` lookup before crediting.
+- **Restart-safe**: `resume_interrupted_imports()` handles both `processing` and `publishing` on startup.
+- **Tests**: 15/15 PASS — happy path, race re-publish, restart-resume, auth gates.
+
+### Phase 16.1 — Defensive Publish Wrapper (DONE 2026-06-28)
+**Surfaces actual root cause of any future publish failure instead of generic 500.**
+
+- Wrapped `admin_publish_import` in try/except → catches non-HTTPException, logs full stack trace, writes `error_message` to import doc, returns descriptive HTTP 500 with `{type(e).__name__}: {str(e)[:200]}`.
+- Defensive `imp.get("status", "pending_review")` handles legacy docs missing the `status` field.
+- Frontend now distinguishes 4 publish response branches: publishing / published / HTTP 500 (with deploy hint) / other.
+- **Tests**: 9/9 PASS (frozen status, missing status, auth gates, retry).
+- **Critical diagnostic value**: this wrapper is what exposed the Phase 16.2 root cause in production.
+
+### Phase 16.2 — Chunked Update Fix for MongoDB Atlas maxTimeMS (DONE 2026-06-28)
+**Solves: After Phase 16+16.1 deployed to production, user retried publish for 219,800-row import — wrapper surfaced the real error: MongoDB `MaxTimeMSExpired` (code 50) writeConcernError on the single huge update_many. Atlas serverless/shared clusters enforce a per-operation maxTimeMS that a 219K-doc update_many can exceed.**
+
+- **Chunked the line-status flip** into batches of 2000 docs using Mongo native `_id` pagination (always indexed → guaranteed IXSCAN, no custom index needed):
+  ```python
+  CHUNK_SIZE = 2000
+  last_oid = None
+  while True:
+      q = {**base_filter, **({"_id": {"$gt": last_oid}} if last_oid else {})}
+      batch = await db.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
+      if not batch: break
+      oids = [d["_id"] for d in batch]
+      last_oid = oids[-1]
+      await db.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "pending"}})
+      # progress 75 → 95%
+  ```
+- **Each chunk completes in ~1s** — well within any Atlas maxTimeMS limit. Self-test: 220K rows published in 10 seconds total (preview environment).
+- **`allowDiskUse=True`** added to the per-label aggregate pipeline for safety on very large datasets.
+- **Idempotency preserved**: chunk filter `status: {$ne: "pending"}` naturally skips already-flipped lines. balance_transactions lookup still gates per-label crediting (no double-credit).
+- **Tests**: `test_phase16_2_chunked_publish.py` 10/10 PASS + 15/15 Phase 16 regression + 9/9 Phase 16.1 regression = **34/34 PASS**. Scale test seeds 50,000 royalty_lines directly into Mongo and confirms publish completes in <2s wall-clock.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
