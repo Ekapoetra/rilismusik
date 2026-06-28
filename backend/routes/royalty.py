@@ -802,34 +802,59 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
 
     Status transitions: pending_review → publishing → published (or publish_error).
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
-    imp = await db.royalty_imports.find_one({"id": import_id})
-    if not imp:
-        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    if imp["status"] in ("publishing",):
-        # Already running — return current doc so the frontend polls progress
-        out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
-        return out
-    if imp["status"] not in ("pending_review", "publish_error"):
-        raise HTTPException(status_code=400, detail=f"Import status tidak valid untuk publish: {imp['status']}")
+    try:
+        if user["role"] not in ("super_admin", "admin_finance"):
+            raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+        imp = await db.royalty_imports.find_one({"id": import_id})
+        if not imp:
+            raise HTTPException(status_code=404, detail="Import tidak ditemukan")
 
-    # Flip to 'publishing' atomically, reset progress
-    now = now_iso()
-    await db.royalty_imports.update_one(
-        {"id": import_id},
-        {"$set": {
-            "status": "publishing",
-            "publish_progress_pct": 0,
-            "publish_started_at": now,
-            "error_message": None,
-            "updated_at": now,
-        }},
-    )
-    import asyncio
-    asyncio.create_task(_publish_bg(import_id=import_id, user_id=user["id"]))
-    out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
-    return out
+        # Defensive: tolerate legacy docs that may be missing the `status` field
+        status_val = imp.get("status", "pending_review")
+        if status_val == "publishing":
+            # Already running — return current doc so the frontend polls progress
+            out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+            return out
+        if status_val not in ("pending_review", "publish_error"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Import status tidak valid untuk publish: {status_val}. Status valid: pending_review, publish_error.",
+            )
+
+        # Flip to 'publishing' atomically, reset progress
+        now = now_iso()
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "publishing",
+                "publish_progress_pct": 0,
+                "publish_started_at": now,
+                "error_message": None,
+                "updated_at": now,
+            }},
+        )
+        import asyncio
+        asyncio.create_task(_publish_bg(import_id=import_id, user_id=user["id"]))
+        out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        logger.info("[PUBLISH] %s queued for background by user %s", import_id, user["email"])
+        return out
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[PUBLISH] %s endpoint crashed: %s", import_id, e)
+        # Try to leave a useful error message on the import doc for the UI
+        try:
+            await db.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {
+                    "status": "publish_error",
+                    "error_message": f"Publish endpoint crashed: {type(e).__name__}: {str(e)[:200]}",
+                    "updated_at": now_iso(),
+                }},
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Publish gagal: {type(e).__name__}: {str(e)[:200]}")
 
 
 async def _publish_bg(*, import_id: str, user_id: str):

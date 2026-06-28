@@ -36,8 +36,28 @@ export default function AdminRoyaltyDetail() {
 
   const publish = async () => {
     setBusy(true); setErr(""); setMsg("");
-    try { await api.post(`/royalty/admin/imports/${id}/publish`, { confirm: true }); setMsg("Royalti dipublish — saldo pending bertambah ke label."); load(); }
-    catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
+    try {
+      const { data: res } = await api.post(`/royalty/admin/imports/${id}/publish`, { confirm: true });
+      if (res?.status === "publishing") {
+        setMsg("Publish dijadwalkan — progress akan ditampilkan di bawah.");
+      } else if (res?.status === "published") {
+        setMsg("Royalti dipublish — saldo pending bertambah ke label.");
+      } else {
+        setMsg(`Publish diterima (status: ${res?.status}).`);
+      }
+      load();
+    }
+    catch (e) {
+      // Try to surface a descriptive error from the backend
+      const detail = e.response?.data?.detail;
+      const status = e.response?.status;
+      if (status === 500) {
+        setErr(`Server error 500: ${typeof detail === "string" ? detail : "Cek backend logs"}. Jika ini terjadi di production, pastikan deploy terbaru (Phase 16 background publish) sudah aktif.`);
+      } else {
+        setErr(formatApiError(detail) || e.message || "Gagal publish");
+      }
+    }
+    finally { setBusy(false); }
   };
   const markDana = async () => {
     setBusy(true); setErr(""); setMsg("");

@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 16.1 defensive wrapper testing — 24/24 backend tests PASS (15 regression + 9 new). Existing Phase 16 background publish suite still 15/15 green. New defensive scenarios all verified: frozen status → 400 with descriptive detail naming both invalid status & valid statuses; legacy doc with NO status field → 200 (defensive .get default to pending_review); auth gates correct (anon=401, release=403, finance=200, super=200); publish_error status retryable; unknown id → 404. Frontend publish() handler code-reviewed and correctly branches on status='publishing' / 'published' / HTTP 500 (with Phase 16 deploy hint) / other (formatApiError).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase16_background_publish.py",
+    "/app/backend/tests/test_phase16_1_defensive_wrapper.py",
+    "/app/test_reports/pytest/iter19_phase16_regress.xml",
+    "/app/test_reports/pytest/iter19_phase16_1.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Defensive try/except wrapper on /publish is correctly placed (L805-857): catches any non-HTTPException, logs full stack trace via logger.exception, writes error_message to import doc, and returns HTTP 500 with descriptive 'type(e).__name__: str(e)[:200]' detail — exactly what the spec asked for.",
+    "imp.get('status', 'pending_review') (L813) correctly handles legacy docs missing the status field.",
+    "Idempotent race re-publish path (L814-817) returns current doc when already 'publishing' — confirmed by test_step2 + 16.1 finance/super tests.",
+    "Frontend RoyaltyDetail.jsx publish() (L37-58) properly distinguishes 4 branches: status=publishing (info msg), status=published (success msg), HTTP 500 (server error + deploy hint), other (formatApiError). The 'publishing' progress badge + progress bar render immediately from the API response, satisfying the 'no waiting' requirement.",
+    "routes/royalty.py is now 1414 lines — exceeds the 700-line guideline. Consider splitting publish/import/recovery into separate sub-modules in a future refactor (non-blocking).",
+    "_publish_bg (L860+) unchanged — restart-safe, idempotency gated by balance_transactions(reference_id) lookup, confirmed by test_step4 (exactly 1 tx per label) and test_resume_moves_status_forward after backend restart."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase16_1_defensive_wrapper.py (NEW, 9 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (24/24)",
+    "frontend": "code-review only — matches spec"
+  },
+  "test_credentials": "Used superadmin@rilismusik.com / SuperAdmin#2026, finance1@rilismusik.com / Finance#2026, release1@rilismusik.com / Release#2026 from /app/memory/test_credentials.md",
+  "seed_data_creation": "Each 16.1 test inserts a minimal royalty_imports doc with id prefix TEST_PH161_<uuid8>. Cleanup fixture removes all TEST_PH161_* docs on module teardown. The regression suite uses TEST_PH16_A/B/C labels (3-row CSV via direct-to-R2 → finalize → publish) with autouse cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 16.1 (defensive wrapper) is fully verified — both pytest files (test_phase16_background_publish.py + test_phase16_1_defensive_wrapper.py) form the regression baseline. Run both together: `pytest backend/tests/test_phase16_background_publish.py backend/tests/test_phase16_1_defensive_wrapper.py -v`. The defensive 16.1 file does NOT upload CSVs — it only seeds minimal docs to verify status-branch logic, so it runs in ~2s. The frozen→400 test asserts the detail string contains 'frozen', 'pending_review', AND 'publish_error' (case-insensitive). The legacy-no-status test verifies the bg task actually completes ('published') after a 200 response — not just that the endpoint doesn't 500.",
+  "rca of the issue": "User-reported PRODUCTION 500 on /publish was diagnosed as either (a) production not yet redeployed with Phase 16 code, or (b) legacy import doc with missing/inconsistent schema. The applied defensive fix (try/except + .get default) was verified to handle both scenarios correctly. With the legacy doc test confirming a 200 instead of 500 for missing status field, and the try/except wrapper guaranteeing any future exception surfaces as a descriptive 500 with stack trace in logs + label-friendly detail to client, the root cause is now self-diagnosing. Frontend explicitly hints to admin that a 500 likely means production needs the Phase 16 deploy."
+}
