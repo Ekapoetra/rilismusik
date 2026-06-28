@@ -160,20 +160,25 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 - **Tests**: 10/10 PASS — auth gates, RBAC, validation, happy path, CORS preflight, backward-compat.
 
 ### Phase 15 — SQL Snake_case Header Support (DONE 2026-06-28)
-**Solves: User uploaded a one-off SQL-export CSV (snake_case headers like `bulan_laporan`, `pendapatan_bersih`, `nama_label`) and the parser returned all-unmatched rows because aliases only matched space-separated form.**
+**Solves: User uploaded one-off SQL-export CSV with snake_case headers — parser returned all-unmatched.**
 
-- **1-line core fix** in `royalty_utils.normalize_header()`:
-  ```python
-  s = s.replace("_", " ").replace("-", " ")
-  s = " ".join(s.split())
-  ```
-- **Universal coverage** with no alias duplication: same `HEADER_ALIASES` list now recognizes
-  - Believe format: `Bulan Laporan`, `Pendapatan Bersih`, `Nama Label` ✓
-  - SQL export: `bulan_laporan`, `pendapatan_bersih`, `nama_label` ✓
-  - Kebab-case: `bulan-laporan`, `pendapatan-bersih` ✓
-- **18 canonical fields** auto-detected from the 23-column SQL header set (period, label_name, artist_name, release_title, track_title, isrc, upc, quantity, revenue_eur, gross_revenue_eur, unit_price_eur, mechanical_cost_eur, client_share_rate, sales_type, release_type, currency, platform, country). Non-canonical columns (e.g. `release_catalog_nb`) silently ignored.
-- **Robust value parsing**: SQL uses YYYY-MM-DD periods (e.g. `2020-12-01`) and US dot-decimals (`0.000181577974000`). Both auto-handled by existing `parse_period_from_value` and `parse_amount` (no change needed).
-- **Tests**: `test_phase15_snake_case_headers.py` **33/33 PASS** — header normalization (13 parametrized cases), column mapping, period & amount parsing, parse_csv_bytes, iter_csv_file, full E2E upload of user's real `/tmp/sql_revenues.csv` via direct-to-R2 flow → 10 lines / 10 matched / 0 unmatched. Existing Believe tests `TestParseCsv::test_semicolon_autodetect_and_indonesian_headers` + `TestParseCsv::test_row_values` STILL PASS (zero regression).
+- **1-line core fix** in `royalty_utils.normalize_header()`: replace `_` and `-` with spaces + collapse whitespace. Now matches Believe `Bulan Laporan`, SQL `bulan_laporan`, kebab-case, etc. — same alias list.
+- **18 canonical fields** auto-detected from 23-col SQL header set. Non-canonical (e.g. `release_catalog_nb`) silently ignored.
+- **Robust value parsing**: SQL YYYY-MM-DD periods + US dot-decimals work alongside European comma-decimals.
+- **Tests**: 33/33 PASS — full E2E upload of user's `/tmp/sql_revenues.csv` → 10/10 matched.
+
+### Phase 16 — Background Publish (Idempotent & Restart-Safe, DONE 2026-06-28)
+**Solves: Publishing 219,800-row royalty CSV in production triggered Kubernetes ingress 60s timeout → frontend "Terjadi kesalahan. Coba lagi." while backend was silently in mid-write.**
+
+- **Refactored** `POST /royalty/admin/imports/{id}/publish` to return immediately (status=`publishing`, progress=0) and spawn `_publish_bg()`. Frontend auto-polls every 3-4s. Same pattern as Phase 10 (CSV processing) and Phase 14 (R2 finalize).
+- **New statuses**: `publishing` (in-flight) + `publish_error` (recoverable). Status state machine now: `awaiting_upload → processing → pending_review → publishing → published → dana_received` (plus error branches `error` / `publish_error`).
+- **Idempotency** (critical): `_publish_bg` checks `balance_transactions` for existing `(label_id, type='royalty_pending', reference_id=import_id)` before crediting → safe to retry any number of times. `update_many` on royalty_lines is naturally idempotent via filter.
+- **Race-safe**: Calling `/publish` again while `status='publishing'` returns the current doc (NOT 400, NOT double-credit). Verified by testing agent.
+- **Restart-safe**: `resume_interrupted_imports()` now handles BOTH `processing` AND `publishing` statuses on backend startup — re-spawns `_publish_bg` for any stuck publish.
+- **Progressive updates**: backend updates `publish_progress_pct` every 5 labels (capped at 75% during credit loop, then 85% after line flip, 100% on done). Frontend renders violet→fuchsia gradient progress bar.
+- **`Coba Publish Lagi` button** appears on `publish_error` status — same endpoint, idempotent retry.
+- **Tests**: `test_phase16_background_publish.py` **15/15 PASS** — happy path, race re-publish idempotency (exactly 1 balance_tx per label), restart-resume (testing agent did `sudo supervisorctl restart backend` mid-publish), all auth/status guards (401/403/400 paths), polling status transitions.
+- **Code review**: testing agent confirmed "_publish_bg is correctly idempotent ... Solid implementation."
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
