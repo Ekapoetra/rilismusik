@@ -121,18 +121,29 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 ### Phase 11 — SMTP Email Notifications LIVE (Hostinger, DONE 2026-06-28)
 **Replaces console-only mock emails with real transactional sending via Hostinger SMTP.**
 
-- **email_service module** (`/app/backend/email_service.py`): Standard-library `smtplib.SMTP_SSL` (port 465) wrapped with `asyncio.to_thread` for non-blocking FastAPI. No 3rd-party SDK needed — robust, portable, and works with any SMTP provider (Hostinger, Gmail Workspace, Mailgun, etc.) by just swapping env vars. 7 typed helpers covering all transactional flows:
-  - `send_verification_email` — account signup verification (link to `/verify-email?token=...`)
-  - `send_password_reset_email` — forgot-password flow (1h expiry)
-  - `send_contract_expiry_email` — daily cron T-30/T-7/T-1
-  - `send_subscription_expiry_email` — hourly cron T-7/T-3/T-1
-  - `send_payment_receipt_email` — fires from `POST /payments/mock-pay/{id}` and Xendit webhook
-  - `send_withdraw_paid_email` — fires from admin `mark_paid` action
-  - All return `Message-ID` from SMTP on success, `None` on failure (best-effort — never blocks auth/payment flow).
-- **Shared HTML template** (`_wrap`): Dark theme, glassmorphism-inspired, includes PT Jeeres footer + plain-text fallback for non-HTML clients. Inline CSS only for email-client compatibility.
+- **email_service module** (`/app/backend/email_service.py`): Standard-library `smtplib.SMTP_SSL` (port 465) wrapped with `asyncio.to_thread` for non-blocking FastAPI. No 3rd-party SDK needed — robust, portable, and works with any SMTP provider (Hostinger, Gmail Workspace, Mailgun, etc.) by just swapping env vars. 7 typed helpers covering all transactional flows.
 - **Env vars in `/app/backend/.env`**: `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=support@rilismusik.com`, `SMTP_PASSWORD`, `SENDER_EMAIL=support@rilismusik.com`, `SENDER_NAME=RILIS MUSIK`.
 - **Production-ready**: Unlike Resend test mode, Hostinger SMTP delivers to ANY recipient from day 1 — full custom domain (`@rilismusik.com`) auto-aligns SPF/DKIM/DMARC (Hostinger handles DNS).
-- **Tests**: `test_phase11_email.py` 3/3 PASS (1 import safety + 2 live-send through Hostinger SMTP). Resend SDK removed from requirements.txt.
+- **Tests**: `test_phase11_email.py` 3/3 PASS.
+
+### Phase 12 — Cloudflare R2 Object Storage LIVE (DONE 2026-06-28)
+**Replaces ephemeral local-disk uploads with Cloudflare R2 (S3-compatible) — files survive container restarts and pod evictions.**
+
+- **storage_service module** (`/app/backend/storage_service.py`): boto3 client pointed at R2 endpoint with `region_name='auto'` + `signature_version='s3v4'` (Cloudflare R2 requirements). Async helpers via `asyncio.to_thread`: `upload_bytes`, `upload_fileobj` (multipart-aware for large WAV), `generate_presigned_url`, `delete_object`, `head_object`, plus FastAPI convenience `upload_upload_file`.
+- **Smart `/api/files/{path}` handler** (`server.py` L47-72): R2-first lookup with disk fallback for legacy files. R2 hit → 302-redirect to presigned URL (TTL 7d for `cover/`+`landing/`, 1h for everything else). Path-traversal guard for the disk-fallback branch.
+- **8 upload sites migrated to R2**:
+  - `routes/releases.py`: cover (3000×3000 JPG/PNG) + audio (WAV, multipart upload)
+  - `routes/contracts.py`: contract PDF upload
+  - `routes/cms.py`: landing image
+  - `routes/tickets.py`: attachment (general/audio/cover branches with proper validation)
+  - `routes/withdraw.py`: payment proof
+  - `routes/auth.py` + `routes/admin.py` + `routes/migrate.py`: auto-generated MDA PDF via new `generate_mda_pdf_bytes()` (in-memory BytesIO, no disk hop)
+  - `cms/mda/preview`: streams PDF bytes directly from memory
+- **Env vars in `/app/backend/.env`**: `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=rilismusik`, `R2_PUBLIC_BASE_URL` (reserved for future custom domain).
+- **Access model**: PRIVATE by default — all R2 objects are private, accessed only through presigned URLs minted by the backend (1h-7d TTL). No direct R2 public URL exposed to clients. Custom domain (`cdn.rilismusik.com`) reserved for a future enhancement; works fine without it.
+- **MDA generator refactor**: added `generate_mda_pdf_bytes(label, legal_entity) -> bytes` next to existing disk-based `generate_mda_pdf()`. New code path is bytes-first; old path retained for backward compat.
+- **Tests**: `test_phase12_r2_storage.py` 5/5 + testing-agent E2E `test_phase12_e2e_uploads.py` 7/7 + regression 20/20 = **32/32 PASS**.
+- **Testing-agent design feedback (deferred, non-blocking)**: (1) cache `head_object` exists-bit for ~60s if R2 lookup latency becomes a hot path; (2) unify 3000×3000 validation between releases.py (≥3000, square) and tickets.py (==3000); (3) log a warning if Pillow import fails to surface bypassed validation.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
