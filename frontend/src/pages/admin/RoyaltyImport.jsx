@@ -19,6 +19,8 @@ export default function AdminRoyaltyImport() {
   const [resetConfirm, setResetConfirm] = useState("");
   const [form, setForm] = useState({ period: todayPeriod(), rate_eur_idr: 17500, file: null, note: "" });
   const [busy, setBusy] = useState(false);
+  const [uploadStage, setUploadStage] = useState("");  // 'initiating' | 'uploading' | 'finalizing'
+  const [uploadPct, setUploadPct] = useState(0);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -49,24 +51,55 @@ export default function AdminRoyaltyImport() {
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
   };
 
+  // Direct-to-R2 upload: initiate → PUT to R2 (with progress) → finalize.
+  // Bypasses the Kubernetes ingress body-size limit (~100 MB), handles files up to 5 GB.
   const submit = async (e) => {
     e.preventDefault();
     setErr(""); setMsg("");
     if (!form.file) { setErr("File CSV wajib diupload"); return; }
     if (!form.period.match(/^\d{4}-\d{2}$/)) { setErr("Periode harus YYYY-MM"); return; }
     setBusy(true);
+    setUploadPct(0);
     try {
-      const fd = new FormData();
-      fd.append("period", form.period);
-      fd.append("rate_eur_idr", form.rate_eur_idr);
-      fd.append("note", form.note || "");
-      fd.append("file", form.file);
-      await api.post("/royalty/admin/imports", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setMsg("CSV diupload & diparse.");
+      // Step 1: initiate
+      setUploadStage("initiating");
+      const { data: init } = await api.post("/royalty/admin/imports/initiate", {
+        filename: form.file.name,
+        rate_eur_idr: Number(form.rate_eur_idr),
+        period: form.period,
+        note: form.note || null,
+        file_size_bytes: form.file.size,
+      });
+
+      // Step 2: PUT directly to R2 with progress
+      setUploadStage("uploading");
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", init.presigned_put_url);
+        xhr.setRequestHeader("Content-Type", init.content_type);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload R2 gagal (HTTP ${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error("Network error saat upload ke R2"));
+        xhr.send(form.file);
+      });
+
+      // Step 3: finalize → triggers background processing
+      setUploadStage("finalizing");
+      await api.post(`/royalty/admin/imports/${init.import_id}/finalize`);
+
+      setMsg(`File berhasil diupload (${(form.file.size / 1024 / 1024).toFixed(1)} MB) — processing di background.`);
       setOpen(false);
       setForm({ period: todayPeriod(), rate_eur_idr: 17500, file: null, note: "" });
+      setUploadPct(0); setUploadStage("");
       load();
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    } catch (e2) {
+      setErr(e2.message || formatApiError(e2.response?.data?.detail));
+    }
     finally { setBusy(false); }
   };
 
@@ -180,15 +213,39 @@ export default function AdminRoyaltyImport() {
             </div>
             <div>
               <label className="rm-label">File CSV Believe</label>
-              <input type="file" accept=".csv,text/csv" className="rm-input" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} data-testid="admin-royalty-file" />
-              <div className="text-[11px] text-zinc-500 mt-1">Auto-detect kolom Believe (Indonesian + English): ISRC, UPC, Judul track, Nama Artis, Platform, Negara, Kuantias, Pendapatan Bersih (EUR). Format desimal Eropa <code>0,000123</code> didukung.</div>
+              <input type="file" accept=".csv,.gz,text/csv,application/gzip" className="rm-input" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} data-testid="admin-royalty-file" disabled={busy} />
+              <div className="text-[11px] text-zinc-500 mt-1">Upload langsung ke Cloudflare R2 — mendukung file <strong>hingga 5 GB</strong>. Auto-detect kolom Believe (ID + EN): ISRC, UPC, Judul track, Nama Artis, Platform, Negara, Kuantitas, Pendapatan Bersih (EUR). Format desimal Eropa <code>0,000123</code> didukung. File .csv.gz juga oke.</div>
+              {form.file && !busy && (
+                <div className="text-[11px] text-emerald-300 mt-2">📁 {form.file.name} ({(form.file.size / 1024 / 1024).toFixed(1)} MB)</div>
+              )}
             </div>
             <div>
               <label className="rm-label">Catatan (opsional)</label>
-              <input className="rm-input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+              <input className="rm-input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} disabled={busy} />
             </div>
+            {busy && (
+              <div className="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-4 space-y-2" data-testid="admin-royalty-upload-progress">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-sky-300 font-bold flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    {uploadStage === "initiating" && "Meminta URL upload…"}
+                    {uploadStage === "uploading" && `Upload ke R2 (${uploadPct}%)`}
+                    {uploadStage === "finalizing" && "Memulai background processing…"}
+                  </span>
+                  {uploadStage === "uploading" && form.file && (
+                    <span className="text-zinc-500">{((form.file.size * uploadPct / 100) / 1024 / 1024).toFixed(1)} / {(form.file.size / 1024 / 1024).toFixed(1)} MB</span>
+                  )}
+                </div>
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-400 to-violet-400 transition-all"
+                    style={{ width: `${uploadStage === "initiating" ? 5 : uploadStage === "uploading" ? uploadPct : 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
-              <button type="button" className="rm-btn-ghost" onClick={() => setOpen(false)}>Batal</button>
+              <button type="button" className="rm-btn-ghost" onClick={() => setOpen(false)} disabled={busy}>Batal</button>
               <button className="rm-btn-primary" disabled={busy} data-testid="admin-royalty-submit">{busy ? "Mengupload…" : "Upload & Parse"}</button>
             </div>
           </form>

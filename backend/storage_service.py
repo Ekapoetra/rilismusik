@@ -94,6 +94,39 @@ def _generate_presigned_url_sync(*, key: str, ttl: int, filename: Optional[str] 
     return _client().generate_presigned_url("get_object", Params=params, ExpiresIn=ttl)
 
 
+def _generate_presigned_put_url_sync(*, key: str, content_type: str, ttl: int) -> str:
+    return _client().generate_presigned_url(
+        "put_object",
+        Params={"Bucket": R2_BUCKET, "Key": key, "ContentType": content_type},
+        ExpiresIn=ttl,
+    )
+
+
+def _ensure_cors_sync(allowed_origins: list) -> dict:
+    """Idempotently configure CORS rules on the R2 bucket so browsers can do
+    PUT requests against presigned URLs from the frontend origins.
+    """
+    cors_config = {
+        "CORSRules": [{
+            "AllowedOrigins": allowed_origins,
+            "AllowedMethods": ["GET", "PUT", "HEAD"],
+            "AllowedHeaders": ["*"],
+            "ExposeHeaders": ["ETag"],
+            "MaxAgeSeconds": 3600,
+        }]
+    }
+    _client().put_bucket_cors(Bucket=R2_BUCKET, CORSConfiguration=cors_config)
+    return cors_config
+
+
+def _download_to_file_sync(*, key: str, local_path: str) -> int:
+    """Stream-download an R2 object to a local path. Returns bytes written.
+    Uses boto3 download_file (multipart-aware, parallel chunks).
+    """
+    _client().download_file(Bucket=R2_BUCKET, Key=key, Filename=local_path)
+    return os.path.getsize(local_path)
+
+
 def _delete_object_sync(*, key: str) -> None:
     _client().delete_object(Bucket=R2_BUCKET, Key=key)
 
@@ -135,6 +168,32 @@ async def upload_fileobj(*, key: str, fileobj: BinaryIO, content_type: str) -> s
 async def generate_presigned_url(*, key: str, ttl: int = _DEFAULT_TTL, filename: Optional[str] = None) -> str:
     """Generate a time-limited signed GET URL for an R2 object."""
     return await asyncio.to_thread(_generate_presigned_url_sync, key=key, ttl=ttl, filename=filename)
+
+
+async def generate_presigned_put_url(*, key: str, content_type: str = "application/octet-stream", ttl: int = 3600) -> str:
+    """Generate a time-limited signed PUT URL so a browser can upload directly
+    to R2 without going through the backend (bypasses Kubernetes ingress body
+    size limits, ~100MB by default).
+    """
+    return await asyncio.to_thread(_generate_presigned_put_url_sync, key=key, content_type=content_type, ttl=ttl)
+
+
+async def ensure_cors(allowed_origins: list) -> Optional[dict]:
+    """Configure bucket CORS so the browser can PUT to presigned URLs.
+    Best-effort: logs but does not raise on failure.
+    """
+    if not is_configured():
+        return None
+    try:
+        return await asyncio.to_thread(_ensure_cors_sync, allowed_origins)
+    except (BotoCoreError, ClientError) as e:
+        logger.warning("[R2] ensure_cors failed: %s", e)
+        return None
+
+
+async def download_to_file(*, key: str, local_path: str) -> int:
+    """Download an R2 object to a local file path. Returns bytes written."""
+    return await asyncio.to_thread(_download_to_file_sync, key=key, local_path=local_path)
 
 
 async def delete_object(*, key: str) -> None:

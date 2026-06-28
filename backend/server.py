@@ -126,6 +126,14 @@ app.add_middleware(
 async def on_startup():
     await seed_indexes_and_admins()
     start_scheduler()
+    # Ensure R2 bucket CORS allows browser PUT from frontend origins (direct upload)
+    frontend_origins = [
+        os.environ.get("FRONTEND_URL", "").rstrip("/"),
+        "https://lanjut-core.preview.emergentagent.com",
+        "https://lanjut-core.emergent.host",
+    ]
+    frontend_origins = list({o for o in frontend_origins if o})
+    await storage_service.ensure_cors(frontend_origins)
     # Resume any royalty CSV imports that were left in 'processing' state by a
     # previous container shutdown/hot-reload — must run AFTER db is ready.
     import asyncio

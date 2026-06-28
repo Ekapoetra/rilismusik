@@ -41,6 +41,7 @@ from royalty_utils import (
     strip_sensitive, iter_csv_file,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+import storage_service
 
 # =============================================================================
 #                              ROYALTY (ADMIN + LABEL/ARTIST)
@@ -256,6 +257,173 @@ async def admin_upload_royalty_csv(
         },
     )
     return result
+
+
+# ============================================================
+# Large-file Direct-to-R2 upload (bypasses ingress body limits)
+# ============================================================
+from pydantic import BaseModel, Field
+
+
+class InitiateUploadIn(BaseModel):
+    filename: str
+    rate_eur_idr: float = Field(..., gt=0)
+    period: Optional[str] = None
+    note: Optional[str] = None
+    file_size_bytes: Optional[int] = None  # client-reported, for capacity hints
+
+
+@royalty_r.post("/admin/imports/initiate")
+async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depends(require_admin)):
+    """Step 1 of large-file upload: returns a presigned PUT URL so the browser
+    can upload the CSV DIRECTLY to Cloudflare R2 — bypassing the Kubernetes
+    ingress body-size limit (~100 MB default). Use for files > 50 MB.
+
+    Flow: client calls this → uploads file with PUT to `presigned_put_url` →
+    calls `/admin/imports/{import_id}/finalize` to trigger background processing.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    if body.period:
+        try:
+            datetime.strptime(body.period, "%Y-%m")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Format period harus YYYY-MM")
+    if not storage_service.is_configured():
+        raise HTTPException(status_code=500, detail="Cloud storage belum dikonfigurasi")
+
+    import_id = new_id()
+    fname = body.filename or "upload.csv"
+    ext = ".csv.gz" if fname.lower().endswith(".gz") else ".csv"
+    r2_key = f"csv/{import_id}{ext}"
+    content_type = "application/gzip" if ext == ".csv.gz" else "text/csv"
+
+    # 2h TTL — accommodates very slow uploads on residential connections
+    presigned_url = await storage_service.generate_presigned_put_url(
+        key=r2_key, content_type=content_type, ttl=7200,
+    )
+
+    fee_settings = await db.landing_settings.find_one({"key": "pricing"})
+    fee_percent = float((fee_settings or {}).get("value", {}).get("distributor_fee_percent", 5) or 5)
+
+    now = now_iso()
+    import_doc = {
+        "id": import_id,
+        "period": body.period or "multi",
+        "period_start": body.period,
+        "period_end": body.period,
+        "period_breakdown": {},
+        "is_multi_period": body.period is None,
+        "source": "believe",
+        "filename": fname,
+        "file_url": f"/api/files/{r2_key}",
+        "r2_key": r2_key,
+        "file_size_bytes": body.file_size_bytes or 0,
+        "exchange_rate_eur_idr": body.rate_eur_idr,
+        "fee_percent": fee_percent,
+        "total_lines": 0, "processed_lines": 0, "progress_pct": 0,
+        "matched_lines": 0, "unmatched_lines": 0, "invalid_period_rows": 0,
+        "auto_created_labels": 0, "auto_created_releases": 0, "auto_created_tracks": 0,
+        "total_revenue_eur": 0.0, "total_label_idr": 0,
+        "status": "awaiting_upload",
+        "error_message": None, "dana_received_at": None, "published_at": None,
+        "uploaded_by": user["id"], "note": body.note,
+        "started_at": None, "finished_at": None,
+        "created_at": now, "updated_at": now,
+    }
+    await db.royalty_imports.insert_one(import_doc)
+    return {
+        "import_id": import_id,
+        "presigned_put_url": presigned_url,
+        "r2_key": r2_key,
+        "content_type": content_type,
+        "expires_in": 7200,
+    }
+
+
+@royalty_r.post("/admin/imports/{import_id}/finalize")
+async def admin_finalize_large_upload(import_id: str, user: dict = Depends(require_admin)):
+    """Step 2 of large-file upload: called by the frontend after the PUT to
+    R2 succeeds. Verifies the object exists, downloads it to a local staging
+    file, and kicks off the existing background processor.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp.get("status") != "awaiting_upload":
+        raise HTTPException(status_code=400, detail=f"Status import tidak valid untuk finalize: {imp.get('status')}")
+    r2_key = imp.get("r2_key")
+    if not r2_key:
+        raise HTTPException(status_code=400, detail="Import doc tidak punya r2_key")
+
+    # Verify the file actually landed in R2
+    meta = await storage_service.head_object(key=r2_key)
+    if not meta:
+        raise HTTPException(status_code=400, detail="File belum berhasil di-upload ke R2 — coba lagi")
+    file_size = int(meta.get("ContentLength", 0))
+
+    # Stage to local disk so the existing streaming parser can read it
+    ext = ".csv.gz" if r2_key.endswith(".gz") else ".csv"
+    local_path = UPLOAD_DIR / "csv" / f"{import_id}{ext}"
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        await storage_service.download_to_file(key=r2_key, local_path=str(local_path))
+    except Exception as e:
+        logger.exception("R2 download failed for %s: %s", import_id, e)
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {"status": "error", "error_message": f"Gagal download dari R2: {e}", "finished_at": now_iso(), "updated_at": now_iso()}},
+        )
+        raise HTTPException(status_code=500, detail=f"Gagal download CSV dari R2: {e}")
+
+    # Quick header validation
+    headers_list: List[str] = []
+    sample_rows: List[Dict[str, Any]] = []
+    try:
+        for hdrs, row_dict in iter_csv_file(str(local_path)):
+            if row_dict is None:
+                headers_list = hdrs
+                continue
+            sample_rows.append(row_dict)
+            if len(sample_rows) >= 50:
+                break
+    except Exception as e:
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {"status": "error", "error_message": f"Gagal membaca CSV: {e}", "finished_at": now_iso(), "updated_at": now_iso()}},
+        )
+        raise HTTPException(status_code=400, detail=f"Gagal membaca CSV: {e}")
+    if not headers_list or not sample_rows:
+        raise HTTPException(status_code=400, detail="CSV kosong atau tidak terbaca")
+    col_idx = detect_columns(headers_list)
+    if col_idx["revenue_eur"] is None:
+        raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
+    if not imp.get("period_start") and col_idx.get("period") is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Period tidak diberikan dan kolom 'Bulan Laporan'/period tidak ditemukan di CSV.",
+        )
+
+    now = now_iso()
+    await db.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {"status": "processing", "file_size_bytes": file_size, "started_at": now, "updated_at": now}},
+    )
+    import asyncio
+    asyncio.create_task(_process_csv_import_bg(
+        import_id=import_id,
+        file_path=str(local_path),
+        period=imp.get("period_start"),
+        rate_eur_idr=imp["exchange_rate_eur_idr"],
+        fee_percent=imp["fee_percent"],
+        user_id=user["id"],
+    ))
+    await log_activity(user["id"], "finalize_royalty_import", "royalty", import_id,
+                       after={"size_mb": round(file_size / 1024 / 1024, 2)})
+    out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    return out
 
 
 # ============================================================
@@ -935,6 +1103,31 @@ def _import_file_path(import_id: str, filename: Optional[str] = None) -> Optiona
     return None
 
 
+async def _ensure_local_csv(imp: dict) -> Optional[str]:
+    """Return a local path to the CSV for this import, re-downloading from R2
+    if needed. Returns None if neither disk nor R2 has the file.
+    """
+    import_id = imp["id"]
+    local = _import_file_path(import_id, imp.get("filename"))
+    if local:
+        return local
+    r2_key = imp.get("r2_key")
+    if not r2_key:
+        return None
+    meta = await storage_service.head_object(key=r2_key)
+    if not meta:
+        return None
+    ext = ".csv.gz" if r2_key.endswith(".gz") else ".csv"
+    target = UPLOAD_DIR / "csv" / f"{import_id}{ext}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        await storage_service.download_to_file(key=r2_key, local_path=str(target))
+        return str(target)
+    except Exception as e:
+        logger.warning("[ROYALTY] re-download from R2 failed for %s: %s", import_id, e)
+        return None
+
+
 async def _reset_import_for_retry(import_id: str) -> None:
     """Wipe partial side-effects of a previous failed/interrupted run so we can
     safely restart the processing without double-inserting rows.
@@ -985,18 +1178,18 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
     if imp["status"] not in ("processing", "error"):
         raise HTTPException(status_code=400, detail=f"Retry hanya untuk status processing/error (status saat ini: {imp['status']})")
 
-    file_path = _import_file_path(import_id, imp.get("filename"))
+    file_path = await _ensure_local_csv(imp)
     if not file_path:
         await db.royalty_imports.update_one(
             {"id": import_id},
             {"$set": {
                 "status": "error",
-                "error_message": "File CSV hilang setelah container restart. Silakan upload ulang.",
+                "error_message": "File CSV hilang dari disk dan tidak ada di R2. Silakan upload ulang.",
                 "finished_at": now_iso(),
                 "updated_at": now_iso(),
             }},
         )
-        raise HTTPException(status_code=400, detail="File CSV asli tidak ditemukan di disk. Upload ulang.")
+        raise HTTPException(status_code=400, detail="File CSV asli tidak ditemukan. Upload ulang.")
 
     await _reset_import_for_retry(import_id)
     import asyncio
@@ -1023,7 +1216,7 @@ async def resume_interrupted_imports():
             {"status": "processing"},
             {"_id": 0, "id": 1, "filename": 1, "exchange_rate_eur_idr": 1,
              "fee_percent": 1, "period": 1, "period_start": 1, "is_multi_period": 1,
-             "uploaded_by": 1},
+             "uploaded_by": 1, "r2_key": 1},
         ).to_list(100)
     except Exception as e:
         logger.exception("resume_interrupted_imports: cannot query imports: %s", e)
@@ -1035,18 +1228,18 @@ async def resume_interrupted_imports():
     import asyncio
     for imp in stuck:
         import_id = imp["id"]
-        file_path = _import_file_path(import_id, imp.get("filename"))
+        file_path = await _ensure_local_csv(imp)
         if not file_path:
             await db.royalty_imports.update_one(
                 {"id": import_id},
                 {"$set": {
                     "status": "error",
-                    "error_message": "Container restart — file CSV asli hilang. Upload ulang.",
+                    "error_message": "Container restart — file CSV asli hilang dari disk & R2. Upload ulang.",
                     "finished_at": now_iso(),
                     "updated_at": now_iso(),
                 }},
             )
-            logger.warning("resume_interrupted_imports: %s marked as error (file missing)", import_id)
+            logger.warning("resume_interrupted_imports: %s marked as error (file missing both disk + R2)", import_id)
             continue
         # Wipe partial inserts then re-spawn background task
         await _reset_import_for_retry(import_id)
