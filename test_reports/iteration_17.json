@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 15 — SQL snake_case CSV header support. The single-line change in royalty_utils.normalize_header() (replace underscores AND hyphens with spaces, collapse whitespace) correctly enables the EXISTING alias list to recognise SQL-export headers (bulan_laporan, pendapatan_bersih, nama_label, …) WITHOUT regressing the Believe space-separated headers. Wrote /app/backend/tests/test_phase15_snake_case_headers.py with 33 tests covering header normalization, detect_columns mapping, parse_period (YYYY-MM-DD), parse_amount (dot-decimal), parse_csv_bytes + iter_csv_file against the real /tmp/sql_revenues.csv, Believe regression, and a full end-to-end direct-to-R2 upload (initiate → PUT to R2 → finalize). RESULT: 33/33 PASS. The real SQL CSV produced 10 total_lines / 10 matched / 0 unmatched on the live backend. Both named Believe regression tests (TestParseCsv::test_semicolon_autodetect_and_indonesian_headers, TestParseCsv::test_row_values) STILL PASS unchanged.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase15_snake_case_headers.py",
+    "/app/test_reports/pytest/iter17_phase15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "normalize_header() correctly handles snake_case, kebab-case, BOM, mixed underscores, and uppercase — confirmed by 13 parametrized cases.",
+    "detect_columns() maps every canonical field from the 23-column SQL header set: period (from bulan_laporan), label_name, artist_name, release_title, track_title, isrc, upc, quantity, revenue_eur, gross_revenue_eur, unit_price_eur, mechanical_cost_eur, client_share_rate, sales_type, release_type, currency, platform, country.",
+    "Extra non-canonical column 'release_catalog_nb' is silently ignored — catalog_ref alias resolves to None (no false positive), no crash.",
+    "parse_period_from_value('2020-12-01') → '2020-12' (correct YYYY-MM normalization).",
+    "parse_amount('0.000181577974000') → 0.000181577974 (US dot-decimal); regression test confirms '0,000181577974000' → 0.000181577974 (EU comma-decimal) still works.",
+    "End-to-end upload of /tmp/sql_revenues.csv via the direct-to-R2 flow: 10 total_lines, 10 matched_lines, 0 unmatched_lines — confirms snake_case parsing works at the production code path (_process_csv_import_bg → iter_csv_file → detect_columns → _match_line).",
+    "Pre-existing failure NOTE (unrelated to this change, explicitly excluded by main agent): test_believe_royalty.py::TestStripSensitive::test_strip_sensitive_removes_all_4_fields — confirmed not investigated per agent_to_agent_context_note.",
+    "Pre-existing flaky Phase 14 test: test_phase14_direct_r2_upload.py::TestInitiateFinalizeFlow::test_finalize_then_background_processes — fails on re-run because the test asserts `auto_created_labels >= 1` but the 'TEST_Phase14_Label_Direct' label already exists from a prior run, so the counter is 0. Same idempotency pattern that I corrected in my own Phase 15 test (cap to <=N instead of >=1). NOT caused by the normalize_header change.",
+    "MINOR: pytest deprecation warning on class-scoped fixtures defined as instance methods in test_phase15. Cosmetic only — does not affect outcomes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase15_snake_case_headers.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (33/33 new phase-15 tests pass; both named Believe regression tests pass; 2 pre-existing failures explicitly excluded)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "test_credentials": "Super Admin superadmin@rilismusik.com / SuperAdmin#2026 — verified working via /api/auth/login.",
+  "seed_data_creation": "Test upload created a royalty_import record (id=1c947e4f-...). Idempotent — labels/releases/tracks from prior E1 manual run reused (ac_l=0, ac_r=0, ac_t=0). 10 royalty_lines persisted with period='2020-12' and total revenue_eur≈0.0832.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Phase 15 (snake_case header normalization) is fully verified. The new test file /app/backend/tests/test_phase15_snake_case_headers.py is a reusable regression suite. Run it with: REACT_APP_BACKEND_URL=<url> pytest backend/tests/test_phase15_snake_case_headers.py. Pre-existing failures still open and explicitly out-of-scope: (1) test_believe_royalty.py::TestStripSensitive::test_strip_sensitive_removes_all_4_fields — pre-existing strip_sensitive function bug (KeyError: 'revenue_eur'). (2) test_phase14_direct_r2_upload.py::TestInitiateFinalizeFlow::test_finalize_then_background_processes — non-idempotent assertion (`auto_created_labels >= 1`) that fails on re-runs because TEST data persists.",
+  "rca_of_the_issue": "ROOT CAUSE OF THE ORIGINAL BUG (already fixed by E1): normalize_header() in /app/backend/royalty_utils.py only lowercased and stripped headers but did NOT convert underscores or hyphens to spaces. HEADER_ALIASES uses space-separated forms like 'bulan laporan' and 'pendapatan bersih', so SQL exports with 'bulan_laporan' / 'pendapatan_bersih' headers never matched any alias → all columns returned None → every row was unmatched. FIX (single line in royalty_utils.py L135-L136): `s = s.replace('_', ' ').replace('-', ' '); s = ' '.join(s.split())`. This lets one alias list cover Believe (Bulan Laporan), SQL exports (bulan_laporan), kebab-case (bulan-laporan), and any mixed/double-underscore variations. VERIFIED via 33 tests including a full E2E upload of the user's real /tmp/sql_revenues.csv → 10/10 matched, 0 unmatched. NO REGRESSION on the Believe format."
+}

@@ -120,7 +120,21 @@ INTERNAL_PERCENT_FIELDS = (
 
 
 def normalize_header(h: str) -> str:
-    return (h or "").strip().lower().replace("\ufeff", "")
+    """Normalize a CSV header for alias matching.
+
+    - Lowercase + trim
+    - Strip UTF-8 BOM
+    - Convert snake_case (`bulan_laporan`) and kebab-case (`bulan-laporan`)
+      to space form so both match the same canonical alias as `Bulan Laporan`.
+    - Collapse multiple whitespace.
+
+    Lets the same alias list handle Believe's "Bulan Laporan" CSV header AND
+    SQL-dump exports using `bulan_laporan` without duplicating aliases.
+    """
+    s = (h or "").strip().lower().replace("\ufeff", "")
+    s = s.replace("_", " ").replace("-", " ")
+    s = " ".join(s.split())
+    return s
 
 
 def detect_columns(headers: List[str]) -> Dict[str, Optional[int]]:
