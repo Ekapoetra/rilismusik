@@ -1,34 +1,54 @@
-"""Resend email service for RILIS MUSIK.
+"""SMTP email service for RILIS MUSIK (Hostinger).
 
 All transactional emails (verification, reset, contract warnings, invoices)
-are routed through `send_email()`. SDK is synchronous so we wrap with
-asyncio.to_thread to keep FastAPI's event loop non-blocking.
+are routed through `send_email()`. Uses standard library `smtplib.SMTP_SSL`
+on port 465, wrapped with `asyncio.to_thread` to keep FastAPI's event loop
+non-blocking.
 
-Sender domain is configurable via `SENDER_EMAIL` env var. The default
-`onboarding@resend.dev` ONLY delivers to verified addresses (Resend test mode).
-For production, verify a domain on https://resend.com/domains and set
-SENDER_EMAIL=noreply@rilismusik.com (or similar).
+Sender is `support@rilismusik.com` (authenticated via Hostinger SMTP).
+Switching providers later only requires changing the env vars below.
 """
 import os
+import ssl
 import asyncio
 import logging
+import smtplib
+from email.message import EmailMessage
 from typing import Optional
-
-import resend
 
 logger = logging.getLogger("rilismusik")
 
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.hostinger.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", SMTP_USER or "")
 SENDER_NAME = os.environ.get("SENDER_NAME", "RILIS MUSIK")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
-
-if RESEND_API_KEY:
-    resend.api_key = RESEND_API_KEY
 
 
 def _from_header() -> str:
     return f"{SENDER_NAME} <{SENDER_EMAIL}>"
+
+
+def _smtp_send_sync(*, to: str, subject: str, html: str) -> str:
+    """Synchronous SMTP send. Called from a worker thread via asyncio.to_thread.
+    Returns the SMTP message-id on success; raises on failure.
+    """
+    msg = EmailMessage()
+    msg["From"] = _from_header()
+    msg["To"] = to
+    msg["Subject"] = subject
+    # Plain-text fallback for clients that don't render HTML
+    plain_fallback = "Email ini dirancang untuk klien HTML. Buka di browser modern atau Gmail/Outlook untuk tampilan terbaik."
+    msg.set_content(plain_fallback)
+    msg.add_alternative(html, subtype="html")
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=30) as server:
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+    return msg["Message-ID"] or "sent"
 
 
 # ---------- Shared HTML wrapper ----------
@@ -70,24 +90,17 @@ def _wrap(title: str, body_html: str, cta_label: Optional[str] = None, cta_url: 
 
 # ---------- Low-level send ----------
 async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
-    """Send an email via Resend. Returns the resend email_id on success, None
-    on failure. Never raises — failure is logged and ignored so callers can
-    treat email as best-effort (transactional flows continue to work).
+    """Send an email via Hostinger SMTP. Returns the message-id on success,
+    None on failure. Never raises — failure is logged and ignored so callers
+    can treat email as best-effort (transactional flows continue to work).
     """
-    if not RESEND_API_KEY:
-        logger.warning("[EMAIL] RESEND_API_KEY not set — skipping email to %s (%s)", to, subject)
+    if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("[EMAIL] SMTP credentials not set — skipping email to %s (%s)", to, subject)
         return None
     try:
-        params = {
-            "from": _from_header(),
-            "to": [to],
-            "subject": subject,
-            "html": html,
-        }
-        result = await asyncio.to_thread(resend.Emails.send, params)
-        email_id = result.get("id") if isinstance(result, dict) else None
-        logger.info("[EMAIL] sent to=%s subject=%r id=%s", to, subject, email_id)
-        return email_id
+        message_id = await asyncio.to_thread(_smtp_send_sync, to=to, subject=subject, html=html)
+        logger.info("[EMAIL] sent to=%s subject=%r id=%s", to, subject, message_id)
+        return message_id
     except Exception as e:
         logger.exception("[EMAIL] failed to=%s subject=%r err=%s", to, subject, e)
         return None

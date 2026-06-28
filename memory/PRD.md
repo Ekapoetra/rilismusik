@@ -118,21 +118,21 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 - **UI**: Admin `/admin/royalty` page now polls every 4s while any import is processing. Each row shows live progress bar + matched lines counter. Status badge supports new `Processing` (animated spinner icon) and `Error` (red X) states. Retry button (`data-testid="royalty-import-retry-{id}"`) appears for both states. RoyaltyDetail page polls every 3s and shows a hero progress card (sky→violet gradient) with `processed_lines / matched_lines / auto_created_labels / auto_created_tracks` plus an error banner.
 - **Tests**: `test_phase10_csv_recovery.py` 5/5 PASS + 24/24 regression = 29/29 PASS.
 
-### Phase 11 — Resend Email Notifications LIVE (DONE 2026-06-28)
-**Replaces console-only mock emails with real transactional sending via Resend.**
+### Phase 11 — SMTP Email Notifications LIVE (Hostinger, DONE 2026-06-28)
+**Replaces console-only mock emails with real transactional sending via Hostinger SMTP.**
 
-- **email_service module** (`/app/backend/email_service.py`): Centralized async wrapper around `resend.Emails.send` using `asyncio.to_thread` to keep FastAPI non-blocking. 7 typed helpers covering all transactional flows:
+- **email_service module** (`/app/backend/email_service.py`): Standard-library `smtplib.SMTP_SSL` (port 465) wrapped with `asyncio.to_thread` for non-blocking FastAPI. No 3rd-party SDK needed — robust, portable, and works with any SMTP provider (Hostinger, Gmail Workspace, Mailgun, etc.) by just swapping env vars. 7 typed helpers covering all transactional flows:
   - `send_verification_email` — account signup verification (link to `/verify-email?token=...`)
   - `send_password_reset_email` — forgot-password flow (1h expiry)
   - `send_contract_expiry_email` — daily cron T-30/T-7/T-1
   - `send_subscription_expiry_email` — hourly cron T-7/T-3/T-1
   - `send_payment_receipt_email` — fires from `POST /payments/mock-pay/{id}` and Xendit webhook
   - `send_withdraw_paid_email` — fires from admin `mark_paid` action
-  - All return `email_id` from Resend on success, `None` on failure (best-effort — never blocks auth/payment flow).
-- **Shared HTML template** (`_wrap`): Dark theme, glassmorphism-inspired, includes PT Jeeres footer, optional CTA button. Inline CSS only for max email-client compatibility.
-- **Env vars added to `/app/backend/.env`**: `RESEND_API_KEY`, `SENDER_EMAIL=onboarding@resend.dev` (default), `SENDER_NAME=RILIS MUSIK`.
-- **Tests**: `test_phase11_email.py` 3/3 PASS (1 import safety + 2 live-send to Resend `delivered@resend.dev` sandbox address). Resend returned real email IDs.
-- **⚠️ Production note**: Resend test mode only delivers to the account owner's email (rilismusik.com@gmail.com). For real customer delivery, verify a custom domain at https://resend.com/domains and set `SENDER_EMAIL=noreply@rilismusik.com`. The system returns `ok:true` and logs the error gracefully — auth/payment flow is never blocked by email failures.
+  - All return `Message-ID` from SMTP on success, `None` on failure (best-effort — never blocks auth/payment flow).
+- **Shared HTML template** (`_wrap`): Dark theme, glassmorphism-inspired, includes PT Jeeres footer + plain-text fallback for non-HTML clients. Inline CSS only for email-client compatibility.
+- **Env vars in `/app/backend/.env`**: `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=support@rilismusik.com`, `SMTP_PASSWORD`, `SENDER_EMAIL=support@rilismusik.com`, `SENDER_NAME=RILIS MUSIK`.
+- **Production-ready**: Unlike Resend test mode, Hostinger SMTP delivers to ANY recipient from day 1 — full custom domain (`@rilismusik.com`) auto-aligns SPF/DKIM/DMARC (Hostinger handles DNS).
+- **Tests**: `test_phase11_email.py` 3/3 PASS (1 import safety + 2 live-send through Hostinger SMTP). Resend SDK removed from requirements.txt.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
