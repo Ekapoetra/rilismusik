@@ -883,7 +883,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
             {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
         ]
         per_label: List[Dict[str, Any]] = []
-        async for r in db.royalty_lines.aggregate(pipeline):
+        async for r in db.royalty_lines.aggregate(pipeline, allowDiskUse=True):
             if r.get("_id"):
                 per_label.append(r)
         total_labels = max(len(per_label), 1)
@@ -929,14 +929,41 @@ async def _publish_bg(*, import_id: str, user_id: str):
                     {"$set": {"publish_progress_pct": min(pct, 75), "updated_at": now_iso()}},
                 )
 
-        # 3) Flip royalty_lines status → 'pending' (idempotent via filter)
-        await db.royalty_lines.update_many(
-            {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}, "status": {"$ne": "pending"}},
-            {"$set": {"status": "pending"}},
-        )
+        # 3) Flip royalty_lines status → 'pending' in CHUNKS to avoid MongoDB
+        # cluster-level operation time limits (Atlas/serverless commonly enforce
+        # maxTimeMS — code 50 'MaxTimeMSExpired' on huge update_many).
+        # Idempotent: the filter excludes already-flipped lines. We paginate by
+        # Mongo's native `_id` (always indexed) so each chunk hits an IXSCAN.
+        CHUNK_SIZE = 2000
+        base_filter = {
+            "import_id": import_id,
+            "match_status": {"$in": ["matched", "manually_matched"]},
+            "status": {"$ne": "pending"},
+        }
+        last_oid = None
+        total_flipped = 0
+        while True:
+            q = dict(base_filter)
+            if last_oid is not None:
+                q["_id"] = {"$gt": last_oid}
+            batch = await db.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
+            if not batch:
+                break
+            oids = [d["_id"] for d in batch]
+            last_oid = oids[-1]
+            await db.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "pending"}})
+            total_flipped += len(oids)
+            # Progress 75 → 95% during line flip
+            line_pct = 75 + min(int(total_flipped / 220_000 * 20), 20)
+            await db.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {"publish_progress_pct": min(line_pct, 95), "updated_at": now_iso()}},
+            )
+        logger.info("[PUBLISH BG] %s — flipped %d lines to pending in %d-row chunks",
+                    import_id, total_flipped, CHUNK_SIZE)
         await db.royalty_imports.update_one(
             {"id": import_id},
-            {"$set": {"publish_progress_pct": 85, "updated_at": now_iso()}},
+            {"$set": {"publish_progress_pct": 95, "updated_at": now_iso()}},
         )
 
         # 4) Notify each label (only newly-credited ones — avoids spam on retry)
