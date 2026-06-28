@@ -10,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .deps import db, logger, require_admin, notify, label_user_ids
 from models import now_iso
+from email_service import send_contract_expiry_email, send_subscription_expiry_email
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -79,6 +80,14 @@ async def check_subscription_expiry_job():
                     "/label/invoices",
                     {"days_left": days, "marker": marker, "label_id": lab["id"]},
                 )
+                # Send transactional email too (best-effort)
+                user_doc = await db.users.find_one({"id": lab["user_id"]}, {"_id": 0, "email": 1})
+                if user_doc and user_doc.get("email"):
+                    await send_subscription_expiry_email(
+                        to=user_doc["email"],
+                        label_name=lab.get("label_name") or "Label",
+                        days_left=days,
+                    )
     except Exception as e:
         logger.exception("Subscription expiry job failed: %s", e)
 
@@ -106,6 +115,15 @@ async def check_contract_expiry_job():
                         "/label/contract",
                         {"days_left": days, "marker": marker, "contract_id": c["id"]},
                     )
+                    # Send transactional email too (best-effort)
+                    user_doc = await db.users.find_one({"id": uid}, {"_id": 0, "email": 1})
+                    if user_doc and user_doc.get("email"):
+                        await send_contract_expiry_email(
+                            to=user_doc["email"],
+                            label_name=c.get("label_name") or "Label",
+                            days_left=days,
+                            end_date=c["end_date"],
+                        )
     except Exception as e:
         logger.exception("Contract expiry job failed: %s", e)
 

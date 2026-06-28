@@ -35,6 +35,10 @@ from auth_utils import (
     create_access_token, create_refresh_token,
     set_auth_cookies, clear_auth_cookies, decode_token,
 )
+from email_service import (
+    send_verification_email,
+    send_password_reset_email,
+)
 from royalty_utils import (
     parse_csv_bytes, detect_columns, parse_amount, normalize_header,
     parse_period_from_value, calculate_line, label_percentage_at,
@@ -127,6 +131,8 @@ async def register(body: RegisterLabelIn, response: Response):
             "used": False,
             "created_at": now_iso(),
         })
+        # Send verification email (best-effort, won't block registration)
+        await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
         access = create_access_token(user_id, email, LABEL_ROLE)
         refresh = create_refresh_token(user_id)
         set_auth_cookies(response, access, refresh)
@@ -206,7 +212,7 @@ async def register(body: RegisterLabelIn, response: Response):
         # Don't block registration on MDA failure — admin can re-generate later
 
 
-    # Email verification token (logged in dev, no email service in MVP)
+    # Email verification token (sent via Resend; token also returned in dev for testing)
     verify_token = secrets.token_urlsafe(32)
     await db.email_verification_tokens.insert_one({
         "id": new_id(),
@@ -217,6 +223,7 @@ async def register(body: RegisterLabelIn, response: Response):
         "created_at": now_iso(),
     })
     logger.info("[DEV] Verification token for %s: %s", email, verify_token)
+    await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
 
     access = create_access_token(user_id, email, LABEL_ROLE)
     refresh = create_refresh_token(user_id)
@@ -342,6 +349,10 @@ async def resend_verification(user: dict = Depends(get_current_user)):
         "created_at": now_iso(),
     })
     logger.info("[DEV] Verification token for %s: %s", user["email"], token)
+    # Look up label.pic_name (fall back to email local part for sub-admins/artists)
+    label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "pic_name": 1})
+    pic_name = (label or {}).get("pic_name") or user["email"].split("@")[0]
+    await send_verification_email(to=user["email"], pic_name=pic_name, token=token)
     return {"ok": True, "verification_token": token}
 
 
@@ -361,6 +372,7 @@ async def forgot_password(body: ForgotPasswordIn):
         "created_at": now_iso(),
     })
     logger.info("[DEV] Password reset token for %s: %s", user["email"], token)
+    await send_password_reset_email(to=user["email"], token=token)
     return {"ok": True, "reset_token": token}  # exposed only in MVP
 
 

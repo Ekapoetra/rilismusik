@@ -15,6 +15,7 @@ from .deps import (
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
 )
+from email_service import send_payment_receipt_email
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
     LabelProfileUpdate, BankAccountIn,
@@ -227,6 +228,21 @@ async def mock_pay(invoice_id: str, user: dict = Depends(get_current_user)):
         )
 
     await log_activity(user["id"], "mock_pay", "payment", invoice_id)
+    # Send payment receipt email (best-effort, after side-effects)
+    try:
+        label = await db.labels.find_one({"id": inv["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
+        if label and label.get("user_id"):
+            user_doc = await db.users.find_one({"id": label["user_id"]}, {"_id": 0, "email": 1})
+            if user_doc and user_doc.get("email"):
+                await send_payment_receipt_email(
+                    to=user_doc["email"],
+                    label_name=label.get("label_name") or "Label",
+                    description=inv.get("description") or inv.get("type") or "Pembayaran",
+                    amount_idr=int(inv.get("amount_idr") or 0),
+                    invoice_id=invoice_id,
+                )
+    except Exception as e:
+        logger.exception("payment receipt email failed for %s: %s", invoice_id, e)
     return {"ok": True, "invoice": await db.payments.find_one({"id": invoice_id}, {"_id": 0})}
 
 

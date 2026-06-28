@@ -15,6 +15,7 @@ from .deps import (
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
 )
+from email_service import send_withdraw_paid_email
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
     LabelProfileUpdate, BankAccountIn,
@@ -195,6 +196,23 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
     if body.action in titles:
         title, msg = titles[body.action]
         await notify_many(user_ids, f"withdraw_{body.action}", title, msg, "/label/withdraw", {"withdraw_id": wd_id})
+    # Send withdraw-paid email (best-effort)
+    if body.action == "mark_paid":
+        try:
+            label = await db.labels.find_one({"id": wd["label_id"]}, {"_id": 0, "label_name": 1})
+            bank = await db.bank_accounts.find_one({"label_id": wd["label_id"]}, {"_id": 0, "bank_name": 1, "account_number": 1}) or {}
+            for uid in user_ids:
+                u = await db.users.find_one({"id": uid}, {"_id": 0, "email": 1})
+                if u and u.get("email"):
+                    await send_withdraw_paid_email(
+                        to=u["email"],
+                        label_name=(label or {}).get("label_name") or "Label",
+                        amount_idr=int(wd.get("amount_idr") or 0),
+                        bank_name=bank.get("bank_name") or "—",
+                        account_number=bank.get("account_number") or "—",
+                    )
+        except Exception as e:
+            logger.exception("withdraw paid email failed for %s: %s", wd_id, e)
     return wd
 
 

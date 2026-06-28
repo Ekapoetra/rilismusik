@@ -1,0 +1,174 @@
+"""Resend email service for RILIS MUSIK.
+
+All transactional emails (verification, reset, contract warnings, invoices)
+are routed through `send_email()`. SDK is synchronous so we wrap with
+asyncio.to_thread to keep FastAPI's event loop non-blocking.
+
+Sender domain is configurable via `SENDER_EMAIL` env var. The default
+`onboarding@resend.dev` ONLY delivers to verified addresses (Resend test mode).
+For production, verify a domain on https://resend.com/domains and set
+SENDER_EMAIL=noreply@rilismusik.com (or similar).
+"""
+import os
+import asyncio
+import logging
+from typing import Optional
+
+import resend
+
+logger = logging.getLogger("rilismusik")
+
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SENDER_NAME = os.environ.get("SENDER_NAME", "RILIS MUSIK")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
+
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+
+def _from_header() -> str:
+    return f"{SENDER_NAME} <{SENDER_EMAIL}>"
+
+
+# ---------- Shared HTML wrapper ----------
+def _wrap(title: str, body_html: str, cta_label: Optional[str] = None, cta_url: Optional[str] = None) -> str:
+    cta_block = ""
+    if cta_label and cta_url:
+        cta_block = f"""
+        <tr><td align="center" style="padding:24px 0;">
+          <a href="{cta_url}" style="display:inline-block;padding:14px 28px;background:#a855f7;color:#fff;font-weight:700;text-decoration:none;border-radius:999px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:14px;">{cta_label}</a>
+        </td></tr>
+        """
+    return f"""
+    <!DOCTYPE html>
+    <html><head><meta charset="UTF-8"></head>
+    <body style="margin:0;padding:0;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:32px 16px;">
+        <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#141414;border-radius:24px;overflow:hidden;border:1px solid #262626;">
+            <tr><td style="padding:32px 32px 0 32px;">
+              <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#a855f7;font-weight:800;">RILIS MUSIK</div>
+              <h1 style="margin:8px 0 0 0;color:#fff;font-size:28px;font-weight:800;line-height:1.2;letter-spacing:-0.5px;">{title}</h1>
+            </td></tr>
+            <tr><td style="padding:24px 32px;color:#d4d4d8;font-size:15px;line-height:1.6;">
+              {body_html}
+            </td></tr>
+            {cta_block}
+            <tr><td style="padding:24px 32px;border-top:1px solid #262626;color:#71717a;font-size:11px;line-height:1.5;">
+              <strong style="color:#a1a1aa;">PT. Jeeres Group Indonesia</strong><br/>
+              Jl. Sintang Pontianak RT 12 / RW 5, Kec. Sintang, Sintang 78614, Indonesia<br/>
+              NIB 2202260059749 · WA 085864137150
+              <div style="margin-top:12px;color:#52525b;">Email otomatis — jangon balas. Hubungi support via dashboard untuk bantuan.</div>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </body></html>
+    """
+
+
+# ---------- Low-level send ----------
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    """Send an email via Resend. Returns the resend email_id on success, None
+    on failure. Never raises — failure is logged and ignored so callers can
+    treat email as best-effort (transactional flows continue to work).
+    """
+    if not RESEND_API_KEY:
+        logger.warning("[EMAIL] RESEND_API_KEY not set — skipping email to %s (%s)", to, subject)
+        return None
+    try:
+        params = {
+            "from": _from_header(),
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        email_id = result.get("id") if isinstance(result, dict) else None
+        logger.info("[EMAIL] sent to=%s subject=%r id=%s", to, subject, email_id)
+        return email_id
+    except Exception as e:
+        logger.exception("[EMAIL] failed to=%s subject=%r err=%s", to, subject, e)
+        return None
+
+
+# ---------- Domain-specific helpers ----------
+async def send_verification_email(*, to: str, pic_name: str, token: str) -> Optional[str]:
+    verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+    body = f"""
+    <p>Halo <strong>{pic_name}</strong>,</p>
+    <p>Terima kasih sudah mendaftar di RILIS MUSIK. Untuk mengaktifkan akun Anda, klik tombol di bawah:</p>
+    <p style="color:#a1a1aa;font-size:13px;">Link verifikasi berlaku 24 jam. Jika Anda tidak mendaftar, abaikan email ini.</p>
+    """
+    html = _wrap("Verifikasi email Anda", body, "Verifikasi Email", verify_url)
+    return await send_email(to=to, subject="Verifikasi email RILIS MUSIK", html=html)
+
+
+async def send_password_reset_email(*, to: str, token: str) -> Optional[str]:
+    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+    body = (
+        "<p>Halo,</p>"
+        "<p>Kami menerima permintaan reset password untuk akun ini. Klik tombol berikut untuk mengatur password baru:</p>"
+        "<p style=\"color:#a1a1aa;font-size:13px;\">Link berlaku 1 jam. Jika Anda tidak meminta reset, abaikan email ini — password lama tetap aman.</p>"
+    )
+    html = _wrap("Reset Password", body, "Reset Password", reset_url)
+    return await send_email(to=to, subject="Reset password RILIS MUSIK", html=html)
+
+
+async def send_contract_expiry_email(*, to: str, label_name: str, days_left: int, end_date: str) -> Optional[str]:
+    body = f"""
+    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Kontrak distribusi Anda akan berakhir dalam <strong style="color:#f59e0b;">{days_left} hari</strong> (tanggal <strong>{end_date}</strong>).</p>
+    <p>Silakan hubungi admin via support ticket untuk perpanjangan kontrak agar distribusi tidak terhenti.</p>
+    """
+    html = _wrap(
+        f"Kontrak berakhir dalam {days_left} hari", body,
+        "Buka Dashboard Kontrak", f"{FRONTEND_URL}/label/contract",
+    )
+    return await send_email(to=to, subject=f"⏰ Kontrak distribusi berakhir {days_left} hari lagi", html=html)
+
+
+async def send_subscription_expiry_email(*, to: str, label_name: str, days_left: int) -> Optional[str]:
+    body = f"""
+    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Subscription tahunan Anda akan berakhir dalam <strong style="color:#f59e0b;">{days_left} hari</strong>. Perpanjang sekarang untuk tetap upload rilisan tanpa biaya per release.</p>
+    """
+    html = _wrap(
+        f"Subscription berakhir dalam {days_left} hari", body,
+        "Perpanjang Sekarang", f"{FRONTEND_URL}/label/invoices",
+    )
+    return await send_email(to=to, subject=f"⏰ Subscription berakhir {days_left} hari lagi", html=html)
+
+
+async def send_payment_receipt_email(*, to: str, label_name: str, description: str, amount_idr: int, invoice_id: str) -> Optional[str]:
+    amt = f"Rp {amount_idr:,}".replace(",", ".")
+    body = f"""
+    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Pembayaran Anda telah <strong style="color:#10b981;">berhasil diterima</strong>.</p>
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Invoice ID</td><td style="text-align:right;color:#fff;font-family:monospace;font-size:12px;">{invoice_id}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Deskripsi</td><td style="text-align:right;color:#fff;">{description}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;border-top:1px solid #262626;">Total</td><td style="text-align:right;color:#10b981;font-weight:800;font-size:18px;border-top:1px solid #262626;">{amt}</td></tr>
+    </table>
+    """
+    html = _wrap(
+        "Pembayaran berhasil", body,
+        "Lihat Invoice", f"{FRONTEND_URL}/label/invoices",
+    )
+    return await send_email(to=to, subject=f"Pembayaran diterima — {description}", html=html)
+
+
+async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int, bank_name: str, account_number: str) -> Optional[str]:
+    amt = f"Rp {amount_idr:,}".replace(",", ".")
+    body = f"""
+    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Penarikan dana Anda sebesar <strong style="color:#10b981;">{amt}</strong> sudah <strong>ditransfer</strong> ke rekening:</p>
+    <p style="background:#0a0a0a;padding:12px 16px;border-radius:12px;color:#d4d4d8;font-family:monospace;font-size:13px;">{bank_name} · {account_number}</p>
+    <p style="color:#a1a1aa;font-size:13px;">Dana biasanya masuk dalam 1×24 jam. Hubungi support jika belum diterima.</p>
+    """
+    html = _wrap(
+        "Penarikan berhasil ditransfer", body,
+        "Lihat Riwayat", f"{FRONTEND_URL}/label/withdraw",
+    )
+    return await send_email(to=to, subject=f"Penarikan {amt} ditransfer", html=html)
