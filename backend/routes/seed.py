@@ -91,6 +91,7 @@ async def seed_indexes_and_admins():
         ("Admin Finance", "finance1@rilismusik.com", "Finance#2026", "admin_finance"),
         ("Admin Release", "release1@rilismusik.com", "Release#2026", "admin_release"),
         ("Admin Marketing", "marketing1@rilismusik.com", "Marketing#2026", "admin_marketing"),
+        ("Admin Content", "content1@rilismusik.com", "Content#2026", "admin_content"),
     ]
     for name, email, pwd, role in sub_admins:
         if await db.users.find_one({"email": email}) is None:

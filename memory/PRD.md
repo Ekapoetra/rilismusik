@@ -131,19 +131,24 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 
 - **storage_service module** (`/app/backend/storage_service.py`): boto3 client pointed at R2 endpoint with `region_name='auto'` + `signature_version='s3v4'` (Cloudflare R2 requirements). Async helpers via `asyncio.to_thread`: `upload_bytes`, `upload_fileobj` (multipart-aware for large WAV), `generate_presigned_url`, `delete_object`, `head_object`, plus FastAPI convenience `upload_upload_file`.
 - **Smart `/api/files/{path}` handler** (`server.py` L47-72): R2-first lookup with disk fallback for legacy files. R2 hit → 302-redirect to presigned URL (TTL 7d for `cover/`+`landing/`, 1h for everything else). Path-traversal guard for the disk-fallback branch.
-- **8 upload sites migrated to R2**:
-  - `routes/releases.py`: cover (3000×3000 JPG/PNG) + audio (WAV, multipart upload)
-  - `routes/contracts.py`: contract PDF upload
-  - `routes/cms.py`: landing image
-  - `routes/tickets.py`: attachment (general/audio/cover branches with proper validation)
-  - `routes/withdraw.py`: payment proof
-  - `routes/auth.py` + `routes/admin.py` + `routes/migrate.py`: auto-generated MDA PDF via new `generate_mda_pdf_bytes()` (in-memory BytesIO, no disk hop)
-  - `cms/mda/preview`: streams PDF bytes directly from memory
-- **Env vars in `/app/backend/.env`**: `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=rilismusik`, `R2_PUBLIC_BASE_URL` (reserved for future custom domain).
-- **Access model**: PRIVATE by default — all R2 objects are private, accessed only through presigned URLs minted by the backend (1h-7d TTL). No direct R2 public URL exposed to clients. Custom domain (`cdn.rilismusik.com`) reserved for a future enhancement; works fine without it.
-- **MDA generator refactor**: added `generate_mda_pdf_bytes(label, legal_entity) -> bytes` next to existing disk-based `generate_mda_pdf()`. New code path is bytes-first; old path retained for backward compat.
-- **Tests**: `test_phase12_r2_storage.py` 5/5 + testing-agent E2E `test_phase12_e2e_uploads.py` 7/7 + regression 20/20 = **32/32 PASS**.
-- **Testing-agent design feedback (deferred, non-blocking)**: (1) cache `head_object` exists-bit for ~60s if R2 lookup latency becomes a hot path; (2) unify 3000×3000 validation between releases.py (≥3000, square) and tickets.py (==3000); (3) log a warning if Pillow import fails to surface bypassed validation.
+- **8 upload sites migrated to R2**: releases (cover+audio), contracts (PDF), CMS landing image, tickets attachment, withdraw proof, auto-MDA PDF at register/admin/migrate, cms/mda/preview (in-memory).
+- **MDA generator refactor**: added `generate_mda_pdf_bytes(label, legal_entity) -> bytes` for the bytes-first path; old disk-based `generate_mda_pdf()` retained for backward compat.
+- **Env vars**: `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=rilismusik`, `R2_PUBLIC_BASE_URL` (reserved for future custom domain).
+- **Tests**: 32/32 PASS (5/5 unit + 7/7 E2E + 20/20 regression).
+
+### Phase 13 — Full Data Reset (Super Admin Danger Zone, DONE 2026-06-28)
+**Lets the super admin wipe ALL business data with one click to test the platform end-to-end with real data on a clean slate.**
+
+- **Endpoint**: `POST /api/admin/admin/danger/reset-all-data` (form-data) — Super Admin only.
+  - Required: `confirm="RESET-ALL-DATA"` (exact match, else 400).
+  - Optional: `delete_r2_files=true|false` (default true).
+- **Preserves**: all admin users (super_admin + 5 sub-admin roles: release, finance, support, content, marketing), CMS landing settings (legal entity, hero, pricing, FAQ), database indexes.
+- **Wipes** (22 collections): labels, users (non-admin), releases, tracks, artists, bank_accounts, royalty_imports, royalty_lines, royalty_percentage_history, balance_transactions, withdraw_requests, contracts, support_tickets, ticket_comments, payments, wami_orders, notifications, activity_logs, login_attempts, email_verification_tokens, password_reset_tokens.
+- **R2 cleanup**: paginates the entire bucket and bulk-deletes 1000 keys per batch (boto3 `delete_objects`). Optional via checkbox.
+- **Re-seeds admins idempotently** after wipe → super admin login always works post-reset.
+- **UI**: super-admin-only "Danger Zone" card on `/admin/admin-users` page with double-confirm modal — typed `RESET-ALL-DATA` token + R2 deletion checkbox. data-testids: `admin-danger-zone`, `admin-reset-open-btn`, `admin-reset-confirm-input`, `admin-reset-delete-files-checkbox`, `admin-reset-submit-btn`, `admin-reset-report`.
+- **Bug fix during testing**: ADMIN_ROLES set in `auth_utils.py` was missing `admin_marketing` → caused reset/reseed churn. Fixed + added `admin_content` to seed list (was orphaned: in ADMIN_ROLES but not seeded). All 5 sub-admins now in sync between seed.py and ADMIN_ROLES.
+- **Tests**: `test_phase13_reset_all_data.py` 14/14 PASS — including 3 back-to-back idempotent resets showing `users_deleted_non_admin=0` from run 2 onward.
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
