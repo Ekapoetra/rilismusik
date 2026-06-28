@@ -150,16 +150,30 @@ All royalty percentage info hidden from label/artist surfaces (`royalty_percenta
 ### Phase 14 — Direct-to-R2 Large CSV Upload (DONE 2026-06-28)
 **Solves: Believe royalty CSV uploads >100 MB failing in production due to Kubernetes ingress body cap.**
 
-- **3-step flow** to bypass the ~100 MB ingress limit. Frontend uploads file DIRECTLY to Cloudflare R2 (no backend hop) — supports up to 5 GB.
-  1. `POST /api/royalty/admin/imports/initiate` (super_admin / admin_finance) — body `{filename, rate_eur_idr, period, note, file_size_bytes}` → returns `{import_id, presigned_put_url, r2_key, content_type, expires_in:7200}`. Creates stub doc with `status='awaiting_upload'` + stores `r2_key`.
-  2. Browser `PUT` directly to `presigned_put_url` with exact Content-Type (`text/csv` or `application/gzip`). XHR with `upload.onprogress` for real-time progress bar.
-  3. `POST /api/royalty/admin/imports/{id}/finalize` → backend `head_object` verifies R2 has the file → `download_to_file` (boto3 multipart-aware) stages it to local disk → kicks off existing `_process_csv_import_bg`.
-- **R2 CORS auto-config**: `storage_service.ensure_cors()` runs on backend startup with `AllowedOrigins=[FRONTEND_URL, preview URL, production URL]`, `AllowedMethods=[GET, PUT, HEAD]`, `MaxAgeSeconds=3600`. Idempotent, best-effort.
-- **Resume/retry hardened**: new `_ensure_local_csv()` re-downloads from R2 if the staging file is missing (e.g. container restart wiped tmpfs but R2 still has the original). `resume_interrupted_imports()` + `admin_retry_import` both use this fallback.
-- **Frontend UI** (`RoyaltyImport.jsx`): upload modal shows a 3-stage progress card with gradient bar — `Meminta URL upload…` → `Upload ke R2 (X%)` (real bytes uploaded with MB counter) → `Memulai background processing…`. Supports `.csv` and `.csv.gz`. data-testid `admin-royalty-upload-progress`.
-- **Backward compat**: original `POST /royalty/admin/imports` multipart endpoint still works for small files (<5 MB sync, <50 MB direct-multipart) — verified by E2E test.
-- **Tests**: `test_phase14_direct_r2_upload.py` 10/10 PASS — auth gates, RBAC (admin_release rejected 403), Pydantic validation (rate_eur_idr>0 → 422), period format (400), happy path with real PUT+finalize+poll-until-pending_review, error states (finalize-before-PUT 400, duplicate finalize 400), CORS preflight against presigned URL.
-- **Testing agent E2E**: super_admin → /admin/royalty → Upload modal → progress UI cycled → modal closed → import landed `pending_review` with auto-created label & tracks.
+- **3-step flow** bypasses the ~100 MB ingress limit. Frontend uploads DIRECTLY to Cloudflare R2 — supports up to 5 GB.
+  1. `POST /api/royalty/admin/imports/initiate` → returns `{import_id, presigned_put_url, r2_key, content_type, expires_in:7200}`.
+  2. Browser `PUT` directly to presigned URL with XHR `upload.onprogress` for real-time bar.
+  3. `POST /api/royalty/admin/imports/{id}/finalize` → backend `head_object` → `download_to_file` → kicks off existing `_process_csv_import_bg`.
+- **R2 CORS auto-config**: `storage_service.ensure_cors()` runs at startup with `AllowedOrigins=[FRONTEND_URL, preview, production]`.
+- **Resume/retry hardened**: `_ensure_local_csv()` re-downloads from R2 if staging file missing.
+- **Frontend UI**: 3-stage progress card (`Meminta URL → Upload ke R2 X% → Memulai processing`).
+- **Tests**: 10/10 PASS — auth gates, RBAC, validation, happy path, CORS preflight, backward-compat.
+
+### Phase 15 — SQL Snake_case Header Support (DONE 2026-06-28)
+**Solves: User uploaded a one-off SQL-export CSV (snake_case headers like `bulan_laporan`, `pendapatan_bersih`, `nama_label`) and the parser returned all-unmatched rows because aliases only matched space-separated form.**
+
+- **1-line core fix** in `royalty_utils.normalize_header()`:
+  ```python
+  s = s.replace("_", " ").replace("-", " ")
+  s = " ".join(s.split())
+  ```
+- **Universal coverage** with no alias duplication: same `HEADER_ALIASES` list now recognizes
+  - Believe format: `Bulan Laporan`, `Pendapatan Bersih`, `Nama Label` ✓
+  - SQL export: `bulan_laporan`, `pendapatan_bersih`, `nama_label` ✓
+  - Kebab-case: `bulan-laporan`, `pendapatan-bersih` ✓
+- **18 canonical fields** auto-detected from the 23-column SQL header set (period, label_name, artist_name, release_title, track_title, isrc, upc, quantity, revenue_eur, gross_revenue_eur, unit_price_eur, mechanical_cost_eur, client_share_rate, sales_type, release_type, currency, platform, country). Non-canonical columns (e.g. `release_catalog_nb`) silently ignored.
+- **Robust value parsing**: SQL uses YYYY-MM-DD periods (e.g. `2020-12-01`) and US dot-decimals (`0.000181577974000`). Both auto-handled by existing `parse_period_from_value` and `parse_amount` (no change needed).
+- **Tests**: `test_phase15_snake_case_headers.py` **33/33 PASS** — header normalization (13 parametrized cases), column mapping, period & amount parsing, parse_csv_bytes, iter_csv_file, full E2E upload of user's real `/tmp/sql_revenues.csv` via direct-to-R2 flow → 10 lines / 10 matched / 0 unmatched. Existing Believe tests `TestParseCsv::test_semicolon_autodetect_and_indonesian_headers` + `TestParseCsv::test_row_values` STILL PASS (zero regression).
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
