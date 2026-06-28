@@ -27,13 +27,13 @@ export default function AdminRoyaltyImport() {
   const load = async () => { const { data } = await api.get("/royalty/admin/imports"); setImports(data); };
   useEffect(() => { load(); }, []);
 
-  // Auto-poll every 4s while any import is still 'processing'
+  // Auto-poll every 4s while any import is still processing OR publishing
   const pollRef = useRef(null);
   useEffect(() => {
-    const anyProcessing = imports.some((i) => i.status === "processing");
-    if (anyProcessing && !pollRef.current) {
+    const anyInFlight = imports.some((i) => i.status === "processing" || i.status === "publishing");
+    if (anyInFlight && !pollRef.current) {
       pollRef.current = setInterval(load, 4000);
-    } else if (!anyProcessing && pollRef.current) {
+    } else if (!anyInFlight && pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
@@ -305,6 +305,8 @@ function StatusBadge({ s }) {
   const map = {
     processing: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Processing", icon: Loader2, spin: true },
     pending_review: { bg: "bg-amber-500/15", color: "text-amber-300", label: "Pending Review", icon: FileSpreadsheet },
+    publishing: { bg: "bg-violet-500/15", color: "text-violet-300", label: "Publishing", icon: Loader2, spin: true },
+    publish_error: { bg: "bg-red-500/15", color: "text-red-300", label: "Publish Error", icon: XCircle },
     published: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Published", icon: CheckCircle2 },
     dana_received: { bg: "bg-emerald-500/15", color: "text-emerald-300", label: "Dana Diterima", icon: Banknote },
     error: { bg: "bg-red-500/15", color: "text-red-300", label: "Error", icon: XCircle },

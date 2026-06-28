@@ -718,6 +718,8 @@ async def admin_list_imports(user: dict = Depends(require_admin)):
     for it in items:
         if it.get("status") == "processing" and it.get("total_lines"):
             it["progress_pct"] = min(99, int((it.get("processed_lines", 0) / max(it["total_lines"], 1)) * 100))
+        elif it.get("status") == "publishing":
+            it["progress_pct"] = it.get("publish_progress_pct") or 0
     return items
 
 
@@ -725,15 +727,16 @@ async def admin_list_imports(user: dict = Depends(require_admin)):
 async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
     """Get a single royalty_import doc + sample lines + per-label breakdown.
 
-    For in-flight imports (status='processing'), lines/per_label reflect only
-    rows flushed so far — frontend polls this to render live progress.
+    For in-flight imports (status='processing' or 'publishing'), the frontend
+    polls this and uses progress_pct to render a live progress bar.
     """
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    # Compute live progress_pct on the fly (defensive, _flush already updates it).
     if imp.get("status") == "processing" and imp.get("total_lines"):
         imp["progress_pct"] = min(99, int((imp.get("processed_lines", 0) / max(imp["total_lines"], 1)) * 100))
+    elif imp.get("status") == "publishing":
+        imp["progress_pct"] = imp.get("publish_progress_pct") or 0
 
     lines = await db.royalty_lines.find({"import_id": import_id}, {"_id": 0}).sort("revenue_eur", -1).limit(500).to_list(500)
 
@@ -793,56 +796,164 @@ async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyL
 
 @royalty_r.post("/admin/imports/{import_id}/publish")
 async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, user: dict = Depends(require_admin)):
-    """Publish CSV → moves all matched lines to status=pending and accumulates to label.balance_pending_idr."""
+    """Publish CSV → moves all matched lines to status=pending and accumulates to
+    `label.balance_pending_idr`. Runs in background (no timeout) and is fully
+    idempotent — retrying is always safe.
+
+    Status transitions: pending_review → publishing → published (or publish_error).
+    """
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
     imp = await db.royalty_imports.find_one({"id": import_id})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    if imp["status"] != "pending_review":
-        raise HTTPException(status_code=400, detail="Import sudah dipublish atau status tidak valid")
+    if imp["status"] in ("publishing",):
+        # Already running — return current doc so the frontend polls progress
+        out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        return out
+    if imp["status"] not in ("pending_review", "publish_error"):
+        raise HTTPException(status_code=400, detail=f"Import status tidak valid untuk publish: {imp['status']}")
 
-    # Aggregate per label & notify
-    pipeline = [
-        {"$match": {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}}},
-        {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
-    ]
-    per_label = []
-    period_label = (
-        f"{imp.get('period_start')} s/d {imp.get('period_end')}"
-        if imp.get("is_multi_period") else imp.get("period", "")
+    # Flip to 'publishing' atomically, reset progress
+    now = now_iso()
+    await db.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "status": "publishing",
+            "publish_progress_pct": 0,
+            "publish_started_at": now,
+            "error_message": None,
+            "updated_at": now,
+        }},
     )
-    async for r in db.royalty_lines.aggregate(pipeline):
-        per_label.append(r)
-        await db.labels.update_one({"id": r["_id"]}, {"$inc": {"balance_pending_idr": int(r["total_idr"])}, "$set": {"updated_at": now_iso()}})
-        await db.balance_transactions.insert_one({
-            "id": new_id(),
-            "label_id": r["_id"],
-            "type": "royalty_pending",
-            "amount_idr": int(r["total_idr"]),
-            "reference_type": "royalty_import",
-            "reference_id": import_id,
-            "description": f"Royalti periode {period_label} ke saldo pending",
-            "created_at": now_iso(),
-        })
+    import asyncio
+    asyncio.create_task(_publish_bg(import_id=import_id, user_id=user["id"]))
+    out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    return out
 
-    await db.royalty_lines.update_many(
-        {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}},
-        {"$set": {"status": "pending"}},
-    )
-    await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "published", "published_at": now_iso(), "updated_at": now_iso()}})
-    await log_activity(user["id"], "publish_royalty", "royalty", import_id)
-    # Notify each label with a personalized amount
-    for r in per_label:
-        user_ids = await label_user_ids(r["_id"])
-        amt = f"Rp {int(r['total_idr']):,}".replace(",", ".")
-        await notify_many(
-            user_ids, "royalty_published",
-            f"Royalti periode {period_label} terbit",
-            f"{amt} masuk ke saldo pending. Lihat detail di dashboard.",
-            "/label/royalty", {"period": imp.get("period"), "import_id": import_id},
+
+async def _publish_bg(*, import_id: str, user_id: str):
+    """Background publish: idempotent, restart-safe, no ingress timeout.
+
+    Idempotency rules:
+      - Skip a label if a `balance_transactions` row already exists for
+        (label_id, type='royalty_pending', reference_id=import_id) — means we
+        already credited that label in a previous (interrupted) run.
+      - Use bulk `update_many` for the line-status flip — naturally idempotent.
+      - Notifications are gated by the same balance_transactions check.
+    """
+    try:
+        imp = await db.royalty_imports.find_one({"id": import_id})
+        if not imp:
+            logger.error("[PUBLISH BG] import %s vanished", import_id)
+            return
+        period_label = (
+            f"{imp.get('period_start')} s/d {imp.get('period_end')}"
+            if imp.get("is_multi_period") else imp.get("period", "")
         )
-    return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+
+        # 1) Aggregate per label (fast — Mongo does the heavy lifting)
+        pipeline = [
+            {"$match": {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}}},
+            {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
+        ]
+        per_label: List[Dict[str, Any]] = []
+        async for r in db.royalty_lines.aggregate(pipeline):
+            if r.get("_id"):
+                per_label.append(r)
+        total_labels = max(len(per_label), 1)
+
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {"publish_progress_pct": 5, "updated_at": now_iso()}},
+        )
+
+        # 2) Credit each label (idempotent skip if already credited)
+        credited: List[Dict[str, Any]] = []
+        for i, r in enumerate(per_label):
+            label_id = r["_id"]
+            amount_idr = int(r["total_idr"])
+            existing_tx = await db.balance_transactions.find_one({
+                "label_id": label_id,
+                "type": "royalty_pending",
+                "reference_type": "royalty_import",
+                "reference_id": import_id,
+            })
+            if existing_tx:
+                # Already credited in a previous run — count it but don't double-add
+                continue
+            await db.labels.update_one(
+                {"id": label_id},
+                {"$inc": {"balance_pending_idr": amount_idr}, "$set": {"updated_at": now_iso()}},
+            )
+            await db.balance_transactions.insert_one({
+                "id": new_id(),
+                "label_id": label_id,
+                "type": "royalty_pending",
+                "amount_idr": amount_idr,
+                "reference_type": "royalty_import",
+                "reference_id": import_id,
+                "description": f"Royalti periode {period_label} ke saldo pending",
+                "created_at": now_iso(),
+            })
+            credited.append(r)
+            if (i + 1) % 5 == 0 or i == len(per_label) - 1:
+                pct = 5 + int((i + 1) / total_labels * 70)
+                await db.royalty_imports.update_one(
+                    {"id": import_id},
+                    {"$set": {"publish_progress_pct": min(pct, 75), "updated_at": now_iso()}},
+                )
+
+        # 3) Flip royalty_lines status → 'pending' (idempotent via filter)
+        await db.royalty_lines.update_many(
+            {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}, "status": {"$ne": "pending"}},
+            {"$set": {"status": "pending"}},
+        )
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {"publish_progress_pct": 85, "updated_at": now_iso()}},
+        )
+
+        # 4) Notify each label (only newly-credited ones — avoids spam on retry)
+        for r in credited:
+            user_ids = await label_user_ids(r["_id"])
+            amt = f"Rp {int(r['total_idr']):,}".replace(",", ".")
+            try:
+                await notify_many(
+                    user_ids, "royalty_published",
+                    f"Royalti periode {period_label} terbit",
+                    f"{amt} masuk ke saldo pending. Lihat detail di dashboard.",
+                    "/label/royalty",
+                    {"period": imp.get("period"), "import_id": import_id},
+                )
+            except Exception as e:
+                logger.warning("[PUBLISH BG] notify failed for label %s: %s", r["_id"], e)
+
+        # 5) Done
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "published",
+                "published_at": now_iso(),
+                "publish_progress_pct": 100,
+                "error_message": None,
+                "updated_at": now_iso(),
+            }},
+        )
+        await log_activity(user_id, "publish_royalty", "royalty", import_id,
+                           after={"labels_credited": len(credited), "total_labels": total_labels})
+        logger.info("[PUBLISH BG] %s DONE — %d/%d labels credited", import_id, len(credited), total_labels)
+
+    except Exception as e:
+        logger.exception("[PUBLISH BG] %s FAILED: %s", import_id, e)
+        await db.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "publish_error",
+                "error_message": f"Publish gagal: {str(e)[:300]}",
+                "updated_at": now_iso(),
+            }},
+        )
 
 
 @royalty_r.post("/admin/imports/{import_id}/mark-dana-received")
@@ -1207,12 +1318,15 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
 
 async def resume_interrupted_imports():
     """Called on backend startup. For every royalty_import stuck in 'processing'
-    (hot-reload or pod restart killed the task), either:
-      - Resume it if the CSV file is still on disk; or
-      - Mark it as 'error' so admin can re-upload or manually retry.
+    or 'publishing' (hot-reload or pod restart killed the task), either:
+      - Resume CSV processing if the CSV file is still on disk/R2; or
+      - Resume publish — fully idempotent so re-running is safe.
+      - Mark as 'error' / 'publish_error' if recovery is impossible.
     """
+    import asyncio
     try:
-        stuck = await db.royalty_imports.find(
+        # 1) Resume stuck CSV processing
+        stuck_processing = await db.royalty_imports.find(
             {"status": "processing"},
             {"_id": 0, "id": 1, "filename": 1, "exchange_rate_eur_idr": 1,
              "fee_percent": 1, "period": 1, "period_start": 1, "is_multi_period": 1,
@@ -1222,11 +1336,9 @@ async def resume_interrupted_imports():
         logger.exception("resume_interrupted_imports: cannot query imports: %s", e)
         return
 
-    if not stuck:
-        return
-    logger.info("resume_interrupted_imports: found %d stuck import(s)", len(stuck))
-    import asyncio
-    for imp in stuck:
+    if stuck_processing:
+        logger.info("resume_interrupted_imports: found %d stuck processing import(s)", len(stuck_processing))
+    for imp in stuck_processing:
         import_id = imp["id"]
         file_path = await _ensure_local_csv(imp)
         if not file_path:
@@ -1256,3 +1368,21 @@ async def resume_interrupted_imports():
             user_id=imp.get("uploaded_by") or "system",
         ))
         logger.info("resume_interrupted_imports: %s resumed from %s", import_id, file_path)
+
+    # 2) Resume stuck publish (idempotent — safe to re-run)
+    try:
+        stuck_publishing = await db.royalty_imports.find(
+            {"status": "publishing"},
+            {"_id": 0, "id": 1, "uploaded_by": 1},
+        ).to_list(100)
+    except Exception as e:
+        logger.exception("resume_interrupted_imports: cannot query publishing: %s", e)
+        return
+    if stuck_publishing:
+        logger.info("resume_interrupted_imports: found %d stuck publishing import(s)", len(stuck_publishing))
+        for imp in stuck_publishing:
+            asyncio.create_task(_publish_bg(
+                import_id=imp["id"],
+                user_id=imp.get("uploaded_by") or "system",
+            ))
+            logger.info("resume_interrupted_imports: %s publish resumed", imp["id"])

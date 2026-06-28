@@ -20,13 +20,13 @@ export default function AdminRoyaltyDetail() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
-  // Auto-poll every 3s while status === 'processing'
+  // Auto-poll every 3s while status is processing OR publishing
   const pollRef = useRef(null);
   useEffect(() => {
-    const processing = data?.import?.status === "processing";
-    if (processing && !pollRef.current) {
+    const inFlight = data?.import?.status === "processing" || data?.import?.status === "publishing";
+    if (inFlight && !pollRef.current) {
       pollRef.current = setInterval(load, 3000);
-    } else if (!processing && pollRef.current) {
+    } else if (!inFlight && pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
@@ -68,12 +68,21 @@ export default function AdminRoyaltyDetail() {
               <Loader2 className="w-3 h-3 animate-spin" /> Processing… {imp.progress_pct || 0}%
             </span>
           )}
+          {imp.status === "publishing" && (
+            <span className="px-3 py-2 rounded-full text-xs font-bold bg-violet-500/15 text-violet-300 flex items-center gap-2" data-testid="royalty-detail-status-publishing">
+              <Loader2 className="w-3 h-3 animate-spin" /> Publishing… {imp.publish_progress_pct || imp.progress_pct || 0}%
+            </span>
+          )}
           {(imp.status === "processing" || imp.status === "error") && (
             <button className="rm-btn-ghost flex items-center gap-2" disabled={busy} onClick={retry} data-testid="admin-royalty-retry">
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           )}
-          {imp.status === "pending_review" && <button className="rm-btn-primary" disabled={busy} onClick={publish} data-testid="admin-royalty-publish">Publish (kredit ke pending)</button>}
+          {(imp.status === "pending_review" || imp.status === "publish_error") && (
+            <button className="rm-btn-primary" disabled={busy} onClick={publish} data-testid="admin-royalty-publish">
+              {imp.status === "publish_error" ? "Coba Publish Lagi" : "Publish (kredit ke pending)"}
+            </button>
+          )}
           {imp.status === "published" && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">Tandai Dana Diterima</button>}
           {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">✓ Dana sudah diterima</span>}
         </div>
@@ -95,13 +104,33 @@ export default function AdminRoyaltyDetail() {
         </div>
       )}
 
-      {imp.status === "error" && imp.error_message && (
+      {imp.status === "publishing" && (
+        <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-publish-progress">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-zinc-400">Memublish royalti ke saldo label di background…</span>
+            <span className="font-bold text-violet-300">{imp.publish_progress_pct || imp.progress_pct || 0}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-violet-400 to-fuchsia-400 transition-all" style={{ width: `${imp.publish_progress_pct || imp.progress_pct || 0}%` }} />
+          </div>
+          <div className="text-[11px] text-zinc-500">
+            Mengkredit saldo pending untuk setiap label. Proses ini <strong>idempotent</strong> — aman untuk di-retry.
+            Auto-refresh setiap 3 detik. Jika container restart, publish akan otomatis dilanjutkan.
+          </div>
+        </div>
+      )}
+
+      {(imp.status === "error" || imp.status === "publish_error") && imp.error_message && (
         <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200 flex items-start gap-3" data-testid="royalty-detail-error-banner">
           <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
-            <div className="font-bold">Import gagal</div>
+            <div className="font-bold">{imp.status === "publish_error" ? "Publish gagal" : "Import gagal"}</div>
             <div className="text-red-200/80 mt-1">{imp.error_message}</div>
-            <div className="text-[11px] text-red-200/60 mt-1">Klik <b>Retry</b> jika file CSV masih ada di server, atau upload ulang.</div>
+            <div className="text-[11px] text-red-200/60 mt-1">
+              {imp.status === "publish_error"
+                ? "Klik tombol \"Coba Publish Lagi\" di atas — proses idempotent, label yang sudah dikredit tidak akan didouble."
+                : "Klik Retry jika file CSV masih ada di server, atau upload ulang."}
+            </div>
           </div>
         </div>
       )}

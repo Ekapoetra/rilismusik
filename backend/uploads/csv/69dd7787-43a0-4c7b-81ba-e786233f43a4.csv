@@ -1,0 +1,4 @@
+Bulan laporan;Bulan Penjualan;Platform;Negara;Nama Label;Nama Artis;Judul rilis;Judul track;UPC;ISRC;Referensi Katalog Rilis;Jenis Langganan Streaming;Jenis rilis;Jenis penjualan;Kuantias;Mata Uang Pembayaran Klien;Harga Unit;Biaya Mekanis;Pendapatan Kotor;Tingkat pembagian klien;Pendapatan Bersih
+"2024/01/01";"2024/01/01";"Spotify";"Indonesia";"TEST_PH16_A";"ArtA";"RelA";"TrkA";"100000000001";"PH16-A-001";"";"Freemium";"Music Release";"Stream";100;"EUR";"0,010000";"0,000000";"1,000000";"0,70000000";"0,700000"
+"2024/01/01";"2024/01/01";"Spotify";"Indonesia";"TEST_PH16_B";"ArtB";"RelB";"TrkB";"100000000002";"PH16-B-001";"";"Freemium";"Music Release";"Stream";100;"EUR";"0,010000";"0,000000";"2,000000";"0,70000000";"1,400000"
+"2024/01/01";"2024/01/01";"Spotify";"Indonesia";"TEST_PH16_C";"ArtC";"RelC";"TrkC";"100000000003";"PH16-C-001";"";"Freemium";"Music Release";"Stream";100;"EUR";"0,010000";"0,000000";"0,500000";"0,70000000";"0,350000"

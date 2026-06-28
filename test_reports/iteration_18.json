@@ -1,0 +1,36 @@
+{
+  "summary": "Phase 16 background-publish — 15/15 backend tests PASS. Verified return-immediately behaviour, idempotency (exactly one balance_transactions per label even on race re-publish AND on restart-resume), polling progresses to published+100%, all republish guards (already-published 400, processing 400, anon 401, release_admin 403), and the resume_interrupted_imports() startup hook moves a forcibly-stuck 'publishing' import to 'published'. Frontend data-testid attributes for status-publishing, publish-progress, error-banner, and publish/retry buttons are all present in RoyaltyDetail.jsx and correctly conditional on status.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/royalty/admin/imports/{id}/finalize → background CSV parser", "issue": "Observed a perceived read-after-write race: balance_transactions reference label_ids that pymongo (separate client) cannot find immediately after publish — adding a fresh MongoClient + 1s sleep makes them appear. Likely Mongo default read-concern / connection-pool caching across motor (backend) vs pymongo (tests). Not a Phase 16 regression; flagged for awareness."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase16_background_publish.py",
+    "/app/test_reports/pytest/phase16_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) Main agent may want to wire `/api/royalty/admin/imports/{id}/publish` to return HTTP 202 instead of 200 to better signal 'accepted, processing async' to clients — current implementation correctly returns immediately but uses 200.",
+    "(Optional) Background _publish_bg only $inc's label.balance_pending_idr — if the referenced label was previously deleted, the $inc silently no-ops but a balance_transactions row is still inserted (orphan tx). Consider a defensive existence check or upsert log. Pre-existing behaviour, not introduced by Phase 16."
+  ],
+  "critical_code_review_comments": [
+    "routes/royalty.py is 1389 lines — exceeds the 700-line guideline. Consider splitting (e.g., admin_imports.py, label_reports.py, withdraw.py).",
+    "_publish_bg is correctly idempotent: existing balance_transactions check skips already-credited labels, bulk update_many on lines is naturally idempotent, notifications gated by the credited list. resume_interrupted_imports re-spawns _publish_bg for any 'publishing' status on startup. Solid implementation.",
+    "publish endpoint correctly returns the current doc when status='publishing' (idempotent race), 400 on 'published'/'processing'/'dana_received'. Auth gate is super_admin OR admin_finance only."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase16_background_publish.py"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "not exercised — code review only"},
+  "test_credentials": "Used superadmin@rilismusik.com / SuperAdmin#2026 and release1@rilismusik.com / Release#2026 from /app/memory/test_credentials.md",
+  "seed_data_creation": "3 TEST_PH16_A/B/C labels (+releases/tracks/lines) auto-created via CSV upload; fully cleaned up by autouse module fixture after the run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 16 test file at /app/backend/tests/test_phase16_background_publish.py is reusable for regression. It covers happy publish, race re-publish idempotency, restart-resume (sudo supervisorctl restart backend in-test), and all 400/401/403 gates. Backend tests reach 100% on a 3-row CSV in ~10s wall time."
+}
