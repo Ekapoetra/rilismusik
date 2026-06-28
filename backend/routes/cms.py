@@ -79,10 +79,12 @@ async def upload_landing_image(file: UploadFile = File(...), user: dict = Depend
     if ext not in ("jpg", "jpeg", "png", "webp", "svg"):
         raise HTTPException(status_code=400, detail="Format gambar tidak didukung")
     fid = new_id()
-    target = UPLOAD_DIR / "landing" / f"{fid}.{ext}"
-    with open(target, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"url": f"/api/files/landing/{fid}.{ext}"}
+    import storage_service
+    key = f"landing/{fid}.{ext}"
+    img_bytes = await file.read()
+    ct_map = {"svg": "image/svg+xml", "webp": "image/webp", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}
+    await storage_service.upload_bytes(key=key, data=img_bytes, content_type=ct_map.get(ext, "image/jpeg"))
+    return {"url": f"/api/files/{key}"}
 
 
 @cms_r.get("/mda/preview")
@@ -90,12 +92,9 @@ async def mda_preview():
     """Public endpoint — generates and streams a sample MDA PDF with placeholder
     label data so prospective users can review the contract BEFORE registering.
 
-    Caches one preview PDF on disk and re-renders on demand only if the legal
-    entity has changed (we just re-render every call for simplicity; it's a
-    rare operation).
+    PDF is rendered in-memory each call (small file, rare op) — no disk write.
     """
-    from fastapi.responses import FileResponse
-    from .mda_generator import generate_mda_pdf
+    from .mda_generator import generate_mda_pdf_bytes
     legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
     legal_entity = (legal_setting or {}).get("value") or {}
     sample_label = {
@@ -106,12 +105,11 @@ async def mda_preview():
         "label_type": "label",
         "created_at": now_iso(),
     }
-    out_path = UPLOAD_DIR / "contract" / "_mda_preview.pdf"
-    generate_mda_pdf(sample_label, legal_entity, out_path)
-    return FileResponse(
-        str(out_path),
+    pdf_bytes = generate_mda_pdf_bytes(sample_label, legal_entity)
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename="RILIS-MUSIK-Master-Distribution-Agreement-Preview.pdf",
+        headers={"Content-Disposition": 'inline; filename="RILIS-MUSIK-MDA-Preview.pdf"'},
     )
 
 

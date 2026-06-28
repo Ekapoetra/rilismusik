@@ -110,18 +110,47 @@ def generate_mda_pdf(label: Dict[str, Any], legal_entity: Dict[str, Any], output
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    pdf_bytes = generate_mda_pdf_bytes(label, legal_entity)
+    output_path.write_bytes(pdf_bytes)
+    return output_path
+
+
+def generate_mda_pdf_bytes(label: Dict[str, Any], legal_entity: Dict[str, Any]) -> bytes:
+    """Render the MDA PDF in-memory and return raw PDF bytes.
+
+    Preferred over `generate_mda_pdf()` for new code — the bytes can be
+    uploaded straight to R2 without touching the local disk.
+    """
+    from io import BytesIO
     accepted_at = label.get("created_at") or datetime.now(timezone.utc).isoformat()
     d = build_mda_text(label, legal_entity, accepted_at)
     s = _styles()
 
+    buf = BytesIO()
     doc = SimpleDocTemplate(
-        str(output_path),
+        buf,
         pagesize=A4,
         leftMargin=2 * cm, rightMargin=2 * cm,
         topMargin=2 * cm, bottomMargin=2 * cm,
         title=f"MDA — {d['label_name']}",
         author=d["company_name"],
     )
+
+    story = _build_mda_story(d, s)
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _build_mda_story_legacy(label: Dict[str, Any], legal_entity: Dict[str, Any]):
+    """Kept for backward compatibility — used by the old disk-based code path."""
+    accepted_at = label.get("created_at") or datetime.now(timezone.utc).isoformat()
+    d = build_mda_text(label, legal_entity, accepted_at)
+    s = _styles()
+    return _build_mda_story(d, s), d
+
+
+def _build_mda_story(d: Dict[str, Any], s: Dict[str, Any]):
+    """Build the reportlab story (list of flowables) — shared by both code paths."""
 
     story = []
 
@@ -283,5 +312,4 @@ def generate_mda_pdf(label: Dict[str, Any], legal_entity: Dict[str, Any], output
         s["small"]
     ))
 
-    doc.build(story)
-    return output_path
+    return story

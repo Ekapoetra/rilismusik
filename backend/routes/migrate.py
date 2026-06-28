@@ -645,14 +645,16 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
 
     # Auto-generate MDA PDF now (was skipped during register because no label existed yet)
     try:
-        from .mda_generator import generate_mda_pdf
+        from .mda_generator import generate_mda_pdf_bytes
+        import storage_service
         legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
         legal_entity = (legal_setting or {}).get("value") or {}
         merged_label = {**lab, "email": u.get("email"), "pic_name": u.get("name"), "user_id": user_id}
         contract_id = new_id()
-        pdf_path = UPLOAD_DIR / "contract" / f"{contract_id}.pdf"
-        generate_mda_pdf(merged_label, legal_entity, pdf_path)
-        file_url = f"/api/files/contract/{contract_id}.pdf"
+        pdf_bytes = generate_mda_pdf_bytes(merged_label, legal_entity)
+        r2_key = f"contract/{contract_id}.pdf"
+        await storage_service.upload_bytes(key=r2_key, data=pdf_bytes, content_type="application/pdf")
+        file_url = f"/api/files/{r2_key}"
         await db.contracts.insert_one({
             "id": contract_id,
             "label_id": legacy_label_id,

@@ -1,0 +1,46 @@
+{
+  "summary": "Phase 12 (Cloudflare R2 object storage) + Phase 10/11 regression verified end-to-end. Backend: 7/7 NEW e2e upload tests PASS (test_phase12_e2e_uploads.py) + 13/13 prior Phase 10/11/12 tests PASS = 20/20 green. Verified: VIP label can create release draft and upload a 3000x3000 PNG cover that lands in R2 under cover/{release_id}.png; /api/files/{key} 302-redirects to presigned R2 URL containing X-Amz-Signature; downloaded bytes match upload. Ticket attachment (PDF, purpose='general') uploads to ticket/ key prefix and also 302-redirects properly. /api/auth/forgot-password returns ok:true and backend log confirms '[EMAIL] sent to=superadmin@rilismusik.com subject=Reset password RILIS MUSIK id=sent' (Phase 11 SMTP live). /api/files/smoketest/does-not-exist returns 404. /api/cms/mda/preview streams valid PDF bytes (>2KB, starts with %PDF-) in-memory with no disk write (Phase 12). /api/royalty/admin/imports list returns 200 with status field per row. Frontend Playwright smoke: super-admin can load /admin/royalty (118 status badges rendered in 'Pending Review' state with table of periode/kurs/revenue/lines/status), /admin/cms loads with Hero/Benefits/Pricing/FAQ/SEO/Footer/Legal-Entity tabs. VIP demo label dashboard renders balance Rp 15.000.000, 3 releases, Annual tier — no broken images. /label/releases shows the TEST_R2_E2E draft created via API test alongside Cinta Sederhana/Kota Mati/Symphony Kecil — all 2 cover images loaded (naturalWidth>0), proving R2 + disk-fallback file serving works through the UI. Zero regressions from R2 migration.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/cms", "issues": ["MDA Preview trigger button is not present on the Hero/General tabs — likely hidden under the Legal Entity tab. Endpoint /api/cms/mda/preview works fine (returns valid PDF) but discoverability of the trigger is low. Not blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase12_e2e_uploads.py",
+    "/app/backend/tests/test_phase12_r2_storage.py",
+    "/app/backend/tests/test_phase11_email.py",
+    "/app/backend/tests/test_phase10_csv_recovery.py",
+    "/app/test_reports/pytest/iter13_phase12_e2e.xml",
+    "/app/test_reports/pytest/iter13_phase10_11_12.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py L50-69 serve_file hybrid handler: R2-first then disk-fallback is the correct migration strategy — old uploaded files stay reachable. TTL logic (7d for cover/landing, 1h for others) is sensible. One minor concern: head_object() is called on every cold request which adds an extra R2 round-trip; for hot covers, consider caching {key -> exists} for ~60s in a small TTL dict if traffic warrants.",
+    "routes/releases.py upload_cover (L224-258): file.read() into memory is fine for 3000x3000 JPG/PNG (typically 2-5 MB), but upload_audio (L261-284) correctly uses upload_fileobj for streaming multipart — good. Note: storage_service has guess_content_type helper used in tickets.py but not here (releases.py hardcodes content_type) — minor inconsistency, not a bug.",
+    "routes/tickets.py upload_attachment (L79-118) cleanly branches on purpose='audio'/'cover'/general with proper validation. Cover branch enforces 3000x3000 strictly (img.size != (3000,3000)) but releases.py only enforces >=3000x3000 + square — minor inconsistency that may confuse users uploading replacement covers through tickets vs releases. Consider unifying.",
+    "Phase 12 endpoint /api/files/{path} returns 404 for unknown keys correctly (verified). Path traversal guard (L65-66) checks resolved path is under UPLOAD_DIR — secure against ../ escapes for the disk-fallback path.",
+    "All upload routes properly use require_label/require_admin/get_current_user dependencies and check label ownership / release status before allowing upload. RBAC is consistent.",
+    "Phase 11 forgot-password is best-effort (returns ok:true even on SMTP failure) per the credentials.md note — verified the log line '[EMAIL] sent to=...' confirms actual SMTP send, not a swallow.",
+    "Phase 10 RoyaltyImport page renders 'Pending Review' badges via data-testid='royalty-status-*' — 118 visible. Progress bars (role=progressbar) returned 0 in this run because no import is currently in 'processing' state; the progress UI is conditional on status==='processing' and would only render during a live import — by design.",
+    "Cover upload in releases.py L249: 'except ImportError: pass' silently skips dimension validation if Pillow is missing. In production this is reasonable since Pillow is in requirements.txt, but consider logging a warning so we know if image validation was bypassed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase12_e2e_uploads.py (new — 7 tests covering R2 cover/ticket uploads, forgot-password SMTP, files-404, royalty imports list, MDA preview, legacy cover rendering)"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 — 7 new e2e + 5 phase12 + 3 phase11 + 5 phase10)",
+    "frontend": "100% (super-admin royalty + cms pages load; VIP dashboard + releases page render with no broken images; created draft visible end-to-end)"
+  },
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; demo_vip@rilismusik.com / DemoVIP#2026 — all verified working via API and UI.",
+  "seed_data_creation": "Test creates one TEST_R2_E2E_{hex} draft release under demo VIP per run plus one cover/{release_id}.png in R2 and one ticket/ticket_{id}.pdf in R2. No cleanup performed; safe due to unique UUIDs. The draft remains visible at /label/releases under demo_vip.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 12 R2 migration is fully green. test_phase12_e2e_uploads.py is the regression suite — covers the upload-flow integration from API caller → R2 bucket → /api/files/{key} presigned redirect. Uses pytest + requests; needs only REACT_APP_BACKEND_URL env. To run: `pytest backend/tests/test_phase12_e2e_uploads.py -v`. SMTP log line proving Phase 11 working: grep '[EMAIL] sent to=' /var/log/supervisor/backend.*.log. R2 endpoints: cover/{release_id}.{ext}, audio/{track_id}.wav, ticket/ticket_{uuid}.{ext}, mda/{label_id}.pdf (when registered). Disk fallback at /app/backend/uploads/ still works for legacy files. MDA Preview UI button may live under /admin/cms 'Legal Entity' tab — not tested visually. Xendit checkout remains MOCKED (Phase 13 task per problem statement).",
+  "rca of the issue": "Single test failure during initial run: test_super_admin_royalty_imports_list hit /api/admin/royalty/imports (404) — wrong path. Correct path is /api/royalty/admin/imports because royalty_r router has prefix='/royalty' (server.py L83 mounts under /api). Fixed by updating the URL; test now passes. No production code defect."
+}

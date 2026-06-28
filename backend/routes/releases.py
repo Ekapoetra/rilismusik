@@ -249,10 +249,11 @@ async def upload_cover(release_id: str, file: UploadFile = File(...), user: dict
     except ImportError:
         pass  # Pillow not installed; rely on size check by client
 
-    target = UPLOAD_DIR / "cover" / f"{release_id}.{ext}"
-    with open(target, "wb") as f:
-        f.write(file_bytes)
-    url = f"/api/files/cover/{release_id}.{ext}"
+    import storage_service
+    key = f"cover/{release_id}.{ext}"
+    content_type = "image/png" if ext == "png" else "image/jpeg"
+    await storage_service.upload_bytes(key=key, data=file_bytes, content_type=content_type)
+    url = f"/api/files/{key}"
     await db.releases.update_one({"id": release_id}, {"$set": {"cover_url": url, "updated_at": now_iso()}})
     return {"cover_url": url}
 
@@ -274,10 +275,11 @@ async def upload_audio(release_id: str, track_id: str = Form(...), file: UploadF
     if not name.endswith(".wav"):
         raise HTTPException(status_code=400, detail="Audio harus berformat WAV")
 
-    target = UPLOAD_DIR / "audio" / f"{track_id}.wav"
-    with open(target, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    url = f"/api/files/audio/{track_id}.wav"
+    import storage_service
+    key = f"audio/{track_id}.wav"
+    # Use multipart-aware upload for large WAV files (boto3 auto-chunks >8MB)
+    await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type="audio/wav")
+    url = f"/api/files/{key}"
     await db.tracks.update_one({"id": track_id}, {"$set": {"audio_url": url, "updated_at": now_iso()}})
     return {"audio_url": url}
 

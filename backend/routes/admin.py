@@ -350,20 +350,22 @@ async def admin_create_label_account(
 
     # Auto-generate MDA PDF
     try:
-        from .mda_generator import generate_mda_pdf
+        from .mda_generator import generate_mda_pdf_bytes
+        import storage_service
         legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
         legal_entity = (legal_setting or {}).get("value") or {}
         merged = {**label, "user_id": user_id, "email": email_clean, "pic_name": pic, "whatsapp": wa or label.get("whatsapp")}
         contract_id = new_id()
-        pdf_path = UPLOAD_DIR / "contract" / f"{contract_id}.pdf"
-        generate_mda_pdf(merged, legal_entity, pdf_path)
+        pdf_bytes = generate_mda_pdf_bytes(merged, legal_entity)
+        r2_key = f"contract/{contract_id}.pdf"
+        await storage_service.upload_bytes(key=r2_key, data=pdf_bytes, content_type="application/pdf")
         await db.contracts.insert_one({
             "id": contract_id,
             "label_id": label_id,
             "label_name": label.get("label_name"),
             "title": "Master Distribution Agreement",
             "kind": "mda",
-            "file_url": f"/api/files/contract/{contract_id}.pdf",
+            "file_url": f"/api/files/{r2_key}",
             "filename": f"MDA-{(label.get('label_name') or '')[:20]}.pdf",
             "start_date": now[:10],
             "end_date": None,

@@ -83,6 +83,7 @@ async def upload_ticket_attachment(
     user: dict = Depends(get_current_user),
 ):
     """Upload attachment for ticket (audio WAV for edit_audio, cover for edit_cover, or generic attachment)."""
+    import storage_service
     ext = (file.filename or "").lower().split(".")[-1]
     if purpose == "audio":
         if ext != "wav":
@@ -101,20 +102,20 @@ async def upload_ticket_attachment(
         if img.size != (3000, 3000):
             raise HTTPException(status_code=400, detail=f"Cover harus 3000x3000 (terdeteksi {img.size[0]}x{img.size[1]})")
         fid = new_id()
-        target = UPLOAD_DIR / "cover" / f"ticket_{fid}.{ext}"
-        with open(target, "wb") as f:
-            f.write(contents)
-        return {"url": f"/api/files/cover/ticket_{fid}.{ext}", "filename": file.filename}
+        key = f"cover/ticket_{fid}.{ext}"
+        ct = "image/png" if ext == "png" else "image/jpeg"
+        await storage_service.upload_bytes(key=key, data=contents, content_type=ct)
+        return {"url": f"/api/files/{key}", "filename": file.filename}
     else:
         if ext not in ("jpg", "jpeg", "png", "pdf", "wav", "mp3", "txt", "docx", "doc"):
             raise HTTPException(status_code=400, detail="Format file tidak didukung")
         sub = "ticket"
-    # generic streaming write
+    # generic upload
     fid = new_id()
-    target = UPLOAD_DIR / sub / f"ticket_{fid}.{ext}"
-    with open(target, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"url": f"/api/files/{sub}/ticket_{fid}.{ext}", "filename": file.filename}
+    key = f"{sub}/ticket_{fid}.{ext}"
+    ct = storage_service.guess_content_type(file.filename or key)
+    await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type=ct)
+    return {"url": f"/api/files/{key}", "filename": file.filename}
 
 
 @ticket_r.post("/label/create")

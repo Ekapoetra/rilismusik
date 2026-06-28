@@ -13,7 +13,7 @@ load_dotenv(ROOT_DIR / ".env")
 import os
 import logging
 from fastapi import FastAPI, APIRouter
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 
 # Configure root logger BEFORE importing the route modules so they
@@ -39,12 +39,35 @@ from routes.contracts import contract_r
 from routes.migrate import migrate_r
 from routes.cron_jobs import cron_r, start_scheduler, stop_scheduler
 from routes.seed import seed_indexes_and_admins
+import storage_service
 
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
 
-# Serve uploaded media (audio, cover, etc.) under /api/files
-app.mount("/api/files", StaticFiles(directory=str(UPLOAD_DIR)), name="files")
+
+# Hybrid file serving: try R2 (presigned redirect) first, fall back to local disk
+# for legacy files uploaded before the R2 migration.
+@app.get("/api/files/{path:path}")
+async def serve_file(path: str):
+    from fastapi import HTTPException
+    # 1) Try R2
+    if storage_service.is_configured():
+        try:
+            meta = await storage_service.head_object(key=path)
+            if meta:
+                ttl = 3600 * 24 * 7 if path.startswith(("cover/", "landing/")) else 3600
+                url = await storage_service.generate_presigned_url(key=path, ttl=ttl)
+                return RedirectResponse(url=url, status_code=302)
+        except Exception as e:
+            logger.warning("[FILES] R2 lookup failed for %s: %s", path, e)
+    # 2) Fallback: serve from local disk (legacy / dev)
+    local_path = (UPLOAD_DIR / path).resolve()
+    if not str(local_path).startswith(str(UPLOAD_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if local_path.exists():
+        return FileResponse(str(local_path))
+    raise HTTPException(status_code=404, detail="File not found")
+
 
 api = APIRouter(prefix="/api")
 

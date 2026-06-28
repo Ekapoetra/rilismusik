@@ -98,10 +98,11 @@ async def contract_upload_pdf(file: UploadFile = File(...), user: dict = Depends
     if ext != "pdf":
         raise HTTPException(status_code=400, detail="File kontrak harus PDF")
     fid = new_id()
-    target = UPLOAD_DIR / "contract" / f"{fid}.pdf"
-    with open(target, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"url": f"/api/files/contract/{fid}.pdf", "filename": file.filename}
+    import storage_service
+    key = f"contract/{fid}.pdf"
+    pdf_bytes = await file.read()
+    await storage_service.upload_bytes(key=key, data=pdf_bytes, content_type="application/pdf")
+    return {"url": f"/api/files/{key}", "filename": file.filename}
 
 
 @contract_r.post("/admin")

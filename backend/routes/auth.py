@@ -178,13 +178,15 @@ async def register(body: RegisterLabelIn, response: Response):
 
     # ---- Auto-generate Master Distribution Agreement PDF ----
     try:
-        from .mda_generator import generate_mda_pdf
+        from .mda_generator import generate_mda_pdf_bytes
+        import storage_service
         legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
         legal_entity = (legal_setting or {}).get("value") or {}
         contract_id = new_id()
-        pdf_path = UPLOAD_DIR / "contract" / f"{contract_id}.pdf"
-        generate_mda_pdf(label_doc, legal_entity, pdf_path)
-        file_url = f"/api/files/contract/{contract_id}.pdf"
+        pdf_bytes = generate_mda_pdf_bytes(label_doc, legal_entity)
+        r2_key = f"contract/{contract_id}.pdf"
+        await storage_service.upload_bytes(key=r2_key, data=pdf_bytes, content_type="application/pdf")
+        file_url = f"/api/files/{r2_key}"
         contract_doc = {
             "id": contract_id,
             "label_id": label_id,
@@ -206,7 +208,7 @@ async def register(body: RegisterLabelIn, response: Response):
             "created_by": "system",
         }
         await db.contracts.insert_one(contract_doc)
-        logger.info("MDA generated for %s -> %s", body.label_name, pdf_path)
+        logger.info("MDA generated for %s -> %s", body.label_name, r2_key)
     except Exception as e:
         logger.exception("MDA generation failed for label %s: %s", body.label_name, e)
         # Don't block registration on MDA failure — admin can re-generate later

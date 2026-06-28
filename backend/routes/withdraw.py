@@ -224,10 +224,12 @@ async def admin_upload_proof(file: UploadFile = File(...), user: dict = Depends(
     if ext not in ("jpg", "jpeg", "png", "pdf"):
         raise HTTPException(status_code=400, detail="Format harus JPG/PNG/PDF")
     fid = new_id()
-    target = UPLOAD_DIR / "contract" / f"proof_{fid}.{ext}"
-    with open(target, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"url": f"/api/files/contract/proof_{fid}.{ext}"}
+    import storage_service
+    key = f"contract/proof_{fid}.{ext}"
+    proof_bytes = await file.read()
+    ct = "application/pdf" if ext == "pdf" else ("image/png" if ext == "png" else "image/jpeg")
+    await storage_service.upload_bytes(key=key, data=proof_bytes, content_type=ct)
+    return {"url": f"/api/files/{key}"}
 
 
 @withdraw_r.post("/admin/verify-bank/{label_id}")
