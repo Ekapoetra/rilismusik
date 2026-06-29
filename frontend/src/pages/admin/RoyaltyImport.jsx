@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle, Zap } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -47,6 +47,26 @@ export default function AdminRoyaltyImport() {
     try {
       await api.post(`/royalty/admin/imports/${id}/retry`);
       setMsg("Retry dijadwalkan — proses akan jalan di background.");
+      load();
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+  };
+
+  const forceFinalize = async (id, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setErr(""); setMsg("");
+    if (!window.confirm(
+      "Force-finalize import ini?\n\n" +
+      "Akan menghitung ulang stats dari baris yang sudah masuk MongoDB dan langsung set status=pending_review (tanpa re-upload CSV). " +
+      "Gunakan ini hanya jika status nyangkut di 'processing' >30 menit padahal datanya sudah ada."
+    )) return;
+    try {
+      const { data } = await api.post(`/royalty/admin/imports/${id}/force-finalize`);
+      if (data.ok) {
+        setMsg(`Force-finalize berhasil — ${data.total_lines?.toLocaleString("id-ID") || 0} baris, ${data.matched_lines?.toLocaleString("id-ID") || 0} matched. Status → pending_review.`);
+      } else {
+        setMsg(`Force-finalize: ${data.detail || "tidak ada baris untuk difinalisasi"}.`);
+      }
       load();
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
   };
@@ -200,9 +220,19 @@ export default function AdminRoyaltyImport() {
                   onClick={(e) => retry(i.id, e)}
                   className="rm-btn-ghost flex items-center gap-1 text-[10px] px-2 py-1"
                   data-testid={`royalty-import-retry-${i.id}`}
-                  title="Retry background processing"
+                  title="Retry background processing (re-process dari awal)"
                 >
                   <RefreshCw className="w-3 h-3" /> Retry
+                </button>
+              )}
+              {(i.status === "processing" || i.status === "error") && (
+                <button
+                  onClick={(e) => forceFinalize(i.id, e)}
+                  className="rm-btn-ghost text-amber-300 hover:bg-amber-500/10 flex items-center gap-1 text-[10px] px-2 py-1"
+                  data-testid={`royalty-import-force-finalize-${i.id}`}
+                  title="Force-finalize: hitung ulang stats dari baris yang sudah ada di MongoDB & langsung pending_review (tanpa re-upload)"
+                >
+                  <Zap className="w-3 h-3" /> Force Finalize
                 </button>
               )}
               {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(i.status) && (

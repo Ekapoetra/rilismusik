@@ -230,6 +230,21 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 23 — Stuck Royalty Import Recovery (2026-06-29)
+User reported in production: 2 large CSV imports (600K + 750K rows) stuck at "Processing 99%" for >1 hour. Root cause was twofold — (1) the UI caps display at 99% while status='processing', and (2) the final `update_one` to flip status to `pending_review` used the CSOT-capped `db` client, so Atlas slowness silently aborted the transition. **Retry was also non-responsive** because `_reset_import_for_retry` ran `delete_many` over 600K+ rows through `db` and timed out.
+
+- **Backend** `/app/backend/routes/royalty.py`:
+  - Final status-flip in `_process_csv_import_inline` now uses `db_bg` (CSOT-uncapped).
+  - Error-state update in `_process_csv_import_bg` tries `db_bg` first, falls back to `db` so failures always surface.
+  - `_reset_import_for_retry` migrated to `db_bg` + chunked `_id`-paginated `delete_many` (5,000 rows/batch) — Retry can now wipe a 1M+ row partial import without timing out.
+  - **New endpoint** `POST /api/royalty/admin/imports/{id}/force-finalize` (super_admin + admin_finance) — recomputes counters from actual `royalty_lines` rows (matched/unmatched/total_revenue_eur/total_label_idr/period_breakdown) and force-flips status to `pending_review`. If 0 rows exist in MongoDB → marks `error` instead. Pure derived recompute, idempotent, no row inserts. Reusable helper `_recompute_import_stats_from_lines()`.
+- **Backend** `/app/backend/routes/cron_jobs.py`:
+  - New `watchdog_stuck_royalty_imports()` cron — every 15 minutes (60s first-run delay), finds imports `status='processing'` with `updated_at` older than `STUCK_IMPORT_AFTER_MINUTES=30` → calls the same `_recompute_import_stats_from_lines` helper. Auto-flips to `pending_review` (with `watchdog_recovered=true` flag) if rows exist, else `error` with descriptive Indonesian message.
+  - Manual trigger endpoint `POST /api/admin/cron/stuck-imports-check` (super_admin + admin_finance) for impatient admins.
+- **Frontend** `/app/frontend/src/pages/admin/RoyaltyImport.jsx`:
+  - New amber "Force Finalize" button (`data-testid='royalty-import-force-finalize-{id}'`) visible for `processing`/`error` rows. Confirms via `window.confirm` and surfaces matched/total row counts on success.
+- **Tests**: `/app/backend/tests/test_phase23_force_finalize.py` (8 tests, **8/8 PASS**) covering: recompute correctness with multi-period rows, 0-row → error transition, status guard (rejects published/dana_received), RBAC (finance allowed, support/release blocked), watchdog manual trigger + recovery E2E. Combined regression with Phase 16.2 / 16.3 / 16.4 / 16.5 = **40/40 PASS**.
+
 ### Phase 22 — Legacy Withdraw CSV → Period-end FIFO Migration (2026-06-29)
 User uploaded `music_withdrawals.csv` (legacy columns: nama_label, period_start, period_end, amount, exchange_rate, status, …) and needed it mapped into the modern FIFO system from Phase 20.
 

@@ -684,7 +684,11 @@ async def _process_csv_import_inline(
     is_multi_period = len(sorted_periods) > 1
     display_period = period if period else (sorted_periods[0] if len(sorted_periods) == 1 else "multi")
 
-    await db.royalty_imports.update_one(
+    # Route the final status flip through db_bg (CSOT-uncapped). Atlas can be
+    # slow to ack this write while a 1M-row import is still settling indexes —
+    # the 10s CSOT cap on `db` was causing imports to silently stay stuck at
+    # `processing` even though all rows were inserted.
+    await db_bg.royalty_imports.update_one(
         {"id": import_id},
         {"$set": {
             "period": display_period,
@@ -698,7 +702,7 @@ async def _process_csv_import_inline(
         }},
     )
 
-    final = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    final = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     return final
 
 
@@ -719,15 +723,21 @@ async def _process_csv_import_bg(
         )
     except Exception as e:
         logger.exception("Background CSV import %s failed: %s", import_id, e)
-        await db.royalty_imports.update_one(
-            {"id": import_id},
-            {"$set": {
-                "status": "error",
-                "error_message": str(e)[:500],
-                "finished_at": now_iso(),
-                "updated_at": now_iso(),
-            }},
-        )
+        err_update = {
+            "status": "error",
+            "error_message": str(e)[:500],
+            "finished_at": now_iso(),
+            "updated_at": now_iso(),
+        }
+        # Try db_bg first (CSOT-uncapped); fall back to db so we always surface
+        # the failure to the admin UI even if Atlas is throttling.
+        try:
+            await db_bg.royalty_imports.update_one({"id": import_id}, {"$set": err_update})
+        except Exception:
+            try:
+                await db.royalty_imports.update_one({"id": import_id}, {"$set": err_update})
+            except Exception as inner:
+                logger.exception("Failed to record error_state for %s (both clients): %s", import_id, inner)
 
 
 @royalty_r.get("/admin/imports")
@@ -1381,15 +1391,29 @@ async def _reset_import_for_retry(import_id: str) -> None:
     """Wipe partial side-effects of a previous failed/interrupted run so we can
     safely restart the processing without double-inserting rows.
 
+    Heavy deletes (royalty_lines may be 1M+ rows for a stuck import) go
+    through db_bg to avoid the 10s CSOT timeout that was causing Retry to
+    silently hang in production.
+
     - Delete royalty_lines tied to this import
     - Delete auto-created labels/releases/tracks (only ones with auto_created_from=this import)
     - Reset counters on the import doc
     """
-    await db.royalty_lines.delete_many({"import_id": import_id})
-    await db.labels.delete_many({"auto_created_from": import_id})
-    await db.releases.delete_many({"auto_created_from": import_id})
-    await db.tracks.delete_many({"auto_created_from": import_id})
-    await db.royalty_imports.update_one(
+    # royalty_lines may be 1M+ rows — must use db_bg + chunked deletes by _id
+    # to avoid both CSOT timeout AND the maxTimeMS server-side cap.
+    CHUNK = 5000
+    while True:
+        batch = await db_bg.royalty_lines.find(
+            {"import_id": import_id}, {"_id": 1},
+        ).limit(CHUNK).to_list(CHUNK)
+        if not batch:
+            break
+        oids = [d["_id"] for d in batch]
+        await db_bg.royalty_lines.delete_many({"_id": {"$in": oids}})
+    await db_bg.labels.delete_many({"auto_created_from": import_id})
+    await db_bg.releases.delete_many({"auto_created_from": import_id})
+    await db_bg.tracks.delete_many({"auto_created_from": import_id})
+    await db_bg.royalty_imports.update_one(
         {"id": import_id},
         {"$set": {
             "total_lines": 0,
@@ -1452,6 +1476,118 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
     ))
     await log_activity(user["id"], "retry_royalty_import", "royalty", import_id)
     return {"ok": True, "import_id": import_id, "status": "processing"}
+
+
+async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:
+    """Recompute import-level counters from the actual royalty_lines collection.
+
+    Used by both force-finalize and the watchdog. Returns a dict ready to be
+    `$set` on the royalty_imports doc. Uses db_bg (CSOT-uncapped) because the
+    aggregation may scan up to 1M rows.
+    """
+    pipeline = [
+        {"$match": {"import_id": import_id}},
+        {"$group": {
+            "_id": None,
+            "total_lines": {"$sum": 1},
+            "matched_lines": {"$sum": {"$cond": [{"$eq": ["$match_status", "matched"]}, 1, 0]}},
+            "unmatched_lines": {"$sum": {"$cond": [{"$eq": ["$match_status", "unmatched"]}, 1, 0]}},
+            "total_revenue_eur": {"$sum": {"$ifNull": ["$revenue_eur", 0]}},
+            "total_label_idr": {"$sum": {"$ifNull": ["$label_idr", 0]}},
+        }},
+    ]
+    agg = await db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True).to_list(1)
+    stats = agg[0] if agg else {}
+
+    # Period breakdown
+    period_pipeline = [
+        {"$match": {"import_id": import_id}},
+        {"$group": {"_id": "$period", "n": {"$sum": 1}}},
+    ]
+    period_counts: Dict[str, int] = {}
+    async for r in db_bg.royalty_lines.aggregate(period_pipeline, allowDiskUse=True):
+        if r["_id"]:
+            period_counts[r["_id"]] = r["n"]
+
+    sorted_periods = sorted(period_counts.keys())
+    is_multi_period = len(sorted_periods) > 1
+
+    # Auto-created entity counters (counted directly from collections)
+    auto_labels_n = await db_bg.labels.count_documents({"auto_created_from": import_id})
+    auto_releases_n = await db_bg.releases.count_documents({"auto_created_from": import_id})
+    auto_tracks_n = await db_bg.tracks.count_documents({"auto_created_from": import_id})
+
+    return {
+        "total_lines": int(stats.get("total_lines", 0)),
+        "processed_lines": int(stats.get("total_lines", 0)),
+        "matched_lines": int(stats.get("matched_lines", 0)),
+        "unmatched_lines": int(stats.get("unmatched_lines", 0)),
+        "total_revenue_eur": round(float(stats.get("total_revenue_eur", 0)), 4),
+        "total_label_idr": int(stats.get("total_label_idr", 0)),
+        "period_breakdown": period_counts,
+        "period_start": sorted_periods[0] if sorted_periods else None,
+        "period_end": sorted_periods[-1] if sorted_periods else None,
+        "is_multi_period": is_multi_period,
+        "auto_created_labels": auto_labels_n,
+        "auto_created_releases": auto_releases_n,
+        "auto_created_tracks": auto_tracks_n,
+        "progress_pct": 100,
+    }
+
+
+@royalty_r.post("/admin/imports/{import_id}/force-finalize")
+async def admin_force_finalize_import(import_id: str, user: dict = Depends(require_admin)):
+    """Force-transition a stuck `processing` import to `pending_review` by
+    recomputing import-level counters from the actual royalty_lines rows.
+
+    Use case: a Believe CSV import got 1M rows inserted but the final
+    status-flip `update_one` timed out on Atlas. The import is functionally
+    complete but stays at status='processing' indefinitely, blocking publish.
+
+    Safe to run multiple times — purely a derived recompute, no row inserts.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp.get("status") not in ("processing", "error"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Force-finalize hanya untuk status processing / error (status saat ini: {imp.get('status')}).",
+        )
+
+    stats = await _recompute_import_stats_from_lines(import_id)
+    if stats["total_lines"] == 0:
+        # No rows ever made it into Mongo — mark as error so admin can re-upload.
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "error",
+                "error_message": "Force-finalize: 0 royalty_lines ditemukan untuk import ini. Silakan retry atau upload ulang.",
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+            }},
+        )
+        await log_activity(user["id"], "force_finalize_royalty_import_empty", "royalty", import_id, after={"total_lines": 0})
+        return {"ok": False, "import_id": import_id, "status": "error", "total_lines": 0,
+                "detail": "Tidak ada baris royalti — sudah ditandai sebagai error."}
+
+    update_doc = {
+        **stats,
+        "status": "pending_review",
+        "error_message": None,
+        "finished_at": now_iso(),
+        "updated_at": now_iso(),
+        # Preserve display_period: if single, use it; otherwise 'multi'
+        "period": (stats["period_start"] if stats["period_start"] == stats["period_end"] else "multi"),
+    }
+    await db_bg.royalty_imports.update_one({"id": import_id}, {"$set": update_doc})
+    await log_activity(
+        user["id"], "force_finalize_royalty_import", "royalty", import_id,
+        after={"total_lines": stats["total_lines"], "matched_lines": stats["matched_lines"]},
+    )
+    return {"ok": True, "import_id": import_id, "status": "pending_review", **stats}
 
 
 @royalty_r.delete("/admin/imports/{import_id}")
