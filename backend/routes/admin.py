@@ -9,7 +9,7 @@ import shutil
 import secrets
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
+    db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
@@ -63,15 +63,19 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
     active_subscriptions = await db.labels.count_documents({"subscription_status": "active"})
     suspended_labels = await db.labels.count_documents({"account_status": "suspended"})
 
-    # total revenue EUR + IDR from royalty_lines
+    # total revenue EUR + IDR from royalty_lines (heavy aggregate over millions of
+    # rows — use db_bg so the production 10s CSOT cap doesn't kill the dashboard)
     revenue_pipeline = [
         {"$group": {"_id": None, "total_eur": {"$sum": "$revenue_eur"}, "total_idr": {"$sum": "$label_idr"}}},
     ]
     total_eur = 0
     total_idr = 0
-    async for r in db.royalty_lines.aggregate(revenue_pipeline):
-        total_eur = r.get("total_eur", 0)
-        total_idr = r.get("total_idr", 0)
+    try:
+        async for r in db_bg.royalty_lines.aggregate(revenue_pipeline, allowDiskUse=True):
+            total_eur = r.get("total_eur", 0)
+            total_idr = r.get("total_idr", 0)
+    except Exception as e:
+        logger.warning("[DASHBOARD] revenue aggregate failed (non-fatal): %s", e)
 
     last_csv = await db.royalty_imports.find_one({}, {"_id": 0}, sort=[("created_at", -1)])
 

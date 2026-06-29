@@ -230,6 +230,22 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 16.3 — CSOT-uncapped Mongo client `db_bg` (2026-06-29, hotfix)
+Production user reported repeated publish failures + 500s on `/api/admin/dashboard` and `/api/royalty/admin/imports/{id}` after redeploy:
+> Publish gagal: customer-apps-shard-00-01.fpzjgt.mongodb.net:27017:
+> The read operation timed out (configured timeouts: timeoutMS: 10000.0ms)
+
+Root cause: Emergent's production `MONGO_URL` includes `timeoutMS=10000` (PyMongo CSOT — Client-Side Operation Timeout). Every heavy aggregate / `update_many` over the 1M-row `royalty_lines` collection blows through that 10s cap.
+
+- Added a second Motor client `client_bg` / `db_bg` in `/app/backend/routes/deps.py` with `timeoutMS=None`, `socketTimeoutMS=None`. Production-Atlas connections still apply server-side `maxTimeMS` where set, but client-side ceiling is lifted.
+- Switched every heavy `royalty_lines` op to `db_bg`:
+  - `_publish_bg` (background publish — already chunked; all aggregate + chunked find/update_many now via `db_bg`).
+  - `/api/admin/dashboard` revenue aggregate (entire collection sum).
+  - `/api/royalty/admin/imports/{id}` top-500 sample + per-label breakdown aggregate.
+  - `/api/royalty/admin/imports/{id}/mark-dana-received` — also migrated to chunked `_id` update_many (was a single huge update_many that would hit `maxTimeMS=50` on Atlas).
+- Belt-and-suspenders fallback added in `_publish_bg`: if writing `publish_error` via `db_bg` fails, the foreground `db` is tried as last-ditch.
+- New regression suite `/app/backend/tests/test_phase16_3_csot_uncapped_client.py` (5 tests, all PASS) statically guards against future agents reverting any of these calls back to `db`.
+
 ### Phase 17 — Security Hardening (2026-06-29)
 Four critical/medium audit findings remediated. 18/18 security + regression tests PASS.
 

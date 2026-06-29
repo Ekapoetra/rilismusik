@@ -56,3 +56,48 @@ def test_publish_bg_uses_db_bg():
     )
     # And it MUST reference db_bg.royalty_lines (sanity — confirms our fix landed)
     assert "db_bg.royalty_lines" in body, "_publish_bg must use db_bg.royalty_lines"
+
+
+def test_admin_dashboard_uses_db_bg_for_revenue_aggregate():
+    """`/api/admin/dashboard` aggregates revenue over the entire royalty_lines
+    collection (millions of rows in production). It MUST route this single
+    aggregate through `db_bg` to avoid 500s caused by CSOT timeout.
+    """
+    src = (Path(__file__).resolve().parents[1] / "routes" / "admin.py").read_text()
+    # find admin_dashboard body
+    start = src.index("async def admin_dashboard(")
+    rest = src[start:]
+    end_rel = min(c for c in [rest.find("\n@admin_r."), rest.find("\nasync def admin_list_labels")] if c > 0)
+    body = rest[:end_rel]
+    assert "db_bg.royalty_lines.aggregate" in body, (
+        "admin_dashboard must aggregate royalty_lines via db_bg (uncapped client)"
+    )
+
+
+def test_admin_get_import_uses_db_bg_for_heavy_reads():
+    """`/api/royalty/admin/imports/{id}` does a top-500 find + per-label
+    aggregate over royalty_lines — both must use db_bg.
+    """
+    src = (Path(__file__).resolve().parents[1] / "routes" / "royalty.py").read_text()
+    start = src.index("async def admin_get_import(")
+    rest = src[start:]
+    end_rel = min(c for c in [rest.find("\n@royalty_r."), rest.find("\nasync def admin_manually_match_line")] if c > 0)
+    body = rest[:end_rel]
+    assert "db_bg.royalty_lines.find" in body, "admin_get_import must read sample lines via db_bg"
+    assert "db_bg.royalty_lines.aggregate" in body, "admin_get_import must run per-label aggregate via db_bg"
+
+
+def test_mark_dana_received_uses_db_bg():
+    """`/api/royalty/admin/imports/{id}/mark-dana-received` shifts millions of
+    rows from pending→available and credits per-label balances. All heavy ops
+    must use db_bg + chunked update_many.
+    """
+    src = (Path(__file__).resolve().parents[1] / "routes" / "royalty.py").read_text()
+    start = src.index("async def admin_mark_dana_received(")
+    rest = src[start:]
+    end_rel = min(c for c in [rest.find("\n@royalty_r."), rest.find("\nasync def admin_reset_demo_royalty_data")] if c > 0)
+    body = rest[:end_rel]
+    assert "db_bg.royalty_lines.aggregate" in body
+    assert "db_bg.royalty_lines.update_many" in body, "mark_dana_received must use chunked db_bg update_many"
+    # And the old single huge update_many on `db` must be gone
+    assert 'db.royalty_lines.update_many({"import_id": import_id, "status": "pending"}, {"$set": {"status": "available"}})' not in body

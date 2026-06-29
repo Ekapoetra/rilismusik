@@ -738,7 +738,14 @@ async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
     elif imp.get("status") == "publishing":
         imp["progress_pct"] = imp.get("publish_progress_pct") or 0
 
-    lines = await db.royalty_lines.find({"import_id": import_id}, {"_id": 0}).sort("revenue_eur", -1).limit(500).to_list(500)
+    # Sample top-500 lines + per-label breakdown — both touch the multi-million
+    # `royalty_lines` collection and would trip the 10s CSOT cap on production
+    # Atlas. Use db_bg (uncapped client) for these reads.
+    try:
+        lines = await db_bg.royalty_lines.find({"import_id": import_id}, {"_id": 0}).sort("revenue_eur", -1).limit(500).to_list(500)
+    except Exception as e:
+        logger.warning("[ADMIN GET IMPORT] %s sample-lines query failed: %s", import_id, e)
+        lines = []
 
     # per-label breakdown
     pipeline = [
@@ -747,9 +754,12 @@ async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
         {"$sort": {"total_idr": -1}},
     ]
     per_label = []
-    async for r in db.royalty_lines.aggregate(pipeline):
-        label = await db.labels.find_one({"id": r["_id"]}, {"_id": 0, "label_name": 1, "id": 1})
-        per_label.append({**r, "label": label})
+    try:
+        async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+            label = await db.labels.find_one({"id": r["_id"]}, {"_id": 0, "label_name": 1, "id": 1})
+            per_label.append({**r, "label": label})
+    except Exception as e:
+        logger.warning("[ADMIN GET IMPORT] %s per-label aggregate failed: %s", import_id, e)
 
     return {"import": imp, "lines": lines, "per_label": per_label}
 
@@ -1049,12 +1059,14 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
         f"{imp.get('period_start')} s/d {imp.get('period_end')}"
         if imp.get("is_multi_period") else imp.get("period", "")
     )
-    async for r in db.royalty_lines.aggregate(pipeline):
-        await db.labels.update_one({"id": r["_id"]}, {"$inc": {
+    # Heavy aggregate + bulk update on millions of rows — route through db_bg
+    # (uncapped Mongo client) to bypass the 10s CSOT cap that kills production.
+    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        await db_bg.labels.update_one({"id": r["_id"]}, {"$inc": {
             "balance_pending_idr": -int(r["total_idr"]),
             "balance_available_idr": int(r["total_idr"]),
         }, "$set": {"updated_at": now_iso()}})
-        await db.balance_transactions.insert_one({
+        await db_bg.balance_transactions.insert_one({
             "id": new_id(),
             "label_id": r["_id"],
             "type": "royalty_available",
@@ -1065,7 +1077,23 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
             "created_at": now_iso(),
         })
 
-    await db.royalty_lines.update_many({"import_id": import_id, "status": "pending"}, {"$set": {"status": "available"}})
+    # Chunked update_many over `_id` to avoid maxTimeMS on the cluster
+    CHUNK_SIZE = 2000
+    last_oid = None
+    base_filter = {"import_id": import_id, "status": "pending"}
+    total_flipped = 0
+    while True:
+        q = dict(base_filter)
+        if last_oid is not None:
+            q["_id"] = {"$gt": last_oid}
+        batch = await db_bg.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
+        if not batch:
+            break
+        oids = [d["_id"] for d in batch]
+        last_oid = oids[-1]
+        await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "available"}})
+        total_flipped += len(oids)
+    logger.info("[MARK_DANA] %s — flipped %d lines pending→available", import_id, total_flipped)
     await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "dana_received", "dana_received_at": now_iso(), "updated_at": now_iso()}})
     await log_activity(user["id"], "mark_dana_received", "royalty", import_id)
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
