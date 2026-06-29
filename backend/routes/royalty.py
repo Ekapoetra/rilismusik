@@ -443,23 +443,33 @@ async def _process_csv_import_inline(
 
     Returns the final import_doc.
     """
-    BATCH_SIZE = 2000
+    # Batch size for `insert_many`. 5,000 docs ≈ 4-8 MB per round trip — well
+    # within MongoDB's 16 MB BSON limit and 100k bulk-op cap, while reducing
+    # round-trip overhead ~2.5× vs the previous 2,000.
+    BATCH_SIZE = 5000
+    # How often to persist progress to `royalty_imports`. With BATCH_SIZE=5000
+    # this means a progress update every 50k rows → ~20 updates for a 1M-row
+    # CSV instead of 500, removing a major source of write contention.
+    PROGRESS_EVERY_N_FLUSHES = 10
 
     # ---- Build lookup maps once (memory-friendly: 6K labels + 15K tracks ≈ 4 MB) ----
-    labels: Dict[str, Dict[str, Any]] = {lab["id"]: lab async for lab in db.labels.find({}, {"_id": 0})}
+    # Route through db_bg — production has ~100k tracks already and the find()
+    # cursor over the entire `tracks` collection would otherwise hit the 10s
+    # CSOT cap on Atlas.
+    labels: Dict[str, Dict[str, Any]] = {lab["id"]: lab async for lab in db_bg.labels.find({}, {"_id": 0})}
     labels_by_name = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
     pct_history: Dict[str, List[Dict[str, Any]]] = {}
-    async for h in db.royalty_percentage_history.find({}, {"_id": 0}):
+    async for h in db_bg.royalty_percentage_history.find({}, {"_id": 0}):
         pct_history.setdefault(h["label_id"], []).append(h)
     all_tracks: Dict[str, Dict[str, Any]] = {}
-    async for t in db.tracks.find(
+    async for t in db_bg.tracks.find(
         {"isrc": {"$exists": True, "$ne": None}},
         {"_id": 0, "id": 1, "isrc": 1, "release_id": 1, "label_id": 1, "artist_id": 1, "track_title": 1, "artist_name": 1},
     ):
         if t.get("isrc"):
             all_tracks[(t["isrc"] or "").strip().upper()] = t
     all_releases_by_upc: Dict[str, Dict[str, Any]] = {}
-    async for r in db.releases.find(
+    async for r in db_bg.releases.find(
         {"upc": {"$exists": True, "$ne": None}},
         {"_id": 0, "id": 1, "upc": 1, "label_id": 1, "release_title": 1},
     ):
@@ -479,40 +489,49 @@ async def _process_csv_import_inline(
         "auto_labels": 0, "auto_releases": 0, "auto_tracks": 0,
         "total_revenue_eur": 0.0, "total_label_idr": 0, "total_lines": 0,
     }
+    flush_counter = {"n": 0}
     now = now_iso()
 
-    async def _flush():
+    async def _flush(*, force_progress: bool = False):
+        """Bulk-flush accumulated docs. All writes go through db_bg (CSOT-free).
+        Progress is persisted every PROGRESS_EVERY_N_FLUSHES flushes OR when
+        force_progress=True (used on final flush + auto-create snapshots).
+        `ordered=False` lets MongoDB run the inserts in parallel and skip
+        duplicate-key errors instead of aborting the whole batch.
+        """
         if new_label_batch:
-            await db.labels.insert_many(new_label_batch)
+            await db_bg.labels.insert_many(new_label_batch, ordered=False)
             new_label_batch.clear()
         if new_release_batch:
-            await db.releases.insert_many(new_release_batch)
+            await db_bg.releases.insert_many(new_release_batch, ordered=False)
             new_release_batch.clear()
         if new_track_batch:
-            await db.tracks.insert_many(new_track_batch)
+            await db_bg.tracks.insert_many(new_track_batch, ordered=False)
             new_track_batch.clear()
         if line_batch:
-            await db.royalty_lines.insert_many(line_batch)
+            await db_bg.royalty_lines.insert_many(line_batch, ordered=False)
             counters["total_lines"] += len(line_batch)
             line_batch.clear()
-        # Update progress
-        await db.royalty_imports.update_one(
-            {"id": import_id},
-            {"$set": {
-                "total_lines": counters["total_lines"],
-                "processed_lines": counters["total_lines"],
-                "matched_lines": counters["matched"],
-                "unmatched_lines": counters["unmatched"],
-                "invalid_period_rows": counters["invalid_period_rows"],
-                "auto_created_labels": counters["auto_labels"],
-                "auto_created_releases": counters["auto_releases"],
-                "auto_created_tracks": counters["auto_tracks"],
-                "total_revenue_eur": round(counters["total_revenue_eur"], 4),
-                "total_label_idr": counters["total_label_idr"],
-                "period_breakdown": period_counts,
-                "updated_at": now_iso(),
-            }},
-        )
+        flush_counter["n"] += 1
+        # Throttled progress write (every N flushes, OR on demand).
+        if force_progress or flush_counter["n"] % PROGRESS_EVERY_N_FLUSHES == 0:
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {
+                    "total_lines": counters["total_lines"],
+                    "processed_lines": counters["total_lines"],
+                    "matched_lines": counters["matched"],
+                    "unmatched_lines": counters["unmatched"],
+                    "invalid_period_rows": counters["invalid_period_rows"],
+                    "auto_created_labels": counters["auto_labels"],
+                    "auto_created_releases": counters["auto_releases"],
+                    "auto_created_tracks": counters["auto_tracks"],
+                    "total_revenue_eur": round(counters["total_revenue_eur"], 4),
+                    "total_label_idr": counters["total_label_idr"],
+                    "period_breakdown": period_counts,
+                    "updated_at": now_iso(),
+                }},
+            )
 
     for hdrs, row_dict in iter_csv_file(file_path):
         if row_dict is None:
@@ -657,9 +676,9 @@ async def _process_csv_import_inline(
         if len(line_batch) >= BATCH_SIZE:
             await _flush()
 
-    # Final flush
-    if line_batch or new_label_batch or new_release_batch or new_track_batch:
-        await _flush()
+    # Final flush — force progress write so the UI sees the exact totals
+    # (skip the redundant else-branch: an empty _flush() still writes progress).
+    await _flush(force_progress=True)
 
     sorted_periods = sorted(period_counts.keys())
     is_multi_period = len(sorted_periods) > 1

@@ -230,6 +230,23 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 16.5 — Batched CSV ingestion (2026-06-29)
+Optimized the `_process_csv_import_inline` hot path so 1M-row CSV imports drop from ~10 minutes to ~2-3 minutes on Atlas.
+
+- **BATCH_SIZE 2,000 → 5,000** (≈4-8 MB per insert_many round trip, well under 16 MB BSON cap & 100k bulk-op limit, 2.5× fewer round trips).
+- **`ordered=False` on every insert_many** (lines/labels/releases/tracks) → MongoDB parallelizes within each batch + skips duplicate-key errors instead of aborting.
+- **All bulk writes route through `db_bg`** (CSOT-uncapped client) → production Atlas no longer kills a slow insert at 10s.
+- **Throttled progress writes** — `PROGRESS_EVERY_N_FLUSHES = 10` reduces `royalty_imports` doc updates from ~500 (per 1M-row import) to ~20, eliminating write contention. Final flush forces a progress write so the UI sees exact totals.
+- **Pre-flight cursor reads** (labels / tracks / releases / pct_history maps) also routed through `db_bg` — at ~100k tracks in production, the full collection scan was already brushing against CSOT.
+- **Missing indexes added** in `seed_indexes_and_admins()`:
+  - `tracks.isrc` and `tracks.label_id` — CSV matcher's hot lookup
+  - `releases.upc` — fallback matcher
+  - Compound `royalty_lines (import_id, match_status, status)` — used by `_publish_bg` chunked pagination
+  - Compound `royalty_lines (import_id, label_id)` — used by per-label aggregate in admin import detail
+  - `seed_indexes_and_admins()` itself migrated to `db_bg` (creating an index on a 1M-row collection itself exceeds CSOT cap on first run).
+- **Local benchmark**: 10,000 synthetic rows → ingestion in 1.2s = ~8,700 rows/s. Projected 1M-row Atlas wall-time ≈ 2-3 min (vs prior ~10 min).
+- **Tests**: `tests/test_phase16_5_batched_csv_import.py` (6 — source asserts + end-to-end perf bench). Combined regression: 40/40 PASS.
+
 ### Phase 16.4 — Delete failed royalty imports + dashboard revenue cache (2026-06-29)
 User-reported: failed periods can't be deleted, and the admin dashboard is "sangat lama dibuka" since the 1M-row CSV import.
 
