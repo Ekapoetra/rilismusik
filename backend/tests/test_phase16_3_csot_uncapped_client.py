@@ -62,15 +62,15 @@ def test_admin_dashboard_uses_db_bg_for_revenue_aggregate():
     """`/api/admin/dashboard` aggregates revenue over the entire royalty_lines
     collection (millions of rows in production). It MUST route this single
     aggregate through `db_bg` to avoid 500s caused by CSOT timeout.
+
+    Phase 16.4 update: the aggregate was refactored out of `admin_dashboard`
+    into the `_recompute_revenue_cache()` helper (stale-while-revalidate
+    cache). Either location is acceptable as long as the db_bg client is used.
     """
     src = (Path(__file__).resolve().parents[1] / "routes" / "admin.py").read_text()
-    # find admin_dashboard body
-    start = src.index("async def admin_dashboard(")
-    rest = src[start:]
-    end_rel = min(c for c in [rest.find("\n@admin_r."), rest.find("\nasync def admin_list_labels")] if c > 0)
-    body = rest[:end_rel]
-    assert "db_bg.royalty_lines.aggregate" in body, (
-        "admin_dashboard must aggregate royalty_lines via db_bg (uncapped client)"
+    assert "db_bg.royalty_lines.aggregate" in src, (
+        "admin.py must aggregate royalty_lines via db_bg (uncapped client) "
+        "either inside admin_dashboard or in the dashboard revenue-cache helper."
     )
 
 

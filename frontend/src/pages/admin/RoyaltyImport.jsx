@@ -51,6 +51,18 @@ export default function AdminRoyaltyImport() {
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
   };
 
+  const remove = async (i, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setErr(""); setMsg("");
+    if (!window.confirm(`Hapus import ${i.period || i.period_start || i.id.slice(0,8)} (${i.status})? Semua baris royalti, label/release/track auto-created akan ikut terhapus. Aksi ini permanen.`)) return;
+    try {
+      const { data } = await api.delete(`/royalty/admin/imports/${i.id}`);
+      setMsg(`Import dihapus — ${data.lines_deleted?.toLocaleString("id-ID") || 0} baris, ${data.auto_labels_deleted || 0} label, ${data.auto_releases_deleted || 0} release, ${data.auto_tracks_deleted || 0} track ikut terhapus.`);
+      load();
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+  };
+
   // Direct-to-R2 upload: initiate → PUT to R2 (with progress) → finalize.
   // Bypasses the Kubernetes ingress body-size limit (~100 MB), handles files up to 5 GB.
   const submit = async (e) => {
@@ -181,7 +193,7 @@ export default function AdminRoyaltyImport() {
                 </>
               )}
             </div>
-            <div className="col-span-12 md:col-span-2 flex items-center gap-2">
+            <div className="col-span-12 md:col-span-2 flex items-center gap-2 flex-wrap">
               <StatusBadge s={i.status} />
               {(i.status === "processing" || i.status === "error") && (
                 <button
@@ -191,6 +203,16 @@ export default function AdminRoyaltyImport() {
                   title="Retry background processing"
                 >
                   <RefreshCw className="w-3 h-3" /> Retry
+                </button>
+              )}
+              {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(i.status) && (
+                <button
+                  onClick={(e) => remove(i, e)}
+                  className="rm-btn-ghost text-rose-300 hover:bg-rose-500/10 flex items-center gap-1 text-[10px] px-2 py-1"
+                  data-testid={`royalty-import-delete-${i.id}`}
+                  title="Hapus import ini permanen (hanya untuk yang belum dipublish/dana diterima)"
+                >
+                  <Trash2 className="w-3 h-3" /> Hapus
                 </button>
               )}
             </div>

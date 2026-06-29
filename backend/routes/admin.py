@@ -48,6 +48,49 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 admin_r = APIRouter(prefix="/admin", tags=["admin"])
 
 
+# In-memory dashboard cache. Lifetime is module-local so it resets cleanly on
+# every pod restart / hot reload. Re-aggregating ~1M royalty_lines on every
+# dashboard load was the dominant latency in production (3-10s even with db_bg).
+# Refresh strategy: stale-while-revalidate — if cache is older than
+# DASHBOARD_REVENUE_TTL_SEC, recompute in the background but immediately serve
+# the cached value to keep the UI responsive.
+import time as _time
+DASHBOARD_REVENUE_TTL_SEC = 60  # cache lifetime
+_dashboard_revenue_cache: Dict[str, Any] = {"total_eur": 0, "total_idr": 0, "computed_at": 0.0, "refreshing": False}
+
+
+async def _recompute_revenue_cache() -> None:
+    """Recompute the (total_eur, total_idr) aggregate over royalty_lines and
+    store in module-local + Mongo (`metrics_cache.dashboard_revenue`) so a
+    fresh pod warm-start can pick it up without a 1M-row scan.
+    """
+    _dashboard_revenue_cache["refreshing"] = True
+    try:
+        pipeline = [
+            {"$group": {"_id": None, "total_eur": {"$sum": "$revenue_eur"}, "total_idr": {"$sum": "$label_idr"}}},
+        ]
+        total_eur = 0
+        total_idr = 0
+        async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+            total_eur = r.get("total_eur", 0) or 0
+            total_idr = r.get("total_idr", 0) or 0
+        now_ts = _time.time()
+        _dashboard_revenue_cache.update({"total_eur": total_eur, "total_idr": total_idr, "computed_at": now_ts})
+        # Mongo persist (small upsert, safe via db_bg)
+        try:
+            await db_bg.metrics_cache.update_one(
+                {"_id": "dashboard_revenue"},
+                {"$set": {"total_eur": total_eur, "total_idr": total_idr, "computed_at": now_ts}},
+                upsert=True,
+            )
+        except Exception as e:
+            logger.warning("[DASHBOARD CACHE] mongo persist failed (non-fatal): %s", e)
+    except Exception as e:
+        logger.warning("[DASHBOARD CACHE] recompute failed (non-fatal): %s", e)
+    finally:
+        _dashboard_revenue_cache["refreshing"] = False
+
+
 @admin_r.get("/dashboard")
 async def admin_dashboard(user: dict = Depends(require_admin)):
     total_labels = await db.labels.count_documents({})
@@ -63,19 +106,33 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
     active_subscriptions = await db.labels.count_documents({"subscription_status": "active"})
     suspended_labels = await db.labels.count_documents({"account_status": "suspended"})
 
-    # total revenue EUR + IDR from royalty_lines (heavy aggregate over millions of
-    # rows — use db_bg so the production 10s CSOT cap doesn't kill the dashboard)
-    revenue_pipeline = [
-        {"$group": {"_id": None, "total_eur": {"$sum": "$revenue_eur"}, "total_idr": {"$sum": "$label_idr"}}},
-    ]
-    total_eur = 0
-    total_idr = 0
-    try:
-        async for r in db_bg.royalty_lines.aggregate(revenue_pipeline, allowDiskUse=True):
-            total_eur = r.get("total_eur", 0)
-            total_idr = r.get("total_idr", 0)
-    except Exception as e:
-        logger.warning("[DASHBOARD] revenue aggregate failed (non-fatal): %s", e)
+    # Revenue totals — served from cache (stale-while-revalidate). On a cold
+    # cache we first warm from Mongo's `metrics_cache.dashboard_revenue` doc
+    # (carried across restarts), then schedule an async refresh if needed.
+    now_ts = _time.time()
+    if _dashboard_revenue_cache["computed_at"] == 0.0:
+        try:
+            persisted = await db.metrics_cache.find_one({"_id": "dashboard_revenue"})
+            if persisted:
+                _dashboard_revenue_cache.update({
+                    "total_eur": persisted.get("total_eur", 0) or 0,
+                    "total_idr": persisted.get("total_idr", 0) or 0,
+                    "computed_at": persisted.get("computed_at", 0) or 0,
+                })
+        except Exception as e:
+            logger.warning("[DASHBOARD CACHE] mongo warm-load failed: %s", e)
+
+    cache_age = now_ts - _dashboard_revenue_cache["computed_at"]
+    if _dashboard_revenue_cache["computed_at"] == 0.0:
+        # First-ever load: compute synchronously so the value isn't 0
+        await _recompute_revenue_cache()
+    elif cache_age > DASHBOARD_REVENUE_TTL_SEC and not _dashboard_revenue_cache["refreshing"]:
+        # Stale → schedule background refresh and return cached value immediately
+        import asyncio
+        asyncio.create_task(_recompute_revenue_cache())
+
+    total_eur = _dashboard_revenue_cache["total_eur"]
+    total_idr = _dashboard_revenue_cache["total_idr"]
 
     last_csv = await db.royalty_imports.find_one({}, {"_id": 0}, sort=[("created_at", -1)])
 
@@ -94,7 +151,24 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
         "suspended_labels": suspended_labels,
         "total_revenue_eur": total_eur,
         "total_revenue_idr": total_idr,
+        "revenue_cache_age_sec": int(cache_age) if _dashboard_revenue_cache["computed_at"] else None,
         "last_csv_import": last_csv,
+    }
+
+
+@admin_r.post("/dashboard/refresh-revenue")
+async def admin_refresh_revenue(user: dict = Depends(require_admin)):
+    """Force a sync recompute of the dashboard revenue totals.
+
+    Useful after a fresh CSV import / large publish — admin can hit this once
+    to repopulate the cache without waiting for the 60s TTL.
+    """
+    await _recompute_revenue_cache()
+    return {
+        "ok": True,
+        "total_eur": _dashboard_revenue_cache["total_eur"],
+        "total_idr": _dashboard_revenue_cache["total_idr"],
+        "computed_at": _dashboard_revenue_cache["computed_at"],
     }
 
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Loader2, RefreshCw, XCircle } from "lucide-react";
+import { Loader2, RefreshCw, XCircle, Trash2 } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -70,6 +70,20 @@ export default function AdminRoyaltyDetail() {
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
   };
 
+  const remove = async () => {
+    setBusy(true); setErr(""); setMsg("");
+    if (!window.confirm(`Hapus import periode ${data?.import?.period || data?.import?.period_start || id} (status: ${data?.import?.status})? Semua baris royalti + label/release/track auto-created akan ikut terhapus. Aksi ini permanen.`)) {
+      setBusy(false);
+      return;
+    }
+    try {
+      const { data: res } = await api.delete(`/royalty/admin/imports/${id}`);
+      setMsg(`Import dihapus — ${(res.lines_deleted || 0).toLocaleString("id-ID")} baris terhapus. Kembali ke list…`);
+      setTimeout(() => nav("/admin/royalty"), 1500);
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    finally { setBusy(false); }
+  };
+
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { import: imp, lines, per_label } = data;
 
@@ -105,6 +119,17 @@ export default function AdminRoyaltyDetail() {
           )}
           {imp.status === "published" && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">Tandai Dana Diterima</button>}
           {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">✓ Dana sudah diterima</span>}
+          {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(imp.status) && (
+            <button
+              className="rm-btn-ghost text-rose-300 hover:bg-rose-500/10 flex items-center gap-2"
+              disabled={busy}
+              onClick={remove}
+              data-testid="admin-royalty-delete"
+              title="Hapus import ini permanen — hanya untuk yang belum dipublish/dana diterima"
+            >
+              <Trash2 className="w-4 h-4" /> Hapus Import
+            </button>
+          )}
         </div>
       </div>
 

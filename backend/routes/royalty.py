@@ -1010,6 +1010,15 @@ async def _publish_bg(*, import_id: str, user_id: str):
                            after={"labels_credited": len(credited), "total_labels": total_labels})
         logger.info("[PUBLISH BG] %s DONE — %d/%d labels credited", import_id, len(credited), total_labels)
 
+        # Best-effort: invalidate the dashboard revenue cache so admins see the
+        # new totals immediately on next dashboard load instead of waiting 60s.
+        try:
+            from routes.admin import _recompute_revenue_cache  # lazy import to avoid cycle
+            import asyncio as _aio
+            _aio.create_task(_recompute_revenue_cache())
+        except Exception:
+            pass
+
     except Exception as e:
         logger.exception("[PUBLISH BG] %s FAILED: %s", import_id, e)
         try:
@@ -1414,6 +1423,93 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
     ))
     await log_activity(user["id"], "retry_royalty_import", "royalty", import_id)
     return {"ok": True, "import_id": import_id, "status": "processing"}
+
+
+@royalty_r.delete("/admin/imports/{import_id}")
+async def admin_delete_import(import_id: str, user: dict = Depends(require_super_admin)):
+    """Permanently delete a royalty import that hasn't been published or had its
+    funds released. Allowed statuses:
+      - awaiting_upload (no file uploaded yet)
+      - processing (in-flight CSV parser)
+      - error (CSV parsing failed)
+      - publish_error (background publish failed)
+      - pending_review (parsed, but admin hasn't published yet)
+
+    REFUSED for `published` / `publishing` / `dana_received` — those have
+    `balance_transactions` and label balances tied to them. Reversing those
+    would require a separate explicit refund flow (out of scope here).
+
+    Cleans up:
+      - All `royalty_lines` for this import (chunked via db_bg)
+      - Any auto-created labels/releases/tracks marked `auto_created_from=this_id`
+      - The uploaded CSV file on disk + R2 object (best effort)
+      - The `royalty_imports` doc itself
+    """
+    imp = await db.royalty_imports.find_one({"id": import_id})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+
+    DELETABLE_STATUSES = {"awaiting_upload", "processing", "error", "publish_error", "pending_review"}
+    status_val = imp.get("status")
+    if status_val not in DELETABLE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Tidak bisa hapus import dengan status '{status_val}'. "
+                "Import yang sudah published/dana_received mempengaruhi saldo label. "
+                "Status yang bisa dihapus: " + ", ".join(sorted(DELETABLE_STATUSES))
+            ),
+        )
+
+    # 1) Reset all derived data (lines, auto-created entities). Uses db (delete_many)
+    # for tracks/releases/labels — small filtered sets. Lines deletion via db_bg
+    # in case the CSV did manage to insert millions of rows before failing.
+    n_lines = (await db_bg.royalty_lines.delete_many({"import_id": import_id})).deleted_count
+    n_labels = (await db.labels.delete_many({"auto_created_from": import_id})).deleted_count
+    n_releases = (await db.releases.delete_many({"auto_created_from": import_id})).deleted_count
+    n_tracks = (await db.tracks.delete_many({"auto_created_from": import_id})).deleted_count
+
+    # 2) Cleanup R2 object + local CSV (best effort — never block the delete)
+    r2_key = imp.get("r2_key")
+    if r2_key:
+        try:
+            await storage_service.delete_object(key=r2_key)
+        except Exception as e:
+            logger.warning("[ROYALTY DELETE] R2 cleanup failed for %s: %s", import_id, e)
+    local_csv = imp.get("file_path")
+    if local_csv:
+        try:
+            from pathlib import Path as _P
+            _P(local_csv).unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning("[ROYALTY DELETE] local file cleanup failed for %s: %s", import_id, e)
+
+    # 3) Drop the import doc
+    await db.royalty_imports.delete_one({"id": import_id})
+
+    await log_activity(
+        user["id"], "delete_royalty_import", "royalty", import_id,
+        before={"period": imp.get("period") or imp.get("period_start"), "status": status_val},
+        after={"lines_deleted": n_lines, "auto_labels_deleted": n_labels,
+               "auto_releases_deleted": n_releases, "auto_tracks_deleted": n_tracks},
+    )
+
+    # Best-effort cache refresh — revenue totals may have shifted.
+    try:
+        from routes.admin import _recompute_revenue_cache  # lazy import
+        import asyncio as _aio
+        _aio.create_task(_recompute_revenue_cache())
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "import_id": import_id,
+        "lines_deleted": n_lines,
+        "auto_labels_deleted": n_labels,
+        "auto_releases_deleted": n_releases,
+        "auto_tracks_deleted": n_tracks,
+    }
 
 
 async def resume_interrupted_imports():
