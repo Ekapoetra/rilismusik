@@ -6,11 +6,12 @@ import { BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
 import {
   LayoutDashboard, Building2, UserSquare, Disc3, CreditCard, FileSpreadsheet,
-  Banknote, MessageSquare, LayoutTemplate, FileSignature, Music, Users2, ScrollText, LogOut, DatabaseZap
+  Banknote, MessageSquare, LayoutTemplate, FileSignature, Music, Users2, ScrollText, LogOut, DatabaseZap, BarChart3
 } from "lucide-react";
 
 const NAV = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: ADMIN_NAV.dashboard, roles: ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"] },
+  { to: "/admin/analytics", label: "Analytics Royalti", icon: BarChart3, tid: "admin-nav-analytics", roles: ["super_admin", "admin_finance"] },
   { to: "/admin/labels", label: "Label Management", icon: Building2, tid: ADMIN_NAV.labels, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
   { to: "/admin/artists", label: "Artist Management", icon: UserSquare, tid: ADMIN_NAV.artists, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
   { to: "/admin/releases", label: "Release Management", icon: Disc3, tid: ADMIN_NAV.releases, roles: ["super_admin", "admin_release"] },

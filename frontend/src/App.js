@@ -25,6 +25,7 @@ import LabelContract from "@/pages/label/Contract";
 import LabelWami from "@/pages/label/Wami";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminAnalytics from "@/pages/admin/Analytics";
 import AdminLabels from "@/pages/admin/Labels";
 import AdminLabelDetail from "@/pages/admin/LabelDetail";
 import AdminReleases from "@/pages/admin/Releases";
@@ -85,6 +86,7 @@ function App() {
           {/* Admin */}
           <Route element={<ProtectedRoute roles={ADMIN_ROLES}><AdminLayout /></ProtectedRoute>}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/labels" element={<AdminLabels />} />
             <Route path="/admin/labels/:id" element={<AdminLabelDetail />} />
             <Route path="/admin/artists" element={<AdminArtists />} />

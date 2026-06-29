@@ -31,6 +31,7 @@ from routes.payments import pay_r
 from routes.wami import wami_r
 from routes.cms import cms_r
 from routes.admin import admin_r
+from routes.admin_analytics import analytics_r, recompute_monthly_analytics
 from routes.royalty import royalty_r, resume_interrupted_imports
 from routes.withdraw import withdraw_r
 from routes.tickets import ticket_r
@@ -80,6 +81,7 @@ api.include_router(pay_r)
 api.include_router(wami_r)
 api.include_router(cms_r)
 api.include_router(admin_r)
+api.include_router(analytics_r)
 api.include_router(royalty_r)
 api.include_router(withdraw_r)
 api.include_router(ticket_r)

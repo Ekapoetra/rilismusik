@@ -1038,6 +1038,16 @@ async def _publish_bg(*, import_id: str, user_id: str):
         except Exception:
             pass
 
+        # Best-effort: rebuild the monthly_analytics cache so the dashboard's
+        # charts reflect the just-published data. Heavy aggregate (1M+ rows on
+        # production) — fire-and-forget so this BG task can finish.
+        try:
+            from routes.admin_analytics import recompute_monthly_analytics  # lazy
+            import asyncio as _aio2
+            _aio2.create_task(recompute_monthly_analytics())
+        except Exception:
+            pass
+
     except Exception as e:
         logger.exception("[PUBLISH BG] %s FAILED: %s", import_id, e)
         try:
@@ -1518,6 +1528,15 @@ async def admin_delete_import(import_id: str, user: dict = Depends(require_super
         from routes.admin import _recompute_revenue_cache  # lazy import
         import asyncio as _aio
         _aio.create_task(_recompute_revenue_cache())
+    except Exception:
+        pass
+
+    # Also rebuild analytics cache (monthly chart cache lives separate from the
+    # revenue total cache).
+    try:
+        from routes.admin_analytics import recompute_monthly_analytics  # lazy
+        import asyncio as _aio2
+        _aio2.create_task(recompute_monthly_analytics())
     except Exception:
         pass
 
