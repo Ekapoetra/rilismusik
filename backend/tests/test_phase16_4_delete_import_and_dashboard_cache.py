@@ -69,27 +69,31 @@ def _initiate_import(token: str, filename: str = "TEST_phase164_dummy.csv"):
 # -----------------------------------------------------------------------------
 class TestRoyaltyImportDelete:
     def test_delete_awaiting_upload_succeeds(self, super_token):
+        """Phase 23 update: delete is now async (202 Accepted + background task).
+        We poll until the import doc disappears or status flips to 'deleting'."""
         import_id = _initiate_import(super_token)
         r = requests.delete(
             f"{BASE_URL}/api/royalty/admin/imports/{import_id}",
             headers=_headers(super_token),
             timeout=30,
         )
-        assert r.status_code == 200, f"DELETE failed: {r.status_code} {r.text}"
+        assert r.status_code == 202, f"DELETE expected 202 Accepted, got {r.status_code} {r.text}"
         body = r.json()
         assert body.get("ok") is True
-        # Response shape
-        for k in ("lines_deleted", "auto_labels_deleted", "auto_releases_deleted", "auto_tracks_deleted"):
-            assert k in body, f"missing field {k} in delete response: {body}"
-            assert isinstance(body[k], int)
+        assert body.get("status") == "deleting"
+        assert body.get("import_id") == import_id
 
-        # GET after delete returns 404
-        g = requests.get(
-            f"{BASE_URL}/api/royalty/admin/imports/{import_id}",
-            headers=_headers(super_token),
-            timeout=30,
-        )
-        assert g.status_code == 404, f"expected 404 after delete, got {g.status_code} {g.text}"
+        # Poll up to 10s for the background task to finish + drop the doc
+        for _ in range(20):
+            g = requests.get(
+                f"{BASE_URL}/api/royalty/admin/imports/{import_id}",
+                headers=_headers(super_token),
+                timeout=30,
+            )
+            if g.status_code == 404:
+                return  # success — doc deleted by background task
+            time.sleep(0.5)
+        pytest.fail(f"import {import_id} still present after 10s — background delete did not complete")
 
     def test_finance_admin_gets_403(self, super_token, finance_token):
         import_id = _initiate_import(super_token)
@@ -237,9 +241,10 @@ class TestCacheInvalidationAfterDelete:
             headers=_headers(super_token),
             timeout=30,
         )
-        assert del_r.status_code == 200
+        # Phase 23: 202 Accepted (background task)
+        assert del_r.status_code == 202
 
-        # Wait up to 6s for background task to recompute
+        # Wait up to 10s for background task to recompute
         new_age = None
         for _ in range(6):
             time.sleep(1)

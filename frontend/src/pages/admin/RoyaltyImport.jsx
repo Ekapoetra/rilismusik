@@ -30,7 +30,7 @@ export default function AdminRoyaltyImport() {
   // Auto-poll every 4s while any import is still processing OR publishing
   const pollRef = useRef(null);
   useEffect(() => {
-    const anyInFlight = imports.some((i) => i.status === "processing" || i.status === "publishing");
+    const anyInFlight = imports.some((i) => i.status === "processing" || i.status === "publishing" || i.status === "deleting");
     if (anyInFlight && !pollRef.current) {
       pollRef.current = setInterval(load, 4000);
     } else if (!anyInFlight && pollRef.current) {
@@ -77,8 +77,10 @@ export default function AdminRoyaltyImport() {
     setErr(""); setMsg("");
     if (!window.confirm(`Hapus import ${i.period || i.period_start || i.id.slice(0,8)} (${i.status})? Semua baris royalti, label/release/track auto-created akan ikut terhapus. Aksi ini permanen.`)) return;
     try {
-      const { data } = await api.delete(`/royalty/admin/imports/${i.id}`);
-      setMsg(`Import dihapus — ${data.lines_deleted?.toLocaleString("id-ID") || 0} baris, ${data.auto_labels_deleted || 0} label, ${data.auto_releases_deleted || 0} release, ${data.auto_tracks_deleted || 0} track ikut terhapus.`);
+      // Backend returns 202 Accepted — deletion runs in background via _delete_import_bg.
+      // The row status flips to 'deleting' immediately; the auto-poll picks it up.
+      await api.delete(`/royalty/admin/imports/${i.id}`);
+      setMsg("Penghapusan dijadwalkan — baris akan hilang setelah cleanup selesai (beberapa detik untuk import besar).");
       load();
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
   };
@@ -362,6 +364,7 @@ function StatusBadge({ s }) {
     published: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Published", icon: CheckCircle2 },
     dana_received: { bg: "bg-emerald-500/15", color: "text-emerald-300", label: "Dana Diterima", icon: Banknote },
     error: { bg: "bg-red-500/15", color: "text-red-300", label: "Error", icon: XCircle },
+    deleting: { bg: "bg-rose-500/15", color: "text-rose-300", label: "Menghapus…", icon: Loader2, spin: true },
   }[s] || { bg: "bg-white/[0.06]", color: "text-zinc-300", label: s };
   const Icon = map.icon;
   return <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${map.bg} ${map.color}`} data-testid={`royalty-status-${s}`}>{Icon && <Icon className={`w-3 h-3 ${map.spin ? "animate-spin" : ""}`} />}{map.label}</span>;

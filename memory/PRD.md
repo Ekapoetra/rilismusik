@@ -230,6 +230,26 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 23.1 — CSV `Bulan Laporan` priority + async Delete (2026-06-29)
+Two production bugs reported back-to-back: (1) royalty imports were tagging ALL rows with the form's `period` field, overwriting the actual CSV `Bulan Laporan` column values — breaking multi-period imports for analytics, FIFO withdraw, and rollups. (2) The "Hapus" button on stuck imports did nothing because the synchronous `delete_many` over 600K-1M `royalty_lines` exceeded the request timeout.
+
+- **Fix #1 — CSV column wins** (`routes/royalty.py`):
+  - Line 546: `line_period = raw.get("row_period") or period` (was `period or raw.get("row_period")`). CSV's `Bulan Laporan` column is now ALWAYS the source of truth. Form's `period` only kicks in if a row has no `Bulan Laporan` value (true legacy CSVs).
+  - `display_period` derivation also reordered to derive strictly from `sorted_periods`; form period is only a last-resort default when the CSV had zero valid rows.
+- **Fix #2 — Async background delete** (`routes/royalty.py`):
+  - `admin_delete_import` now flips status to `deleting` immediately + returns **HTTP 202** + spawns `_delete_import_bg`. No more silent timeout on 600K-1M row imports.
+  - `_delete_import_bg` chunks the royalty_lines wipe via `db_bg` + `_id`-paginated 5,000-row batches, writes `deletion_progress_lines` for live progress, then cleans auto-created entities + R2 + local CSV + the import doc itself. On exception, surfaces `error_message` on the import doc.
+  - New status `deleting` whitelisted in `DELETABLE_STATUSES` so re-clicking Hapus on an already-deleting row is a no-op (returns 202 again).
+  - `admin_list_imports` exposes `progress_pct` derived from `deletion_progress_lines / total_lines` so the UI can render a live bar.
+- **Frontend `RoyaltyImport.jsx`**:
+  - `remove()` now treats 202 as success, shows toast "Penghapusan dijadwalkan — baris akan hilang setelah cleanup selesai".
+  - Auto-poll trigger extended to include `deleting` status.
+  - New rose-colored `deleting` status badge with spinner.
+- **Tests**:
+  - `/app/backend/tests/test_phase23_1_bulan_laporan_priority.py` (2/2 PASS) — multi-period CSV preserves true row periods; legacy CSV without column falls back to form period.
+  - `/app/backend/tests/test_phase16_4_delete_import_and_dashboard_cache.py` updated: delete now expects 202 + polls for 404. (11/11 still PASS.)
+  - Combined regression: **34/34 PASS** (Phase 16.4 + 16.5 + 22 + 23 + 23.1).
+
 ### Phase 23 — Stuck Royalty Import Recovery (2026-06-29)
 User reported in production: 2 large CSV imports (600K + 750K rows) stuck at "Processing 99%" for >1 hour. Root cause was twofold — (1) the UI caps display at 99% while status='processing', and (2) the final `update_one` to flip status to `pending_review` used the CSOT-capped `db` client, so Atlas slowness silently aborted the transition. **Retry was also non-responsive** because `_reset_import_for_retry` ran `delete_many` over 600K+ rows through `db` and timed out.
 

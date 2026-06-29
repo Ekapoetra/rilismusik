@@ -543,7 +543,12 @@ async def _process_csv_import_inline(
         revenue_eur = raw["revenue_eur"]
         counters["total_revenue_eur"] += revenue_eur
 
-        line_period = period or raw.get("row_period")
+        # The CSV's `Bulan Laporan` column (raw["row_period"]) is the source of
+        # truth — multi-period CSVs must keep each row's true period intact for
+        # analytics, FIFO withdraw, and rollups to work correctly. The form's
+        # `period` field is now only a fallback for legacy CSVs that lack a
+        # Bulan Laporan column entirely.
+        line_period = raw.get("row_period") or period
         if not line_period:
             counters["invalid_period_rows"] += 1
             continue
@@ -682,7 +687,12 @@ async def _process_csv_import_inline(
 
     sorted_periods = sorted(period_counts.keys())
     is_multi_period = len(sorted_periods) > 1
-    display_period = period if period else (sorted_periods[0] if len(sorted_periods) == 1 else "multi")
+    # Derive display_period strictly from the CSV's actual `Bulan Laporan`
+    # values. Form's `period` only kicks in if the CSV had 0 valid rows.
+    if sorted_periods:
+        display_period = sorted_periods[0] if len(sorted_periods) == 1 else "multi"
+    else:
+        display_period = period or "multi"
 
     # Route the final status flip through db_bg (CSOT-uncapped). Atlas can be
     # slow to ack this write while a 1M-row import is still settling indexes —
@@ -749,6 +759,11 @@ async def admin_list_imports(user: dict = Depends(require_admin)):
             it["progress_pct"] = min(99, int((it.get("processed_lines", 0) / max(it["total_lines"], 1)) * 100))
         elif it.get("status") == "publishing":
             it["progress_pct"] = it.get("publish_progress_pct") or 0
+        elif it.get("status") == "deleting":
+            # Surface deletion progress so admin can see movement on large imports.
+            done = it.get("deletion_progress_lines", 0)
+            total = it.get("total_lines") or 1
+            it["progress_pct"] = min(99, int((done / max(total, 1)) * 100))
     return items
 
 
@@ -1614,7 +1629,7 @@ async def admin_delete_import(import_id: str, user: dict = Depends(require_super
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
 
-    DELETABLE_STATUSES = {"awaiting_upload", "processing", "error", "publish_error", "pending_review"}
+    DELETABLE_STATUSES = {"awaiting_upload", "processing", "error", "publish_error", "pending_review", "deleting"}
     status_val = imp.get("status")
     if status_val not in DELETABLE_STATUSES:
         raise HTTPException(
@@ -1626,64 +1641,121 @@ async def admin_delete_import(import_id: str, user: dict = Depends(require_super
             ),
         )
 
-    # 1) Reset all derived data (lines, auto-created entities). Uses db (delete_many)
-    # for tracks/releases/labels — small filtered sets. Lines deletion via db_bg
-    # in case the CSV did manage to insert millions of rows before failing.
-    n_lines = (await db_bg.royalty_lines.delete_many({"import_id": import_id})).deleted_count
-    n_labels = (await db.labels.delete_many({"auto_created_from": import_id})).deleted_count
-    n_releases = (await db.releases.delete_many({"auto_created_from": import_id})).deleted_count
-    n_tracks = (await db.tracks.delete_many({"auto_created_from": import_id})).deleted_count
-
-    # 2) Cleanup R2 object + local CSV (best effort — never block the delete)
-    r2_key = imp.get("r2_key")
-    if r2_key:
-        try:
-            await storage_service.delete_object(key=r2_key)
-        except Exception as e:
-            logger.warning("[ROYALTY DELETE] R2 cleanup failed for %s: %s", import_id, e)
-    local_csv = imp.get("file_path")
-    if local_csv:
-        try:
-            from pathlib import Path as _P
-            _P(local_csv).unlink(missing_ok=True)
-        except Exception as e:
-            logger.warning("[ROYALTY DELETE] local file cleanup failed for %s: %s", import_id, e)
-
-    # 3) Drop the import doc
-    await db.royalty_imports.delete_one({"id": import_id})
-
-    await log_activity(
-        user["id"], "delete_royalty_import", "royalty", import_id,
-        before={"period": imp.get("period") or imp.get("period_start"), "status": status_val},
-        after={"lines_deleted": n_lines, "auto_labels_deleted": n_labels,
-               "auto_releases_deleted": n_releases, "auto_tracks_deleted": n_tracks},
+    # Flip status to 'deleting' immediately so the UI can render a spinner +
+    # block other actions on this row. The heavy cleanup (1M+ row deletions)
+    # runs in a background task — returns 202 to avoid the 60s ingress timeout
+    # that was making the Hapus button silently fail in production.
+    await db_bg.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "status": "deleting",
+            "deletion_started_at": now_iso(),
+            "deletion_started_by": user["id"],
+            "previous_status": status_val,
+            "updated_at": now_iso(),
+        }},
     )
 
-    # Best-effort cache refresh — revenue totals may have shifted.
-    try:
-        from routes.admin import _recompute_revenue_cache  # lazy import
-        import asyncio as _aio
-        _aio.create_task(_recompute_revenue_cache())
-    except Exception:
-        pass
+    import asyncio
+    asyncio.create_task(_delete_import_bg(import_id=import_id, user_id=user["id"]))
 
-    # Also rebuild analytics cache (monthly chart cache lives separate from the
-    # revenue total cache).
-    try:
-        from routes.admin_analytics import recompute_monthly_analytics  # lazy
-        import asyncio as _aio2
-        _aio2.create_task(recompute_monthly_analytics())
-    except Exception:
-        pass
+    return Response(
+        status_code=202,
+        content='{"ok":true,"import_id":"' + import_id + '","status":"deleting","detail":"Deletion dijadwalkan di background. Refresh untuk melihat progress."}',
+        media_type="application/json",
+    )
 
-    return {
-        "ok": True,
-        "import_id": import_id,
-        "lines_deleted": n_lines,
-        "auto_labels_deleted": n_labels,
-        "auto_releases_deleted": n_releases,
-        "auto_tracks_deleted": n_tracks,
-    }
+
+async def _delete_import_bg(*, import_id: str, user_id: str):
+    """Background heavy-deletion for `admin_delete_import`. Chunks the
+    royalty_lines wipe through db_bg + paginated _id so we never blow past
+    server-side maxTimeMS on a 1M-row delete.
+    """
+    try:
+        imp = await db_bg.royalty_imports.find_one({"id": import_id})
+        if not imp:
+            logger.warning("[ROYALTY DELETE BG] %s vanished mid-delete", import_id)
+            return
+
+        # 1) Chunked delete of royalty_lines (the heavy part)
+        CHUNK = 5000
+        n_lines = 0
+        while True:
+            batch = await db_bg.royalty_lines.find(
+                {"import_id": import_id}, {"_id": 1},
+            ).limit(CHUNK).to_list(CHUNK)
+            if not batch:
+                break
+            oids = [d["_id"] for d in batch]
+            res = await db_bg.royalty_lines.delete_many({"_id": {"$in": oids}})
+            n_lines += res.deleted_count
+            # progress write so the admin sees movement
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {"deletion_progress_lines": n_lines, "updated_at": now_iso()}},
+            )
+
+        # 2) Auto-created entities (small filtered sets — use db_bg for consistency)
+        n_labels = (await db_bg.labels.delete_many({"auto_created_from": import_id})).deleted_count
+        n_releases = (await db_bg.releases.delete_many({"auto_created_from": import_id})).deleted_count
+        n_tracks = (await db_bg.tracks.delete_many({"auto_created_from": import_id})).deleted_count
+
+        # 3) R2 + local CSV cleanup (best-effort)
+        r2_key = imp.get("r2_key")
+        if r2_key:
+            try:
+                await storage_service.delete_object(key=r2_key)
+            except Exception as e:
+                logger.warning("[ROYALTY DELETE BG] R2 cleanup failed for %s: %s", import_id, e)
+        local_csv = imp.get("file_path")
+        if local_csv:
+            try:
+                from pathlib import Path as _P
+                _P(local_csv).unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning("[ROYALTY DELETE BG] local file cleanup failed for %s: %s", import_id, e)
+
+        # 4) Drop the import doc itself
+        await db_bg.royalty_imports.delete_one({"id": import_id})
+
+        await log_activity(
+            user_id, "delete_royalty_import", "royalty", import_id,
+            before={"period": imp.get("period") or imp.get("period_start"),
+                    "status": imp.get("previous_status")},
+            after={"lines_deleted": n_lines, "auto_labels_deleted": n_labels,
+                   "auto_releases_deleted": n_releases, "auto_tracks_deleted": n_tracks},
+        )
+
+        # 5) Best-effort cache refresh
+        try:
+            from routes.admin import _recompute_revenue_cache
+            import asyncio as _aio
+            _aio.create_task(_recompute_revenue_cache())
+        except Exception:
+            pass
+        try:
+            from routes.admin_analytics import recompute_monthly_analytics
+            import asyncio as _aio2
+            _aio2.create_task(recompute_monthly_analytics())
+        except Exception:
+            pass
+
+        logger.info("[ROYALTY DELETE BG] %s complete — %d lines, %d labels, %d releases, %d tracks",
+                    import_id, n_lines, n_labels, n_releases, n_tracks)
+    except Exception as e:
+        logger.exception("[ROYALTY DELETE BG] %s failed: %s", import_id, e)
+        # Surface the failure on the import doc so the admin sees what went wrong
+        try:
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {
+                    "status": "error",
+                    "error_message": f"Deletion gagal: {type(e).__name__}: {str(e)[:300]}",
+                    "updated_at": now_iso(),
+                }},
+            )
+        except Exception:
+            pass
 
 
 async def resume_interrupted_imports():
