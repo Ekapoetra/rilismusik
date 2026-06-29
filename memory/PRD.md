@@ -211,17 +211,16 @@ See `/app/memory/test_credentials.md`.
 ## Prioritized Backlog
 
 ### P0 (next session)
-- **Xendit LIVE integration** — replace mock-pay with real Xendit invoice/webhook for PPR + Subscription tiers + WAMI add-on. Needs API keys.
-- **Email notifications LIVE** (Resend / SendGrid) — currently only in-app + console-logged.
+- **Optimize CSV processing with `insert_many` batched** — `royalty_lines` are inserted one-by-one via streaming. Refactor to batch insert ~5,000 documents per round trip → drop 1M-row import wall-time from ~10 min to ~1–2 min.
+- **Xendit LIVE integration** — replace mock-pay with real Xendit invoice/webhook for PPR + Subscription tiers + WAMI add-on. Webhook already locked behind `XENDIT_CALLBACK_TOKEN` (Phase 17 SEC-001). Need API keys + dashboard webhook URL.
 
 ### P1 (Production polish)
-- Cloud Storage (S3 / Cloudinary) for WAV + cover + contract PDFs.
-- PATCH /api/admin/labels/{id} should accept `subscription_tier` (admins currently can't change tier via API).
 - CMS Landing Page dynamic linkage (Admin CMS already drives 12 keys — verify all are referenced live).
-- Replace dev-mode token returns from auth endpoints with real email send.
+- PATCH /api/admin/labels/{id} should accept `subscription_tier` (admins currently can't change tier via API).
 - Google OAuth login (Emergent managed).
 - PDF export of royalty report (currently CSV only).
 - Contract MIME magic-byte check (currently extension-only).
+- Re-seed demo labels so Phase 2/3/4/6/9 tests pass again post-Phase-13 reset.
 
 ### P2 (Phase 7+ — Growth)
 - Public artist profile pages, royalty forecasting.
@@ -229,7 +228,19 @@ See `/app/memory/test_credentials.md`.
 - Mobile native app.
 - Multi-artist royalty splits per track.
 
+## Changelog
+
+### Phase 17 — Security Hardening (2026-06-29)
+Four critical/medium audit findings remediated. 18/18 security + regression tests PASS.
+
+- **SEC-001 — Token leak fixed.** `/api/auth/forgot-password`, `/api/auth/register`, `/api/auth/resend-verification` no longer return `reset_token` / `verification_token` in HTTP bodies. Tokens are persisted in MongoDB (`password_reset_tokens` / `email_verification_tokens`) and delivered only via Hostinger SMTP.
+- **SEC-001 — Xendit webhook locked.** `/api/payments/webhook/xendit` now requires the `x-callback-token` header (constant-time compared to `XENDIT_CALLBACK_TOKEN` env). Fails closed (HTTP 503) when env var is unset → no unauthenticated payment-confirmation bypass possible until live Xendit is wired.
+- **SEC-002 — Per-email brute-force lockout.** Login lockout is now tracked at two levels (`email:<addr>` + `<ip>:<addr>`). Attackers rotating `X-Forwarded-For` headers can no longer bypass the 5-attempt threshold. xfail marker removed from `test_brute_force_lockout_after_5`.
+- **SEC-003 — Session invalidation on password reset.** JWT access + refresh tokens now carry a `tv` (token_version) claim. `make_get_current_user` enforces `tok_tv == user.token_version`. `reset-password` increments `token_version` → all prior access & refresh tokens immediately rejected with 401. Outstanding (other) reset tokens for the same user are also marked `used=true` to prevent re-use. Login attempts counter is cleared so the user isn't locked out after a successful reset. Legacy tokens (without `tv`) decode to `tv=0` and match legacy users with missing `token_version` field → backwards-compatible.
+- **SEC-004 — HTML escape in email bodies.** Added `email_service.h()` (built on `html.escape(..., quote=True)`); every user-controlled interpolation in transactional emails (`pic_name`, `label_name`, `description`, `bank_name`, `account_number`) is now escaped.
+- **Tests:** `/app/backend/tests/test_phase17_security.py` (7) + `/app/backend/tests/test_phase17_regression.py` (11) — both at 100%.
+
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.
-- Tests: `/app/backend/tests/test_phase{2,3,4,5,6}_*.py` + `test_refactor_smoke.py` (115 tests / 114 pass / 1 intentional skip).
+- Tests: `/app/backend/tests/test_phase{2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17}_*.py` + `test_refactor_smoke.py` + `test_rilismusik_api.py`.

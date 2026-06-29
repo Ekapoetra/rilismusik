@@ -27,8 +27,25 @@ for sub in ("audio", "cover", "csv", "contract", "ticket", "landing"):
     (UPLOAD_DIR / sub).mkdir(parents=True, exist_ok=True)
 
 # ---------- DB ----------
+# Primary client used by every user-facing FastAPI route. It inherits whatever
+# CSOT timeoutMS Atlas/Emergent set in MONGO_URL (e.g. 10s on the production
+# connection string) — short caps protect web requests from hung queries.
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = client[os.environ["DB_NAME"]]
+
+# Long-running background jobs (royalty publish, mark_dana_received, recovery
+# pipelines) crunch 1M+ documents and would always trip the 10s CSOT cap on
+# production Atlas. We open a SECOND client without CSOT cap so those tasks
+# can take minutes when needed. Server-side cluster timeouts (maxTimeMS) still
+# apply where set, so this is safe — only the client-side ceiling is lifted.
+client_bg = AsyncIOMotorClient(
+    os.environ["MONGO_URL"],
+    timeoutMS=None,            # disable PyMongo client-side operation timeout (CSOT)
+    socketTimeoutMS=None,      # no socket read timeout for long cursors
+    serverSelectionTimeoutMS=30000,  # still bail fast if primary is unreachable
+    connectTimeoutMS=20000,
+)
+db_bg = client_bg[os.environ["DB_NAME"]]
 
 get_current_user = make_get_current_user(db)
 

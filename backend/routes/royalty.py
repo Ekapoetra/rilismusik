@@ -9,7 +9,7 @@ import shutil
 import secrets
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
+    db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
@@ -860,6 +860,10 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
 async def _publish_bg(*, import_id: str, user_id: str):
     """Background publish: idempotent, restart-safe, no ingress timeout.
 
+    Runs on `db_bg` (the CSOT-uncapped Mongo client) because aggregating &
+    updating millions of `royalty_lines` rows routinely exceeds the 10s
+    `timeoutMS` enforced on the user-facing `db` client in production.
+
     Idempotency rules:
       - Skip a label if a `balance_transactions` row already exists for
         (label_id, type='royalty_pending', reference_id=import_id) — means we
@@ -868,7 +872,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
       - Notifications are gated by the same balance_transactions check.
     """
     try:
-        imp = await db.royalty_imports.find_one({"id": import_id})
+        imp = await db_bg.royalty_imports.find_one({"id": import_id})
         if not imp:
             logger.error("[PUBLISH BG] import %s vanished", import_id)
             return
@@ -883,12 +887,12 @@ async def _publish_bg(*, import_id: str, user_id: str):
             {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
         ]
         per_label: List[Dict[str, Any]] = []
-        async for r in db.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
             if r.get("_id"):
                 per_label.append(r)
         total_labels = max(len(per_label), 1)
 
-        await db.royalty_imports.update_one(
+        await db_bg.royalty_imports.update_one(
             {"id": import_id},
             {"$set": {"publish_progress_pct": 5, "updated_at": now_iso()}},
         )
@@ -898,7 +902,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
         for i, r in enumerate(per_label):
             label_id = r["_id"]
             amount_idr = int(r["total_idr"])
-            existing_tx = await db.balance_transactions.find_one({
+            existing_tx = await db_bg.balance_transactions.find_one({
                 "label_id": label_id,
                 "type": "royalty_pending",
                 "reference_type": "royalty_import",
@@ -907,11 +911,11 @@ async def _publish_bg(*, import_id: str, user_id: str):
             if existing_tx:
                 # Already credited in a previous run — count it but don't double-add
                 continue
-            await db.labels.update_one(
+            await db_bg.labels.update_one(
                 {"id": label_id},
                 {"$inc": {"balance_pending_idr": amount_idr}, "$set": {"updated_at": now_iso()}},
             )
-            await db.balance_transactions.insert_one({
+            await db_bg.balance_transactions.insert_one({
                 "id": new_id(),
                 "label_id": label_id,
                 "type": "royalty_pending",
@@ -924,7 +928,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
             credited.append(r)
             if (i + 1) % 5 == 0 or i == len(per_label) - 1:
                 pct = 5 + int((i + 1) / total_labels * 70)
-                await db.royalty_imports.update_one(
+                await db_bg.royalty_imports.update_one(
                     {"id": import_id},
                     {"$set": {"publish_progress_pct": min(pct, 75), "updated_at": now_iso()}},
                 )
@@ -946,22 +950,22 @@ async def _publish_bg(*, import_id: str, user_id: str):
             q = dict(base_filter)
             if last_oid is not None:
                 q["_id"] = {"$gt": last_oid}
-            batch = await db.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
+            batch = await db_bg.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
             if not batch:
                 break
             oids = [d["_id"] for d in batch]
             last_oid = oids[-1]
-            await db.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "pending"}})
+            await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "pending"}})
             total_flipped += len(oids)
             # Progress 75 → 95% during line flip
             line_pct = 75 + min(int(total_flipped / 220_000 * 20), 20)
-            await db.royalty_imports.update_one(
+            await db_bg.royalty_imports.update_one(
                 {"id": import_id},
                 {"$set": {"publish_progress_pct": min(line_pct, 95), "updated_at": now_iso()}},
             )
         logger.info("[PUBLISH BG] %s — flipped %d lines to pending in %d-row chunks",
                     import_id, total_flipped, CHUNK_SIZE)
-        await db.royalty_imports.update_one(
+        await db_bg.royalty_imports.update_one(
             {"id": import_id},
             {"$set": {"publish_progress_pct": 95, "updated_at": now_iso()}},
         )
@@ -982,7 +986,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
                 logger.warning("[PUBLISH BG] notify failed for label %s: %s", r["_id"], e)
 
         # 5) Done
-        await db.royalty_imports.update_one(
+        await db_bg.royalty_imports.update_one(
             {"id": import_id},
             {"$set": {
                 "status": "published",
@@ -998,14 +1002,30 @@ async def _publish_bg(*, import_id: str, user_id: str):
 
     except Exception as e:
         logger.exception("[PUBLISH BG] %s FAILED: %s", import_id, e)
-        await db.royalty_imports.update_one(
-            {"id": import_id},
-            {"$set": {
-                "status": "publish_error",
-                "error_message": f"Publish gagal: {str(e)[:300]}",
-                "updated_at": now_iso(),
-            }},
-        )
+        try:
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {
+                    "status": "publish_error",
+                    "error_message": f"Publish gagal: {str(e)[:300]}",
+                    "updated_at": now_iso(),
+                }},
+            )
+        except Exception as e2:
+            # Last-ditch fallback via the foreground client (might still time
+            # out, but we MUST try to surface the failure in the UI).
+            logger.error("[PUBLISH BG] %s could not even persist publish_error via db_bg: %s", import_id, e2)
+            try:
+                await db.royalty_imports.update_one(
+                    {"id": import_id},
+                    {"$set": {
+                        "status": "publish_error",
+                        "error_message": f"Publish gagal: {str(e)[:300]}",
+                        "updated_at": now_iso(),
+                    }},
+                )
+            except Exception:
+                pass
 
 
 @royalty_r.post("/admin/imports/{import_id}/mark-dana-received")
