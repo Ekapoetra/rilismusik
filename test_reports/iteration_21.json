@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 17 Security Hardening verified end-to-end. All 7 Phase 17 security tests PASS (SEC-001 token-leak in /auth/forgot-password + /auth/register, SEC-001 Xendit webhook lockdown, SEC-002 per-email lockout immune to X-Forwarded-For rotation, SEC-003 access-token invalidation via token_version bump on password reset, SEC-003 outstanding reset-token revocation, SEC-004 HTML escape helper). Added 11 regression tests covering label register/login/me, forgot→reset→relogin via Mongo, anti-enumeration, super admin login, JWT `tv` claim presence, and 6 admin endpoints with new tv-claim JWTs. Total: 18/18 PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase17_security.py",
+    "/app/backend/tests/test_phase17_regression.py",
+    "/app/test_reports/pytest/iter21_phase17.xml",
+    "/app/test_reports/pytest/iter21_phase17_all.xml"
+  ],
+  "action_items": [
+    "P1 — wire production XENDIT_CALLBACK_TOKEN env var when live Xendit is enabled (webhook currently fail-closed at 503 by design — verified)."
+  ],
+  "critical_code_review_comments": [
+    "auth_utils.create_access_token / create_refresh_token now embed `tv` claim with `int(token_version)` cast and default to 0 — legacy tokens (no tv) decode to tv=0 matching legacy users with token_version=0, confirmed backwards compatible.",
+    "make_get_current_user enforces tok_tv == current_tv via int() comparison — clean, no string/int mismatch risk.",
+    "payments.xendit_webhook uses secrets.compare_digest for constant-time token comparison (good); returns 503 fail-closed when env unset (good); returns idempotent {ok:true, ignored:true} for unknown invoice id and {ok:true, already_paid:true} when already paid (good).",
+    "email_service.h() correctly escapes <>&\" and handles None/non-str — unit-tested.",
+    "Auth /me returns nested shape `{user: {...}}` (existing). All admin endpoints honour the new tv-claim JWT (200/403 as expected for role).",
+    "No MongoDB ObjectId leaks observed (all queries use {_id: 0} projection).",
+    "Forgot-password anti-enumeration confirmed: unknown email also returns exactly {ok: true}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase17_security.py (fixed _mongo_db to load /app/backend/.env so DB_NAME=rilismusik_db is picked up when pytest is run outside the backend process)",
+    "/app/backend/tests/test_phase17_regression.py (new regression suite — 11 tests)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "n/a (backend-only test request)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (verified working). Demo PPR/VIP not exercised (not in scope of Phase 17).",
+  "seed_data_creation": "None. Tests create TEST_-prefixed throwaway labels via the public /api/auth/register endpoint; cleanup is intentionally skipped because TEST_ users land in the verification flow without polluting business data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 17 security baseline is 18/18 PASS. To re-run: `cd /app/backend && python -m pytest tests/test_phase17_security.py tests/test_phase17_regression.py -v`. If XENDIT_CALLBACK_TOKEN ever gets set in /app/backend/.env, update test_sec001_xendit_webhook_rejects_unauthenticated_calls to also assert the with-correct-token positive path (200). The Mongo helper in both test files now auto-loads backend/.env so DB_NAME resolves to rilismusik_db. Pre-existing failures in Phase 2/3/4/6/9/15 (per iter20) are NOT regressions of Phase 17 — they stem from Phase 13 reset + Phase 16 async publish per the review note.",
+  "rca of the issue": "No bugs found. Initial 2 failures in test_phase17_security.py (test_sec003_*) were a TEST harness issue, not a product bug: the Mongo helper fell back to DB_NAME='test_database' instead of 'rilismusik_db' because pytest does not auto-load backend/.env. Fixed by adding an inline .env loader inside _mongo_db(). After fix: 7/7 security tests + 11/11 regression tests PASS."
+}

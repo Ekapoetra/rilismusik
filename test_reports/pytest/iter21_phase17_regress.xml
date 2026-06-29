@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="11" time="8.657" timestamp="2026-06-29T07:39:47.488734+00:00" hostname="agent-env-b995bc2d-d561-43fa-a86c-997bb4cc2248"><testcase classname="tests.test_phase17_regression.TestLabelAuthRegression" name="test_register_login_me_logout_flow" time="2.625"><failure message="KeyError: 'email'">tests/test_phase17_regression.py:68: in test_register_login_me_logout_flow
+    assert me.json()["email"] == email.lower()
+           ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'email'</failure></testcase><testcase classname="tests.test_phase17_regression.TestLabelAuthRegression" name="test_forgot_then_reset_then_relogin" time="4.843" /><testcase classname="tests.test_phase17_regression.TestLabelAuthRegression" name="test_forgot_unknown_email_returns_ok_no_enumeration" time="0.097" /><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_super_admin_login_and_me" time="0.415"><failure message="KeyError: 'email'">tests/test_phase17_regression.py:166: in test_super_admin_login_and_me
+    assert data["email"] == SUPER_EMAIL
+           ^^^^^^^^^^^^^
+E   KeyError: 'email'</failure></testcase><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_jwt_carries_tv_claim" time="0.000" /><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/admin/labels]" time="0.097" /><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/admin/invoices]" time="0.098"><failure message="AssertionError: /admin/invoices -&gt; 404: {&quot;detail&quot;:&quot;Not Found&quot;}&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404]&gt;.status_code">tests/test_phase17_regression.py:190: in test_admin_endpoints_return_200
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code}: {r.text[:200]}"
+E   AssertionError: /admin/invoices -&gt; 404: {"detail":"Not Found"}
+E   assert 404 == 200
+E    +  where 404 = &lt;Response [404]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/admin/contracts]" time="0.090"><failure message="AssertionError: /admin/contracts -&gt; 404: {&quot;detail&quot;:&quot;Not Found&quot;}&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404]&gt;.status_code">tests/test_phase17_regression.py:190: in test_admin_endpoints_return_200
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code}: {r.text[:200]}"
+E   AssertionError: /admin/contracts -&gt; 404: {"detail":"Not Found"}
+E   assert 404 == 200
+E    +  where 404 = &lt;Response [404]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/admin/withdrawals/window]" time="0.090"><failure message="AssertionError: /admin/withdrawals/window -&gt; 404: {&quot;detail&quot;:&quot;Not Found&quot;}&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404]&gt;.status_code">tests/test_phase17_regression.py:190: in test_admin_endpoints_return_200
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code}: {r.text[:200]}"
+E   AssertionError: /admin/withdrawals/window -&gt; 404: {"detail":"Not Found"}
+E   assert 404 == 200
+E    +  where 404 = &lt;Response [404]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/admin/royalty/imports]" time="0.094"><failure message="AssertionError: /admin/royalty/imports -&gt; 404: {&quot;detail&quot;:&quot;Not Found&quot;}&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404]&gt;.status_code">tests/test_phase17_regression.py:190: in test_admin_endpoints_return_200
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code}: {r.text[:200]}"
+E   AssertionError: /admin/royalty/imports -&gt; 404: {"detail":"Not Found"}
+E   assert 404 == 200
+E    +  where 404 = &lt;Response [404]&gt;.status_code</failure></testcase><testcase classname="tests.test_phase17_regression.TestSuperAdminRegression" name="test_admin_endpoints_return_200[/cms/landing]" time="0.098" /></testsuite></testsuites>

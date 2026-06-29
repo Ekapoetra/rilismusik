@@ -7,7 +7,7 @@ Covers areas not explicitly exercised by phase2-6 suites:
   - /api/notifications/me shape
   - /api/withdraw/window (label)
   - /api/releases/{id} 404-on-other-label
-  - /api/auth/register returns verification_token, then logout
+  - /api/auth/register persists verification token in DB (NOT in HTTP response — SEC-001), then logout
 """
 import os
 import uuid
@@ -23,6 +23,12 @@ SUB_ADMINS = [
     ("release1@rilismusik.com", "Release#2026"),
     ("marketing1@rilismusik.com", "Marketing#2026"),
 ]
+
+
+def _mongo_db():
+    import pymongo
+    client = pymongo.MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    return client[os.environ.get("DB_NAME", "test_database")]
 
 
 def _login(email, password):
@@ -55,7 +61,10 @@ def test_subadmin_logins(email, password):
     assert data["user"]["role"].startswith("admin_") or data["user"]["role"] == "super_admin"
 
 
-def test_register_returns_verification_token_then_logout():
+def test_register_persists_verification_token_then_logout():
+    """SEC-001: register no longer returns verification_token in HTTP body.
+    The token must be persisted to MongoDB so the verification email link works.
+    """
     suffix = uuid.uuid4().hex[:8]
     email = f"test_refactor_{suffix}@example.com"
     payload = {
@@ -71,7 +80,15 @@ def test_register_returns_verification_token_then_logout():
     r = requests.post(f"{BASE}/api/auth/register", json=payload, timeout=30)
     assert r.status_code in (200, 201), r.text
     body = r.json()
-    assert "verification_token" in body and len(body["verification_token"]) > 10
+    # SEC-001: token MUST NOT be in the response (only sent via email)
+    assert "verification_token" not in body, "SEC-001: verification_token leaked in HTTP body"
+    assert "reset_token" not in body
+    # Token must be persisted in MongoDB so the email link works
+    db = _mongo_db()
+    user_doc = db.users.find_one({"email": email.lower()})
+    assert user_doc, "user not created"
+    tok_doc = db.email_verification_tokens.find_one({"user_id": user_doc["id"]})
+    assert tok_doc and tok_doc.get("token") and len(tok_doc["token"]) > 10
 
     tok, _ = _login(SA_EMAIL, SA_PASS)
     rlo = requests.post(f"{BASE}/api/auth/logout", headers=_hdr(tok), timeout=10)

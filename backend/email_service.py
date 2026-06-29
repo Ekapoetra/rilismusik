@@ -13,10 +13,20 @@ import ssl
 import asyncio
 import logging
 import smtplib
+from html import escape as _html_escape
 from email.message import EmailMessage
 from typing import Optional
 
 logger = logging.getLogger("rilismusik")
+
+
+def h(s) -> str:
+    """SEC-004: HTML-escape user-controlled values before interpolating into the
+    HTML email body. Always use this around `pic_name`, `label_name`, `description`,
+    `bank_name`, `account_number`, etc.
+    """
+    return _html_escape("" if s is None else str(s), quote=True)
+
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.hostinger.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
@@ -110,7 +120,7 @@ async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
 async def send_verification_email(*, to: str, pic_name: str, token: str) -> Optional[str]:
     verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
     body = f"""
-    <p>Halo <strong>{pic_name}</strong>,</p>
+    <p>Halo <strong>{h(pic_name)}</strong>,</p>
     <p>Terima kasih sudah mendaftar di RILIS MUSIK. Untuk mengaktifkan akun Anda, klik tombol di bawah:</p>
     <p style="color:#a1a1aa;font-size:13px;">Link verifikasi berlaku 24 jam. Jika Anda tidak mendaftar, abaikan email ini.</p>
     """
@@ -131,37 +141,37 @@ async def send_password_reset_email(*, to: str, token: str) -> Optional[str]:
 
 async def send_contract_expiry_email(*, to: str, label_name: str, days_left: int, end_date: str) -> Optional[str]:
     body = f"""
-    <p>Halo <strong>{label_name}</strong>,</p>
-    <p>Kontrak distribusi Anda akan berakhir dalam <strong style="color:#f59e0b;">{days_left} hari</strong> (tanggal <strong>{end_date}</strong>).</p>
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
+    <p>Kontrak distribusi Anda akan berakhir dalam <strong style="color:#f59e0b;">{int(days_left)} hari</strong> (tanggal <strong>{h(end_date)}</strong>).</p>
     <p>Silakan hubungi admin via support ticket untuk perpanjangan kontrak agar distribusi tidak terhenti.</p>
     """
     html = _wrap(
-        f"Kontrak berakhir dalam {days_left} hari", body,
+        f"Kontrak berakhir dalam {int(days_left)} hari", body,
         "Buka Dashboard Kontrak", f"{FRONTEND_URL}/label/contract",
     )
-    return await send_email(to=to, subject=f"⏰ Kontrak distribusi berakhir {days_left} hari lagi", html=html)
+    return await send_email(to=to, subject=f"⏰ Kontrak distribusi berakhir {int(days_left)} hari lagi", html=html)
 
 
 async def send_subscription_expiry_email(*, to: str, label_name: str, days_left: int) -> Optional[str]:
     body = f"""
-    <p>Halo <strong>{label_name}</strong>,</p>
-    <p>Subscription tahunan Anda akan berakhir dalam <strong style="color:#f59e0b;">{days_left} hari</strong>. Perpanjang sekarang untuk tetap upload rilisan tanpa biaya per release.</p>
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
+    <p>Subscription tahunan Anda akan berakhir dalam <strong style="color:#f59e0b;">{int(days_left)} hari</strong>. Perpanjang sekarang untuk tetap upload rilisan tanpa biaya per release.</p>
     """
     html = _wrap(
-        f"Subscription berakhir dalam {days_left} hari", body,
+        f"Subscription berakhir dalam {int(days_left)} hari", body,
         "Perpanjang Sekarang", f"{FRONTEND_URL}/label/invoices",
     )
-    return await send_email(to=to, subject=f"⏰ Subscription berakhir {days_left} hari lagi", html=html)
+    return await send_email(to=to, subject=f"⏰ Subscription berakhir {int(days_left)} hari lagi", html=html)
 
 
 async def send_payment_receipt_email(*, to: str, label_name: str, description: str, amount_idr: int, invoice_id: str) -> Optional[str]:
     amt = f"Rp {amount_idr:,}".replace(",", ".")
     body = f"""
-    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
     <p>Pembayaran Anda telah <strong style="color:#10b981;">berhasil diterima</strong>.</p>
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
-      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Invoice ID</td><td style="text-align:right;color:#fff;font-family:monospace;font-size:12px;">{invoice_id}</td></tr>
-      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Deskripsi</td><td style="text-align:right;color:#fff;">{description}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Invoice ID</td><td style="text-align:right;color:#fff;font-family:monospace;font-size:12px;">{h(invoice_id)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">Deskripsi</td><td style="text-align:right;color:#fff;">{h(description)}</td></tr>
       <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;border-top:1px solid #262626;">Total</td><td style="text-align:right;color:#10b981;font-weight:800;font-size:18px;border-top:1px solid #262626;">{amt}</td></tr>
     </table>
     """
@@ -169,15 +179,15 @@ async def send_payment_receipt_email(*, to: str, label_name: str, description: s
         "Pembayaran berhasil", body,
         "Lihat Invoice", f"{FRONTEND_URL}/label/invoices",
     )
-    return await send_email(to=to, subject=f"Pembayaran diterima — {description}", html=html)
+    return await send_email(to=to, subject=f"Pembayaran diterima — {h(description)}", html=html)
 
 
 async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int, bank_name: str, account_number: str) -> Optional[str]:
     amt = f"Rp {amount_idr:,}".replace(",", ".")
     body = f"""
-    <p>Halo <strong>{label_name}</strong>,</p>
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
     <p>Penarikan dana Anda sebesar <strong style="color:#10b981;">{amt}</strong> sudah <strong>ditransfer</strong> ke rekening:</p>
-    <p style="background:#0a0a0a;padding:12px 16px;border-radius:12px;color:#d4d4d8;font-family:monospace;font-size:13px;">{bank_name} · {account_number}</p>
+    <p style="background:#0a0a0a;padding:12px 16px;border-radius:12px;color:#d4d4d8;font-family:monospace;font-size:13px;">{h(bank_name)} · {h(account_number)}</p>
     <p style="color:#a1a1aa;font-size:13px;">Dana biasanya masuk dalam 1×24 jam. Hubungi support jika belum diterima.</p>
     """
     html = _wrap(

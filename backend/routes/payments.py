@@ -247,8 +247,26 @@ async def mock_pay(invoice_id: str, user: dict = Depends(get_current_user)):
 
 
 @pay_r.post("/webhook/xendit")
-async def xendit_webhook(payload: Dict[str, Any]):
-    """Real Xendit webhook placeholder (idempotent). Not used in MVP mock flow."""
+async def xendit_webhook(payload: Dict[str, Any], request: Request):
+    """Real Xendit webhook (idempotent). Authenticated via the `x-callback-token`
+    header which Xendit signs every callback with. The token must match
+    `XENDIT_CALLBACK_TOKEN` from env (see Xendit Dashboard → Settings → Callbacks).
+
+    Until LIVE Xendit is wired, the endpoint stays auth-locked: if
+    `XENDIT_CALLBACK_TOKEN` is not configured we reject all incoming payloads to
+    prevent unauthenticated payment-confirmation bypass (security audit SEC-001).
+    """
+    expected_token = os.environ.get("XENDIT_CALLBACK_TOKEN")
+    if not expected_token:
+        # Fail-closed: no token configured → webhook MUST not be reachable.
+        logger.warning("[XENDIT] webhook called but XENDIT_CALLBACK_TOKEN not set — denying")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+    provided = request.headers.get("x-callback-token") or request.headers.get("X-CALLBACK-TOKEN")
+    # Constant-time comparison to avoid timing attacks
+    if not provided or not secrets.compare_digest(provided, expected_token):
+        logger.warning("[XENDIT] webhook rejected: invalid x-callback-token from %s", request.client.host if request.client else "?")
+        raise HTTPException(status_code=401, detail="Invalid callback token")
+
     invoice_id_external = payload.get("id") or payload.get("external_id")
     status = (payload.get("status") or "").lower()
     if not invoice_id_external:

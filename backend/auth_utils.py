@@ -28,11 +28,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, email: str, role: str) -> str:
+def create_access_token(user_id: str, email: str, role: str, token_version: int = 0) -> str:
     payload = {
         "sub": user_id,
         "email": email,
         "role": role,
+        "tv": int(token_version),  # SEC-003: bumped on password reset to invalidate sessions
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_MINUTES),
         "iat": datetime.now(timezone.utc),
         "type": "access",
@@ -40,9 +41,10 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, token_version: int = 0) -> str:
     payload = {
         "sub": user_id,
+        "tv": int(token_version),  # SEC-003: bumped on password reset to invalidate sessions
         "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_DAYS),
         "iat": datetime.now(timezone.utc),
         "type": "refresh",
@@ -108,6 +110,12 @@ def make_get_current_user(db):
             raise HTTPException(status_code=401, detail="User tidak ditemukan")
         if user.get("status") == "suspended":
             raise HTTPException(status_code=403, detail="Akun ditangguhkan")
+        # SEC-003: enforce token_version — bumped on password reset to invalidate
+        # all previously-issued access/refresh tokens.
+        current_tv = int(user.get("token_version") or 0)
+        tok_tv = int(payload.get("tv") or 0)
+        if tok_tv != current_tv:
+            raise HTTPException(status_code=401, detail="Sesi sudah berakhir, silakan login ulang")
         return user
 
     return get_current_user

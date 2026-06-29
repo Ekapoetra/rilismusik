@@ -21,7 +21,7 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [verifyToken, setVerifyToken] = useState("");
+  const [registered, setRegistered] = useState(false);
   const [claimPending, setClaimPending] = useState(false);
 
   const onChange = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -49,11 +49,11 @@ export default function Register() {
     try {
       const { password_confirm, ...payload } = form;
       const data = await register(payload);
-      setVerifyToken(data.verification_token || "");
       if (data.claim_pending) {
         setClaimPending(true);
       } else {
-        setTimeout(() => navigate("/label/dashboard"), 1200);
+        setRegistered(true);
+        setTimeout(() => navigate("/label/dashboard"), 1500);
       }
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail) || "Registrasi gagal");
@@ -82,17 +82,14 @@ export default function Register() {
     );
   }
 
-  if (verifyToken) {
+  if (registered) {
     return (
       <div className="min-h-screen rm-mesh flex items-center justify-center px-4 py-12 text-white">
-        <div className="w-full max-w-md rm-glass-strong rounded-[28px] p-8 text-center rm-fade-up">
+        <div className="w-full max-w-md rm-glass-strong rounded-[28px] p-8 text-center rm-fade-up" data-testid="register-success">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 text-emerald-400 grid place-items-center mb-4 text-3xl">✓</div>
           <h1 className="font-display text-2xl font-extrabold tracking-tighter">Akun berhasil dibuat!</h1>
-          <p className="text-sm text-zinc-400 mt-2">Mengalihkan ke dashboard…</p>
-          <div className="mt-5 text-left text-xs bg-white/5 border border-white/10 rounded-xl p-3">
-            <div className="font-semibold text-zinc-300">[DEV] Verification token (untuk uji email verification):</div>
-            <code className="block mt-1 break-all text-zinc-400">{verifyToken}</code>
-          </div>
+          <p className="text-sm text-zinc-400 mt-2">Kami sudah mengirim link verifikasi ke email Anda. Cek inbox / folder spam.</p>
+          <p className="text-xs text-zinc-500 mt-3">Mengalihkan ke dashboard…</p>
         </div>
       </div>
     );

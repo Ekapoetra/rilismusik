@@ -18,6 +18,26 @@ SUPER_EMAIL = "superadmin@rilismusik.com"
 SUPER_PASS = "SuperAdmin#2026"
 
 
+def _mongo_db():
+    import pymongo
+    client = pymongo.MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+    return client[os.environ.get("DB_NAME", "test_database")]
+
+
+def _latest_reset_token(email: str) -> str:
+    """Read the most recent password-reset token for `email` directly from MongoDB.
+    Tokens are no longer returned in the HTTP response (SEC-001 fix) — they are
+    only sent via email + persisted in DB.
+    """
+    db = _mongo_db()
+    user = db.users.find_one({"email": email.lower().strip()})
+    assert user, f"user not found: {email}"
+    cur = db.password_reset_tokens.find({"user_id": user["id"], "used": False}).sort("created_at", -1).limit(1)
+    docs = list(cur)
+    assert docs, f"no reset token found for {email}"
+    return docs[0]["token"]
+
+
 def _session():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
@@ -69,7 +89,8 @@ class TestAuth:
             "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert "verification_token" in body
+        # SEC-001: verification_token MUST NOT be in HTTP response — only via email
+        assert "verification_token" not in body, "SEC-001: token leaked in register response"
         assert body["user"]["role"] == "label"
         assert body["user"]["email"] == email.lower()
         assert body["label"]["label_name"] == "TEST Reg"
@@ -94,19 +115,25 @@ class TestAuth:
         r = s.post(f"{API}/auth/login", json={"email": email, "password": "wrongPass#1"})
         assert r.status_code == 401
 
-    @pytest.mark.xfail(reason="K8s ingress fragments request.client.host across pods; brute-force tracker is ineffective", strict=False)
     def test_brute_force_lockout_after_5(self):
+        """SEC-002: per-email lockout MUST trigger after 5 failed attempts,
+        regardless of which IP / forwarded-for header the attacker uses.
+        """
         s = _session()
         email = _rand_email("bf")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
             "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
         codes = []
-        for _ in range(6):
-            r = s.post(f"{API}/auth/login", json={"email": email, "password": "wrong"})
+        for i in range(6):
+            # Rotate spoofed forwarded-for header to ensure IP-based bypass would fail
+            r = s.post(
+                f"{API}/auth/login",
+                json={"email": email, "password": "wrong"},
+                headers={"X-Forwarded-For": f"10.0.0.{i+1}"},
+            )
             codes.append(r.status_code)
-        # The 6th attempt should produce 429 (locked)
-        assert 429 in codes, f"Expected 429 after 5 failed attempts, got {codes}"
+        assert 429 in codes, f"Expected 429 (per-email lockout) after 5 failed attempts, got {codes}"
 
     def test_me_returns_user_and_label(self, label_session):
         s = label_session["session"]
@@ -128,16 +155,25 @@ class TestAuth:
         r = s.get(f"{API}/auth/me")
         assert r.status_code == 401
 
-    def test_forgot_password_returns_reset_token(self, label_session):
+    def test_forgot_password_does_not_leak_token(self, label_session):
+        """SEC-001: forgot-password MUST return only {"ok": True} — never the token.
+        Token must still be persisted in MongoDB and sent via email.
+        """
         s = _session()
         r = s.post(f"{API}/auth/forgot-password", json={"email": label_session["email"]})
         assert r.status_code == 200
-        assert "reset_token" in r.json()
+        body = r.json()
+        assert body == {"ok": True}, f"SEC-001: forgot-password leaked extra data: {body}"
+        # Token MUST be persisted in DB so the email link works
+        token = _latest_reset_token(label_session["email"])
+        assert token and len(token) > 10
 
     def test_reset_password_updates(self, label_session):
         s = _session()
         r = s.post(f"{API}/auth/forgot-password", json={"email": label_session["email"]})
-        token = r.json()["reset_token"]
+        assert r.status_code == 200
+        # SEC-001: token NOT returned via HTTP — read from DB (simulates email delivery)
+        token = _latest_reset_token(label_session["email"])
         new_pw = "NewPassword#456"
         r2 = s.post(f"{API}/auth/reset-password", json={"token": token, "password": new_pw})
         assert r2.status_code == 200

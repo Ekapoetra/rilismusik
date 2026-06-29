@@ -142,7 +142,6 @@ async def register(body: RegisterLabelIn, response: Response):
             "claim_pending": True,
             "access_token": access,
             "refresh_token": refresh,
-            "verification_token": verify_token,
         }
 
     # ---- Normal flow: create label doc + auto-MDA ----
@@ -224,7 +223,7 @@ async def register(body: RegisterLabelIn, response: Response):
         "used": False,
         "created_at": now_iso(),
     })
-    logger.info("[DEV] Verification token for %s: %s", email, verify_token)
+    logger.debug("Verification token issued for user_id=%s", user_id)
     await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
 
     access = create_access_token(user_id, email, LABEL_ROLE)
@@ -236,33 +235,44 @@ async def register(body: RegisterLabelIn, response: Response):
         "label": redact_label_for_self(label_doc),
         "access_token": access,
         "refresh_token": refresh,
-        "verification_token": verify_token,  # exposed only in MVP (no email service)
     }
 
 
 @auth.post("/login")
 async def login(body: LoginIn, response: Response, request: Request):
     email = body.email.lower().strip()
-    # brute force check — use X-Forwarded-For (set by ingress) for stable client IP
+    # Brute-force protection: SEC-002 hardening.
+    # Lockout is tracked at TWO levels so attackers can't bypass via header spoofing:
+    #   1. Per email (always — cannot be bypassed)
+    #   2. Per (client_ip, email) — best-effort using forwarded headers behind ingress
     fwd = request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip")
     client_ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "na"))
-    identifier = f"{client_ip}:{email}"
-    attempt = await db.login_attempts.find_one({"identifier": identifier})
+    email_key = f"email:{email}"
+    ip_key = f"{client_ip}:{email}"
     now = datetime.now(timezone.utc)
-    if attempt and attempt.get("locked_until"):
-        locked_until = datetime.fromisoformat(attempt["locked_until"])
-        if locked_until > now:
-            raise HTTPException(status_code=429, detail="Terlalu banyak percobaan, coba lagi nanti")
+
+    # Reject early if EITHER tracker shows an active lock
+    for k in (email_key, ip_key):
+        att = await db.login_attempts.find_one({"identifier": k})
+        if att and att.get("locked_until"):
+            try:
+                locked_until = datetime.fromisoformat(att["locked_until"])
+            except (ValueError, TypeError):
+                locked_until = None
+            if locked_until and locked_until > now:
+                raise HTTPException(status_code=429, detail="Terlalu banyak percobaan, coba lagi nanti")
 
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
-        # increment attempts
-        attempts = (attempt or {}).get("count", 0) + 1
-        update = {"identifier": identifier, "count": attempts, "last_at": now.isoformat()}
-        if attempts >= 5:
-            update["locked_until"] = (now + timedelta(minutes=15)).isoformat()
-            update["count"] = 0
-        await db.login_attempts.update_one({"identifier": identifier}, {"$set": update}, upsert=True)
+        # increment BOTH counters
+        for k in (email_key, ip_key):
+            existing = await db.login_attempts.find_one({"identifier": k})
+            attempts = (existing or {}).get("count", 0) + 1
+            update = {"identifier": k, "count": attempts, "last_at": now.isoformat()}
+            if attempts >= 5:
+                update["locked_until"] = (now + timedelta(minutes=15)).isoformat()
+                update["count"] = 0
+            await db.login_attempts.update_one({"identifier": k}, {"$set": update}, upsert=True)
         raise HTTPException(status_code=401, detail="Email atau password salah")
 
     if user.get("status") == "suspended":
@@ -274,10 +284,11 @@ async def login(body: LoginIn, response: Response, request: Request):
         if lab and lab.get("account_status") == "blacklisted":
             raise HTTPException(status_code=403, detail=f"Akun di-blacklist. Alasan: {lab.get('blacklist_reason') or 'Hubungi admin'}")
 
-    await db.login_attempts.delete_one({"identifier": identifier})
+    # On success, clear BOTH counters
+    await db.login_attempts.delete_many({"identifier": {"$in": [email_key, ip_key]}})
 
-    access = create_access_token(user["id"], user["email"], user["role"])
-    refresh = create_refresh_token(user["id"])
+    access = create_access_token(user["id"], user["email"], user["role"], int(user.get("token_version") or 0))
+    refresh = create_refresh_token(user["id"], int(user.get("token_version") or 0))
     set_auth_cookies(response, access, refresh)
 
     payload = {"user": public_user(user), "access_token": access, "refresh_token": refresh}
@@ -350,12 +361,12 @@ async def resend_verification(user: dict = Depends(get_current_user)):
         "used": False,
         "created_at": now_iso(),
     })
-    logger.info("[DEV] Verification token for %s: %s", user["email"], token)
+    logger.debug("Verification token re-issued for user_id=%s", user["id"])
     # Look up label.pic_name (fall back to email local part for sub-admins/artists)
     label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "pic_name": 1})
     pic_name = (label or {}).get("pic_name") or user["email"].split("@")[0]
     await send_verification_email(to=user["email"], pic_name=pic_name, token=token)
-    return {"ok": True, "verification_token": token}
+    return {"ok": True}
 
 
 @auth.post("/forgot-password")
@@ -373,9 +384,11 @@ async def forgot_password(body: ForgotPasswordIn):
         "used": False,
         "created_at": now_iso(),
     })
-    logger.info("[DEV] Password reset token for %s: %s", user["email"], token)
+    # SECURITY: Never include the token in the HTTP response — it must only be
+    # delivered to the user's inbox via email. Logging at DEBUG level only.
+    logger.debug("Password reset token issued for user_id=%s", user["id"])
     await send_password_reset_email(to=user["email"], token=token)
-    return {"ok": True, "reset_token": token}  # exposed only in MVP
+    return {"ok": True}
 
 
 @auth.post("/reset-password")
@@ -385,8 +398,22 @@ async def reset_password(body: ResetPasswordIn):
         raise HTTPException(status_code=400, detail="Token tidak valid")
     if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Token kadaluarsa")
-    await db.users.update_one({"id": rec["user_id"]}, {"$set": {"password_hash": hash_password(body.password), "updated_at": now_iso()}})
-    await db.password_reset_tokens.update_one({"id": rec["id"]}, {"$set": {"used": True}})
+    # SEC-003: bump token_version → invalidates all previously-issued access &
+    # refresh JWTs immediately. Login attempts counter is also cleared so a user
+    # who forgot their password isn't locked out after reset.
+    user_id = rec["user_id"]
+    user_for_email = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+    await db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {"password_hash": hash_password(body.password), "updated_at": now_iso()},
+            "$inc": {"token_version": 1},
+        },
+    )
+    # Invalidate the used token AND every other still-pending reset token for this user.
+    await db.password_reset_tokens.update_many({"user_id": user_id, "used": False}, {"$set": {"used": True}})
+    if user_for_email and user_for_email.get("email"):
+        await db.login_attempts.delete_many({"identifier": {"$regex": f":{user_for_email['email']}$"}})
+        await db.login_attempts.delete_many({"identifier": f"email:{user_for_email['email']}"})
     return {"ok": True}
-
 
