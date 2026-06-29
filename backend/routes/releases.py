@@ -49,7 +49,13 @@ release_r = APIRouter(prefix="/releases", tags=["releases"])
 
 
 @release_r.get("/")
-async def list_releases(user: dict = Depends(get_current_user), status: Optional[str] = None, q: Optional[str] = None):
+async def list_releases(
+    user: dict = Depends(get_current_user),
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+    period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+):
     filt: Dict[str, Any] = {}
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
@@ -64,6 +70,21 @@ async def list_releases(user: dict = Depends(get_current_user), status: Optional
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Phase 21: enrich with revenue rollup + last_active_period
+    from .revenue_rollup import rollup_revenue_by_id
+    rollup = await rollup_revenue_by_id(
+        field="release_id",
+        ids=[i["id"] for i in items],
+        period_from=period_from,
+        period_to=period_to,
+    )
+    for it in items:
+        r = rollup.get(it["id"], {})
+        it["revenue_eur"] = r.get("revenue_eur", 0)
+        it["revenue_idr"] = r.get("revenue_idr", 0)
+        it["royalty_lines_count"] = r.get("lines", 0)
+        it["last_active_period"] = r.get("last_period")
+        it["first_active_period"] = r.get("first_period")
     return items
 
 

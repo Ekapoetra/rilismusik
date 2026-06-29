@@ -232,7 +232,13 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
 
 
 @admin_r.get("/releases")
-async def admin_list_releases(user: dict = Depends(require_admin), status: Optional[str] = None, q: Optional[str] = None):
+async def admin_list_releases(
+    user: dict = Depends(require_admin),
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+    period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+):
     filt: Dict[str, Any] = {}
     if status:
         filt["status"] = status
@@ -243,22 +249,55 @@ async def admin_list_releases(user: dict = Depends(require_admin), status: Optio
     label_ids = list({i["label_id"] for i in items})
     labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
     name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    # Phase 21: rollup revenue per release from royalty_lines
+    from .revenue_rollup import rollup_revenue_by_id
+    rollup = await rollup_revenue_by_id(
+        field="release_id",
+        ids=[i["id"] for i in items],
+        period_from=period_from,
+        period_to=period_to,
+    )
     for it in items:
         it["label_name"] = name_map.get(it["label_id"])
+        r = rollup.get(it["id"], {})
+        it["revenue_eur"] = r.get("revenue_eur", 0)
+        it["revenue_idr"] = r.get("revenue_idr", 0)
+        it["royalty_lines_count"] = r.get("lines", 0)
+        it["last_active_period"] = r.get("last_period")
+        it["first_active_period"] = r.get("first_period")
     return items
 
 
 @admin_r.get("/artists")
-async def admin_list_artists(user: dict = Depends(require_admin), q: Optional[str] = None):
+async def admin_list_artists(
+    user: dict = Depends(require_admin),
+    q: Optional[str] = None,
+    period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+    period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+):
     filt: Dict[str, Any] = {}
     if q:
         filt["artist_name"] = {"$regex": q, "$options": "i"}
     items = await db.artists.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    label_ids = list({i["label_id"] for i in items})
+    label_ids = list({i["label_id"] for i in items if i.get("label_id")})
     labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
     name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    # Phase 21: rollup revenue per artist from royalty_lines
+    from .revenue_rollup import rollup_revenue_by_id
+    rollup = await rollup_revenue_by_id(
+        field="artist_id",
+        ids=[i["id"] for i in items],
+        period_from=period_from,
+        period_to=period_to,
+    )
     for it in items:
         it["label_name"] = name_map.get(it["label_id"])
+        r = rollup.get(it["id"], {})
+        it["revenue_eur"] = r.get("revenue_eur", 0)
+        it["revenue_idr"] = r.get("revenue_idr", 0)
+        it["royalty_lines_count"] = r.get("lines", 0)
+        it["last_active_period"] = r.get("last_period")
+        it["first_active_period"] = r.get("first_period")
     return items
 
 

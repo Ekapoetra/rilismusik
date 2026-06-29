@@ -9,7 +9,7 @@ import shutil
 import secrets
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
+    db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
@@ -49,47 +49,140 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 withdraw_r = APIRouter(prefix="/withdraw", tags=["withdraw"])
 
 
+# ---------------------------------------------------------------------------
+# FIFO computation (Phase 20)
+# ---------------------------------------------------------------------------
+async def _compute_withdrawable(label_id: str) -> Dict[str, Any]:
+    """Compute the withdrawable amount for a label using FIFO per-bulan-laporan.
+
+    Rule (per user spec 2026-06-29):
+      - Each withdraw consumes ALL `available` royalty_lines whose `period` >
+        the label's `last_withdrawn_period` (or all if never withdrawn).
+      - Force-full: the label can't pick a partial amount — it's withdraw-all-
+        or-nothing for the eligible range.
+      - "Bulan laporan" = `royalty_lines.period` (YYYY-MM, derived from CSV
+        Believe "Reporting month").
+
+    Returns:
+      {
+        withdrawable_idr: int,            # sum(label_idr) for eligible rows
+        period_from: "YYYY-MM" | None,    # earliest eligible period
+        period_to:   "YYYY-MM" | None,    # latest eligible period
+        lines_count: int,
+        last_withdrawn_period: "YYYY-MM" | None,  # for UI context
+      }
+    """
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0, "last_withdrawn_period": 1})
+    last_wd_period = (label or {}).get("last_withdrawn_period")
+
+    match: Dict[str, Any] = {
+        "label_id": label_id,
+        "status": "available",
+        "period": {"$ne": None, "$exists": True},
+    }
+    if last_wd_period:
+        # Strict > so we don't re-withdraw the previously-paid period.
+        match["period"]["$gt"] = last_wd_period
+
+    pipeline = [
+        {"$match": match},
+        {"$group": {
+            "_id": None,
+            "withdrawable_idr": {"$sum": "$label_idr"},
+            "lines_count": {"$sum": 1},
+            "period_from": {"$min": "$period"},
+            "period_to": {"$max": "$period"},
+        }},
+    ]
+    out = {
+        "withdrawable_idr": 0,
+        "period_from": None,
+        "period_to": None,
+        "lines_count": 0,
+        "last_withdrawn_period": last_wd_period,
+    }
+    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        out["withdrawable_idr"] = int(r.get("withdrawable_idr") or 0)
+        out["lines_count"] = int(r.get("lines_count") or 0)
+        out["period_from"] = r.get("period_from")
+        out["period_to"] = r.get("period_to")
+    return out
+
+
 @withdraw_r.get("/window")
 async def get_window_state(user: dict = Depends(get_current_user)):
     return withdraw_window_state()
 
 
+@withdraw_r.get("/label/computed")
+async def label_computed_withdrawable(user: dict = Depends(require_label)):
+    """Return the FIFO-computed withdrawable amount + period range for the
+    current label. The label-side UI uses this to pre-fill the withdraw form
+    (no manual amount input — force-full per spec).
+    """
+    label = await get_label_by_user(user)
+    info = await _compute_withdrawable(label["id"])
+    can_withdraw = info["withdrawable_idr"] >= MIN_WITHDRAW_IDR
+    return {
+        **info,
+        "min_withdraw_idr": MIN_WITHDRAW_IDR,
+        "can_withdraw": can_withdraw,
+        "reason": None if can_withdraw else (
+            "Belum ada royalti tersedia setelah penarikan terakhir"
+            if info["lines_count"] == 0 else
+            f"Total Rp {info['withdrawable_idr']:,} di bawah minimum Rp {MIN_WITHDRAW_IDR:,}"
+        ),
+    }
+
+
 @withdraw_r.post("/label/request")
-async def label_request_withdraw(body: WithdrawRequestIn, user: dict = Depends(require_label)):
+async def label_request_withdraw(user: dict = Depends(require_label)):
+    """Withdraw FIFO (Phase 20). User cannot pick the amount — it's auto-
+    computed from all `available` royalty_lines whose period > the label's
+    last_withdrawn_period. Force-full per spec.
+    """
     label = await get_label_by_user(user)
     state = withdraw_window_state()
     if not state["request_open"]:
         raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
-    if body.amount_idr < MIN_WITHDRAW_IDR:
-        raise HTTPException(status_code=400, detail=f"Minimum withdraw Rp {MIN_WITHDRAW_IDR:,.0f}")
-    if body.amount_idr > (label.get("balance_available_idr") or 0):
-        raise HTTPException(status_code=400, detail="Saldo tersedia tidak mencukupi")
+
+    info = await _compute_withdrawable(label["id"])
+    amount_idr = info["withdrawable_idr"]
+    if amount_idr < MIN_WITHDRAW_IDR:
+        if info["lines_count"] == 0:
+            raise HTTPException(status_code=400, detail="Belum ada royalti tersedia untuk ditarik")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total Rp {amount_idr:,.0f} di bawah minimum Rp {MIN_WITHDRAW_IDR:,.0f}. Tunggu periode laporan berikutnya.",
+        )
     if not label.get("bank_verified"):
-        # MVP: allow if bank account exists; admin must verify it manually
         bank = await db.bank_accounts.find_one({"label_id": label["id"]})
         if not bank:
             raise HTTPException(status_code=400, detail="Rekening bank belum diinput")
     bank = await db.bank_accounts.find_one({"label_id": label["id"]}, {"_id": 0})
 
     wd_id = new_id()
+    # Move ALL of `balance_available_idr` into `balance_withdraw_requested_idr`
+    # (since FIFO consumes every available line in the eligible range, the
+    # available balance should equal the computed amount minus rounding).
     await db.labels.update_one({"id": label["id"]}, {"$inc": {
-        "balance_available_idr": -body.amount_idr,
-        "balance_withdraw_requested_idr": body.amount_idr,
+        "balance_available_idr": -amount_idr,
+        "balance_withdraw_requested_idr": amount_idr,
     }, "$set": {"updated_at": now_iso()}})
     await db.balance_transactions.insert_one({
         "id": new_id(),
         "label_id": label["id"],
         "type": "withdraw_request",
-        "amount_idr": -body.amount_idr,
+        "amount_idr": -amount_idr,
         "reference_type": "withdraw",
         "reference_id": wd_id,
-        "description": "Withdraw diminta",
+        "description": f"Withdraw diminta — periode {info['period_from']} s/d {info['period_to']}",
         "created_at": now_iso(),
     })
     wd = {
         "id": wd_id,
         "label_id": label["id"],
-        "amount_idr": body.amount_idr,
+        "amount_idr": amount_idr,
         "status": "requested",
         "request_date": now_iso(),
         "approved_date": None,
@@ -100,11 +193,20 @@ async def label_request_withdraw(body: WithdrawRequestIn, user: dict = Depends(r
         "payment_proof_url": None,
         "payment_reference": None,
         "admin_note": None,
+        # Phase 20: track which months this withdraw consumes so admin
+        # mark_paid can update last_withdrawn_period correctly and the label
+        # UI can render the FIFO range.
+        "period_from": info["period_from"],
+        "period_to": info["period_to"],
+        "lines_count": info["lines_count"],
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
     await db.withdraw_requests.insert_one(wd)
-    await log_activity(user["id"], "withdraw_request", "withdraw", wd_id, after={"amount_idr": body.amount_idr})
+    await log_activity(
+        user["id"], "withdraw_request", "withdraw", wd_id,
+        after={"amount_idr": amount_idr, "period_from": info["period_from"], "period_to": info["period_to"]},
+    )
     wd.pop("_id", None)
     return wd
 
@@ -175,7 +277,45 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
             "description": f"Withdraw dibayar. Ref: {body.payment_reference or '-'}",
             "created_at": now_iso(),
         })
-        # mark linked royalty_lines as withdrawn for this label (FIFO simplified: mark proportionally is complex; for MVP we don't lock specific lines)
+
+        # Phase 20: lock the FIFO window. Flip royalty_lines status
+        # `available → withdrawn` for the period range captured at request
+        # time, then bump labels.last_withdrawn_period so next withdraw
+        # starts right after this period_to.
+        period_from = wd.get("period_from")
+        period_to = wd.get("period_to")
+        if period_from and period_to:
+            # Chunked update via db_bg (CSOT-safe). On a label with 100k+
+            # lines per range a single update_many could exceed Atlas's
+            # 50-second `maxTimeMS`, so we paginate by `_id`.
+            CHUNK = 5000
+            line_filter = {
+                "label_id": wd["label_id"],
+                "status": "available",
+                "period": {"$gte": period_from, "$lte": period_to},
+            }
+            last_oid = None
+            total_flipped = 0
+            while True:
+                q = dict(line_filter)
+                if last_oid is not None:
+                    q["_id"] = {"$gt": last_oid}
+                batch = await db_bg.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK).to_list(CHUNK)
+                if not batch:
+                    break
+                oids = [d["_id"] for d in batch]
+                last_oid = oids[-1]
+                await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "withdrawn"}})
+                total_flipped += len(oids)
+            logger.info("[WITHDRAW] mark_paid wd=%s flipped %d lines available→withdrawn for %s..%s",
+                        wd_id, total_flipped, period_from, period_to)
+            # Update last_withdrawn_period so the next FIFO computation
+            # starts strictly AFTER period_to.
+            await db.labels.update_one(
+                {"id": wd["label_id"]},
+                {"$set": {"last_withdrawn_period": period_to, "updated_at": now_iso()}},
+            )
+
         await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
             "status": "paid", "paid_date": now_iso(), "paid_by": user["id"],
             "payment_proof_url": body.payment_proof_url, "payment_reference": body.payment_reference,

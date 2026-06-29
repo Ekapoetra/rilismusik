@@ -54,7 +54,17 @@ export default function LabelArtists() {
                 <div className="text-xs text-zinc-500 truncate">{a.email}</div>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            {(a.revenue_idr > 0 || a.last_active_period) && (
+              <div className="mt-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 px-3 py-2">
+                <div className="text-[9px] uppercase tracking-widest font-bold text-emerald-400/70">Royalti Aktif</div>
+                <div className="mt-1 flex items-baseline justify-between gap-2">
+                  <div className="font-mono font-bold text-emerald-300 text-sm">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(a.revenue_idr || 0)}</div>
+                  <div className="text-[10px] text-zinc-500">{a.last_active_period ? fmtPeriodInline(a.last_active_period) : "—"}</div>
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">{(a.royalty_lines_count || 0).toLocaleString("id-ID")} baris royalti</div>
+              </div>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <Cap k="Status" v={a.status} />
               <Cap k="WhatsApp" v={a.whatsapp || "—"} />
             </div>
@@ -106,3 +116,10 @@ export default function LabelArtists() {
   );
 }
 function Cap({ k, v }) { return <div><div className="text-zinc-500">{k}</div><div className="font-semibold capitalize">{v}</div></div>; }
+
+function fmtPeriodInline(p) {
+  if (!p || p.length !== 7) return p || "—";
+  const [y, m] = p.split("-");
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  return `${months[parseInt(m, 10) - 1] || m} ${y}`;
+}
