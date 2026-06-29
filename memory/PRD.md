@@ -230,6 +230,34 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 20 + 21 — Withdraw FIFO & Artist/Release Rollup (2026-06-29)
+Per user spec: every withdraw consumes ALL `available` royalty_lines whose `period` > the label's last_withdrawn_period (force-full, no partial). Artist/Release management lists now show total revenue + last active bulan laporan from royalty_lines.
+
+- **Phase 20 backend** (`/app/backend/routes/withdraw.py`):
+  - `_compute_withdrawable(label_id)` helper aggregates `royalty_lines` where `label_id=X AND status='available' AND period > last_withdrawn_period` (strict `$gt` to prevent double-spend). Returns `{withdrawable_idr, period_from, period_to, lines_count, last_withdrawn_period}`.
+  - `GET /api/withdraw/label/computed` — exposes the FIFO sum + range to the UI so labels see what's about to be withdrawn before clicking submit.
+  - `POST /api/withdraw/label/request` — REFACTORED. No longer accepts `amount_idr` from body. Auto-computes via the helper. Rejects if computed < `MIN_WITHDRAW_IDR` (1M IDR). Stores `period_from`, `period_to`, `lines_count` on the withdraw doc so admin can audit + mark_paid can flip the correct line range.
+  - `mark_paid` action — after marking the request paid: chunked `update_many` (via `db_bg`, CSOT-safe, 5,000-row batches paginated by `_id`) flips matching royalty_lines from `available → withdrawn`, then bumps `labels.last_withdrawn_period = wd.period_to` so the next withdraw starts strictly after.
+  - Reject path unchanged — refunds balance, leaves royalty_lines untouched.
+
+- **Phase 21 backend** (`/app/backend/routes/revenue_rollup.py` + admin/artists/releases routes):
+  - Shared helper `rollup_revenue_by_id(field, ids, period_from?, period_to?)` aggregates royalty_lines by `artist_id` / `release_id` / `label_id` / `track_id` with optional period window. Excludes unmatched rows (FK to label/artist unreliable).
+  - Patched 4 endpoints to enrich responses with `revenue_eur`, `revenue_idr`, `royalty_lines_count`, `first_active_period`, `last_active_period`:
+    - `GET /api/admin/artists`, `GET /api/admin/releases` — accept `?period_from=&period_to=`
+    - `GET /api/artists/` (label), `GET /api/releases/` (label) — same shape
+
+- **Phase 20 frontend** (`/app/frontend/src/pages/label/Withdraw.jsx` — REWRITTEN):
+  - Removed manual amount input. Replaced with read-only FIFO range card: "Range Bulan Laporan: {fmtPeriod(from)} → {fmtPeriod(to)}" + total amount + line count + last_withdrawn_period.
+  - "Tarik Semua: Rp X" button (`data-testid='withdraw-submit-button'`) disabled when window closed / no eligible balance. `window.confirm` before POST.
+  - Riwayat withdraw rows now show the period chip ("Jan 2025 - Apr 2026").
+
+- **Phase 21 frontend**:
+  - `/app/frontend/src/pages/admin/Artists.jsx` — REWRITTEN. Table with 5 columns: Artist | Label | Revenue (default sort desc) | Aktif Terakhir | Baris/Status. Period dropdown filters (populated from `/api/admin/analytics/periods`). Totals card.
+  - `/app/frontend/src/pages/admin/Releases.jsx` — REWRITTEN. 6 columns: Rilisan | Label | Release Date | Revenue | Aktif Terakhir | Status. Status filter, period filter, sort selector (revenue/date).
+  - `/app/frontend/src/pages/label/Artists.jsx` — adds emerald "Royalti Aktif" block to each artist card.
+
+- **Tests**: `/app/backend/tests/test_phase20_21_withdraw_fifo_rollup.py` (21 tests, 20 PASS + 1 environmental skip). Combined regression: 60+/61 PASS.
+
 ### Phase 18 + 19 — Monthly Analytics dashboard (2026-06-29)
 User uploaded ~1M royalty lines (Believe CSV 2020-2026-04). Requested admin dashboard with charts driven by "bulan laporan" (royalty_lines.period). Period axis = YYYY-MM. Filterable by label/platform/country/artist/track.
 
