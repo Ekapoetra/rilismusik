@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 from fastapi.responses import StreamingResponse
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
+    db, db_bg, logger, UPLOAD_DIR,
     require_admin, require_super_admin, log_activity, notify,
 )
 from models import now_iso, new_id
@@ -51,7 +51,19 @@ def _read_csv_bytes(content: bytes) -> List[Dict[str, str]]:
     sniff_line = next((ln for ln in text.splitlines() if ln.strip()), "")
     delim = ";" if sniff_line.count(";") > sniff_line.count(",") else ","
     reader = csv_module.DictReader(io.StringIO(text), delimiter=delim)
-    return [{(k or "").strip(): (v or "").strip() for k, v in r.items()} for r in reader]
+    out: List[Dict[str, str]] = []
+    for r in reader:
+        clean: Dict[str, str] = {}
+        for k, v in r.items():
+            if k is None:
+                # `DictReader` puts overflow cells under key=None as a list.
+                # Skip silently — we don't have a header to map them to.
+                continue
+            if isinstance(v, list):
+                v = ",".join(str(x) for x in v if x is not None)
+            clean[(k or "").strip()] = (v or "").strip() if isinstance(v, str) else ""
+        out.append(clean)
+    return out
 
 
 def _csv_response(rows: List[Dict[str, Any]], filename: str) -> StreamingResponse:
@@ -89,6 +101,28 @@ def _parse_iso_dt(s: Optional[str]) -> Optional[str]:
     if not d:
         return None
     return f"{d}T00:00:00+00:00"
+
+
+def _normalize_label_name(s: Optional[str]) -> str:
+    """Aggressive normalization to match legacy CSV `nama_label` against current
+    `labels.label_name`. Lowercases, strips quotes/punctuation/whitespace, drops
+    leading 'PT '/'PT, '/'PT. ' prefixes, and collapses consecutive spaces.
+
+    Examples:
+      "PT, Enam Belas Record"  -> "enam belas record"
+      "PT enam belas music"    -> "enam belas music"
+      "f - audio"              -> "f audio"
+      " F - Audio "            -> "f audio"
+    """
+    if not s:
+        return ""
+    import re
+    out = s.strip().lower()
+    out = re.sub(r"^pt[\.\,]?\s+", "", out)  # drop "PT " / "PT, " / "PT. " prefix
+    out = re.sub(r"[\.\,\;\:\!\?\(\)\[\]\{\}\"\'`]", " ", out)
+    out = re.sub(r"[\-\_]", " ", out)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
 
 
 def _require_migrate_role(user: dict):
@@ -728,3 +762,351 @@ async def list_unclaimed_legacy_labels(q: str = "", user: dict = Depends(require
         filt["label_name"] = {"$regex": q, "$options": "i"}
     items = await db.labels.find(filt, {"_id": 0}).sort("label_name", 1).limit(200).to_list(200)
     return items
+
+
+# ===================================================================
+# LEGACY WITHDRAW PERIOD-END MIGRATION (Phase 22 — for music_withdrawals.csv)
+# ===================================================================
+# This is a SEPARATE flow from /withdraws above. It maps the user's specific
+# legacy CSV (columns: nama_label, period_start, period_end, amount,
+# exchange_rate, status, …) into the modern FIFO system used by Phase 20.
+#
+# The ONLY two columns we treat as canonical are:
+#   - `nama_label` → resolves to labels.id (fuzzy normalized)
+#   - `period_end` → sets labels.last_withdrawn_period (MAX per label)
+#
+# Per user spec 2026-06-29: amount/dates are NOT important; we use period_end
+# to determine the "everything up to here is already withdrawn" cutoff, then
+# the modern FIFO logic handles future withdraws correctly.
+
+@migrate_r.post("/withdraws-legacy-period")
+async def bulk_import_withdraws_legacy_period(
+    file: UploadFile = File(...),
+    dry_run: bool = Form(True),
+    create_history_docs: bool = Form(True),
+    flip_royalty_lines: bool = Form(True),
+    adjust_balances: bool = Form(True),
+    user: dict = Depends(require_admin),
+):
+    """Migrate `music_withdrawals.csv` (legacy schema) into the FIFO system.
+
+    Per-row effect (when not dry_run):
+      1. For each unique `nama_label` in the CSV:
+         - Match against current `labels.label_name` (fuzzy: lower + strip
+           punctuation/PT prefix).
+         - Compute MAX(period_end) across all this label's CSV rows.
+         - Update `labels.last_withdrawn_period = MAX(period_end)` only if
+           the new value is later than the current one (idempotent).
+      2. (if flip_royalty_lines) For every label with last_withdrawn_period
+         set, mark ALL `royalty_lines` with period <= last_withdrawn_period
+         AND status in ('pending','available') → status='withdrawn'.
+      3. (if adjust_balances) Decrement labels.balance_pending_idr +
+         balance_available_idr by the sum of the flipped lines.
+      4. (if create_history_docs) Insert one `withdraw_requests` doc per CSV
+         row with `legacy_import=true`, `status='paid'`, `period_start`,
+         `period_end`, and (when present) amount in EUR + exchange_rate.
+         Deduped by (label_id, legacy_trx_id).
+
+    Returns a detailed dry-run report so admin can review BEFORE committing.
+    """
+    _require_migrate_role(user)
+    content = await file.read()
+    rows = _read_csv_bytes(content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV kosong")
+
+    # Validate at least one required column is present
+    if not any("period_end" in r for r in rows[:5]):
+        raise HTTPException(status_code=400, detail="Kolom 'period_end' tidak ditemukan di CSV")
+
+    # ---- Build label name index ----
+    labels_by_norm: Dict[str, dict] = {}
+    label_id_to_doc: Dict[str, dict] = {}
+    async for lab in db.labels.find({}, {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1, "balance_available_idr": 1, "balance_pending_idr": 1}):
+        norm = _normalize_label_name(lab.get("label_name"))
+        if norm:
+            labels_by_norm.setdefault(norm, lab)  # keep first match on conflict
+        label_id_to_doc[lab["id"]] = lab
+
+    # ---- Group CSV rows per (normalized) label name ----
+    per_label_csv: Dict[str, Dict[str, Any]] = {}
+    unmatched_names: Dict[str, int] = {}  # raw name → row count
+    parse_errors: List[Dict[str, Any]] = []
+
+    def _is_valid_period(p: str) -> bool:
+        return isinstance(p, str) and len(p) == 7 and p[4] == "-" and p[:4].isdigit() and p[5:7].isdigit()
+
+    for i, r in enumerate(rows, start=2):
+        raw_name = (r.get("nama_label") or r.get("label_name") or "").strip()
+        p_end = (r.get("period_end") or "").strip()
+        p_start = (r.get("period_start") or "").strip() or None
+        trx_id = (r.get("trx_id") or "").strip() or None
+        amount_eur = (r.get("amount") or "").strip()
+        rate = (r.get("exchange_rate") or "").strip()
+        if not raw_name or not p_end:
+            parse_errors.append({"row": i, "reason": "nama_label / period_end kosong", "raw_name": raw_name, "period_end": p_end})
+            continue
+        if not _is_valid_period(p_end):
+            parse_errors.append({"row": i, "reason": f"period_end format invalid (harus YYYY-MM): '{p_end}'", "raw_name": raw_name})
+            continue
+        norm = _normalize_label_name(raw_name)
+        lab = labels_by_norm.get(norm)
+        if not lab:
+            unmatched_names[raw_name] = unmatched_names.get(raw_name, 0) + 1
+            continue
+        bucket = per_label_csv.setdefault(lab["id"], {
+            "label_id": lab["id"],
+            "label_name": lab["label_name"],
+            "csv_raw_names": set(),
+            "max_period_end": None,
+            "min_period_start": None,
+            "row_count": 0,
+            "history_rows": [],
+        })
+        bucket["csv_raw_names"].add(raw_name)
+        bucket["row_count"] += 1
+        if bucket["max_period_end"] is None or p_end > bucket["max_period_end"]:
+            bucket["max_period_end"] = p_end
+        if p_start and _is_valid_period(p_start):
+            if bucket["min_period_start"] is None or p_start < bucket["min_period_start"]:
+                bucket["min_period_start"] = p_start
+        if create_history_docs:
+            try:
+                amt_eur_f = float(amount_eur) if amount_eur else 0.0
+            except ValueError:
+                amt_eur_f = 0.0
+            try:
+                rate_f = float(rate) if rate else 0.0
+            except ValueError:
+                rate_f = 0.0
+            bucket["history_rows"].append({
+                "trx_id": trx_id,
+                "period_start": p_start,
+                "period_end": p_end,
+                "amount_eur": round(amt_eur_f, 4),
+                "exchange_rate": rate_f or None,
+                "amount_idr": int(amt_eur_f * rate_f) if rate_f else 0,
+                "request_date": (r.get("request_date") or "").strip() or None,
+                "payment_date": (r.get("payment_date") or "").strip() or None,
+                "row": i,
+            })
+
+    # ---- Compute what we would write ----
+    label_summaries: List[Dict[str, Any]] = []
+    total_labels_updated = 0
+    total_lines_to_flip = 0
+    total_history_to_insert = 0
+    total_balance_pending_adj = 0
+    total_balance_available_adj = 0
+
+    for label_id, bucket in per_label_csv.items():
+        lab = label_id_to_doc[label_id]
+        old_period = lab.get("last_withdrawn_period")
+        new_period = bucket["max_period_end"]
+        # idempotency — only advance forward
+        will_update_period = (not old_period) or (new_period > old_period)
+
+        # Count royalty_lines that would be flipped (only those AFTER current
+        # last_withdrawn_period and ≤ new_period that are still pending/available)
+        line_filter = {
+            "label_id": label_id,
+            "status": {"$in": ["pending", "available"]},
+            "period": {"$lte": new_period},
+        }
+        if old_period:
+            line_filter["period"]["$gt"] = old_period
+        lines_count = await db_bg.royalty_lines.count_documents(line_filter)
+
+        # Sum the amounts so we can adjust balances correctly
+        pending_sum = 0
+        available_sum = 0
+        if adjust_balances and lines_count > 0:
+            pipe = [
+                {"$match": line_filter},
+                {"$group": {"_id": "$status", "total_idr": {"$sum": "$label_idr"}}},
+            ]
+            async for r in db_bg.royalty_lines.aggregate(pipe, allowDiskUse=True):
+                if r["_id"] == "pending":
+                    pending_sum = int(r["total_idr"] or 0)
+                elif r["_id"] == "available":
+                    available_sum = int(r["total_idr"] or 0)
+
+        label_summaries.append({
+            "label_id": label_id,
+            "label_name": bucket["label_name"],
+            "csv_names": sorted(bucket["csv_raw_names"]),
+            "csv_row_count": bucket["row_count"],
+            "old_last_withdrawn_period": old_period,
+            "new_last_withdrawn_period": new_period if will_update_period else old_period,
+            "period_will_advance": will_update_period,
+            "period_range_in_csv": f"{bucket['min_period_start'] or '?'} – {bucket['max_period_end']}",
+            "royalty_lines_to_flip": lines_count,
+            "pending_to_subtract_idr": pending_sum,
+            "available_to_subtract_idr": available_sum,
+            "history_docs_to_insert": len(bucket["history_rows"]),
+        })
+        if will_update_period:
+            total_labels_updated += 1
+        total_lines_to_flip += lines_count
+        total_history_to_insert += len(bucket["history_rows"])
+        total_balance_pending_adj += pending_sum
+        total_balance_available_adj += available_sum
+
+    label_summaries.sort(key=lambda s: s["label_name"].lower())
+
+    # ---- Apply if not dry-run ----
+    commit_meta: Dict[str, Any] = {"applied": False}
+    if not dry_run and per_label_csv:
+        applied_period_updates = 0
+        applied_lines_flipped = 0
+        applied_history_inserted = 0
+        applied_balance_pending = 0
+        applied_balance_available = 0
+        for label_id, bucket in per_label_csv.items():
+            lab = label_id_to_doc[label_id]
+            old_period = lab.get("last_withdrawn_period")
+            new_period = bucket["max_period_end"]
+            will_update_period = (not old_period) or (new_period > old_period)
+
+            # 1) Update last_withdrawn_period
+            if will_update_period:
+                await db.labels.update_one(
+                    {"id": label_id},
+                    {"$set": {"last_withdrawn_period": new_period, "updated_at": now_iso()}},
+                )
+                applied_period_updates += 1
+
+            # 2) Flip royalty_lines (chunked via db_bg, CSOT-safe)
+            if flip_royalty_lines and will_update_period:
+                line_filter = {
+                    "label_id": label_id,
+                    "status": {"$in": ["pending", "available"]},
+                    "period": {"$lte": new_period},
+                }
+                if old_period:
+                    line_filter["period"]["$gt"] = old_period
+                # Compute sums BEFORE the flip so the balance adjust is correct
+                pending_sum = 0
+                available_sum = 0
+                if adjust_balances:
+                    pipe = [
+                        {"$match": line_filter},
+                        {"$group": {"_id": "$status", "total_idr": {"$sum": "$label_idr"}}},
+                    ]
+                    async for r in db_bg.royalty_lines.aggregate(pipe, allowDiskUse=True):
+                        if r["_id"] == "pending":
+                            pending_sum = int(r["total_idr"] or 0)
+                        elif r["_id"] == "available":
+                            available_sum = int(r["total_idr"] or 0)
+
+                CHUNK = 5000
+                last_oid = None
+                flipped = 0
+                while True:
+                    q = dict(line_filter)
+                    if last_oid is not None:
+                        q["_id"] = {"$gt": last_oid}
+                    batch = await db_bg.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK).to_list(CHUNK)
+                    if not batch:
+                        break
+                    oids = [d["_id"] for d in batch]
+                    last_oid = oids[-1]
+                    await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "withdrawn"}})
+                    flipped += len(oids)
+                applied_lines_flipped += flipped
+
+                # 3) Balance adjustment
+                if adjust_balances and (pending_sum > 0 or available_sum > 0):
+                    await db.labels.update_one(
+                        {"id": label_id},
+                        {"$inc": {
+                            "balance_pending_idr": -pending_sum,
+                            "balance_available_idr": -available_sum,
+                        }, "$set": {"updated_at": now_iso()}},
+                    )
+                    applied_balance_pending += pending_sum
+                    applied_balance_available += available_sum
+
+            # 4) Insert history withdraw_requests (deduped by legacy_trx_id)
+            if create_history_docs:
+                for hr in bucket["history_rows"]:
+                    if hr.get("trx_id"):
+                        # Skip if we already imported this exact trx_id for this label
+                        existing = await db.withdraw_requests.find_one(
+                            {"label_id": label_id, "legacy_trx_id": hr["trx_id"]},
+                            {"_id": 0, "id": 1},
+                        )
+                        if existing:
+                            continue
+                    wd_id = new_id()
+                    await db.withdraw_requests.insert_one({
+                        "id": wd_id,
+                        "label_id": label_id,
+                        "amount_idr": hr["amount_idr"],
+                        "amount_eur_legacy": hr.get("amount_eur"),
+                        "exchange_rate_legacy": hr.get("exchange_rate"),
+                        "status": "paid",
+                        "request_date": hr.get("request_date") or now_iso(),
+                        "approved_date": hr.get("payment_date") or hr.get("request_date") or now_iso(),
+                        "paid_date": hr.get("payment_date") or hr.get("request_date") or now_iso(),
+                        "approved_by": user["id"],
+                        "paid_by": user["id"],
+                        "bank_snapshot": None,
+                        "payment_proof_url": None,
+                        "payment_reference": hr.get("trx_id"),
+                        "admin_note": "Legacy import dari music_withdrawals.csv",
+                        "period_from": hr.get("period_start"),
+                        "period_to": hr.get("period_end"),
+                        "lines_count": 0,  # unknown for legacy rows
+                        "legacy_import": True,
+                        "legacy_trx_id": hr.get("trx_id"),
+                        "created_at": now_iso(),
+                        "updated_at": now_iso(),
+                    })
+                    applied_history_inserted += 1
+
+        await log_activity(
+            user["id"], "migrate_legacy_withdraws_period", "migrate", None,
+            after={
+                "labels_updated": applied_period_updates,
+                "lines_flipped": applied_lines_flipped,
+                "history_inserted": applied_history_inserted,
+            },
+        )
+        commit_meta = {
+            "applied": True,
+            "labels_period_updated": applied_period_updates,
+            "royalty_lines_flipped": applied_lines_flipped,
+            "history_docs_inserted": applied_history_inserted,
+            "balance_pending_subtracted": applied_balance_pending,
+            "balance_available_subtracted": applied_balance_available,
+        }
+
+    # Sort unmatched alphabetically for easier review
+    unmatched_sorted = [
+        {"name": k, "row_count": v} for k, v in sorted(unmatched_names.items(), key=lambda kv: kv[0].lower())
+    ]
+
+    return {
+        "dry_run": dry_run,
+        "total_csv_rows": len(rows),
+        "parse_errors": parse_errors[:200],
+        "parse_error_count": len(parse_errors),
+        "matched_labels": len(per_label_csv),
+        "unmatched_label_count": len(unmatched_sorted),
+        "unmatched_label_names": unmatched_sorted[:100],  # cap response
+        "totals_preview": {
+            "labels_period_will_advance": total_labels_updated,
+            "royalty_lines_to_flip": total_lines_to_flip,
+            "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
+            "balance_pending_to_subtract": total_balance_pending_adj,
+            "balance_available_to_subtract": total_balance_available_adj,
+        },
+        "label_summaries": label_summaries[:1000],
+        "commit": commit_meta,
+        "options": {
+            "create_history_docs": create_history_docs,
+            "flip_royalty_lines": flip_royalty_lines,
+            "adjust_balances": adjust_balances,
+        },
+    }

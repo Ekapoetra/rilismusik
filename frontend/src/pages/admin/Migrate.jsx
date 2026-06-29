@@ -7,7 +7,8 @@ const TABS = [
   { id: "labels", label: "Labels", icon: Users, endpoint: "labels", desc: "Import data label lama (5-6 ribu). user_id=null, status=legacy_unclaimed." },
   { id: "releases", label: "Releases", icon: Music2, endpoint: "releases", desc: "Import katalog rilisan lama (imported_legacy=true)." },
   { id: "tracks", label: "Tracks", icon: ListMusic, endpoint: "tracks", desc: "Import master tracks per release. Audio file URL optional." },
-  { id: "withdraws", label: "Withdraws", icon: Wallet, endpoint: "withdraws", desc: "Import histori withdraw 2021-sekarang. Tidak trigger notifikasi atau mutasi saldo." },
+  { id: "withdraws", label: "Withdraws (old)", icon: Wallet, endpoint: "withdraws", desc: "Format lama: kolom amount_idr + request_date. Tidak trigger notifikasi atau mutasi saldo." },
+  { id: "withdraws-fifo", label: "Withdraws (Period FIFO)", icon: Wallet, endpoint: "withdraws-legacy-period", desc: "Format CSV: nama_label + period_end. Setiap label akan diset last_withdrawn_period = MAX(period_end). Sistem juga mem-flip royalty_lines historical → withdrawn + adjust balance.", custom: true },
   { id: "claims", label: "Claims", icon: UserCheck, endpoint: null, desc: "Resolve permintaan label claim akun lama. Link ke legacy label_id atau reject." },
 ];
 
@@ -47,7 +48,7 @@ export default function AdminMigrate() {
         </div>
 
         {cfg.endpoint ? (
-          <CsvImportPanel kind={cfg.endpoint} />
+          cfg.custom ? <WithdrawFifoPanel /> : <CsvImportPanel kind={cfg.endpoint} />
         ) : (
           <ClaimsPanel />
         )}
@@ -343,6 +344,181 @@ function ClaimsPanel() {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function WithdrawFifoPanel() {
+  const [file, setFile] = useState(null);
+  const [dryRun, setDryRun] = useState(true);
+  const [createHistory, setCreateHistory] = useState(true);
+  const [flipLines, setFlipLines] = useState(true);
+  const [adjustBalances, setAdjustBalances] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+  const [showUnmatched, setShowUnmatched] = useState(true);
+
+  const submit = async () => {
+    if (!file) { setErr("Pilih CSV dulu"); return; }
+    setErr(""); setResult(null); setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("dry_run", dryRun ? "true" : "false");
+      fd.append("create_history_docs", createHistory ? "true" : "false");
+      fd.append("flip_royalty_lines", flipLines ? "true" : "false");
+      fd.append("adjust_balances", adjustBalances ? "true" : "false");
+      const { data } = await api.post("/admin/migrate/withdraws-legacy-period", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setResult(data);
+    } catch (e) {
+      setErr(e.response?.data?.detail || "Upload gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-200 text-xs px-4 py-3">
+        <b>Format CSV yang diharapkan:</b> kolom <code>nama_label</code> + <code>period_end</code> (YYYY-MM) wajib. Optional: <code>period_start, trx_id, amount, exchange_rate, request_date, payment_date, status</code>.
+        Tool ini akan: (1) set <code>last_withdrawn_period = MAX(period_end)</code> per label, (2) flip royalty_lines historical → status withdrawn, (3) decrement balance, (4) insert riwayat withdraw_requests dengan <code>legacy_import=true</code>.
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => { setFile(e.target.files?.[0] || null); setResult(null); setErr(""); }}
+          className="text-xs text-zinc-300 file:rm-btn-secondary file:mr-3 file:px-3 file:py-1.5 file:border-0 file:cursor-pointer"
+          data-testid="admin-migrate-withdraws-fifo-file"
+        />
+        <button
+          onClick={submit}
+          disabled={!file || loading}
+          className="rm-btn-primary text-xs flex items-center gap-2"
+          data-testid="admin-migrate-withdraws-fifo-submit"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          {loading ? "Memproses…" : dryRun ? "Preview Dry-run" : "COMMIT (data akan diubah)"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10">
+          <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} className="accent-[#FF1F8E]" data-testid="admin-migrate-withdraws-fifo-dryrun" />
+          <span>Dry-run (preview saja)</span>
+        </label>
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10">
+          <input type="checkbox" checked={createHistory} onChange={(e) => setCreateHistory(e.target.checked)} className="accent-[#FF1F8E]" />
+          <span>Insert riwayat withdraw_requests</span>
+        </label>
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10">
+          <input type="checkbox" checked={flipLines} onChange={(e) => setFlipLines(e.target.checked)} className="accent-[#FF1F8E]" />
+          <span>Flip royalty_lines → withdrawn</span>
+        </label>
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10">
+          <input type="checkbox" checked={adjustBalances} onChange={(e) => setAdjustBalances(e.target.checked)} className="accent-[#FF1F8E]" />
+          <span>Adjust balance saldo</span>
+        </label>
+      </div>
+
+      {err && (
+        <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5" /> <span>{String(err)}</span>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          {result.dry_run ? (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs px-3 py-2 flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5" /> Mode <b>dry-run</b> — data BELUM diubah. Review report di bawah, lalu uncheck Dry-run + klik Commit.
+            </div>
+          ) : (
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs px-3 py-2 flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5" /> <b>COMMITTED.</b> {JSON.stringify(result.commit)}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <Stat label="Total CSV Rows" value={result.total_csv_rows} color="text-zinc-200" />
+            <Stat label="Matched Labels" value={result.matched_labels} color="text-emerald-300" />
+            <Stat label="Unmatched Labels" value={result.unmatched_label_count} color="text-amber-300" />
+            <Stat label="Lines akan di-flip" value={result.totals_preview.royalty_lines_to_flip.toLocaleString("id-ID")} color="text-indigo-300" />
+            <Stat label="History docs insert" value={result.totals_preview.history_docs_to_insert} color="text-rose-300" />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="rm-card p-4">
+              <div className="text-xs uppercase font-bold text-zinc-500 tracking-widest mb-2">Balance Adjustment Preview</div>
+              <div className="text-sm space-y-1.5">
+                <div className="flex justify-between"><span className="text-zinc-500">Pending → withdrawn</span><span className="text-amber-300 font-mono">{fmtIDR(result.totals_preview.balance_pending_to_subtract)}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Available → withdrawn</span><span className="text-emerald-300 font-mono">{fmtIDR(result.totals_preview.balance_available_to_subtract)}</span></div>
+              </div>
+            </div>
+            <div className="rm-card p-4">
+              <div className="text-xs uppercase font-bold text-zinc-500 tracking-widest mb-2">Period Update Preview</div>
+              <div className="text-sm">
+                <div><b className="text-emerald-300">{result.totals_preview.labels_period_will_advance}</b> label akan diadvance <code>last_withdrawn_period</code></div>
+                <div className="text-xs text-zinc-500 mt-1">Yang tidak diadvance = MAX(period_end) di CSV lebih lama atau sama dengan nilai saat ini (idempotent).</div>
+              </div>
+            </div>
+          </div>
+
+          {result.unmatched_label_count > 0 && (
+            <div className="rm-card p-4">
+              <button onClick={() => setShowUnmatched((s) => !s)} className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-widest text-zinc-500">
+                <span>Unmatched Labels — perlu di-fix manual</span>
+                <span className="text-amber-300">{result.unmatched_label_count} {showUnmatched ? "▾" : "▸"}</span>
+              </button>
+              {showUnmatched && (
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-1 text-xs max-h-72 overflow-y-auto">
+                  {(result.unmatched_label_names || []).map((u) => (
+                    <div key={u.name} className="flex justify-between px-2 py-1 rounded bg-white/[0.02]">
+                      <span className="truncate text-zinc-300">{u.name}</span>
+                      <span className="text-zinc-500 font-mono">{u.row_count}×</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rm-card p-4">
+            <div className="text-xs uppercase font-bold text-zinc-500 tracking-widest mb-3">Per-Label Summary ({(result.label_summaries || []).length})</div>
+            <div className="overflow-x-auto rounded-2xl border border-white/5">
+              <table className="w-full text-xs">
+                <thead className="bg-white/[0.03] text-zinc-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Label</th>
+                    <th className="px-3 py-2 text-left">Old → New Period</th>
+                    <th className="px-3 py-2 text-right">CSV Rows</th>
+                    <th className="px-3 py-2 text-right">Lines Flip</th>
+                    <th className="px-3 py-2 text-right">Available − IDR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.label_summaries || []).map((s) => (
+                    <tr key={s.label_id} className="border-t border-white/5">
+                      <td className="px-3 py-2 text-zinc-200">{s.label_name}</td>
+                      <td className="px-3 py-2 text-xs"><span className="text-zinc-500">{s.old_last_withdrawn_period || "—"}</span> <span className="text-zinc-600 mx-1">→</span> <span className={s.period_will_advance ? "text-emerald-300" : "text-zinc-500"}>{s.new_last_withdrawn_period}</span></td>
+                      <td className="px-3 py-2 text-right text-zinc-400">{s.csv_row_count}</td>
+                      <td className="px-3 py-2 text-right text-indigo-300">{s.royalty_lines_to_flip.toLocaleString("id-ID")}</td>
+                      <td className="px-3 py-2 text-right text-emerald-300 font-mono">{fmtIDR(s.available_to_subtract_idr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
