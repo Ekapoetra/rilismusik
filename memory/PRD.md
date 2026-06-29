@@ -230,6 +230,17 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 16.4 — Delete failed royalty imports + dashboard revenue cache (2026-06-29)
+User-reported: failed periods can't be deleted, and the admin dashboard is "sangat lama dibuka" since the 1M-row CSV import.
+
+- **`DELETE /api/royalty/admin/imports/{id}`** (super_admin only). Allowed statuses: `awaiting_upload`, `processing`, `error`, `publish_error`, `pending_review`. Refused for `published` / `publishing` / `dana_received` because those have `balance_transactions` tied to label balances (HTTP 400 with Indonesian explainer). Cascading delete cleans `royalty_lines` (via `db_bg` — chunked), labels/releases/tracks created from this import (`auto_created_from` match), the uploaded R2 object (best-effort), the local CSV file, then the import doc itself. Returns row counts.
+- **Dashboard revenue cache (stale-while-revalidate)**: `_dashboard_revenue_cache` module-local dict + Mongo `metrics_cache.dashboard_revenue` persistence. First load after pod boot warms from Mongo; if both empty, sync recompute. Subsequent loads serve from cache; if older than 60s, fire-and-forget background refresh runs while the cached value is returned immediately. Cache invalidation on publish-complete + delete-import (lazy import to avoid cycle).
+- **`POST /api/admin/dashboard/refresh-revenue`** (super_admin + admin_finance only — 403 for other admin roles). Forces a sync recompute for impatient admins after fresh imports.
+- **UI**:
+  - `/admin/royalty` list — every deletable row gets a red Trash2 "Hapus" button (`data-testid=royalty-import-delete-{id}`). Confirms via `window.confirm`, then refreshes the list.
+  - `/admin/royalty/{id}` detail — "Hapus Import" button (`data-testid=admin-royalty-delete`). On success, redirects back to `/admin/royalty` after 1.5s.
+- **Tests**: `tests/test_phase16_4_delete_import_and_dashboard_cache.py` (11 new) + `tests/test_phase16_3_csot_uncapped_client.py` (5 updated to be refactor-tolerant) — 34/34 PASS in combined suite.
+
 ### Phase 16.3 — CSOT-uncapped Mongo client `db_bg` (2026-06-29, hotfix)
 Production user reported repeated publish failures + 500s on `/api/admin/dashboard` and `/api/royalty/admin/imports/{id}` after redeploy:
 > Publish gagal: customer-apps-shard-00-01.fpzjgt.mongodb.net:27017:

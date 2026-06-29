@@ -160,9 +160,15 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
 async def admin_refresh_revenue(user: dict = Depends(require_admin)):
     """Force a sync recompute of the dashboard revenue totals.
 
+    Restricted to **super_admin** and **admin_finance** roles only — recomputing
+    is a heavy aggregate over 1M+ rows that should not be triggerable by
+    release / marketing / support admins. Other admin roles get 403.
+
     Useful after a fresh CSV import / large publish — admin can hit this once
     to repopulate the cache without waiting for the 60s TTL.
     """
+    if user.get("role") not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin atau Admin Finance yang bisa refresh revenue")
     await _recompute_revenue_cache()
     return {
         "ok": True,
