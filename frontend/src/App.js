@@ -110,7 +110,14 @@ function App() {
             <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
             <Route path="/admin/contracts" element={<AdminContracts />} />
             <Route path="/admin/wami" element={<AdminWami />} />
-            <Route path="/admin/migrate" element={<AdminMigrate />} />
+            <Route
+              path="/admin/migrate"
+              element={
+                <ProtectedRoute roles={["super_admin"]}>
+                  <AdminMigrate />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

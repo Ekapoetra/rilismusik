@@ -230,6 +230,20 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 22 — Legacy Withdraw CSV → Period-end FIFO Migration (2026-06-29)
+User uploaded `music_withdrawals.csv` (legacy columns: nama_label, period_start, period_end, amount, exchange_rate, status, …) and needed it mapped into the modern FIFO system from Phase 20.
+
+- **Backend** `/app/backend/routes/migrate.py` (lines 767-1113):
+  - `POST /api/admin/migrate/withdraws-legacy-period` (super_admin only) — multipart upload, 4 toggle flags: `dry_run`, `create_history_docs`, `flip_royalty_lines`, `adjust_balances`.
+  - Fuzzy label matcher `_normalize_label_name()` strips `PT ` / `PT, ` / `PT. ` prefix, lowercases, drops `.,;:!?()[]{}\"'` punctuation and `-_`, collapses whitespace. Verified against punctuation/casing/prefix variants.
+  - Per label: `last_withdrawn_period = MAX(period_end)` (advance-only, idempotent), flips `royalty_lines.status pending|available → withdrawn` for period in `(old_last_withdrawn_period, new_last_withdrawn_period]` via chunked `_id` paginated update_many through `db_bg` (CSOT-safe).
+  - Decrements `labels.balance_pending_idr` / `balance_available_idr` by summed `label_idr` of flipped lines (computed BEFORE flip).
+  - Inserts one `withdraw_requests` doc per CSV row (`status='paid'`, `legacy_import=true`, `legacy_trx_id`), deduped by `(label_id, legacy_trx_id)`.
+  - Returns rich preview/commit payload: `dry_run, total_csv_rows, matched_labels, unmatched_label_names, totals_preview, label_summaries, commit`.
+- **Frontend** `/app/frontend/src/pages/admin/Migrate.jsx` — new `WithdrawFifoPanel` (lines 356-528) added as 5th tab "Withdraws (Period FIFO)" (data-testid `admin-migrate-tab-withdraws-fifo`). Renders amber spec banner, file picker, submit button, 4 flag toggles, dry-run/commit banners, stats grid (5 cards), Balance Adjustment Preview, Period Update Preview, Unmatched Labels collapsible list, Per-Label Summary table.
+- **Route guard tightened** `/app/frontend/src/App.js` — `/admin/migrate` now wrapped in `<ProtectedRoute roles={["super_admin"]}>` so sub-admins are redirected to `/admin/dashboard` client-side (backend RBAC was already 403, this closes the UX gap flagged by iteration 25).
+- **Tests**: `/app/backend/tests/test_phase22_legacy_withdraw_migration.py` (7) + `/app/backend/tests/test_phase22_extras.py` (5 new: finance/release RBAC + flag isolation) = **12/12 PASS**. Frontend E2E confirmed via iteration 25 testing agent (panel render, dry-run upload, stats grid, dry-run banner, error toast all PASS).
+
 ### Phase 20 + 21 — Withdraw FIFO & Artist/Release Rollup (2026-06-29)
 Per user spec: every withdraw consumes ALL `available` royalty_lines whose `period` > the label's last_withdrawn_period (force-full, no partial). Artist/Release management lists now show total revenue + last active bulan laporan from royalty_lines.
 
