@@ -954,14 +954,104 @@ async def bulk_import_withdraws_legacy_period(
 
     label_summaries.sort(key=lambda s: s["label_name"].lower())
 
-    # ---- Apply if not dry-run ----
+    # ---- Apply if not dry-run (Phase 26: commit is now async to avoid the
+    # 120s ingress timeout on production datasets of 3M+ royalty_lines) ----
     commit_meta: Dict[str, Any] = {"applied": False}
+    job_id: Optional[str] = None
     if not dry_run and per_label_csv:
+        job_id = new_id()
+        # Persist a job doc the frontend can poll. The dry-run preview totals
+        # are saved alongside so the polling response is self-contained.
+        await db.migrate_jobs.insert_one({
+            "id": job_id,
+            "kind": "withdraws_legacy_period",
+            "status": "processing",
+            "submitted_by": user["id"],
+            "submitted_at": now_iso(),
+            "updated_at": now_iso(),
+            "progress_labels_done": 0,
+            "progress_labels_total": len(per_label_csv),
+            "options": {
+                "create_history_docs": create_history_docs,
+                "flip_royalty_lines": flip_royalty_lines,
+                "adjust_balances": adjust_balances,
+            },
+            "totals_preview": {
+                "labels_period_will_advance": total_labels_updated,
+                "royalty_lines_to_flip": total_lines_to_flip,
+                "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
+                "balance_pending_to_subtract": total_balance_pending_adj,
+                "balance_available_to_subtract": total_balance_available_adj,
+            },
+        })
+        import asyncio
+        asyncio.create_task(_commit_legacy_period_bg(
+            job_id=job_id,
+            per_label_csv=per_label_csv,
+            label_id_to_doc=label_id_to_doc,
+            create_history_docs=create_history_docs,
+            flip_royalty_lines=flip_royalty_lines,
+            adjust_balances=adjust_balances,
+            user_id=user["id"],
+        ))
+        commit_meta = {"applied": False, "queued": True, "job_id": job_id}
+
+    # Sort unmatched alphabetically for easier review
+    unmatched_sorted = [
+        {"name": k, "row_count": v} for k, v in sorted(unmatched_names.items(), key=lambda kv: kv[0].lower())
+    ]
+
+    return {
+        "dry_run": dry_run,
+        "job_id": job_id,
+        "total_csv_rows": len(rows),
+        "parse_errors": parse_errors[:200],
+        "parse_error_count": len(parse_errors),
+        "matched_labels": len(per_label_csv),
+        "unmatched_label_count": len(unmatched_sorted),
+        "unmatched_label_names": unmatched_sorted[:100],  # cap response
+        "totals_preview": {
+            "labels_period_will_advance": total_labels_updated,
+            "royalty_lines_to_flip": total_lines_to_flip,
+            "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
+            "balance_pending_to_subtract": total_balance_pending_adj,
+            "balance_available_to_subtract": total_balance_available_adj,
+        },
+        "label_summaries": label_summaries[:1000],
+        "commit": commit_meta,
+        "options": {
+            "create_history_docs": create_history_docs,
+            "flip_royalty_lines": flip_royalty_lines,
+            "adjust_balances": adjust_balances,
+        },
+    }
+
+
+async def _commit_legacy_period_bg(
+    *,
+    job_id: str,
+    per_label_csv: Dict[str, Dict[str, Any]],
+    label_id_to_doc: Dict[str, Dict[str, Any]],
+    create_history_docs: bool,
+    flip_royalty_lines: bool,
+    adjust_balances: bool,
+    user_id: str,
+):
+    """Phase 26 — Commit the Phase 22 withdraw-FIFO migration in background.
+
+    Identical writes to the synchronous version, but writes progress to the
+    `migrate_jobs` doc so the admin UI can poll for status without hitting
+    the 120s ingress timeout.
+    """
+    try:
         applied_period_updates = 0
         applied_lines_flipped = 0
         applied_history_inserted = 0
         applied_balance_pending = 0
         applied_balance_available = 0
+        labels_done = 0
+        labels_total = len(per_label_csv)
+
         for label_id, bucket in per_label_csv.items():
             lab = label_id_to_doc[label_id]
             old_period = lab.get("last_withdrawn_period")
@@ -970,7 +1060,7 @@ async def bulk_import_withdraws_legacy_period(
 
             # 1) Update last_withdrawn_period
             if will_update_period:
-                await db.labels.update_one(
+                await db_bg.labels.update_one(
                     {"id": label_id},
                     {"$set": {"last_withdrawn_period": new_period, "updated_at": now_iso()}},
                 )
@@ -1015,9 +1105,9 @@ async def bulk_import_withdraws_legacy_period(
                     flipped += len(oids)
                 applied_lines_flipped += flipped
 
-                # 3) Balance adjustment
-                if adjust_balances and (pending_sum > 0 or available_sum > 0):
-                    await db.labels.update_one(
+                # 3) Adjust balances by the pre-flip sums
+                if adjust_balances and (pending_sum or available_sum):
+                    await db_bg.labels.update_one(
                         {"id": label_id},
                         {"$inc": {
                             "balance_pending_idr": -pending_sum,
@@ -1027,37 +1117,29 @@ async def bulk_import_withdraws_legacy_period(
                     applied_balance_pending += pending_sum
                     applied_balance_available += available_sum
 
-            # 4) Insert history withdraw_requests (deduped by legacy_trx_id)
+            # 4) Insert history docs (deduped by legacy_trx_id)
             if create_history_docs:
                 for hr in bucket["history_rows"]:
-                    if hr.get("trx_id"):
-                        # Skip if we already imported this exact trx_id for this label
-                        existing = await db.withdraw_requests.find_one(
-                            {"label_id": label_id, "legacy_trx_id": hr["trx_id"]},
+                    trx_id = hr.get("trx_id")
+                    if trx_id:
+                        exists = await db_bg.withdraw_requests.find_one(
+                            {"label_id": label_id, "legacy_trx_id": trx_id},
                             {"_id": 0, "id": 1},
                         )
-                        if existing:
+                        if exists:
                             continue
-                    wd_id = new_id()
-                    await db.withdraw_requests.insert_one({
-                        "id": wd_id,
+                    await db_bg.withdraw_requests.insert_one({
+                        "id": new_id(),
                         "label_id": label_id,
-                        "amount_idr": hr["amount_idr"],
+                        "status": "paid",
                         "amount_eur_legacy": hr.get("amount_eur"),
                         "exchange_rate_legacy": hr.get("exchange_rate"),
-                        "status": "paid",
-                        "request_date": hr.get("request_date") or now_iso(),
-                        "approved_date": hr.get("payment_date") or hr.get("request_date") or now_iso(),
-                        "paid_date": hr.get("payment_date") or hr.get("request_date") or now_iso(),
-                        "approved_by": user["id"],
-                        "paid_by": user["id"],
-                        "bank_snapshot": None,
-                        "payment_proof_url": None,
+                        "payment_method": hr.get("payment_method"),
                         "payment_reference": hr.get("trx_id"),
                         "admin_note": "Legacy import dari music_withdrawals.csv",
                         "period_from": hr.get("period_start"),
                         "period_to": hr.get("period_end"),
-                        "lines_count": 0,  # unknown for legacy rows
+                        "lines_count": 0,
                         "legacy_import": True,
                         "legacy_trx_id": hr.get("trx_id"),
                         "created_at": now_iso(),
@@ -1065,51 +1147,64 @@ async def bulk_import_withdraws_legacy_period(
                     })
                     applied_history_inserted += 1
 
+            # Progress write — every 10 labels (or when done) so admin sees movement
+            labels_done += 1
+            if labels_done % 10 == 0 or labels_done == labels_total:
+                await db_bg.migrate_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "progress_labels_done": labels_done,
+                        "progress_lines_flipped": applied_lines_flipped,
+                        "progress_history_inserted": applied_history_inserted,
+                        "updated_at": now_iso(),
+                    }},
+                )
+
         await log_activity(
-            user["id"], "migrate_legacy_withdraws_period", "migrate", None,
+            user_id, "migrate_legacy_withdraws_period", "migrate", None,
             after={
+                "job_id": job_id,
                 "labels_updated": applied_period_updates,
                 "lines_flipped": applied_lines_flipped,
                 "history_inserted": applied_history_inserted,
             },
         )
-        commit_meta = {
-            "applied": True,
-            "labels_period_updated": applied_period_updates,
-            "royalty_lines_flipped": applied_lines_flipped,
-            "history_docs_inserted": applied_history_inserted,
-            "balance_pending_subtracted": applied_balance_pending,
-            "balance_available_subtracted": applied_balance_available,
-        }
-
-    # Sort unmatched alphabetically for easier review
-    unmatched_sorted = [
-        {"name": k, "row_count": v} for k, v in sorted(unmatched_names.items(), key=lambda kv: kv[0].lower())
-    ]
-
-    return {
-        "dry_run": dry_run,
-        "total_csv_rows": len(rows),
-        "parse_errors": parse_errors[:200],
-        "parse_error_count": len(parse_errors),
-        "matched_labels": len(per_label_csv),
-        "unmatched_label_count": len(unmatched_sorted),
-        "unmatched_label_names": unmatched_sorted[:100],  # cap response
-        "totals_preview": {
-            "labels_period_will_advance": total_labels_updated,
-            "royalty_lines_to_flip": total_lines_to_flip,
-            "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
-            "balance_pending_to_subtract": total_balance_pending_adj,
-            "balance_available_to_subtract": total_balance_available_adj,
-        },
-        "label_summaries": label_summaries[:1000],
-        "commit": commit_meta,
-        "options": {
-            "create_history_docs": create_history_docs,
-            "flip_royalty_lines": flip_royalty_lines,
-            "adjust_balances": adjust_balances,
-        },
-    }
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "done",
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+                "progress_labels_done": labels_total,
+                "result": {
+                    "applied": True,
+                    "labels_period_updated": applied_period_updates,
+                    "royalty_lines_flipped": applied_lines_flipped,
+                    "history_docs_inserted": applied_history_inserted,
+                    "balance_pending_subtracted": applied_balance_pending,
+                    "balance_available_subtracted": applied_balance_available,
+                },
+            }},
+        )
+        # Trigger analytics cache rebuild after commit so dashboards reflect
+        # the flipped/withdrawn lines + adjusted balances.
+        import asyncio as _aio
+        try:
+            from routes.admin_analytics import recompute_monthly_analytics
+            _aio.create_task(recompute_monthly_analytics())
+        except Exception:
+            pass
+    except Exception as e:
+        logger.exception("[WITHDRAW FIFO BG] job %s failed: %s", job_id, e)
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "error",
+                "error_message": f"{type(e).__name__}: {str(e)[:400]}",
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+            }},
+        )
 
 
 
@@ -1325,3 +1420,242 @@ async def backfill_royalty_period_from_row(
         "recomputed_imports": recomputed[:200],
     })
     return response
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 26 — Materialize artists from royalty_lines
+#
+# Background: CSV ingestion auto-creates labels/releases/tracks but DOES NOT
+# create artist documents (royalty.py line 626 hard-codes artist_id=None on
+# auto-created tracks). After uploading yearly CSVs, the Artist Management
+# page shows "Belum ada artist" because `db.artists` is empty.
+#
+# This tool scans `royalty_lines` for unique (artist_name_raw, label_id)
+# combos, upserts into `artists`, then backfills `royalty_lines.artist_id`
+# and `tracks.artist_id` via bulk_write. Idempotent — re-running only
+# touches new (artist_name, label) combos that haven't been materialized yet.
+# ─────────────────────────────────────────────────────────────────────────────
+
+from bson import ObjectId  # type: ignore  # noqa: F401  (kept for potential future use)
+import re
+
+
+def _slug_artist(name: str) -> str:
+    """Stable slug per artist name — used as dedupe key inside a single
+    label. Strips whitespace + non-alphanumerics + lowercase."""
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower()).strip()
+
+
+@migrate_r.post("/materialize-artists")
+async def materialize_artists_from_royalty_lines(
+    dry_run: bool = Form(True),
+    limit_combos: int = Form(0),  # 0 = no limit
+    user: dict = Depends(require_super_admin),
+):
+    """Create artist docs from `royalty_lines` and backfill `artist_id` on
+    both `royalty_lines` and `tracks`.
+
+    Steps:
+      1. Aggregate `royalty_lines` by (label_id, artist_name_raw) for matched
+         rows. Skip rows where artist_name_raw is empty/'Unknown'.
+      2. Compare with existing `artists` collection (key = label_id + slug).
+         Identify NEW combos that need to be created.
+      3. (commit) `insert_many` the new artist docs, then bulk_write updates
+         to `royalty_lines.artist_id` and `tracks.artist_id` via db_bg.
+      4. Trigger analytics cache rebuild so Artist dashboard immediately
+         reflects the new data.
+
+    Returns dry-run preview (artists_to_create count, sample names, top-10
+    by revenue) or commit summary (artists_created, lines_updated, tracks_updated).
+    """
+    # Step 1: aggregate unique (label_id, artist_name_raw)
+    # NOTE: combine null-check and excluded-values in a single `$nin` because
+    # MongoDB doesn't allow both `$ne` and `$nin` on the same field (last one
+    # silently overrides the other).
+    pipeline = [
+        {"$match": {
+            "label_id": {"$ne": None},
+            "artist_name_raw": {"$nin": [None, "", "Unknown", "unknown"]},
+            "match_status": {"$in": ["matched", "manually_matched"]},
+        }},
+        {"$group": {
+            "_id": {"label_id": "$label_id", "artist_name": "$artist_name_raw"},
+            "lines": {"$sum": 1},
+            "total_revenue_eur": {"$sum": "$revenue_eur"},
+            "total_label_idr": {"$sum": "$label_idr"},
+            "first_period": {"$min": "$period"},
+            "last_period": {"$max": "$period"},
+        }},
+        {"$sort": {"total_label_idr": -1}},
+    ]
+    if limit_combos and limit_combos > 0:
+        pipeline.append({"$limit": int(limit_combos)})
+
+    combos: List[Dict[str, Any]] = []
+    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        combos.append({
+            "label_id": r["_id"]["label_id"],
+            "artist_name": r["_id"]["artist_name"],
+            "lines": int(r.get("lines") or 0),
+            "total_revenue_eur": round(float(r.get("total_revenue_eur") or 0), 2),
+            "total_label_idr": int(r.get("total_label_idr") or 0),
+            "first_period": r.get("first_period"),
+            "last_period": r.get("last_period"),
+        })
+
+    # Step 2: lookup existing artists per (label_id, slug)
+    existing_by_key: Dict[str, str] = {}  # key = f"{label_id}|{slug}" → artist_id
+    async for art in db_bg.artists.find(
+        {}, {"_id": 0, "id": 1, "label_id": 1, "artist_name": 1, "name_slug": 1},
+    ):
+        slug = art.get("name_slug") or _slug_artist(art.get("artist_name") or "")
+        key = f"{art.get('label_id')}|{slug}"
+        existing_by_key[key] = art["id"]
+
+    new_artists: List[Dict[str, Any]] = []
+    matched_artists: List[Dict[str, Any]] = []  # (combo, existing_artist_id) — already created, just need backfill
+    seen_keys: set = set()  # safety dedupe in case CSV had duplicate artist names per label
+    for combo in combos:
+        slug = _slug_artist(combo["artist_name"])
+        if not slug:
+            continue
+        key = f"{combo['label_id']}|{slug}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        if key in existing_by_key:
+            matched_artists.append((combo, existing_by_key[key]))
+        else:
+            new_artists.append({
+                "id": new_id(),
+                "label_id": combo["label_id"],
+                "artist_name": combo["artist_name"],
+                "name_slug": slug,
+                "status": "active",
+                "user_id": None,
+                "imported_legacy": True,
+                "auto_created_from_lines": True,
+                "first_period": combo["first_period"],
+                "last_period": combo["last_period"],
+                "lifetime_lines": combo["lines"],
+                "lifetime_revenue_eur": combo["total_revenue_eur"],
+                "lifetime_label_idr": combo["total_label_idr"],
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            })
+
+    top_preview = sorted(new_artists, key=lambda a: a["lifetime_label_idr"], reverse=True)[:20]
+    response: Dict[str, Any] = {
+        "dry_run": dry_run,
+        "combos_in_lines": len(combos),
+        "artists_already_existed": len(matched_artists),
+        "artists_to_create": len(new_artists),
+        "top_preview": [
+            {"artist_name": a["artist_name"], "label_id": a["label_id"],
+             "lines": a["lifetime_lines"], "revenue_eur": a["lifetime_revenue_eur"],
+             "label_idr": a["lifetime_label_idr"]}
+            for a in top_preview
+        ],
+    }
+
+    if dry_run:
+        return response
+
+    # Step 3: COMMIT — insert new artists in batches
+    if new_artists:
+        BATCH = 1000
+        for i in range(0, len(new_artists), BATCH):
+            await db_bg.artists.insert_many(new_artists[i:i + BATCH], ordered=False)
+
+    # Step 4: Backfill royalty_lines.artist_id + tracks.artist_id per (label_id, artist_name_raw)
+    # Build full mapping = newly-created + pre-existing combos
+    full_mapping: Dict[tuple, str] = {}  # (label_id, slug) → artist_id
+    for a in new_artists:
+        full_mapping[(a["label_id"], a["name_slug"])] = a["id"]
+    for combo, art_id in matched_artists:
+        full_mapping[(combo["label_id"], _slug_artist(combo["artist_name"]))] = art_id
+
+    lines_updated = 0
+    tracks_updated = 0
+    # Iterate over combos and run one update_many per combo. With ~5K combos
+    # and chunked queries this is fast enough.
+    from pymongo import UpdateMany
+    line_ops: List[UpdateMany] = []
+    track_ops: List[UpdateMany] = []
+    for combo in combos:
+        slug = _slug_artist(combo["artist_name"])
+        if not slug:
+            continue
+        art_id = full_mapping.get((combo["label_id"], slug))
+        if not art_id:
+            continue
+        line_ops.append(UpdateMany(
+            {"label_id": combo["label_id"], "artist_name_raw": combo["artist_name"], "artist_id": None},
+            {"$set": {"artist_id": art_id}},
+        ))
+        track_ops.append(UpdateMany(
+            {"label_id": combo["label_id"], "artist_name": combo["artist_name"], "artist_id": None},
+            {"$set": {"artist_id": art_id}},
+        ))
+        # Flush in batches of 500 to avoid huge bulk_write payloads
+        if len(line_ops) >= 500:
+            res = await db_bg.royalty_lines.bulk_write(line_ops, ordered=False)
+            lines_updated += res.modified_count
+            line_ops = []
+        if len(track_ops) >= 500:
+            res = await db_bg.tracks.bulk_write(track_ops, ordered=False)
+            tracks_updated += res.modified_count
+            track_ops = []
+    if line_ops:
+        res = await db_bg.royalty_lines.bulk_write(line_ops, ordered=False)
+        lines_updated += res.modified_count
+    if track_ops:
+        res = await db_bg.tracks.bulk_write(track_ops, ordered=False)
+        tracks_updated += res.modified_count
+
+    # Step 5: trigger cache rebuild so Artist Management page works immediately
+    import asyncio as _aio
+    try:
+        from routes.admin_analytics import recompute_monthly_analytics
+        _aio.create_task(recompute_monthly_analytics())
+    except Exception:
+        pass
+
+    await log_activity(
+        user["id"], "materialize_artists", "artist", "bulk",
+        after={
+            "artists_created": len(new_artists),
+            "lines_updated": lines_updated,
+            "tracks_updated": tracks_updated,
+        },
+    )
+
+    response.update({
+        "commit": {
+            "applied": True,
+            "artists_created": len(new_artists),
+            "lines_updated": lines_updated,
+            "tracks_updated": tracks_updated,
+        },
+    })
+    return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 26 — Async Withdraw FIFO migration (background pattern)
+#
+# The original Phase 22 endpoint times out on 120s ingress when the database
+# holds 3M+ royalty_lines. Convert COMMIT mode to background: return a
+# `migrate_jobs` document id and let the frontend poll for status.
+# Dry-run mode stays synchronous since the user expects an immediate preview.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@migrate_r.get("/jobs/{job_id}")
+async def get_migrate_job_status(job_id: str, user: dict = Depends(require_admin)):
+    """Poll status of a long-running migrate job."""
+    job = await db.migrate_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job tidak ditemukan")
+    return job

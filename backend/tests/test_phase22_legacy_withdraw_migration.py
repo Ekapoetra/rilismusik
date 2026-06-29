@@ -13,6 +13,7 @@ Key assertions:
 """
 import io
 import os
+import time
 import uuid
 import requests
 import pytest
@@ -165,6 +166,36 @@ def test_fuzzy_matcher_handles_punctuation_and_pt_prefix(super_token, seeded_lab
     assert len(sm["csv_names"]) == 3  # all 3 raw variants captured
 
 
+def _commit_and_wait(csv_bytes, super_token, max_wait=20):
+    """Phase 26: commit returns 200 with `commit.queued=true` + job_id and runs
+    the heavy writes in a background task. Poll until the job finishes, then
+    return a synthetic body where `commit` looks like the old sync response so
+    legacy assertions keep working."""
+    r = requests.post(
+        f"{API}/admin/migrate/withdraws-legacy-period",
+        files={"file": ("a.csv", csv_bytes, "text/csv")},
+        data={"dry_run": "false"}, headers=_hdr(super_token), timeout=60,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    if not body["commit"].get("queued"):
+        return body  # nothing to commit (or sync path) — return as-is
+    job_id = body["commit"]["job_id"]
+    deadline = time.time() + max_wait
+    while time.time() < deadline:
+        jr = requests.get(f"{API}/admin/migrate/jobs/{job_id}",
+                          headers=_hdr(super_token), timeout=15)
+        if jr.status_code == 200:
+            job = jr.json()
+            if job["status"] == "done":
+                body["commit"] = {**job["result"], "queued": True, "job_id": job_id}
+                return body
+            if job["status"] == "error":
+                raise AssertionError(f"job errored: {job.get('error_message')}")
+        time.sleep(0.5)
+    raise AssertionError(f"job {job_id} did not finish within {max_wait}s")
+
+
 def test_commit_idempotent(super_token, seeded_labels):
     db = _mongo_db()
     test_id = seeded_labels["test_id"]
@@ -176,14 +207,8 @@ def test_commit_idempotent(super_token, seeded_labels):
         {"trx_id": f"IDEM-{test_id}-3", "nama_label": "Phase22 Production",
          "period_start": "2022-01", "period_end": "2023-05"},
     ])
-    # First commit
-    r1 = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("a.csv", csv, "text/csv")},
-        data={"dry_run": "false"}, headers=_hdr(super_token), timeout=60,
-    )
-    assert r1.status_code == 200
-    body1 = r1.json()
+    # First commit (now async — wait for the BG job to finish)
+    body1 = _commit_and_wait(csv, super_token)
     assert body1["commit"]["applied"] is True
     assert body1["commit"]["labels_period_updated"] == 3
     assert body1["commit"]["history_docs_inserted"] == 3
@@ -197,13 +222,7 @@ def test_commit_idempotent(super_token, seeded_labels):
     assert c["last_withdrawn_period"] == "2023-05"
 
     # Re-run with the SAME csv → no updates, no new history docs
-    r2 = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("a.csv", csv, "text/csv")},
-        data={"dry_run": "false"}, headers=_hdr(super_token), timeout=60,
-    )
-    assert r2.status_code == 200
-    body2 = r2.json()
+    body2 = _commit_and_wait(csv, super_token)
     assert body2["commit"]["labels_period_updated"] == 0
     assert body2["commit"]["history_docs_inserted"] == 0
 
@@ -230,12 +249,7 @@ def test_b_label_only_advances_not_regresses(super_token, seeded_labels):
         {"trx_id": f"OLD-{test_id}", "nama_label": "Phase22 Sound",
          "period_start": "2020-01", "period_end": "2022-03"},  # older
     ])
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("o.csv", csv, "text/csv")},
-        data={"dry_run": "false"}, headers=_hdr(super_token), timeout=60,
-    )
-    body = r.json()
+    body = _commit_and_wait(csv, super_token)
     sm = body["label_summaries"][0]
     assert sm["period_will_advance"] is False
     assert sm["new_last_withdrawn_period"] == "2025-06"  # unchanged

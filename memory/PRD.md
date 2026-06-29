@@ -230,6 +230,36 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 26 — Materialize Artists + Async Withdraw FIFO (2026-06-29)
+Production multi-bug report: (1) Artist Management still empty after upload even though royalty_lines have artist names, (2) Withdraw FIFO migration consistently hit 120s ingress timeout on the COMMIT path, (3) Analytics + Releases pages depend on cache rebuild that admin must trigger manually.
+
+- **Backend `routes/migrate.py`** — new endpoint `POST /api/admin/migrate/materialize-artists` (super_admin only):
+  - Aggregates `royalty_lines` by (label_id, artist_name_raw) for matched rows, excluding `None`/`""`/`"Unknown"`/`"unknown"`. Filter uses single `$nin` (MongoDB rejects co-existing `$ne` + `$nin` on the same field).
+  - Dry-run returns preview with combo counts + top-20 by `total_label_idr`.
+  - Commit: `insert_many` new artist docs in 1k batches, then `bulk_write` `UpdateMany` ops in 500-batch chunks to backfill `royalty_lines.artist_id` and `tracks.artist_id`. Idempotent — only NEW (label_id, name_slug) combos get inserted.
+  - Auto-triggers `recompute_monthly_analytics()` after commit so Artist Management page shows data immediately.
+- **Backend `routes/migrate.py`** — Phase 22 commit converted to background pattern:
+  - When `dry_run=false`, response has `commit.queued=true` + `job_id` + dry-run preview totals (no 120s timeout risk).
+  - New helper `_commit_legacy_period_bg(job_id, ...)` runs the heavy chunked writes (chunk-flip royalty_lines, balance adjust, history docs insert) via `db_bg`. Writes progress to `migrate_jobs` collection every 10 labels.
+  - Auto-triggers `recompute_monthly_analytics()` after job completion.
+- **Backend `routes/migrate.py`** — new endpoint `GET /api/admin/migrate/jobs/{job_id}`:
+  - Returns the polling-friendly job doc (status, progress counters, result, error_message).
+  - Used by both Withdraw FIFO frontend polling and potentially future background migrations.
+- **Frontend `pages/admin/Migrate.jsx`**:
+  - New tab "Materialize Artists" (data-testid `admin-migrate-tab-materialize-artists`) with `Sparkles` icon — 6th tab in the strip.
+  - `MaterializeArtistsPanel` component: scope-by-limit input, dry-run toggle, 4-card stats grid, top-20 preview table with label_id/lines/revenue_eur/label_idr columns.
+  - `WithdrawFifoPanel` updated to handle async commit: polls `/admin/migrate/jobs/{job_id}` every 3s after submit, renders progress UI (status, labels processed, lines flipped, history inserted, final result on done, error on fail). Polling interval cleared on unmount.
+- **Tests** `/app/backend/tests/test_phase26_materialize_artists_and_async_fifo.py` (7/7 PASS):
+  - Dry-run no-mutation + correct preview shape
+  - Commit creates artists + backfills lines/tracks; excludes "Unknown"
+  - Idempotent re-run finds 0 new artists
+  - RBAC super_admin only
+  - Withdraw FIFO commit returns job_id + bg task flips/inserts correctly; balances decremented
+  - Dry-run withdraw still synchronous (no job_id)
+  - GET /jobs/{id} returns 404 on unknown
+- **Test updates**: Phase 22 `test_commit_idempotent` + `test_b_label_only_advances_not_regresses` updated to use new `_commit_and_wait` helper (polls job to completion before asserting).
+- Combined Phase 22 → 26 regression: **44/44 PASS**.
+
 ### Phase 25 — Label Account Lifecycle + Fast Dashboard (2026-06-29)
 User report: (1) needed ability to revoke a label PIC user account without losing label/royalty data (e.g. for PIC change-over), (2) ability to change a label's email, and (3) label dashboard was loading slowly with saldo/withdraw button not visible.
 
