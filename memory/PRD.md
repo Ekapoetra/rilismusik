@@ -230,6 +230,28 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 18 + 19 — Monthly Analytics dashboard (2026-06-29)
+User uploaded ~1M royalty lines (Believe CSV 2020-2026-04). Requested admin dashboard with charts driven by "bulan laporan" (royalty_lines.period). Period axis = YYYY-MM. Filterable by label/platform/country/artist/track.
+
+- **Backend `/app/backend/routes/admin_analytics.py`** — pre-computed `monthly_analytics` collection (~7 dimensions × periods × keys). Atomic staging-collection swap (insert → drop → rename) avoids half-recomputed window. `asyncio.Lock` guards concurrent rebuilds.
+  - `POST /api/admin/analytics/recompute` — super_admin only. Rebuild from `royalty_lines`. Routed via `db_bg` (no CSOT cap).
+  - `GET /api/admin/analytics/monthly?period_from=&period_to=&label_id=&platform=&country=&artist_id=&track_id=&top_n=` — admin role. Returns `{source: cache|live, kpi: 8 fields, monthly: [...], top_platforms, top_countries, top_labels, top_artists, top_tracks}`. Cache path ~50ms; falls back to live aggregate (db_bg) when any dimension filter is set. Hydrates label/artist/track ids to names in one batched `$in` per collection.
+  - `GET /api/admin/analytics/periods` — list of available YYYY-MM (sorted asc) with min/max for UI range picker. Falls back to `royalty_lines.distinct("period")` if cache cold.
+  - `GET /api/admin/analytics/status` — last recompute meta (running, finished_at, duration_sec, doc_count).
+  - **Auto-trigger** post-publish (`_publish_bg` step 5) + post-delete-import (`admin_delete_import`).
+- **Frontend `/app/frontend/src/pages/admin/Analytics.jsx`** — full dashboard via `recharts 3.6.0`:
+  - 6 KPI tiles: Revenue IDR / EUR / Total Streams / Distinct Platforms / Negara / Track.
+  - Line chart **Pendapatan per Bulan Laporan** dengan dual Y-axis (IDR kiri / EUR kanan, gradient stroke).
+  - 5 top-10 panels: Platform, Negara, Label, Artist, Track. Click row to apply as filter.
+  - Filter row: 5 dropdowns (multi-select-style) + "Clear semua" + indicator "filter aktif (slow path)".
+  - Period range pickers (from/to YYYY-MM dropdowns) + quick range buttons (12 Bulan Terakhir, Tahun Ini, Semua).
+  - "Rebuild Cache" button → POST recompute, spinner, refetch.
+  - Status Cache card: source (cache/live), last-update timestamp, doc_count, durasi.
+- **Routing & access**:
+  - `/admin/analytics` route wrapped in a granular `<ProtectedRoute roles=["super_admin", "admin_finance"]>` — direct URL access by `admin_release`/`admin_support`/`admin_content` redirects back to `/admin/dashboard`.
+  - Sidebar `BarChart3` icon nav entry hidden from non-super/non-finance roles.
+- **Tests**: `/app/backend/tests/test_phase18_analytics.py` (20 PASS + 1 skip). Combined regression: **60/60 PASS**.
+
 ### Phase 16.5 — Batched CSV ingestion (2026-06-29)
 Optimized the `_process_csv_import_inline` hot path so 1M-row CSV imports drop from ~10 minutes to ~2-3 minutes on Atlas.
 

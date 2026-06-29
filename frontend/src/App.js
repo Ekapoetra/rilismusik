@@ -86,7 +86,14 @@ function App() {
           {/* Admin */}
           <Route element={<ProtectedRoute roles={ADMIN_ROLES}><AdminLayout /></ProtectedRoute>}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute roles={["super_admin", "admin_finance"]}>
+                  <AdminAnalytics />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/admin/labels" element={<AdminLabels />} />
             <Route path="/admin/labels/:id" element={<AdminLabelDetail />} />
             <Route path="/admin/artists" element={<AdminArtists />} />
