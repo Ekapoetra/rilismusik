@@ -1110,3 +1110,218 @@ async def bulk_import_withdraws_legacy_period(
             "adjust_balances": adjust_balances,
         },
     }
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 23.2 — Backfill `royalty_lines.period` from `row_period`
+#
+# Background: prior to Phase 23.1 the CSV `Bulan Laporan` value was overridden
+# by the form's `period` input for every row. That broke per-month grouping for
+# Artist/Release/Label/Analytics views — yearly CSVs (2020-2024) ended up with
+# all 12 months collapsed onto a single form-period.
+#
+# Lucky: each `royalty_lines` doc ALSO stores `row_period` (the raw CSV column
+# value) untouched. This backfill flips `period = row_period` for every row
+# where the two differ, then recomputes `royalty_imports.period_breakdown /
+# period_start / period_end / is_multi_period / period` per affected import.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def _recompute_import_period_metadata(import_id: str) -> Dict[str, Any]:
+    """Recompute period_breakdown + derived fields on a royalty_imports doc
+    after its underlying royalty_lines have had their `period` field rewritten."""
+    pipeline = [
+        {"$match": {"import_id": import_id}},
+        {"$group": {"_id": "$period", "n": {"$sum": 1}}},
+    ]
+    counts: Dict[str, int] = {}
+    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        if r["_id"]:
+            counts[r["_id"]] = int(r["n"])
+
+    sorted_p = sorted(counts.keys())
+    is_multi = len(sorted_p) > 1
+    update = {
+        "period_breakdown": counts,
+        "period_start": sorted_p[0] if sorted_p else None,
+        "period_end": sorted_p[-1] if sorted_p else None,
+        "is_multi_period": is_multi,
+        # Display period: "multi" for multi-period, single key for single-period
+        "period": ("multi" if is_multi else (sorted_p[0] if sorted_p else None)),
+        "updated_at": now_iso(),
+    }
+    await db_bg.royalty_imports.update_one({"id": import_id}, {"$set": update})
+    return update
+
+
+@migrate_r.post("/royalty/backfill-period-from-row")
+async def backfill_royalty_period_from_row(
+    dry_run: bool = Form(True),
+    import_id: Optional[str] = Form(None),
+    user: dict = Depends(require_super_admin),
+):
+    """Backfill `royalty_lines.period` from `row_period` for every row where
+    the CSV's `Bulan Laporan` value differs from the currently-stored period.
+
+    Mode:
+      - dry_run=true  → preview only, no writes
+      - dry_run=false → chunked update_many (10k _id batch) via db_bg, then
+                        recompute royalty_imports metadata + invalidate caches
+
+    Optional `import_id` scopes the operation to a single import. Omit for a
+    full-database backfill.
+    """
+    # Build the match filter — rows where row_period exists AND differs from period
+    base_match: Dict[str, Any] = {
+        "row_period": {"$ne": None, "$exists": True},
+        "$expr": {"$ne": ["$period", "$row_period"]},
+    }
+    if import_id:
+        base_match["import_id"] = import_id
+        # Ensure import exists before doing heavy reads
+        imp_check = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0, "id": 1})
+        if not imp_check:
+            raise HTTPException(status_code=404, detail=f"Import {import_id} tidak ditemukan")
+
+    # Per-import preview aggregation: which imports have how many bad rows,
+    # what their current vs new periods look like.
+    preview_pipeline = [
+        {"$match": base_match},
+        {"$group": {
+            "_id": "$import_id",
+            "rows_to_fix": {"$sum": 1},
+            "old_periods": {"$addToSet": "$period"},
+            "new_periods": {"$addToSet": "$row_period"},
+            "sample_pairs": {"$push": {"_id_str": "$id", "old": "$period", "new": "$row_period"}},
+        }},
+        {"$project": {
+            "_id": 1,
+            "rows_to_fix": 1,
+            "old_periods": {"$slice": ["$old_periods", 20]},
+            "new_periods": {"$slice": ["$new_periods", 20]},
+        }},
+        {"$sort": {"rows_to_fix": -1}},
+    ]
+    affected: List[Dict[str, Any]] = []
+    total_rows_to_fix = 0
+    async for row in db_bg.royalty_lines.aggregate(preview_pipeline, allowDiskUse=True):
+        affected.append(row)
+        total_rows_to_fix += int(row.get("rows_to_fix", 0))
+
+    # Lookup import metadata for friendly display (filename, status, period_breakdown)
+    affected_ids = [r["_id"] for r in affected if r.get("_id")]
+    imp_meta_map: Dict[str, Dict[str, Any]] = {}
+    if affected_ids:
+        async for imp in db.royalty_imports.find(
+            {"id": {"$in": affected_ids}},
+            {"_id": 0, "id": 1, "filename": 1, "status": 1, "period": 1, "period_breakdown": 1,
+             "period_start": 1, "period_end": 1, "is_multi_period": 1, "total_lines": 1},
+        ):
+            imp_meta_map[imp["id"]] = imp
+
+    summary = []
+    for row in affected:
+        imp_id = row["_id"]
+        meta = imp_meta_map.get(imp_id, {})
+        summary.append({
+            "import_id": imp_id,
+            "filename": meta.get("filename"),
+            "status": meta.get("status"),
+            "total_lines": meta.get("total_lines"),
+            "rows_to_fix": row["rows_to_fix"],
+            "current_period_label": meta.get("period"),
+            "current_period_breakdown": meta.get("period_breakdown") or {},
+            "old_periods_in_lines": sorted(row.get("old_periods", [])),
+            "new_periods_will_be": sorted(row.get("new_periods", [])),
+        })
+
+    response: Dict[str, Any] = {
+        "dry_run": dry_run,
+        "import_id_filter": import_id,
+        "total_rows_to_fix": total_rows_to_fix,
+        "imports_affected": len(summary),
+        "summary": summary[:200],  # cap for response payload
+    }
+
+    if dry_run or total_rows_to_fix == 0:
+        return response
+
+    # ─── COMMIT PHASE ───────────────────────────────────────────────────────
+    # Chunked _id-paginated update_many. We can't use a single update_many on
+    # a million-row collection because Atlas server-side `maxTimeMS` kills it.
+    # The pipeline syntax `[{$set: {period: "$row_period"}}]` does field-to-field
+    # copy without round-tripping each value to Python.
+    CHUNK = 10_000
+    total_updated = 0
+    seen_ids: set[str] = set()  # safety against infinite loop (shouldn't happen — filter excludes fixed rows)
+    while True:
+        batch = await db_bg.royalty_lines.find(
+            base_match, {"_id": 1},
+        ).limit(CHUNK).to_list(CHUNK)
+        if not batch:
+            break
+        oids = [d["_id"] for d in batch]
+        # Loop guard: if we keep seeing the same _ids without actually flipping
+        # them, abort to avoid an infinite loop (would only happen if the
+        # update silently fails on the server).
+        new_ids = [str(o) for o in oids if str(o) not in seen_ids]
+        if not new_ids:
+            logger.warning("[BACKFILL PERIOD] no new ids in batch, aborting loop to be safe")
+            break
+        seen_ids.update(new_ids)
+        res = await db_bg.royalty_lines.update_many(
+            {"_id": {"$in": oids}},
+            [{"$set": {"period": "$row_period", "updated_at": now_iso()}}],
+        )
+        total_updated += res.modified_count
+
+    # Recompute import-level metadata for every affected import
+    recomputed: List[Dict[str, Any]] = []
+    for imp_id in affected_ids:
+        try:
+            new_meta = await _recompute_import_period_metadata(imp_id)
+            recomputed.append({
+                "import_id": imp_id,
+                "filename": imp_meta_map.get(imp_id, {}).get("filename"),
+                "new_period_breakdown": new_meta["period_breakdown"],
+                "new_period_start": new_meta["period_start"],
+                "new_period_end": new_meta["period_end"],
+                "is_multi_period": new_meta["is_multi_period"],
+                "display_period": new_meta["period"],
+            })
+        except Exception as e:
+            logger.exception("[BACKFILL PERIOD] recompute import %s failed: %s", imp_id, e)
+            recomputed.append({"import_id": imp_id, "error": str(e)[:200]})
+
+    # Invalidate metrics + analytics caches in the background so charts refresh
+    import asyncio as _aio
+    try:
+        from routes.admin import _recompute_revenue_cache
+        _aio.create_task(_recompute_revenue_cache())
+    except Exception:
+        pass
+    try:
+        from routes.admin_analytics import recompute_monthly_analytics
+        _aio.create_task(recompute_monthly_analytics())
+    except Exception:
+        pass
+
+    await log_activity(
+        user["id"], "backfill_royalty_period_from_row", "royalty", import_id or "all",
+        after={
+            "total_rows_updated": total_updated,
+            "imports_affected": len(affected_ids),
+            "import_id_filter": import_id,
+        },
+    )
+
+    response.update({
+        "commit": {
+            "applied": True,
+            "rows_updated": total_updated,
+            "imports_recomputed": len(recomputed),
+        },
+        "recomputed_imports": recomputed[:200],
+    })
+    return response

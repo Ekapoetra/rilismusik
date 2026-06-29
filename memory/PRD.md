@@ -230,6 +230,20 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 23.2 — Backfill `royalty_lines.period` from `row_period` (2026-06-29)
+User uploaded yearly Believe CSVs (2020-2024 yearly + 2025 + 2026 Q1) BEFORE Phase 23.1 was deployed, so all rows got tagged with the form's `period` field instead of CSV's `Bulan Laporan` column. Artist/Release/Label/Analytics dashboards consequently could not show proper monthly grouping. Lucky break: every `royalty_lines` document already stores `row_period` (raw CSV column value) untouched alongside `period`, so a derived backfill is sufficient — no need to re-upload CSV.
+
+- **Backend** `/app/backend/routes/migrate.py`:
+  - New endpoint `POST /api/admin/migrate/royalty/backfill-period-from-row` (super_admin only). Form fields: `dry_run` (bool, default true) and optional `import_id` (scope to one import; omit for full DB).
+  - Dry-run aggregates per-import preview: rows_to_fix, old_periods_in_lines, new_periods_will_be, current vs new period_breakdown.
+  - Commit phase: chunked `_id`-paginated `update_many` via `db_bg` (10k rows/batch) using MongoDB aggregation pipeline syntax `[{$set: {period: "$row_period"}}]` for server-side field-to-field copy (zero Python round-trip). Loop guard against infinite iteration on silent server-side failures.
+  - After commit, calls `_recompute_import_period_metadata()` for each affected import to refresh `period_breakdown`, `period_start`, `period_end`, `is_multi_period`, `period` (display label). Invalidates `metrics_cache` + monthly analytics cache.
+  - Idempotent — re-running finds 0 rows-to-fix.
+- **Frontend** `/app/frontend/src/pages/admin/Migrate.jsx`:
+  - New tab `backfill-period` (data-testid `admin-migrate-tab-backfill-period`) with `RotateCw` icon — 6th in the Migrate page tab strip.
+  - `BackfillPeriodPanel` component: amber warning explaining when to use, scope dropdown (loaded from `/royalty/admin/imports`), dry-run toggle (default true), submit button. After response: preview/commit banner, 3-card stats grid, per-import table (filename, status, total/will-fix counts, old→new periods), recomputed-imports table (display period, range, distinct months).
+- **Tests**: `/app/backend/tests/test_phase23_2_backfill_period.py` (6/6 PASS): dry-run no-mutation; full commit + recompute (yearly 24-row import → 12 month breakdown after, with month-1 idempotent skip); RBAC (super_admin only); 404 on unknown import_id; full-DB backfill only touches mismatched rows; no-changes-needed returns zero counts. Combined Phase 23 regression: **34/34 PASS**.
+
 ### Phase 23.1 — CSV `Bulan Laporan` priority + async Delete (2026-06-29)
 Two production bugs reported back-to-back: (1) royalty imports were tagging ALL rows with the form's `period` field, overwriting the actual CSV `Bulan Laporan` column values — breaking multi-period imports for analytics, FIFO withdraw, and rollups. (2) The "Hapus" button on stuck imports did nothing because the synchronous `delete_many` over 600K-1M `royalty_lines` exceeded the request timeout.
 

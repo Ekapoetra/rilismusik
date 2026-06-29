@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Upload, Download, FileText, Users, Music2, ListMusic, Wallet, AlertCircle, CheckCircle2, Clock, UserCheck, UserX } from "lucide-react";
+import { Upload, Download, FileText, Users, Music2, ListMusic, Wallet, AlertCircle, CheckCircle2, Clock, UserCheck, UserX, RotateCw, Loader2, AlertTriangle } from "lucide-react";
 import { api } from "@/api/client";
 import { useEffect } from "react";
 
@@ -9,6 +9,7 @@ const TABS = [
   { id: "tracks", label: "Tracks", icon: ListMusic, endpoint: "tracks", desc: "Import master tracks per release. Audio file URL optional." },
   { id: "withdraws", label: "Withdraws (old)", icon: Wallet, endpoint: "withdraws", desc: "Format lama: kolom amount_idr + request_date. Tidak trigger notifikasi atau mutasi saldo." },
   { id: "withdraws-fifo", label: "Withdraws (Period FIFO)", icon: Wallet, endpoint: "withdraws-legacy-period", desc: "Format CSV: nama_label + period_end. Setiap label akan diset last_withdrawn_period = MAX(period_end). Sistem juga mem-flip royalty_lines historical → withdrawn + adjust balance.", custom: true },
+  { id: "backfill-period", label: "Backfill Bulan Laporan", icon: RotateCw, endpoint: "royalty/backfill-period-from-row", desc: "Perbaiki royalty_lines.period agar pakai nilai kolom Bulan Laporan dari CSV. Untuk imports lama (sebelum Phase 23.1) yang semua barisnya tertulis 1 bulan padahal CSV multi-bulan.", custom: true },
   { id: "claims", label: "Claims", icon: UserCheck, endpoint: null, desc: "Resolve permintaan label claim akun lama. Link ke legacy label_id atau reject." },
 ];
 
@@ -48,7 +49,11 @@ export default function AdminMigrate() {
         </div>
 
         {cfg.endpoint ? (
-          cfg.custom ? <WithdrawFifoPanel /> : <CsvImportPanel kind={cfg.endpoint} />
+          cfg.custom ? (
+            cfg.id === "backfill-period" ? <BackfillPeriodPanel /> : <WithdrawFifoPanel />
+          ) : (
+            <CsvImportPanel kind={cfg.endpoint} />
+          )
         ) : (
           <ClaimsPanel />
         )}
@@ -523,6 +528,212 @@ function WithdrawFifoPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+
+function BackfillPeriodPanel() {
+  const [importId, setImportId] = useState("");
+  const [dryRun, setDryRun] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+  const [imports, setImports] = useState([]);
+
+  // Load imports list once for the dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/royalty/admin/imports");
+        setImports(Array.isArray(data) ? data : []);
+      } catch (e) { /* swallow */ }
+    })();
+  }, []);
+
+  const run = async () => {
+    setLoading(true); setErr(""); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("dry_run", dryRun ? "true" : "false");
+      if (importId) fd.append("import_id", importId);
+      const { data } = await api.post(
+        "/admin/migrate/royalty/backfill-period-from-row",
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      setResult(data);
+    } catch (e) {
+      setErr(e.response?.data?.detail || e.message || "Backfill gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-200 text-xs flex gap-2">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <div className="space-y-1.5">
+          <p>
+            Tool ini mem-flip <code className="bg-black/30 px-1 rounded">royalty_lines.period = row_period</code> untuk semua baris di mana
+            <code className="bg-black/30 px-1 rounded mx-1">row_period</code> (nilai kolom <b>Bulan Laporan</b> di CSV) berbeda dari <code className="bg-black/30 px-1 rounded">period</code> yang tersimpan.
+          </p>
+          <p>
+            <b>Kapan dipakai?</b> Jika upload sebelum Phase 23.1 menyebabkan semua baris yearly CSV ter-tag 1 bulan padahal kolom <b>Bulan Laporan</b> menunjukkan 12 bulan berbeda. Setelah commit, Artist/Release/Label/Analytics akan tampil dengan grouping bulan yang benar.
+          </p>
+          <p className="text-amber-300/80">
+            <b>Aman dijalankan berulang</b> — hanya baris dengan <code className="bg-black/30 px-1 rounded">row_period ≠ period</code> yang tersentuh.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-zinc-400 mb-1 block">Scope (opsional)</label>
+          <select
+            value={importId}
+            onChange={(e) => setImportId(e.target.value)}
+            className="rm-input w-full text-sm"
+            data-testid="admin-migrate-backfill-period-import"
+          >
+            <option value="">— Semua import (full database backfill) —</option>
+            {imports.map((i) => (
+              <option key={i.id} value={i.id}>
+                {(i.period || i.period_start || "?")} · {i.filename || i.id.slice(0,8)} · {i.status} · {(i.total_lines || 0).toLocaleString("id-ID")} baris
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end gap-3">
+          <label className="flex items-center gap-2 text-sm text-zinc-300">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              data-testid="admin-migrate-backfill-period-dryrun"
+              className="rm-checkbox"
+            />
+            <span>Dry-run (preview saja, tidak commit)</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={run}
+          disabled={loading}
+          data-testid="admin-migrate-backfill-period-submit"
+          className="rm-btn flex items-center gap-2 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+          {dryRun ? "Preview Backfill (Dry Run)" : "COMMIT Backfill"}
+        </button>
+        {!dryRun && (
+          <span className="text-xs text-rose-300 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" /> Akan menulis ke royalty_lines + recompute imports
+          </span>
+        )}
+      </div>
+
+      {err && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-200 text-sm">
+          {typeof err === "string" ? err : JSON.stringify(err)}
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-3">
+          <div className={`rounded-lg p-3 text-sm border ${result.dry_run ? "bg-amber-500/10 border-amber-500/30 text-amber-200" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"}`}>
+            <div className="flex items-center gap-2 font-semibold">
+              {result.dry_run ? <Clock className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              {result.dry_run ? "PREVIEW (Dry Run)" : "BACKFILL COMMITTED"}
+            </div>
+            <div className="mt-2 grid sm:grid-cols-3 gap-3 text-xs">
+              <BfStat label="Baris Akan Difix" value={result.total_rows_to_fix?.toLocaleString("id-ID") || 0} />
+              <BfStat label="Imports Terdampak" value={result.imports_affected || 0} />
+              {result.commit ? (
+                <BfStat label="Baris Updated" value={result.commit.rows_updated?.toLocaleString("id-ID") || 0} />
+              ) : (
+                <BfStat label="Mode" value={importId ? "Single import" : "Full DB"} />
+              )}
+            </div>
+          </div>
+
+          {result.summary && result.summary.length > 0 && (
+            <div className="rm-card-inner p-4 space-y-3">
+              <div className="text-sm font-semibold text-white flex items-center justify-between">
+                <span>Per-Import Preview</span>
+                <span className="text-xs text-zinc-500">({result.summary.length} ditampilkan)</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-white/[0.04] text-zinc-400">
+                    <tr>
+                      <th className="text-left px-3 py-2">File</th>
+                      <th className="text-left px-3 py-2">Status</th>
+                      <th className="text-right px-3 py-2">Total Baris</th>
+                      <th className="text-right px-3 py-2">Akan Difix</th>
+                      <th className="text-left px-3 py-2">Periode Sekarang</th>
+                      <th className="text-left px-3 py-2">→ Periode Baru</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.summary.map((s, idx) => (
+                      <tr key={idx} className="border-t border-white/5">
+                        <td className="px-3 py-2 text-zinc-300 max-w-xs truncate" title={s.filename}>{s.filename || s.import_id.slice(0,8)}</td>
+                        <td className="px-3 py-2 text-zinc-400">{s.status}</td>
+                        <td className="px-3 py-2 text-right text-zinc-400">{(s.total_lines || 0).toLocaleString("id-ID")}</td>
+                        <td className="px-3 py-2 text-right text-amber-300 font-semibold">{s.rows_to_fix.toLocaleString("id-ID")}</td>
+                        <td className="px-3 py-2 text-rose-200 font-mono text-[10px]">{(s.old_periods_in_lines || []).join(", ")}</td>
+                        <td className="px-3 py-2 text-emerald-200 font-mono text-[10px]">{(s.new_periods_will_be || []).join(", ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {result.commit && result.recomputed_imports && (
+            <div className="rm-card-inner p-4 space-y-3">
+              <div className="text-sm font-semibold text-white">Imports Recomputed</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-white/[0.04] text-zinc-400">
+                    <tr>
+                      <th className="text-left px-3 py-2">File</th>
+                      <th className="text-left px-3 py-2">Periode Baru</th>
+                      <th className="text-left px-3 py-2">Range</th>
+                      <th className="text-right px-3 py-2">Bulan</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.recomputed_imports.map((r, idx) => (
+                      <tr key={idx} className="border-t border-white/5">
+                        <td className="px-3 py-2 text-zinc-300 max-w-xs truncate">{r.filename || r.import_id?.slice(0,8)}</td>
+                        <td className="px-3 py-2 text-emerald-200 font-mono">{r.display_period}</td>
+                        <td className="px-3 py-2 text-zinc-400">{r.new_period_start} → {r.new_period_end}</td>
+                        <td className="px-3 py-2 text-right text-zinc-300">{r.new_period_breakdown ? Object.keys(r.new_period_breakdown).length : 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BfStat({ label, value }) {
+  return (
+    <div className="bg-black/30 rounded p-2">
+      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="text-base font-mono text-white">{value}</div>
     </div>
   );
 }
