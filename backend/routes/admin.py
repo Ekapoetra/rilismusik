@@ -520,6 +520,210 @@ async def admin_create_label_account(
     }
 
 
+
+# ============================================================
+# Phase 25 — Revoke account access & change email
+# ============================================================
+@admin_r.post("/labels/{label_id}/revoke-account")
+async def admin_revoke_label_account(
+    label_id: str,
+    cascade_artists: bool = Form(False),
+    reason: str = Form(""),
+    user: dict = Depends(require_admin),
+):
+    """Revoke login access for a label's PIC user (and optionally cascade to
+    artist sub-accounts) WITHOUT deleting label/release/royalty/contract data.
+
+    The label's `user_id` is cleared so admin can later create a fresh account
+    via `/labels/{id}/create-account` with a new email — exactly the "transfer
+    ownership" workflow the user asked for.
+
+    Steps:
+      1. Lookup current user attached to the label.
+      2. Increment `token_version` on that user → instantly invalidates all
+         JWTs (refresh + access). The user remains in `users` collection
+         (for audit) but with status='disabled'.
+      3. Null out `labels.user_id` so the label is "free" to receive a new
+         account.
+      4. If `cascade_artists=true`, also disable + bump token_version of every
+         artist user whose row references this label_id.
+    """
+    if user["role"] not in ("super_admin", "admin_support", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Support / Release")
+
+    label = await db.labels.find_one({"id": label_id})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    current_user_id = label.get("user_id")
+    if not current_user_id:
+        raise HTTPException(status_code=400, detail="Label ini belum punya akun user — gunakan 'Buat Akun' untuk membuat.")
+
+    target = await db.users.find_one({"id": current_user_id})
+    if not target:
+        # Stale ref — just clear and exit
+        await db.labels.update_one({"id": label_id}, {"$set": {"user_id": None, "account_status": "no_account", "updated_at": now_iso()}})
+        return {"ok": True, "label_id": label_id, "warning": "User account stale-reference dibersihkan."}
+
+    # Disable + invalidate all sessions for the label PIC user
+    await db.users.update_one(
+        {"id": current_user_id},
+        {"$set": {
+            "status": "disabled",
+            "disabled_at": now_iso(),
+            "disabled_by": user["id"],
+            "disabled_reason": reason or "Akses dicabut oleh admin",
+            "updated_at": now_iso(),
+        }, "$inc": {"token_version": 1}},
+    )
+
+    # Free up the label so admin can create a new account
+    await db.labels.update_one(
+        {"id": label_id},
+        {"$set": {
+            "user_id": None,
+            "account_status": "no_account",
+            "previous_account_email": target.get("email"),
+            "previous_account_revoked_at": now_iso(),
+            "updated_at": now_iso(),
+        }},
+    )
+
+    cascade_count = 0
+    if cascade_artists:
+        # Find all artist users tied to this label
+        artist_docs = await db.artists.find({"label_id": label_id}, {"_id": 0, "user_id": 1}).to_list(2000)
+        artist_user_ids = [a["user_id"] for a in artist_docs if a.get("user_id")]
+        if artist_user_ids:
+            res = await db.users.update_many(
+                {"id": {"$in": artist_user_ids}},
+                {"$set": {
+                    "status": "disabled",
+                    "disabled_at": now_iso(),
+                    "disabled_by": user["id"],
+                    "disabled_reason": "Cascade dari label revoke",
+                    "updated_at": now_iso(),
+                }, "$inc": {"token_version": 1}},
+            )
+            cascade_count = res.modified_count
+
+    await log_activity(
+        user["id"], "revoke_label_account", "label", label_id,
+        before={"user_id": current_user_id, "email": target.get("email")},
+        after={"cascade_artists": cascade_artists, "artists_disabled": cascade_count, "reason": reason},
+    )
+
+    return {
+        "ok": True,
+        "label_id": label_id,
+        "label_name": label.get("label_name"),
+        "revoked_email": target.get("email"),
+        "artists_disabled": cascade_count,
+        "next_step": "Akun bisa dibuat ulang dengan email baru via 'Buat Akun' di Label Management.",
+    }
+
+
+@admin_r.post("/labels/{label_id}/change-email")
+async def admin_change_label_email(
+    label_id: str,
+    new_email: str = Form(...),
+    notify: bool = Form(True),
+    user: dict = Depends(require_admin),
+):
+    """Change the email address of a label's PIC user account. Optionally
+    sends notification to BOTH old and new email addresses so the label
+    knows the change happened.
+
+    Bumps `token_version` so all existing sessions on the old email are
+    invalidated — the label must log in again with the new email.
+    """
+    if user["role"] not in ("super_admin", "admin_support", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Support / Release")
+
+    label = await db.labels.find_one({"id": label_id})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    current_user_id = label.get("user_id")
+    if not current_user_id:
+        raise HTTPException(status_code=400, detail="Label belum punya akun — gunakan 'Buat Akun' dulu.")
+
+    new_email_clean = (new_email or "").lower().strip()
+    if not new_email_clean or "@" not in new_email_clean:
+        raise HTTPException(status_code=400, detail="Email baru tidak valid")
+    # Uniqueness check — except if same email
+    existing = await db.users.find_one({"email": new_email_clean})
+    if existing and existing.get("id") != current_user_id:
+        raise HTTPException(status_code=409, detail="Email ini sudah dipakai akun lain")
+
+    target = await db.users.find_one({"id": current_user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User account tidak ditemukan (stale ref)")
+    old_email = target.get("email")
+    if old_email == new_email_clean:
+        raise HTTPException(status_code=400, detail="Email baru sama dengan email lama")
+
+    # Update user + label rows; bump token_version to force re-login.
+    await db.users.update_one(
+        {"id": current_user_id},
+        {"$set": {
+            "email": new_email_clean,
+            "email_changed_at": now_iso(),
+            "email_changed_by": user["id"],
+            "updated_at": now_iso(),
+        }, "$inc": {"token_version": 1}},
+    )
+    await db.labels.update_one(
+        {"id": label_id},
+        {"$set": {"email": new_email_clean, "updated_at": now_iso()}},
+    )
+
+    notify_sent = {"old": False, "new": False}
+    if notify:
+        try:
+            from email_service import send_email
+            label_name = label.get("label_name", "label Anda")
+            # Notify OLD email — security warning
+            html_old = f"""
+            <p>Hai Tim {label_name},</p>
+            <p>Email akun login Anda di <b>RILIS MUSIK</b> baru saja diubah dari <b>{old_email}</b> menjadi <b>{new_email_clean}</b> oleh admin.</p>
+            <p>Jika ini bukan Anda atau tidak sesuai kesepakatan, segera hubungi tim support RILIS MUSIK.</p>
+            <p>Salam,<br/>Tim RILIS MUSIK</p>
+            """
+            try:
+                await send_email(to=old_email, subject="Pemberitahuan: Email akun RILIS MUSIK Anda telah diubah", html=html_old)
+                notify_sent["old"] = True
+            except Exception as e:
+                logger.warning("[CHANGE-EMAIL] notify old %s failed: %s", old_email, e)
+            # Welcome NEW email
+            html_new = f"""
+            <p>Hai Tim {label_name},</p>
+            <p>Akun RILIS MUSIK Anda kini terhubung dengan email <b>{new_email_clean}</b>.</p>
+            <p>Silakan login menggunakan email ini. Password tidak berubah.</p>
+            <p>Jika Anda belum punya akses atau password, hubungi admin RILIS MUSIK.</p>
+            <p>Salam,<br/>Tim RILIS MUSIK</p>
+            """
+            try:
+                await send_email(to=new_email_clean, subject="Selamat datang — email baru terhubung ke akun RILIS MUSIK", html=html_new)
+                notify_sent["new"] = True
+            except Exception as e:
+                logger.warning("[CHANGE-EMAIL] notify new %s failed: %s", new_email_clean, e)
+        except Exception as e:
+            logger.exception("[CHANGE-EMAIL] notify wrapper failed: %s", e)
+
+    await log_activity(
+        user["id"], "change_label_email", "label", label_id,
+        before={"email": old_email}, after={"email": new_email_clean, "notify_sent": notify_sent},
+    )
+
+    return {
+        "ok": True,
+        "label_id": label_id,
+        "old_email": old_email,
+        "new_email": new_email_clean,
+        "notify_sent": notify_sent,
+        "warning": "Semua sesi login lama akan terputus. Label harus login ulang.",
+    }
+
+
 # ============================================================
 # DANGER: Full Production Reset (Super Admin only)
 # ============================================================

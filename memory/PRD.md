@@ -230,6 +230,38 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 25 — Label Account Lifecycle + Fast Dashboard (2026-06-29)
+User report: (1) needed ability to revoke a label PIC user account without losing label/royalty data (e.g. for PIC change-over), (2) ability to change a label's email, and (3) label dashboard was loading slowly with saldo/withdraw button not visible.
+
+- **Backend `routes/admin.py`** — 2 new endpoints (super_admin / admin_support / admin_release):
+  - `POST /api/admin/labels/{id}/revoke-account` (Form: `cascade_artists`, `reason`)
+    - Disables the PIC user account (`status=disabled`, bumps `token_version` → all existing JWTs invalidated instantly)
+    - Clears `labels.user_id`, sets `account_status="no_account"`, stores `previous_account_email` for audit
+    - If `cascade_artists=true`, all artist sub-account users under the label are also disabled + token-bumped
+    - Label, releases, royalty_lines, contracts — all preserved untouched. Admin can immediately create a new account via the existing `create-account` endpoint.
+  - `POST /api/admin/labels/{id}/change-email` (Form: `new_email`, `notify`)
+    - Validates email format + uniqueness
+    - Updates `users.email`, `labels.email`, bumps `token_version` so old sessions are invalidated
+    - If `notify=true`, sends Indonesian-language notification emails to BOTH old (security warning) and new (welcome) addresses via Hostinger SMTP. Email failures don't block the change (best-effort with warning logs).
+- **Backend `routes/labels.py`** — fast dashboard:
+  - `label_dashboard` `last_month_revenue` now reads from `monthly_analytics` cache (dim=label, key=label_id, sorted by period desc, limit 1) → sub-second.
+  - Falls back to live aggregate via `db_bg` (CSOT-uncapped) only if cache miss — was using CSOT-capped `db` which timed out for labels with massive history.
+- **Frontend `pages/admin/LabelDetail.jsx`**:
+  - New "Akun Login" section in the Aksi card with current email + 2 buttons (data-testid `admin-label-change-email`, `admin-label-revoke-account`)
+  - Modal "Cabut Akses Akun" (amber theme) with reason input + cascade-to-artists checkbox showing actual artist count
+  - Modal "Ganti Email Akun" (sky theme) with old/new email fields + notify toggle (default on)
+  - When `user_id` is null but `previous_account_email` exists, shows breadcrumb directing admin to "Buat Akun" for re-creation
+- **Tests** `/app/backend/tests/test_phase25_label_account_lifecycle.py` (10/10 PASS):
+  - Revoke clears user_id + disables user + bumps token_version (artists untouched without cascade)
+  - Revoke cascade disables N artists
+  - Revoke 400 if label has no user
+  - Revoke 403 for admin_finance
+  - Change email updates both rows + bumps token_version
+  - Change email 409 on duplicate, 400 on invalid format, 400 on same email
+  - Change email 403 for admin_finance
+  - Label dashboard reads `last_month_revenue` from `monthly_analytics` cache (sub-second)
+- Combined Phase 22+23+23.1+23.2+24+25 regression: **37/37 PASS**.
+
 ### Phase 24 — Materialized Rollups Everywhere (2026-06-29)
 User report (production): after Phase 23.2 backfill, Analytics dashboard was empty (no chart/Top-10), Artist Management showed no data even with period filter, and Release Management took 30-60s to load each page. Root cause: Artist/Release endpoints aggregated against `royalty_lines` (1M+ rows) on every page load → CSOT timeouts + slowness. Analytics cache (`monthly_analytics`) wasn't always rebuilt after a backfill because the auto-trigger was fire-and-forget.
 

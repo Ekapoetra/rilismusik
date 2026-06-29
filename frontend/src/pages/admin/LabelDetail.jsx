@@ -11,6 +11,12 @@ export default function AdminLabelDetail() {
   const [reason, setReason] = useState("");
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [blacklistReason, setBlacklistReason] = useState("");
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeCascade, setRevokeCascade] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailNotify, setEmailNotify] = useState(true);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -73,6 +79,45 @@ export default function AdminLabelDetail() {
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
   };
 
+  const revokeAccount = async (e) => {
+    e.preventDefault();
+    setErr(""); setMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("cascade_artists", revokeCascade ? "true" : "false");
+      fd.append("reason", revokeReason);
+      const { data: res } = await api.post(`/admin/labels/${id}/revoke-account`, fd);
+      setRevokeOpen(false);
+      setRevokeReason("");
+      setRevokeCascade(false);
+      await load();
+      setMsg(
+        `Akses akun ${res.revoked_email || ""} dicabut. ` +
+        (res.artists_disabled > 0 ? `${res.artists_disabled} artist sub-account ikut dinonaktifkan. ` : "") +
+        "Anda bisa buat akun baru dengan email lain via 'Buat Akun'."
+      );
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+  };
+
+  const changeEmail = async (e) => {
+    e.preventDefault();
+    setErr(""); setMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("new_email", newEmail.trim().toLowerCase());
+      fd.append("notify", emailNotify ? "true" : "false");
+      const { data: res } = await api.post(`/admin/labels/${id}/change-email`, fd);
+      setEmailOpen(false);
+      setNewEmail("");
+      await load();
+      setMsg(
+        `Email diubah dari ${res.old_email} → ${res.new_email}. ` +
+        (emailNotify ? `Notifikasi terkirim ke email ${res.notify_sent?.old ? "lama" : ""}${res.notify_sent?.old && res.notify_sent?.new ? " & " : ""}${res.notify_sent?.new ? "baru" : ""}. ` : "") +
+        "Sesi login label terputus, harus login ulang."
+      );
+    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
+  };
+
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const l = data.label;
   const isBlacklisted = l.account_status === "blacklisted";
@@ -125,6 +170,39 @@ export default function AdminLabelDetail() {
               <button className="rm-btn-ghost text-sm text-emerald-300 hover:text-emerald-200" onClick={unblacklist} data-testid="admin-label-unblacklist">Lepas Blacklist</button>
             )}
           </div>
+          {/* Phase 25 — Account lifecycle */}
+          {l.user_id && (
+            <div className="pt-3 border-t border-white/5 space-y-2">
+              <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">Akun Login</div>
+              <div className="text-xs text-zinc-400">Email aktif: <span className="font-mono text-zinc-200">{l.email || "—"}</span></div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  className="rm-btn-ghost text-xs flex items-center gap-1"
+                  onClick={() => setEmailOpen(true)}
+                  data-testid="admin-label-change-email"
+                >
+                  Ganti Email
+                </button>
+                <button
+                  className="rm-btn-ghost text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1"
+                  onClick={() => setRevokeOpen(true)}
+                  data-testid="admin-label-revoke-account"
+                >
+                  Cabut Akses
+                </button>
+              </div>
+              <div className="text-[10px] text-zinc-500 leading-relaxed">
+                Cabut akses akan menonaktifkan login tanpa menghapus data label/royalti. Akun baru bisa dibuat ulang dengan email lain.
+              </div>
+            </div>
+          )}
+          {!l.user_id && l.previous_account_email && (
+            <div className="pt-3 border-t border-white/5 text-xs">
+              <div className="text-amber-300">Akun login dicabut sebelumnya.</div>
+              <div className="text-zinc-500 mt-0.5">Mantan email: <span className="font-mono">{l.previous_account_email}</span></div>
+              <div className="text-zinc-500">Gunakan tombol &quot;Buat Akun&quot; di halaman Label Management untuk akun baru.</div>
+            </div>
+          )}
           {canFinance && (
             <div className="pt-3 border-t border-white/5 space-y-3">
               <div>
@@ -162,6 +240,100 @@ export default function AdminLabelDetail() {
           <Row k="Saldo Pending" v={"Rp " + (l.balance_pending_idr || 0).toLocaleString("id-ID")} />
         </div>
       </div>
+
+      {/* Phase 25 — Revoke account modal */}
+      {revokeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setRevokeOpen(false)}>
+          <form onClick={(e) => e.stopPropagation()} onSubmit={revokeAccount} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4 border border-amber-500/30" data-testid="admin-label-revoke-modal">
+            <h3 className="font-display font-extrabold text-xl tracking-tighter text-amber-200">Cabut Akses Akun</h3>
+            <div className="text-sm text-zinc-300 space-y-2">
+              <p>
+                Email login <b className="text-zinc-100">{l.email}</b> akan dinonaktifkan. Semua sesi terputus & login ditolak.
+              </p>
+              <p className="text-amber-300/90 text-xs">
+                Data label, artist, rilisan, kontrak, dan royalti TIDAK dihapus. Anda bisa membuat akun baru dengan email lain via &quot;Buat Akun&quot; di Label Management.
+              </p>
+            </div>
+            <div>
+              <label className="rm-label">Alasan (opsional)</label>
+              <input
+                className="rm-input"
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder="Misal: ganti PIC, pergantian email, dll"
+                data-testid="admin-label-revoke-reason"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={revokeCascade}
+                onChange={(e) => setRevokeCascade(e.target.checked)}
+                data-testid="admin-label-revoke-cascade"
+                className="rm-checkbox"
+              />
+              <span>Ikut nonaktifkan {data.artists_count || 0} artist sub-account label ini</span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="rm-btn-ghost" onClick={() => setRevokeOpen(false)}>Batal</button>
+              <button
+                className="rm-btn-primary bg-gradient-to-r from-amber-500 to-orange-600"
+                data-testid="admin-label-revoke-submit"
+              >
+                Cabut Akses
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Phase 25 — Change email modal */}
+      {emailOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setEmailOpen(false)}>
+          <form onClick={(e) => e.stopPropagation()} onSubmit={changeEmail} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4 border border-sky-500/30" data-testid="admin-label-email-modal">
+            <h3 className="font-display font-extrabold text-xl tracking-tighter text-sky-200">Ganti Email Akun</h3>
+            <div className="text-sm text-zinc-300">
+              Email akun login <b>{l.label_name}</b> akan diubah. Sesi login lama otomatis terputus — label harus login ulang dengan email baru.
+            </div>
+            <div>
+              <label className="rm-label">Email Lama</label>
+              <input className="rm-input opacity-70" disabled value={l.email || ""} />
+            </div>
+            <div>
+              <label className="rm-label">Email Baru</label>
+              <input
+                className="rm-input"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="email@baru.com"
+                data-testid="admin-label-new-email"
+                required
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={emailNotify}
+                onChange={(e) => setEmailNotify(e.target.checked)}
+                data-testid="admin-label-email-notify"
+                className="rm-checkbox"
+              />
+              <span>Kirim notifikasi otomatis ke email lama & baru</span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="rm-btn-ghost" onClick={() => setEmailOpen(false)}>Batal</button>
+              <button
+                className="rm-btn-primary bg-gradient-to-r from-sky-500 to-cyan-600"
+                disabled={!newEmail || !newEmail.includes("@")}
+                data-testid="admin-label-email-submit"
+              >
+                Ganti Email
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Blacklist modal */}
       {blacklistOpen && (
