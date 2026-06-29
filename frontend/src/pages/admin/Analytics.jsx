@@ -266,8 +266,25 @@ export default function AdminAnalytics() {
             <div className="flex justify-between"><span className="text-zinc-500">Cache update</span><span className="text-zinc-200 font-mono text-xs">{cacheStatus?.finished_at ? new Date(cacheStatus.finished_at).toLocaleString("id-ID") : "Belum pernah"}</span></div>
             <div className="flex justify-between"><span className="text-zinc-500">Durasi recompute</span><span className="text-zinc-200 font-mono text-xs">{cacheStatus?.duration_sec ? `${cacheStatus.duration_sec}s` : "—"}</span></div>
             <div className="flex justify-between"><span className="text-zinc-500">Doc count</span><span className="text-zinc-200 font-mono text-xs">{fmtInt(cacheStatus?.doc_count || 0)}</span></div>
+            {cacheStatus?.per_dim_counts && Object.keys(cacheStatus.per_dim_counts).length > 0 && (
+              <div className="pt-2 mt-2 border-t border-white/5 space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Per Dimensi</div>
+                {Object.entries(cacheStatus.per_dim_counts).map(([dim, n]) => (
+                  <div key={dim} className="flex justify-between text-xs">
+                    <span className="text-zinc-500 capitalize">{dim}</span>
+                    <span className="text-zinc-300 font-mono">{fmtInt(n)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {cacheStatus?.last_error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-200 rounded p-2 text-[11px] mt-2">
+                <div className="font-semibold mb-0.5">Last error</div>
+                <div className="font-mono break-all">{cacheStatus.last_error}</div>
+              </div>
+            )}
             <div className="text-[10px] text-zinc-500 mt-3 leading-relaxed">
-              Cache di-rebuild otomatis setelah publish royalti & hapus import. Klik &quot;Rebuild Cache&quot; untuk paksa update sekarang.
+              Cache di-rebuild otomatis setelah publish royalti, hapus import, & backfill Bulan Laporan. Klik &quot;Rebuild Cache&quot; untuk paksa update sekarang.
             </div>
           </div>
         </div>

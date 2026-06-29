@@ -33,7 +33,9 @@ from models import now_iso
 analytics_r = APIRouter(prefix="/admin/analytics", tags=["admin-analytics"])
 
 # Dimensions we pre-aggregate. Keep this list aligned with the dashboard UI.
-DIMENSIONS = ["total", "platform", "country", "label", "artist", "track"]
+# Phase 24: added `release` so the Release Management page can query the cache
+# instead of running a fresh aggregate over royalty_lines on every page load.
+DIMENSIONS = ["total", "platform", "country", "label", "artist", "track", "release"]
 
 # Module-local guard so concurrent recomputes don't pile up.
 _recompute_lock = asyncio.Lock()
@@ -59,6 +61,7 @@ async def _stream_dim_aggregate(*, dim: str) -> List[Dict[str, Any]]:
         "label": "$label_id",
         "artist": "$artist_id",
         "track": "$track_id",
+        "release": "$release_id",
     }
 
     match_stage = {"$match": {"period": {"$ne": None, "$exists": True}}}
@@ -106,7 +109,7 @@ async def _hydrate_labels(docs: List[Dict[str, Any]]) -> None:
     """Replace `key` (label_id/artist_id/track_id) with human-readable name.
     Lookups are batched in chunks of 200 to avoid huge `$in` queries.
     """
-    by_dim: Dict[str, set] = {"label": set(), "artist": set(), "track": set()}
+    by_dim: Dict[str, set] = {"label": set(), "artist": set(), "track": set(), "release": set()}
     for d in docs:
         if d.get("dim") in by_dim and d.get("key"):
             by_dim[d["dim"]].add(d["key"])
@@ -139,6 +142,19 @@ async def _hydrate_labels(docs: List[Dict[str, Any]]) -> None:
                 "isrc": t.get("isrc") or "",
             }
 
+    release_info: Dict[str, Dict[str, str]] = {}
+    if by_dim["release"]:
+        async for rel in db_bg.releases.find(
+            {"id": {"$in": list(by_dim["release"])}},
+            {"_id": 0, "id": 1, "release_title": 1, "artist_name": 1, "upc": 1, "release_date": 1},
+        ):
+            release_info[rel["id"]] = {
+                "title": rel.get("release_title") or "(untitled release)",
+                "artist_name": rel.get("artist_name") or "",
+                "upc": rel.get("upc") or "",
+                "release_date": rel.get("release_date") or "",
+            }
+
     for d in docs:
         if d["dim"] == "label" and d.get("key"):
             d["label_name"] = label_names.get(d["key"], "(unknown label)")
@@ -149,6 +165,12 @@ async def _hydrate_labels(docs: List[Dict[str, Any]]) -> None:
             d["track_title"] = info.get("title", "(unknown)")
             d["track_artist"] = info.get("artist_name", "")
             d["isrc"] = info.get("isrc", "")
+        elif d["dim"] == "release" and d.get("key"):
+            info = release_info.get(d["key"], {})
+            d["release_title"] = info.get("title", "(unknown)")
+            d["release_artist"] = info.get("artist_name", "")
+            d["upc"] = info.get("upc", "")
+            d["release_date"] = info.get("release_date", "")
 
 
 async def recompute_monthly_analytics() -> Dict[str, Any]:
@@ -175,24 +197,69 @@ async def recompute_monthly_analytics() -> Dict[str, Any]:
             if all_docs:
                 # insert_many requires a stable _id; we leave Mongo to assign one
                 await db_bg[staging].insert_many(all_docs, ordered=False)
+                # Indexes for the dashboard's main query patterns:
+                #   1) `(period, dim)` — full-month slice across all dims
+                #   2) `(dim, revenue_idr -1)` — Top-N per dim
+                #   3) `(dim, key, period)` — Phase 24: fast lookup per entity id
+                #      (used by Artist/Release/Label Management list endpoints)
                 await db_bg[staging].create_index([("period", 1), ("dim", 1)])
                 await db_bg[staging].create_index([("dim", 1), ("revenue_idr", -1)])
+                await db_bg[staging].create_index([("dim", 1), ("key", 1), ("period", 1)])
             await db_bg.drop_collection("monthly_analytics")
             if all_docs:
                 # `rename` is atomic on the cluster but requires the target name
                 # not to exist — we already dropped it above.
                 await db_bg[staging].rename("monthly_analytics")
             duration = (datetime.now(timezone.utc) - t0).total_seconds()
+            per_dim_counts: Dict[str, int] = {}
+            for d in all_docs:
+                per_dim_counts[d["dim"]] = per_dim_counts.get(d["dim"], 0) + 1
             _last_recompute_meta.update({
                 "finished_at": now_iso(),
                 "duration_sec": round(duration, 2),
                 "doc_count": len(all_docs),
+                "per_dim_counts": per_dim_counts,
+                "last_error": None,
             })
+            # Persist health to Mongo so it survives pod restarts (and other
+            # workers in a multi-replica deploy can read it). Stored as a
+            # singleton doc with id='monthly_analytics'.
+            try:
+                await db_bg.rollup_health.update_one(
+                    {"id": "monthly_analytics"},
+                    {"$set": {
+                        "id": "monthly_analytics",
+                        "finished_at": _last_recompute_meta["finished_at"],
+                        "duration_sec": _last_recompute_meta["duration_sec"],
+                        "doc_count": _last_recompute_meta["doc_count"],
+                        "per_dim_counts": per_dim_counts,
+                        "last_error": None,
+                        "updated_at": now_iso(),
+                    }},
+                    upsert=True,
+                )
+            except Exception:
+                logger.warning("[ANALYTICS] failed to persist rollup_health doc")
             logger.info("[ANALYTICS] recompute done in %.2fs — %d docs across %d dims",
                         duration, len(all_docs), len(DIMENSIONS))
             return dict(_last_recompute_meta)
         except Exception as e:
             logger.exception("[ANALYTICS] recompute FAILED: %s", e)
+            _last_recompute_meta["last_error"] = f"{type(e).__name__}: {str(e)[:300]}"
+            # Persist failure too so admin UI can show it.
+            try:
+                await db_bg.rollup_health.update_one(
+                    {"id": "monthly_analytics"},
+                    {"$set": {
+                        "id": "monthly_analytics",
+                        "last_error": _last_recompute_meta["last_error"],
+                        "last_error_at": now_iso(),
+                        "updated_at": now_iso(),
+                    }},
+                    upsert=True,
+                )
+            except Exception:
+                pass
             raise
         finally:
             _last_recompute_meta["running"] = False
@@ -219,13 +286,33 @@ async def admin_recompute_analytics(user: dict = Depends(require_super_admin)):
 @analytics_r.get("/status")
 async def admin_analytics_status(user: dict = Depends(require_admin)):
     """Tiny status endpoint — used by the dashboard to show 'Last refreshed X
-    minutes ago'.
+    minutes ago'. Falls back to the persisted `rollup_health` doc when this
+    pod hasn't run a rebuild yet (e.g. after a fresh restart).
     """
+    meta = dict(_last_recompute_meta)
+    if not meta.get("finished_at"):
+        try:
+            health = await db.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0})
+            if health:
+                meta.update({
+                    "finished_at": health.get("finished_at"),
+                    "duration_sec": health.get("duration_sec"),
+                    "doc_count": health.get("doc_count", 0),
+                    "per_dim_counts": health.get("per_dim_counts", {}),
+                    "last_error": health.get("last_error"),
+                    "last_error_at": health.get("last_error_at"),
+                    "from_persisted": True,
+                })
+        except Exception:
+            pass
     return {
         "running": _last_recompute_meta.get("running", False),
-        "finished_at": _last_recompute_meta.get("finished_at"),
-        "duration_sec": _last_recompute_meta.get("duration_sec"),
-        "doc_count": _last_recompute_meta.get("doc_count", 0),
+        "finished_at": meta.get("finished_at"),
+        "duration_sec": meta.get("duration_sec"),
+        "doc_count": meta.get("doc_count", 0),
+        "per_dim_counts": meta.get("per_dim_counts", {}),
+        "last_error": meta.get("last_error"),
+        "last_error_at": meta.get("last_error_at"),
     }
 
 

@@ -230,6 +230,30 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 24 — Materialized Rollups Everywhere (2026-06-29)
+User report (production): after Phase 23.2 backfill, Analytics dashboard was empty (no chart/Top-10), Artist Management showed no data even with period filter, and Release Management took 30-60s to load each page. Root cause: Artist/Release endpoints aggregated against `royalty_lines` (1M+ rows) on every page load → CSOT timeouts + slowness. Analytics cache (`monthly_analytics`) wasn't always rebuilt after a backfill because the auto-trigger was fire-and-forget.
+
+- **Backend `routes/admin_analytics.py`**:
+  - Added `release` to `DIMENSIONS` — rebuild now produces `dim='release'` docs with hydrated `release_title`, `release_artist`, `upc`, `release_date`.
+  - New compound index `(dim, key, period)` on `monthly_analytics` for sub-second entity-id lookups (Artist/Release/Label Management list endpoints).
+  - Persisted `rollup_health` doc (id='monthly_analytics') with last finished_at, duration_sec, doc_count, per_dim_counts, last_error/last_error_at — survives pod restart.
+  - `recompute_monthly_analytics()` now writes failure state to `rollup_health` so admin UI can see if a previous rebuild crashed.
+  - `/admin/analytics/status` falls back to `rollup_health` when this pod's in-memory `_last_recompute_meta` is empty (fresh restart scenario).
+- **Backend `routes/revenue_rollup.py`** (rewritten):
+  - `rollup_revenue_by_id` now reads from `monthly_analytics` cache via `_rollup_from_cache` (sub-second, indexed on `(dim, key, period)`).
+  - Graceful degradation: if cache is empty for that dim (post-deploy / post-backfill before async recompute finishes), falls back to live aggregate over `royalty_lines` AND triggers an async cache rebuild for next time.
+  - Used by Artist Management (`artists.py`), Release Management (`releases.py`), and Label dashboard — all three pages now load in <500ms regardless of `royalty_lines` row count.
+- **Frontend `pages/admin/Analytics.jsx`**:
+  - Status Cache panel now shows per-dim counts (total/platform/country/label/artist/track/release) with formatted numbers.
+  - Surfaces `last_error` in a red callout box if the most recent rebuild failed.
+  - Updated help text to mention backfill is also an auto-trigger.
+- **Tests** `/app/backend/tests/test_phase24_materialized_rollups.py` (4/4 PASS):
+  - Cache hit returns sentinel value (proving cache path wins over live).
+  - Cache miss → live fallback returns correct aggregated value.
+  - Rebuild endpoint emits `dim='release'` docs with hydrated title.
+  - `rollup_health` persisted across pod restarts; `/status` returns per_dim_counts.
+- Combined Phase 22+23+23.1+23.2+24 regression: **27/27 PASS**.
+
 ### Phase 23.2 — Backfill `royalty_lines.period` from `row_period` (2026-06-29)
 User uploaded yearly Believe CSVs (2020-2024 yearly + 2025 + 2026 Q1) BEFORE Phase 23.1 was deployed, so all rows got tagged with the form's `period` field instead of CSV's `Bulan Laporan` column. Artist/Release/Label/Analytics dashboards consequently could not show proper monthly grouping. Lucky break: every `royalty_lines` document already stores `row_period` (raw CSV column value) untouched alongside `period`, so a derived backfill is sufficient — no need to re-upload CSV.
 
