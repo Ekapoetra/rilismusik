@@ -38,7 +38,7 @@ from auth_utils import (
 from royalty_utils import (
     parse_csv_bytes, detect_columns, parse_amount, normalize_header,
     parse_period_from_value, calculate_line, label_percentage_at,
-    strip_sensitive, iter_csv_file,
+    strip_sensitive, iter_csv_file, slug_artist,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
@@ -206,6 +206,7 @@ async def admin_upload_royalty_csv(
         "auto_created_labels": 0,
         "auto_created_releases": 0,
         "auto_created_tracks": 0,
+        "auto_created_artists": 0,
         "total_revenue_eur": 0.0,
         "total_label_idr": 0,
         "status": "processing" if process_async else "pending_review",
@@ -254,6 +255,7 @@ async def admin_upload_royalty_csv(
             "auto_labels": result.get("auto_created_labels"),
             "auto_releases": result.get("auto_created_releases"),
             "auto_tracks": result.get("auto_created_tracks"),
+            "auto_artists": result.get("auto_created_artists"),
         },
     )
     return result
@@ -475,6 +477,16 @@ async def _process_csv_import_inline(
     ):
         if r.get("upc"):
             all_releases_by_upc[(r["upc"] or "").strip().upper()] = r
+    # (label_id, name_slug) → artist doc. Used to auto-create artist sub-account
+    # rows during ingestion so that "Materialize Artists" never has to run
+    # after every CSV upload. Slugged blank/"Unknown" names are skipped.
+    all_artists_by_key: Dict[tuple, Dict[str, Any]] = {}
+    async for a in db_bg.artists.find(
+        {}, {"_id": 0, "id": 1, "label_id": 1, "artist_name": 1, "name_slug": 1},
+    ):
+        slug = a.get("name_slug") or slug_artist(a.get("artist_name") or "")
+        if slug:
+            all_artists_by_key[(a.get("label_id"), slug)] = a
 
     # ---- Streaming accumulators ----
     headers: List[str] = []
@@ -483,10 +495,11 @@ async def _process_csv_import_inline(
     new_label_batch: List[Dict[str, Any]] = []
     new_release_batch: List[Dict[str, Any]] = []
     new_track_batch: List[Dict[str, Any]] = []
+    new_artist_batch: List[Dict[str, Any]] = []
     period_counts: Dict[str, int] = {}
     counters = {
         "matched": 0, "unmatched": 0, "invalid_period_rows": 0,
-        "auto_labels": 0, "auto_releases": 0, "auto_tracks": 0,
+        "auto_labels": 0, "auto_releases": 0, "auto_tracks": 0, "auto_artists": 0,
         "total_revenue_eur": 0.0, "total_label_idr": 0, "total_lines": 0,
     }
     flush_counter = {"n": 0}
@@ -508,6 +521,9 @@ async def _process_csv_import_inline(
         if new_track_batch:
             await db_bg.tracks.insert_many(new_track_batch, ordered=False)
             new_track_batch.clear()
+        if new_artist_batch:
+            await db_bg.artists.insert_many(new_artist_batch, ordered=False)
+            new_artist_batch.clear()
         if line_batch:
             await db_bg.royalty_lines.insert_many(line_batch, ordered=False)
             counters["total_lines"] += len(line_batch)
@@ -526,6 +542,7 @@ async def _process_csv_import_inline(
                     "auto_created_labels": counters["auto_labels"],
                     "auto_created_releases": counters["auto_releases"],
                     "auto_created_tracks": counters["auto_tracks"],
+                    "auto_created_artists": counters["auto_artists"],
                     "total_revenue_eur": round(counters["total_revenue_eur"], 4),
                     "total_label_idr": counters["total_label_idr"],
                     "period_breakdown": period_counts,
@@ -650,6 +667,47 @@ async def _process_csv_import_inline(
             label_pct = 0.0
             calc = calculate_line(revenue_eur, fee_percent, 0.0, rate_eur_idr)
 
+        # ---- Auto-create artist (Phase 28) ----
+        # Resolve artist_id directly during ingestion so the Artist Management
+        # page is populated immediately after publish — no need to run the
+        # "Materialize Artists" tool manually afterwards. Skip for unmatched
+        # rows (no label_id) and for blank/"Unknown" artist names.
+        artist_id_for_line = track.get("artist_id") if track else None
+        if label_id and not artist_id_for_line:
+            a_slug = slug_artist(raw.get("artist_name") or "")
+            if a_slug:
+                a_key = (label_id, a_slug)
+                existing_artist = all_artists_by_key.get(a_key)
+                if existing_artist:
+                    artist_id_for_line = existing_artist["id"]
+                else:
+                    new_artist = {
+                        "id": new_id(),
+                        "label_id": label_id,
+                        "artist_name": (raw.get("artist_name") or "").strip(),
+                        "name_slug": a_slug,
+                        "status": "active",
+                        "user_id": None,
+                        "imported_legacy": True,
+                        "auto_created_from_lines": True,
+                        "auto_created_from": import_id,
+                        "first_period": line_period,
+                        "last_period": line_period,
+                        "lifetime_lines": 0,
+                        "lifetime_revenue_eur": 0,
+                        "lifetime_label_idr": 0,
+                        "created_at": now, "updated_at": now,
+                    }
+                    new_artist_batch.append(new_artist)
+                    all_artists_by_key[a_key] = new_artist
+                    artist_id_for_line = new_artist["id"]
+                    counters["auto_artists"] += 1
+                # Backfill the just-created track row with the resolved
+                # artist_id (the track was added to new_track_batch above
+                # with artist_id=None — we mutate before flush).
+                if track and track.get("auto_created_from") == import_id and not track.get("artist_id"):
+                    track["artist_id"] = artist_id_for_line
+
         line_batch.append({
             "id": new_id(), "import_id": import_id, "period": line_period,
             "isrc": raw["isrc"], "upc": raw["upc"],
@@ -667,7 +725,7 @@ async def _process_csv_import_inline(
             "track_id": track["id"] if track else None,
             "release_id": (track or release or {}).get("release_id") or (release or {}).get("id"),
             "label_id": label_id,
-            "artist_id": track.get("artist_id") if track else None,
+            "artist_id": artist_id_for_line,
             "match_by": match_by,
             "label_percentage_applied": label_pct,
             "fee_percent_applied": fee_percent,
@@ -1428,6 +1486,7 @@ async def _reset_import_for_retry(import_id: str) -> None:
     await db_bg.labels.delete_many({"auto_created_from": import_id})
     await db_bg.releases.delete_many({"auto_created_from": import_id})
     await db_bg.tracks.delete_many({"auto_created_from": import_id})
+    await db_bg.artists.delete_many({"auto_created_from": import_id})
     await db_bg.royalty_imports.update_one(
         {"id": import_id},
         {"$set": {
@@ -1440,6 +1499,7 @@ async def _reset_import_for_retry(import_id: str) -> None:
             "auto_created_labels": 0,
             "auto_created_releases": 0,
             "auto_created_tracks": 0,
+            "auto_created_artists": 0,
             "total_revenue_eur": 0.0,
             "total_label_idr": 0,
             "period_breakdown": {},
@@ -1531,6 +1591,7 @@ async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:
     auto_labels_n = await db_bg.labels.count_documents({"auto_created_from": import_id})
     auto_releases_n = await db_bg.releases.count_documents({"auto_created_from": import_id})
     auto_tracks_n = await db_bg.tracks.count_documents({"auto_created_from": import_id})
+    auto_artists_n = await db_bg.artists.count_documents({"auto_created_from": import_id})
 
     return {
         "total_lines": int(stats.get("total_lines", 0)),
@@ -1546,6 +1607,7 @@ async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:
         "auto_created_labels": auto_labels_n,
         "auto_created_releases": auto_releases_n,
         "auto_created_tracks": auto_tracks_n,
+        "auto_created_artists": auto_artists_n,
         "progress_pct": 100,
     }
 
@@ -1699,6 +1761,7 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
         n_labels = (await db_bg.labels.delete_many({"auto_created_from": import_id})).deleted_count
         n_releases = (await db_bg.releases.delete_many({"auto_created_from": import_id})).deleted_count
         n_tracks = (await db_bg.tracks.delete_many({"auto_created_from": import_id})).deleted_count
+        n_artists = (await db_bg.artists.delete_many({"auto_created_from": import_id})).deleted_count
 
         # 3) R2 + local CSV cleanup (best-effort)
         r2_key = imp.get("r2_key")
@@ -1723,7 +1786,8 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
             before={"period": imp.get("period") or imp.get("period_start"),
                     "status": imp.get("previous_status")},
             after={"lines_deleted": n_lines, "auto_labels_deleted": n_labels,
-                   "auto_releases_deleted": n_releases, "auto_tracks_deleted": n_tracks},
+                   "auto_releases_deleted": n_releases, "auto_tracks_deleted": n_tracks,
+                   "auto_artists_deleted": n_artists},
         )
 
         # 5) Best-effort cache refresh

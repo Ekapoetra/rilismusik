@@ -79,15 +79,15 @@ def test_source_batch_size_at_least_5000():
 
 def test_source_inserts_use_ordered_false():
     src = (Path(__file__).resolve().parents[1] / "routes" / "royalty.py").read_text()
-    # All four `insert_many` calls inside _process_csv_import_inline must be
+    # All five `insert_many` calls inside _process_csv_import_inline must be
     # ordered=False so a single bad row doesn't abort the whole batch and they
-    # can run in parallel.
+    # can run in parallel. (labels, releases, tracks, artists, royalty_lines)
     fn_start = src.index("async def _process_csv_import_inline(")
     rest = src[fn_start:]
     fn_end_rel = rest.index("\nasync def _process_csv_import_bg(")
     body = rest[:fn_end_rel]
-    assert body.count("insert_many(") == 4, f"expected 4 insert_many calls inside _process_csv_import_inline, got {body.count('insert_many(')}"
-    assert body.count("ordered=False") >= 4, "every insert_many must pass ordered=False"
+    assert body.count("insert_many(") == 5, f"expected 5 insert_many calls inside _process_csv_import_inline, got {body.count('insert_many(')}"
+    assert body.count("ordered=False") >= 5, "every insert_many must pass ordered=False"
 
 
 def test_source_inserts_use_db_bg():
@@ -96,8 +96,8 @@ def test_source_inserts_use_db_bg():
     rest = src[fn_start:]
     fn_end_rel = rest.index("\nasync def _process_csv_import_bg(")
     body = rest[:fn_end_rel]
-    # The four bulk inserts must use db_bg
-    for coll in ("royalty_lines", "labels", "releases", "tracks"):
+    # The five bulk inserts must use db_bg
+    for coll in ("royalty_lines", "labels", "releases", "tracks", "artists"):
         assert f"db_bg.{coll}.insert_many(" in body, f"insert_many for {coll} must go through db_bg"
     # The big preflight cursor scans on labels/tracks/releases must also use db_bg
     assert "db_bg.tracks.find(" in body

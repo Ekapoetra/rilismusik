@@ -230,6 +230,31 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 28 — Auto-create Artists during CSV Ingestion (2026-06-30)
+**User insight**: "Data artis dan rilis sudah lengkap di CSV royalti bulanan (kolom artist, label, track, UPC, ISRC). Kenapa harus migrasi lagi? Kenapa tidak otomatis?"
+
+**Root cause**: Phase 9 already auto-created Label/Release/Track during CSV ingestion, but **artists were never auto-created** — admin had to run "Materialize Artists" tool manually after every upload. Artist Management page stayed empty until that secondary step ran.
+
+- **`/app/backend/royalty_utils.py`** — new `slug_artist(name)` helper (lowercased + alphanumeric-only). Returns `""` for blank or `"Unknown"` so those rows skip auto-create.
+- **`/app/backend/routes/royalty.py` `_process_csv_import_inline`** — added inline artist auto-create:
+  - At startup, pre-loads `all_artists_by_key: Dict[(label_id, name_slug), artist_doc]` via `db_bg.artists.find` (CSOT-safe).
+  - Per row, when `label_id` is resolved AND `raw["artist_name"]` is non-blank/non-Unknown: looks up `(label_id, slug)` in the map. If found → reuses `artist_id`. If not → creates new artist doc (status=active, user_id=null, imported_legacy=true, auto_created_from_lines=true, auto_created_from=import_id) and appends to `new_artist_batch`.
+  - The `artist_id` is set on `royalty_lines.artist_id` directly at ingestion (not None anymore).
+  - Newly auto-created tracks are mutated to also carry the resolved `artist_id` before flush.
+- **Counters**: new `auto_artists` field in `counters` dict, surfaced as `auto_created_artists` in the import doc and the API response.
+- **Cleanup**: `_reset_import_for_retry()` and `_delete_import_bg()` now also delete `artists` with matching `auto_created_from=import_id` (so retry/delete is symmetric with insert).
+- **Tests** `/app/backend/tests/test_phase28_autocreate_artists.py` (7/7 PASS):
+  1. `auto_created_artists` counter appears in the import response.
+  2. New artist appears in `GET /admin/artists` with revenue rollup hydrated (revenue_eur, royalty_lines_count, last_active_period).
+  3. `royalty_lines.artist_id` is populated at ingestion (not null).
+  4. 2nd CSV with same `(label, artist)` combo does NOT create duplicate artist (idempotent).
+  5. "Unknown" and blank artist names are skipped (not auto-created).
+  6. Multiple distinct artists in one CSV all get created.
+  7. Deleting the import also deletes the auto-created artists (cleanup).
+- **Test update**: `test_phase16_5_batched_csv_import.py` expectation changed from 4 → 5 insert_many calls (added `artists`) inside `_process_csv_import_inline`; `test_source_inserts_use_db_bg` now also asserts `db_bg.artists.insert_many(`.
+- **Combined regression (Phase 9 + 16.2 + 16.4 + 16.5 + 18 + 23.2 + 23 force + 24 + 26 + 27 + 28)**: **94/94 PASS**.
+- **UX impact**: "Materialize Artists" tool stays available for legacy data that was ingested before Phase 28 was deployed (run once after redeploy to backfill historical royalty_lines with `artist_id`), but is **no longer needed after every CSV upload**. New uploads populate Artist Management + analytics rollups end-to-end automatically.
+
 ### Phase 27 — Async All Migration Tools + Critical Indexes (2026-06-29)
 User report (production after Phase 26 redeploy): Withdraw FIFO dry-run hit `timeout of 110000ms exceeded` (frontend axios timeout). Analytics Royalti & Artist Management still empty. Root cause analysis:
 - (a) `royalty_lines` missing the compound index `(label_id, period, status)` → per-label aggregations in Withdraw FIFO dry-run do full collection scans, slow on 3M+ rows.

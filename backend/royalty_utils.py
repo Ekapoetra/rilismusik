@@ -16,8 +16,22 @@ Sensitive fields (hidden from label/artist responses):
 """
 import csv
 import io
+import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
+
+
+def slug_artist(name: str) -> str:
+    """Stable slug per artist name — used as dedupe key inside a single
+    label. Strips whitespace + non-alphanumerics + lowercase. A blank or
+    "Unknown" name returns ''.
+    """
+    if not name:
+        return ""
+    s = re.sub(r"[^a-z0-9]+", "", name.lower()).strip()
+    if s in ("", "unknown"):
+        return ""
+    return s
 
 
 # Canonical key -> list of normalized aliases (lowercased, stripped).
