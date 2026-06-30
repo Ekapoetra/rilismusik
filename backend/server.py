@@ -161,14 +161,22 @@ async def _bootstrap_async():
         logger.exception("start_scheduler failed: %s", e)
 
     try:
-        frontend_origins = [
-            os.environ.get("FRONTEND_URL", "").rstrip("/"),
-            "https://lanjut-core.preview.emergentagent.com",
-            "https://lanjut-core.emergent.host",
-        ]
-        frontend_origins = list({o for o in frontend_origins if o})
-        await storage_service.ensure_cors(frontend_origins)
-        logger.info("R2 ensure_cors finished")
+        # R2 CORS allow-list comes from the same source as backend CORS
+        # (CORS_ORIGINS env). Falls back to FRONTEND_URL when CORS_ORIGINS
+        # is empty. Wildcard "*" is passed straight through.
+        cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+        if cors_env == "*":
+            frontend_origins = ["*"]
+        elif cors_env:
+            frontend_origins = [o.strip().rstrip("/") for o in cors_env.split(",") if o.strip()]
+        else:
+            fallback = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
+            frontend_origins = [fallback] if fallback else []
+        if frontend_origins:
+            await storage_service.ensure_cors(frontend_origins)
+            logger.info("R2 ensure_cors finished with origins=%s", frontend_origins)
+        else:
+            logger.info("R2 ensure_cors skipped — no allowed origins configured")
     except Exception as e:  # noqa: BLE001
         logger.exception("R2 ensure_cors failed: %s", e)
 
