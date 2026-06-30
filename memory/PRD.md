@@ -230,6 +230,35 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 27 — Async All Migration Tools + Critical Indexes (2026-06-29)
+User report (production after Phase 26 redeploy): Withdraw FIFO dry-run hit `timeout of 110000ms exceeded` (frontend axios timeout). Analytics Royalti & Artist Management still empty. Root cause analysis:
+- (a) `royalty_lines` missing the compound index `(label_id, period, status)` → per-label aggregations in Withdraw FIFO dry-run do full collection scans, slow on 3M+ rows.
+- (b) Materialize Artists was still sync — full DB scan over 3M+ rows easily exceeds 120s ingress proxy timeout.
+- (c) Analytics is empty for the user's selected period range (Mei 2025 – Apr 2026) because no published data exists yet — 2025-05 and 2026-04 were still processing when reported. User needs to widen filter (e.g. "Semua" / "12 Bulan Terakhir" reaching back into 2024 data).
+
+- **Backend `routes/seed.py`** — added 6 critical indexes to `ensure_indexes()`:
+  - `royalty_lines (label_id, period, status)` compound — fixes Withdraw FIFO dry-run aggregation
+  - `royalty_lines (label_id, artist_name_raw)` compound — fixes Materialize Artists scan
+  - `royalty_lines artist_name_raw` solo, `royalty_lines row_period` solo, `royalty_lines release_id`, `royalty_lines track_id`
+  - `migrate_jobs id` unique, `migrate_jobs (status, submitted_at desc)`, `migrate_jobs kind`
+  - All use `db_bg` (CSOT-uncapped) + `create_index` is idempotent + non-blocking (MongoDB background-builds).
+- **Backend `routes/migrate.py`** — new endpoint `POST /api/admin/migrate/ensure-indexes` (super_admin):
+  - Manually re-runs `seed_indexes_and_admins()` for production scenarios where the deploy already happened but new indexes from code haven't been built yet.
+- **Backend `routes/migrate.py`** — Materialize Artists converted to async job pattern:
+  - Endpoint returns HTTP 200 + `job_id` immediately (no longer blocks until completion).
+  - Heavy aggregation + bulk_write moved into `_materialize_artists_bg()` with progress writes per phase (`aggregating`, `diffing`, `inserting_artists`, `backfilling_lines_and_tracks`).
+  - Frontend polls `GET /admin/migrate/jobs/{id}` every 3s.
+- **Frontend `pages/admin/Migrate.jsx`**:
+  - `MaterializeArtistsPanel` updated to handle async pattern — submit returns job_id immediately, indigo status card displays live progress (phase, combos_found, lines_updated), result panel renders when status='done'.
+  - WithdrawFifoPanel timeout bumped from 110s → 115s (matches ingress 120s ceiling — buys time for first dry-run before indexes finish building on production).
+- **Tests** `/app/backend/tests/test_phase27_indexes_and_async.py` (4/4 PASS):
+  - `ensure-indexes` endpoint returns ok + duration
+  - RBAC super_admin only (admin_finance 403)
+  - 5 critical compound indexes present on `royalty_lines` after ensure
+  - 3 indexes present on `migrate_jobs`
+- **Test updates**: Phase 26 materialize tests rewritten to use `_wait_for_job` helper (polls until `status` in `{done, error}`).
+- Combined Phase 22 → 27 regression: **48/48 PASS**.
+
 ### Phase 26 — Materialize Artists + Async Withdraw FIFO (2026-06-29)
 Production multi-bug report: (1) Artist Management still empty after upload even though royalty_lines have artist names, (2) Withdraw FIFO migration consistently hit 120s ingress timeout on the COMMIT path, (3) Analytics + Releases pages depend on cache rebuild that admin must trigger manually.
 

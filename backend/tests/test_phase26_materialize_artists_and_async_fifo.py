@@ -104,26 +104,43 @@ def seeded_lines_without_artists():
     db.artists.delete_many({"label_id": {"$in": [label_a, label_b]}})
 
 
+def _wait_for_job(super_token, job_id, max_wait=30):
+    """Poll a migrate job until status leaves processing/queued, then return
+    the final job doc. Phase 27: Materialize Artists is now async."""
+    for _ in range(max_wait * 2):
+        r = requests.get(f"{API}/admin/migrate/jobs/{job_id}",
+                         headers=_hdr(super_token), timeout=15)
+        if r.status_code == 200:
+            job = r.json()
+            if job["status"] in ("done", "error"):
+                return job
+        time.sleep(0.5)
+    raise AssertionError(f"job {job_id} did not finish within {max_wait}s")
+
+
 def test_materialize_dry_run_does_not_mutate(super_token, seeded_lines_without_artists):
     db = _db()
     ctx = seeded_lines_without_artists
+    # Phase 27: endpoint returns job_id, work runs in background.
     r = requests.post(
         f"{API}/admin/migrate/materialize-artists",
         headers=_hdr(super_token),
         data={"dry_run": "true"},
-        timeout=60,
+        timeout=15,
     )
     assert r.status_code == 200, r.text
-    j = r.json()
+    body = r.json()
+    assert body.get("job_id"), f"missing job_id in {body}"
+    job = _wait_for_job(super_token, body["job_id"])
+    assert job["status"] == "done", f"job errored: {job.get('error_message')}"
+    j = job["result"]
     assert j["dry_run"] is True
     # The endpoint scans ALL royalty_lines, so other test fixtures' lines may
     # also be counted. Assert >= our seeded 5 unique combos.
     assert j["combos_in_lines"] >= 5
     assert j["artists_to_create"] >= 5
-    # Verify our specific 5 combos appear in the preview
     preview_keys = {(a["label_id"], a["artist_name"]) for a in j.get("top_preview", [])}
     expected_combos = {(ctx["label_a"], n) for n in ctx["artists_a"]} | {(ctx["label_b"], n) for n in ctx["artists_b"]}
-    # top_preview is limited to 20 so it should contain all 5 of ours
     assert expected_combos.issubset(preview_keys), f"missing combos: {expected_combos - preview_keys}"
     # Mongo state unchanged for OUR seeded labels
     n_art = db.artists.count_documents({"label_id": {"$in": [ctx["label_a"], ctx["label_b"]]}})
@@ -141,10 +158,13 @@ def test_materialize_commit_creates_artists_and_backfills(super_token, seeded_li
         f"{API}/admin/migrate/materialize-artists",
         headers=_hdr(super_token),
         data={"dry_run": "false"},
-        timeout=60,
+        timeout=15,
     )
     assert r.status_code == 200, r.text
-    j = r.json()
+    body = r.json()
+    job = _wait_for_job(super_token, body["job_id"])
+    assert job["status"] == "done", f"job errored: {job.get('error_message')}"
+    j = job["result"]
     assert j["dry_run"] is False
     assert j["commit"]["applied"] is True
     # Other test fixtures may also leak lines into the scan; assert AT LEAST
@@ -179,14 +199,14 @@ def test_materialize_commit_creates_artists_and_backfills(super_token, seeded_li
 def test_materialize_idempotent(super_token, seeded_lines_without_artists):
     """Re-running commit must result in 0 new artists, 0 lines updated."""
     # First commit
-    requests.post(f"{API}/admin/migrate/materialize-artists",
-                  headers=_hdr(super_token), data={"dry_run": "false"}, timeout=60)
+    r1 = requests.post(f"{API}/admin/migrate/materialize-artists",
+                       headers=_hdr(super_token), data={"dry_run": "false"}, timeout=15)
+    _wait_for_job(super_token, r1.json()["job_id"])
     # Second commit
-    r = requests.post(f"{API}/admin/migrate/materialize-artists",
-                      headers=_hdr(super_token), data={"dry_run": "false"}, timeout=60)
-    assert r.status_code == 200
-    j = r.json()
-    # Combos still exist, but ALL are matched against existing artists
+    r2 = requests.post(f"{API}/admin/migrate/materialize-artists",
+                       headers=_hdr(super_token), data={"dry_run": "false"}, timeout=15)
+    job = _wait_for_job(super_token, r2.json()["job_id"])
+    j = job["result"]
     assert j["artists_to_create"] == 0
     assert j["commit"]["artists_created"] == 0
     assert j["commit"]["lines_updated"] == 0

@@ -405,7 +405,11 @@ function WithdrawFifoPanel() {
       fd.append("adjust_balances", adjustBalances ? "true" : "false");
       const { data } = await api.post("/admin/migrate/withdraws-legacy-period", fd, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 110000,  // close to ingress 120s — preview/dry-run still sync
+        // Phase 27: dry-run is sync but the per-label aggregation can take
+        // up to 1-2 min on 3M rows before indexes finish building. Match the
+        // ingress proxy ceiling of ~120s and surface a useful error if even
+        // that isn't enough (in which case user should re-run ensure-indexes).
+        timeout: 115000,
       });
       setResult(data);
       // If commit produced a background job, start polling.
@@ -817,11 +821,29 @@ function MaterializeArtistsPanel() {
   const [dryRun, setDryRun] = useState(true);
   const [limit, setLimit] = useState(0);  // 0 = no limit
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [job, setJob] = useState(null);
   const [err, setErr] = useState("");
+  const pollRef = useRef(null);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const pollJob = (jobId) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/admin/migrate/jobs/${jobId}`);
+        setJob(data);
+        if (data.status === "done" || data.status === "error") {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setLoading(false);
+        }
+      } catch (e) { /* keep polling */ }
+    }, 3000);
+  };
 
   const run = async () => {
-    setLoading(true); setErr(""); setResult(null);
+    setLoading(true); setErr(""); setJob(null);
     try {
       const fd = new FormData();
       fd.append("dry_run", dryRun ? "true" : "false");
@@ -829,15 +851,23 @@ function MaterializeArtistsPanel() {
       const { data } = await api.post(
         "/admin/migrate/materialize-artists",
         fd,
-        { headers: { "Content-Type": "multipart/form-data" }, timeout: 180000 },
+        { headers: { "Content-Type": "multipart/form-data" }, timeout: 30000 },
       );
-      setResult(data);
+      // Phase 27: endpoint returns 200 with job_id immediately
+      if (data.job_id) {
+        setJob({ id: data.job_id, status: "queued" });
+        pollJob(data.job_id);
+      } else {
+        setLoading(false);
+      }
     } catch (e) {
       setErr(e.response?.data?.detail || e.message || "Materialize gagal");
-    } finally {
       setLoading(false);
     }
   };
+
+  const result = job?.result;
+  const phase = job?.progress_phase;
 
   return (
     <div className="space-y-4">
@@ -851,7 +881,7 @@ function MaterializeArtistsPanel() {
             Tool ini scan kolom <code className="bg-black/30 px-1 rounded">artist_name</code> di <code className="bg-black/30 px-1 rounded">royalty_lines</code>, buat satu dokumen artist per (label_id, nama artist), lalu backfill <code className="bg-black/30 px-1 rounded">artist_id</code> di lines + tracks. Setelah commit, refresh Artist Management — semua artist langsung muncul beserta total revenue per bulan.
           </p>
           <p className="text-amber-300/80">
-            <b>Aman dijalankan berulang</b> — hanya artist baru (label_id + nama yang belum ada) yang dibuat.
+            <b>Phase 27</b>: tool ini sekarang jalan di <b>background</b> (return job_id instan, poll status) untuk hindari ingress timeout pada 3M+ rows. <b>Aman dijalankan berulang</b> — hanya artist baru (label_id + nama yang belum ada) yang dibuat.
           </p>
         </div>
       </div>
@@ -903,6 +933,34 @@ function MaterializeArtistsPanel() {
       {err && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-200 text-sm">
           {typeof err === "string" ? err : JSON.stringify(err)}
+        </div>
+      )}
+
+      {job && (
+        <div className="rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs px-3 py-2 space-y-1.5">
+          <div className="flex items-center gap-2 font-semibold">
+            {job.status === "done" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /> :
+             job.status === "error" ? <AlertCircle className="w-3.5 h-3.5 text-red-300" /> :
+             <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            BACKGROUND JOB · {job.status?.toUpperCase()}
+            {phase && <span className="text-indigo-400/70">· {phase}</span>}
+          </div>
+          <div className="font-mono text-[11px] text-indigo-300/70">Job ID: {job.id}</div>
+          {job.progress_combos_found !== undefined && (
+            <div className="flex justify-between gap-2">
+              <span>Combos ditemukan</span>
+              <span className="font-mono">{(job.progress_combos_found || 0).toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {job.progress_lines_updated !== undefined && (
+            <div className="flex justify-between gap-2">
+              <span>Lines updated</span>
+              <span className="font-mono">{(job.progress_lines_updated || 0).toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          {job.error_message && (
+            <div className="text-red-300 mt-1 font-mono break-all">{job.error_message}</div>
+          )}
         </div>
       )}
 
