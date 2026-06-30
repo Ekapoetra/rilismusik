@@ -101,6 +101,14 @@ async def health():
     return {"ok": True, "time": now_iso()}
 
 
+@app.get("/health")
+async def root_health():
+    """K8s readiness probe hits `/health` (no `/api` prefix). Returns 200
+    immediately so the pod becomes Ready while heavy startup work (index
+    builds, R2 CORS, import resume) finishes in the background."""
+    return {"ok": True, "time": now_iso()}
+
+
 app.include_router(api)
 
 # ---- CORS ----
@@ -126,21 +134,49 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
-    await seed_indexes_and_admins()
-    start_scheduler()
-    # Ensure R2 bucket CORS allows browser PUT from frontend origins (direct upload)
-    frontend_origins = [
-        os.environ.get("FRONTEND_URL", "").rstrip("/"),
-        "https://lanjut-core.preview.emergentagent.com",
-        "https://lanjut-core.emergent.host",
-    ]
-    frontend_origins = list({o for o in frontend_origins if o})
-    await storage_service.ensure_cors(frontend_origins)
+    """Defer ALL heavy bootstrap work to a background task so the K8s
+    readiness probe gets `200 OK` from /health immediately. On production
+    with 3M+ row collections, index creation alone routinely exceeds the
+    Kubernetes readiness timeout (60-300s) and triggers a restart loop.
+    """
+    import asyncio
+    asyncio.create_task(_bootstrap_async())
+    logger.info("RILIS MUSIK API server up — deferring heavy bootstrap to background")
+
+
+async def _bootstrap_async():
+    """Background bootstrap: indexes, admin seeding, R2 CORS, scheduler,
+    resume interrupted imports. Each step is wrapped to ensure one failure
+    never breaks the others."""
+    try:
+        await seed_indexes_and_admins()
+        logger.info("seed_indexes_and_admins() finished")
+    except Exception as e:  # noqa: BLE001
+        logger.exception("seed_indexes_and_admins failed (retry via /api/admin/migrate/ensure-indexes): %s", e)
+
+    try:
+        start_scheduler()
+        logger.info("scheduler started")
+    except Exception as e:  # noqa: BLE001
+        logger.exception("start_scheduler failed: %s", e)
+
+    try:
+        frontend_origins = [
+            os.environ.get("FRONTEND_URL", "").rstrip("/"),
+            "https://lanjut-core.preview.emergentagent.com",
+            "https://lanjut-core.emergent.host",
+        ]
+        frontend_origins = list({o for o in frontend_origins if o})
+        await storage_service.ensure_cors(frontend_origins)
+        logger.info("R2 ensure_cors finished")
+    except Exception as e:  # noqa: BLE001
+        logger.exception("R2 ensure_cors failed: %s", e)
+
     # Resume any royalty CSV imports that were left in 'processing' state by a
     # previous container shutdown/hot-reload — must run AFTER db is ready.
     import asyncio
     asyncio.create_task(resume_interrupted_imports())
-    logger.info("RILIS MUSIK API started — scheduler online")
+    logger.info("RILIS MUSIK API bootstrap finished")
 
 
 @app.on_event("shutdown")
