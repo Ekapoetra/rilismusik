@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
-import { Banknote, CheckCircle, XCircle, UploadCloud } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
+import { Banknote, CheckCircle, XCircle, UploadCloud, History } from "lucide-react";
+import WithdrawImportPanel from "./WithdrawImportPanel";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
+function fmtAmount(w) {
+  if (w.amount_idr) return fmtIDR(w.amount_idr);
+  if (w.legacy_import && w.amount_eur_legacy) return "€ " + Number(w.amount_eur_legacy).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return fmtIDR(w.amount_idr);
+}
 
 const STATUS_PILL = {
   requested: "bg-amber-500/100/15 text-amber-300",
@@ -12,7 +19,9 @@ const STATUS_PILL = {
 };
 
 export default function AdminWithdraw() {
+  const { user: me } = useAuth();
   const [items, setItems] = useState([]);
+  const [importOpen, setImportOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [window, setWindow] = useState(null);
   const [open, setOpen] = useState(null); // selected wd for action
@@ -69,7 +78,23 @@ export default function AdminWithdraw() {
             <option value="rejected">Rejected</option>
           </select>
         </div>
+        {me?.role === "super_admin" && (
+          <button
+            className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto"
+            onClick={() => setImportOpen((s) => !s)}
+            data-testid="admin-withdraw-import-toggle"
+          >
+            <History className="w-4 h-4" /> {importOpen ? "Tutup Import Riwayat" : "Import Riwayat Penarikan (CSV)"}
+          </button>
+        )}
       </div>
+
+      {importOpen && me?.role === "super_admin" && (
+        <div className="rm-card p-5">
+          <h3 className="font-display font-bold text-lg tracking-tight mb-3">Import Riwayat Penarikan</h3>
+          <WithdrawImportPanel />
+        </div>
+      )}
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
@@ -88,7 +113,7 @@ export default function AdminWithdraw() {
                 <div className="font-semibold text-sm truncate">{w.label_name || w.label_id}</div>
               </div>
             </div>
-            <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight">{fmtIDR(w.amount_idr)}</div>
+            <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight">{fmtAmount(w)}{w.legacy_import && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/15 text-violet-300 align-middle">LEGACY</span>}</div>
             <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-zinc-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
             <div className="col-span-6 md:col-span-2 text-xs">{w.request_date?.slice(0, 10)}</div>
             <div className="col-span-6 md:col-span-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
@@ -112,7 +137,7 @@ export default function AdminWithdraw() {
         <div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4" onClick={() => setOpen(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4">
             <h3 className="font-display font-extrabold text-xl tracking-tighter capitalize">{action.replace("_", " ")} Withdraw</h3>
-            <div className="text-sm text-zinc-400">{open.label_name} • {fmtIDR(open.amount_idr)}</div>
+            <div className="text-sm text-zinc-400">{open.label_name} • {fmtAmount(open)}</div>
             {action === "mark_paid" && (
               <>
                 <div>

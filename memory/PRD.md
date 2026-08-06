@@ -230,6 +230,15 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 31 — Import Riwayat Penarikan di Admin Withdraw + Tampilan Nominal Legacy (2026-06-30)
+**User request**: "Tidak semua label langsung menarik royalti. Ada data tersendiri (music_withdrawals.csv). Ambil bulan terakhir laporan yang sudah mereka tarik (kolom `period_end`), nominal mengikuti apa adanya, riwayat tersimpan otomatis sesuai nama label."
+
+- **UI restored**: panel Import Riwayat Penarikan (Phase 22/26 backend `POST /api/admin/migrate/withdraws-legacy-period` yang UI-nya terhapus di Phase 29) kini di halaman **Admin Withdraw** sebagai komponen baru `pages/admin/WithdrawImportPanel.jsx` — toggle button `data-testid="admin-withdraw-import-toggle"` (super_admin only), file picker + dry-run default ON + polling job commit tiap 3s + stat cards + tabel per-label + daftar unmatched. 3 flag lama (history/flip/balance) selalu true (disederhanakan).
+- **Tampilan nominal legacy**: `withdraw_requests` legacy tidak punya `amount_idr` (CSV amount = EUR, exchange_rate NULL) → admin Withdraw list/modal + label Withdraw riwayat kini menampilkan `€ {amount_eur_legacy}` (format id-ID) + badge violet `LEGACY` alih-alih "Rp 0".
+- **Verified with user's real file** (`/tmp/music_withdrawals.csv`, 259 rows / 172 labels / period_end s.d. 2026-04): parse 259/259 tanpa error. E2E scenario: upload royalti Ali MusicLine 3 bulan (2022-06/2022-12/2023-03) → publish → import wd CSV (period_end 2022-12) → `last_withdrawn_period=2022-12`, 2 baris flipped withdrawn, saldo pending tersisa persis nilai bulan 2023-03 (Rp 2.907.000), riwayat paid dengan €21.966,16 & trx TX-563276. Re-commit file sama = 0 perubahan (idempotent). UI screenshot: € amount + LEGACY badge + panel tampil.
+- **Catatan operasional**: jalankan import riwayat SETELAH semua CSV royalti bulanan diupload (label auto-created dari CSV royalti → nama akan cocok). Label yang unmatched tampil di panel untuk dicek ejaannya.
+- **Xendit requirements** (dikomunikasikan ke user): butuh Secret API Key + Webhook Verification Token dari dashboard.xendit.co (Settings → Developers), URL webhook `https://lanjut-core.emergent.host/api/payments/webhook/xendit`, pilihan mode Test/Live. Menunggu jawaban user.
+
 ### Phase 30 — Manual Edit Paket Langganan Label (2026-06-30)
 **User request**: admin bisa edit manual paket label (Pay Per Release / Annual Normal / Annual VIP) + masa berlaku di tab Label.
 
