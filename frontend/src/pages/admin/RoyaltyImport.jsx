@@ -145,12 +145,35 @@ export default function AdminRoyaltyImport() {
       const fd = new FormData();
       fd.append("confirm", resetConfirm);
       const { data } = await api.post("/royalty/admin/reset-demo-data", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setMsg(`Reset selesai — ${data.imports_deleted} import, ${data.lines_deleted} lines, ${data.transactions_deleted} transaksi dihapus. ${data.labels_reset} label balance di-reset.`);
+      const jobId = data.job_id;
+      setMsg("Reset berjalan di background…");
+      const poll = async () => {
+        try {
+          const { data: job } = await api.get(`/admin/migrate/jobs/${jobId}`);
+          if (job.status === "done") {
+            const r = job.result || {};
+            setMsg(`Reset selesai — ${r.imports_deleted ?? 0} import, ${r.lines_deleted ?? 0} lines, ${r.transactions_deleted ?? 0} transaksi, ${r.auto_labels_deleted ?? 0} label & ${r.auto_artists_deleted ?? 0} artis auto-created dihapus. ${r.labels_reset ?? 0} label balance di-reset.`);
+            setBusy(false);
+            load();
+          } else if (job.status === "error") {
+            setErr(job.error_message || "Reset gagal — coba lagi.");
+            setMsg("");
+            setBusy(false);
+          } else {
+            setMsg(`Reset berjalan di background: ${job.phase || job.status}…`);
+            setTimeout(poll, 2000);
+          }
+        } catch {
+          setTimeout(poll, 3000);
+        }
+      };
       setResetOpen(false);
       setResetConfirm("");
-      load();
-    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
-    finally { setBusy(false); }
+      setTimeout(poll, 1500);
+    } catch (e2) {
+      setErr(formatApiError(e2.response?.data?.detail));
+      setBusy(false);
+    }
   };
 
   return (

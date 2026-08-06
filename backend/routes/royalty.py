@@ -1248,46 +1248,153 @@ async def admin_reset_demo_royalty_data(
     confirm: str = Form(...),
     user: dict = Depends(require_admin),
 ):
-    """⚠️ DANGER ZONE — Wipe all royalty data (imports + lines + balance transactions)
-    and reset every label's balance to zero. Used to clear dummy data before going live.
-    Requires confirm='RESET' to proceed. Super Admin only.
+    """⚠️ DANGER ZONE — Wipe all royalty data (imports + lines + balance txns +
+    auto-created labels/releases/tracks/artists) and reset label balances.
+
+    Phase 29.1 — async background job. `delete_many({})` on 3M+ royalty_lines
+    through the CSOT-capped `db` client fails on production. Now returns a
+    `job_id` immediately; the wipe uses `drop_collection` via `db_bg`, clears
+    dashboard caches, then rebuilds indexes. Poll
+    `GET /api/admin/migrate/jobs/{job_id}`. Requires confirm='RESET'.
     """
     if user["role"] != "super_admin":
         raise HTTPException(status_code=403, detail="Hanya Super Admin")
     if confirm != "RESET":
         raise HTTPException(status_code=400, detail="Konfirmasi tidak cocok. Ketik 'RESET' untuk melanjutkan.")
 
-    n_imports = (await db.royalty_imports.delete_many({})).deleted_count
-    n_lines = (await db.royalty_lines.delete_many({})).deleted_count
-    n_tx = (await db.balance_transactions.delete_many({"type": {"$in": ["royalty_pending", "royalty_available"]}})).deleted_count
-    n_labels = (await db.labels.update_many({}, {"$set": {
-        "balance_pending_idr": 0,
-        "balance_available_idr": 0,
+    job_id = new_id()
+    await db.migrate_jobs.insert_one({
+        "id": job_id,
+        "kind": "reset_royalty_data",
+        "status": "queued",
+        "submitted_by": user["id"],
+        "submitted_at": now_iso(),
         "updated_at": now_iso(),
-    }})).modified_count
-    # Also delete uploaded CSV files
-    csv_dir = UPLOAD_DIR / "csv"
-    deleted_files = 0
-    if csv_dir.exists():
-        for p in csv_dir.iterdir():
-            if p.is_file():
-                try:
-                    p.unlink()
-                    deleted_files += 1
-                except Exception:
-                    pass
-    await log_activity(user["id"], "reset_demo_royalty", "system", "all", after={
-        "imports": n_imports, "lines": n_lines, "transactions": n_tx,
-        "labels_reset": n_labels, "files_deleted": deleted_files,
     })
-    return {
-        "ok": True,
-        "imports_deleted": n_imports,
-        "lines_deleted": n_lines,
-        "transactions_deleted": n_tx,
-        "labels_reset": n_labels,
-        "csv_files_deleted": deleted_files,
-    }
+    import asyncio as _aio
+    _aio.create_task(_reset_royalty_data_bg(job_id=job_id, user_id=user["id"]))
+    return {"ok": True, "job_id": job_id, "status": "queued", "kind": "reset_royalty_data"}
+
+
+async def _reset_royalty_data_bg(*, job_id: str, user_id: str):
+    import asyncio as _aio
+
+    async def _prog(phase: str):
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "running", "phase": phase, "updated_at": now_iso()}},
+        )
+
+    report: Dict[str, Any] = {}
+    try:
+        # 1) Drop royalty collections — instant regardless of row count
+        await _prog("dropping_royalty_lines")
+        try:
+            report["lines_deleted"] = await db_bg.royalty_lines.estimated_document_count()
+        except Exception:
+            report["lines_deleted"] = 0
+        await db_bg.drop_collection("royalty_lines")
+
+        await _prog("dropping_royalty_imports")
+        try:
+            report["imports_deleted"] = await db_bg.royalty_imports.estimated_document_count()
+        except Exception:
+            report["imports_deleted"] = 0
+        await db_bg.drop_collection("royalty_imports")
+
+        # 2) Royalty balance transactions + auto-created entities from CSV imports
+        await _prog("cleaning_entities")
+        report["transactions_deleted"] = (await db_bg.balance_transactions.delete_many(
+            {"type": {"$in": ["royalty_pending", "royalty_available"]}})).deleted_count
+        report["auto_labels_deleted"] = (await db_bg.labels.delete_many(
+            {"auto_created_from": {"$ne": None}})).deleted_count
+        report["auto_releases_deleted"] = (await db_bg.releases.delete_many(
+            {"auto_created_from": {"$ne": None}})).deleted_count
+        report["auto_tracks_deleted"] = (await db_bg.tracks.delete_many(
+            {"auto_created_from": {"$ne": None}})).deleted_count
+        report["auto_artists_deleted"] = (await db_bg.artists.delete_many(
+            {"auto_created_from": {"$ne": None}})).deleted_count
+
+        # 3) Reset remaining label balances
+        await _prog("resetting_balances")
+        report["labels_reset"] = (await db_bg.labels.update_many({}, {"$set": {
+            "balance_pending_idr": 0,
+            "balance_available_idr": 0,
+            "updated_at": now_iso(),
+        }})).modified_count
+
+        # 4) Clear dashboard/analytics caches so old totals disappear
+        await _prog("clearing_caches")
+        await db_bg.drop_collection("monthly_analytics")
+        await db_bg.metrics_cache.delete_many({"_id": "dashboard_revenue"})
+        try:
+            from routes.admin import _dashboard_revenue_cache
+            _dashboard_revenue_cache.update({"total_eur": 0, "total_idr": 0, "computed_at": 0.0, "refreshing": False})
+        except Exception:
+            pass
+
+        # 5) Local CSV staging files
+        csv_dir = UPLOAD_DIR / "csv"
+        deleted_files = 0
+        if csv_dir.exists():
+            for p in csv_dir.iterdir():
+                if p.is_file():
+                    try:
+                        p.unlink()
+                        deleted_files += 1
+                    except Exception:
+                        pass
+        report["csv_files_deleted"] = deleted_files
+
+        # 6) R2 csv/ staging objects (best-effort, blocking boto3 → thread)
+        try:
+            report["r2_csv_deleted"] = await _aio.to_thread(_wipe_r2_prefix_sync, "csv/")
+        except Exception as e:
+            report["r2_csv_error"] = str(e)
+
+        # 7) Re-create indexes dropped along with the collections
+        await _prog("reseeding_indexes")
+        try:
+            from .seed import seed_indexes_and_admins
+            await seed_indexes_and_admins()
+        except Exception as e:
+            report["reseed_error"] = str(e)
+
+        await log_activity(user_id, "reset_demo_royalty", "system", "all", after=report)
+        _trigger_dashboard_recompute()
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "done", "phase": "done", "result": report,
+                      "finished_at": now_iso(), "updated_at": now_iso()}},
+        )
+    except Exception as e:
+        logger.exception("[RESET ROYALTY] FAILED: %s", e)
+        try:
+            await db_bg.migrate_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "error", "error_message": f"{type(e).__name__}: {str(e)[:300]}",
+                          "result": report, "updated_at": now_iso()}},
+            )
+        except Exception:
+            pass
+
+
+def _wipe_r2_prefix_sync(prefix: str) -> int:
+    """Blocking R2 prefix wipe — run via asyncio.to_thread."""
+    import storage_service
+    if not storage_service.is_configured():
+        return 0
+    client = storage_service._client()
+    bucket = storage_service.R2_BUCKET
+    deleted = 0
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        objs = page.get("Contents") or []
+        if not objs:
+            continue
+        client.delete_objects(Bucket=bucket, Delete={"Objects": [{"Key": o["Key"]} for o in objs]})
+        deleted += len(objs)
+    return deleted
 
 
 # -------- LABEL royalty endpoints --------

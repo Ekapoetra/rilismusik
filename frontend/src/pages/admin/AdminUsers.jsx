@@ -26,6 +26,7 @@ export default function AdminUsers() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetErr, setResetErr] = useState("");
   const [resetReport, setResetReport] = useState(null);
+  const [resetPhase, setResetPhase] = useState("");
 
   const load = async () => {
     const { data } = await api.get("/admin/admin-users");
@@ -51,15 +52,39 @@ export default function AdminUsers() {
     setResetErr("");
     setResetReport(null);
     setResetBusy(true);
+    setResetPhase("Mengirim perintah reset…");
     try {
       const fd = new FormData();
       fd.append("confirm", resetConfirm);
       fd.append("delete_r2_files", resetDeleteFiles ? "true" : "false");
       const { data } = await api.post("/admin/admin/danger/reset-all-data", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setResetReport(data.report || {});
-      setResetConfirm("");
-    } catch (e) { setResetErr(formatApiError(e.response?.data?.detail)); }
-    finally { setResetBusy(false); }
+      const jobId = data.job_id;
+      const poll = async () => {
+        try {
+          const { data: job } = await api.get(`/admin/migrate/jobs/${jobId}`);
+          if (job.status === "done") {
+            setResetReport(job.result || {});
+            setResetConfirm("");
+            setResetPhase("");
+            setResetBusy(false);
+          } else if (job.status === "error") {
+            setResetErr(job.error_message || "Reset gagal — coba lagi.");
+            setResetPhase("");
+            setResetBusy(false);
+          } else {
+            setResetPhase(job.phase || job.status || "running");
+            setTimeout(poll, 2000);
+          }
+        } catch {
+          setTimeout(poll, 3000);
+        }
+      };
+      setTimeout(poll, 1500);
+    } catch (e) {
+      setResetErr(formatApiError(e.response?.data?.detail));
+      setResetPhase("");
+      setResetBusy(false);
+    }
   };
 
   return (
@@ -196,6 +221,12 @@ export default function AdminUsers() {
                   </span>
                 </label>
                 {resetErr && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">{resetErr}</div>}
+                {resetBusy && resetPhase && (
+                  <div className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 font-mono flex items-center gap-2" data-testid="admin-reset-progress">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                    Reset berjalan di background: {resetPhase}
+                  </div>
+                )}
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" className="rm-btn-ghost" onClick={() => setResetOpen(false)} disabled={resetBusy}>Batal</button>
                   <button

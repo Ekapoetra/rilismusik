@@ -751,71 +751,157 @@ async def admin_reset_all_data(
     ticket/, landing/, smoketest/) — pass `delete_r2_files=False` to keep them.
 
     Requires `confirm='RESET-ALL-DATA'` to proceed. Super Admin only.
+
+    Phase 29.1 — async background job. On production the `royalty_lines`
+    collection holds 3M+ rows: a synchronous `delete_many({})` through the
+    CSOT-capped `db` client (timeoutMS=10000) fails mid-way and the 120s
+    ingress timeout kills the request. This endpoint now returns a `job_id`
+    immediately; the wipe runs in the background using `drop_collection`
+    (instant regardless of row count) via `db_bg`, then re-seeds indexes +
+    admins and clears all dashboard caches. Poll
+    `GET /api/admin/migrate/jobs/{job_id}`.
     """
     if confirm != "RESET-ALL-DATA":
         raise HTTPException(
             status_code=400,
             detail="Konfirmasi tidak cocok. Ketik tepat: RESET-ALL-DATA",
         )
+    job_id = new_id()
+    await db.migrate_jobs.insert_one({
+        "id": job_id,
+        "kind": "reset_all_data",
+        "status": "queued",
+        "submitted_by": user["id"],
+        "submitted_at": now_iso(),
+        "updated_at": now_iso(),
+        "options": {"delete_r2_files": bool(delete_r2_files)},
+    })
+    import asyncio as _aio
+    _aio.create_task(_reset_all_data_bg(
+        job_id=job_id, delete_r2_files=bool(delete_r2_files),
+        user_id=user["id"], user_email=user["email"],
+    ))
+    return {"ok": True, "job_id": job_id, "status": "queued", "kind": "reset_all_data"}
 
-    report: Dict[str, int] = {}
 
-    # 1) Wipe non-admin users (keep admins)
-    res = await db.users.delete_many({"role": {"$nin": list(ADMIN_ROLES) + [SUPER_ADMIN]}})
-    report["users_deleted_non_admin"] = res.deleted_count
+def _wipe_r2_bucket_sync() -> int:
+    """Blocking R2 full-bucket wipe — run via asyncio.to_thread."""
+    import storage_service
+    if not storage_service.is_configured():
+        return 0
+    client = storage_service._client()
+    bucket = storage_service.R2_BUCKET
+    deleted = 0
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket):
+        objs = page.get("Contents") or []
+        if not objs:
+            continue
+        client.delete_objects(
+            Bucket=bucket,
+            Delete={"Objects": [{"Key": o["Key"]} for o in objs]},
+        )
+        deleted += len(objs)
+    return deleted
 
-    # 2) Wipe ALL business data
-    business_collections = [
-        "labels", "releases", "tracks", "artists", "bank_accounts",
-        "royalty_imports", "royalty_lines", "royalty_percentage_history",
-        "balance_transactions",
-        "withdraw_requests",
-        "contracts",
-        "support_tickets", "ticket_comments",
-        "payments",
-        "wami_orders",
-        "notifications", "activity_logs", "login_attempts",
-        "email_verification_tokens", "password_reset_tokens",
-    ]
-    for col in business_collections:
-        res = await db[col].delete_many({})
-        report[col] = res.deleted_count
 
-    # 3) Optionally wipe R2 bucket (all user-uploaded files)
-    if delete_r2_files:
-        try:
-            import storage_service
-            if storage_service.is_configured():
-                client = storage_service._client()
-                bucket = storage_service.R2_BUCKET
-                deleted = 0
-                # Paginate through all objects and delete in batches of 1000
-                paginator = client.get_paginator("list_objects_v2")
-                for page in paginator.paginate(Bucket=bucket):
-                    objs = page.get("Contents") or []
-                    if not objs:
-                        continue
-                    client.delete_objects(
-                        Bucket=bucket,
-                        Delete={"Objects": [{"Key": o["Key"]} for o in objs]},
-                    )
-                    deleted += len(objs)
-                report["r2_objects_deleted"] = deleted
-        except Exception as e:
-            logger.exception("R2 cleanup during reset failed: %s", e)
-            report["r2_cleanup_error"] = str(e)
+async def _reset_all_data_bg(*, job_id: str, delete_r2_files: bool, user_id: str, user_email: str):
+    import asyncio as _aio
 
-    # 4) Re-seed defaults (idempotent)
-    from .seed import seed_indexes_and_admins
+    async def _prog(phase: str):
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "running", "phase": phase, "updated_at": now_iso()}},
+        )
+
+    report: Dict[str, Any] = {}
     try:
-        await seed_indexes_and_admins()
-        report["reseed"] = "ok"
-    except Exception as e:
-        logger.exception("Reseed after reset failed: %s", e)
-        report["reseed_error"] = str(e)
+        # 1) Wipe non-admin users (keep admins) — small collection, filtered delete
+        await _prog("wiping_users")
+        res = await db_bg.users.delete_many({"role": {"$nin": list(ADMIN_ROLES) + [SUPER_ADMIN]}})
+        report["users_deleted_non_admin"] = res.deleted_count
 
-    await log_activity(user["id"], "danger_reset_all_data", "system", "global", after=report)
-    logger.warning("[DANGER] Full data reset by super_admin %s: %s", user["email"], report)
-    return {"ok": True, "report": report}
+        # 2) Drop ALL business + cache collections. drop_collection is O(1)
+        #    server-side even at 3M+ rows — no CSOT / maxTimeMS risk.
+        business_collections = [
+            "labels", "releases", "tracks", "artists", "bank_accounts",
+            "royalty_imports", "royalty_lines", "royalty_percentage_history",
+            "balance_transactions",
+            "withdraw_requests",
+            "contracts",
+            "support_tickets", "ticket_comments",
+            "payments",
+            "wami_orders",
+            "notifications", "activity_logs", "login_attempts",
+            "email_verification_tokens", "password_reset_tokens",
+        ]
+        cache_collections = ["monthly_analytics", "metrics_cache", "rollup_health"]
+        for col in business_collections + cache_collections:
+            await _prog(f"dropping_{col}")
+            try:
+                report[col] = await db_bg[col].estimated_document_count()
+            except Exception:
+                report[col] = 0
+            await db_bg.drop_collection(col)
+
+        # Old migrate jobs (keep this one so polling keeps working)
+        await db_bg.migrate_jobs.delete_many({"id": {"$ne": job_id}})
+
+        # 3) Clear in-memory dashboard revenue cache
+        _dashboard_revenue_cache.update({"total_eur": 0, "total_idr": 0, "computed_at": 0.0, "refreshing": False})
+
+        # 4) Local upload staging files (best-effort)
+        try:
+            deleted_local = 0
+            if UPLOAD_DIR.exists():
+                for sub in UPLOAD_DIR.iterdir():
+                    if sub.is_dir():
+                        for p in sub.iterdir():
+                            if p.is_file():
+                                p.unlink(missing_ok=True)
+                                deleted_local += 1
+                    elif sub.is_file():
+                        sub.unlink(missing_ok=True)
+                        deleted_local += 1
+            report["local_files_deleted"] = deleted_local
+        except Exception as e:
+            report["local_files_error"] = str(e)
+
+        # 5) Optionally wipe R2 bucket (blocking boto3 → thread)
+        if delete_r2_files:
+            await _prog("wiping_r2")
+            try:
+                report["r2_objects_deleted"] = await _aio.to_thread(_wipe_r2_bucket_sync)
+            except Exception as e:
+                logger.exception("R2 cleanup during reset failed: %s", e)
+                report["r2_cleanup_error"] = str(e)
+
+        # 6) Re-seed defaults + re-create indexes (drops removed them)
+        await _prog("reseeding")
+        from .seed import seed_indexes_and_admins
+        try:
+            await seed_indexes_and_admins()
+            report["reseed"] = "ok"
+        except Exception as e:
+            logger.exception("Reseed after reset failed: %s", e)
+            report["reseed_error"] = str(e)
+
+        await log_activity(user_id, "danger_reset_all_data", "system", "global", after=report)
+        logger.warning("[DANGER] Full data reset by super_admin %s: %s", user_email, report)
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "done", "phase": "done", "result": report,
+                      "finished_at": now_iso(), "updated_at": now_iso()}},
+        )
+    except Exception as e:
+        logger.exception("[DANGER] Full data reset FAILED: %s", e)
+        try:
+            await db_bg.migrate_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "error", "error_message": f"{type(e).__name__}: {str(e)[:300]}",
+                          "result": report, "updated_at": now_iso()}},
+            )
+        except Exception:
+            pass
 
 

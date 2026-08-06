@@ -230,6 +230,19 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 29.1 — Reliable Full Data Reset (Async Background Jobs, 2026-06-30)
+**User report**: tombol "Reset Data Demo" di tab Royalty Import sempat gagal — CSV hilang tapi dashboard masih menampilkan data lengkap. User ingin cara menghapus SEMUA data dengan benar (mulai dari nol).
+
+**Root cause**: kedua endpoint reset (`/royalty/admin/reset-demo-data` + `/admin/admin/danger/reset-all-data`) menjalankan `delete_many({})` sinkron atas 3M+ `royalty_lines` melalui client `db` yang dibatasi CSOT `timeoutMS=10000` di production → gagal di tengah (imports terhapus, lines tersisa) + tidak pernah membersihkan cache dashboard (`metrics_cache`, `monthly_analytics`, in-memory `_dashboard_revenue_cache`) → dashboard tetap menampilkan data lama.
+
+- **Kedua endpoint → async background job** (return `job_id` langsung, poll `GET /api/admin/migrate/jobs/{job_id}`):
+  - `routes/admin.py` `_reset_all_data_bg`: `drop_collection` (O(1) berapapun jumlah baris, bebas CSOT/maxTimeMS) untuk 20 business collections + 3 cache collections (`monthly_analytics`, `metrics_cache`, `rollup_health`), filtered delete untuk users non-admin, wipe file lokal + R2 full bucket (boto3 via `asyncio.to_thread`), reset in-memory revenue cache, lalu `seed_indexes_and_admins()` (drop menghapus index — wajib rebuild). Progress phase per collection ditulis ke job doc.
+  - `routes/royalty.py` `_reset_royalty_data_bg`: drop `royalty_imports` + `royalty_lines`, hapus balance txns royalti, **hapus juga semua label/release/track/artist auto-created dari CSV** (`auto_created_from != null`), reset balance semua label, drop `monthly_analytics` + hapus `metrics_cache.dashboard_revenue`, wipe CSV lokal + R2 prefix `csv/`, rebuild indexes, lalu `_trigger_dashboard_recompute()`.
+- **Frontend polling**: `AdminUsers.jsx` Danger Zone menampilkan phase live (amber progress box `data-testid="admin-reset-progress"`), report dari `job.result`. `RoyaltyImport.jsx` tombol Reset Data Demo poll tiap 2s, pesan hijau dengan hitungan lengkap (import/lines/txn/auto-entities).
+- **Tests**: `test_phase13_reset_all_data.py` diupdate ke kontrak async (`_run_reset` helper poll sampai done) — **14/14 PASS**. `test_believe_royalty.py` validasi confirm 4/4 PASS.
+- **E2E verified (curl + UI)**: royalty reset job done <2s (67 imports, 46 auto-labels, 59 auto-artists, 315 file CSV, 7 objek R2); full reset done <1s (85 labels, 90 users, reseed ok); login super admin tetap hidup pasca reset; dashboard langsung 0; upload CSV baru pasca reset → auto-create + auto-sync analytics tetap bekerja. Demo labels di-seed ulang di preview.
+- **Catatan**: hitungan koleksi di report memakai `estimated_document_count` (metadata, bisa lag beberapa detik pasca insert) — murni kosmetik, drop tetap menghapus semuanya.
+
 ### Phase 29 — Full Auto-Sync on Upload + Legacy Tool Removal (2026-06-30)
 **User request**: "Saat saya upload ulang laporan bulanan, langsung sinkronkan otomatis data artis, riwayat royalti, katalog lagu, dan label dari CSV Believe. Settingan lama hapus saja."
 
