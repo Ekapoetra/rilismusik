@@ -230,6 +230,18 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 29 — Full Auto-Sync on Upload + Legacy Tool Removal (2026-06-30)
+**User request**: "Saat saya upload ulang laporan bulanan, langsung sinkronkan otomatis data artis, riwayat royalti, katalog lagu, dan label dari CSV Believe. Settingan lama hapus saja."
+
+- **Auto-sync dashboards after upload** (`routes/royalty.py`): new `_trigger_dashboard_recompute()` helper fires `_recompute_revenue_cache()` + `recompute_monthly_analytics()` as fire-and-forget tasks. Called from:
+  1. `_process_csv_import_inline` — right after the final status flip to `pending_review` (covers both direct upload and R2 large-upload background paths).
+  2. `admin_force_finalize_import` — after a successful force-finalize.
+  Previously the analytics cache was only rebuilt after Publish/Delete → Artist Management / Katalog / Analytics stayed empty until publish. Now they populate immediately after upload completes. **Publish remains manual** (admin sets kurs EUR→IDR first) per user choice — label balances & label-visible royalty history still only appear after Publish.
+- **Legacy migration tools REMOVED from UI** (`pages/admin/Migrate.jsx` rewritten 1028 → ~170 lines): tabs Labels / Releases / Tracks / Withdraws (old) / Withdraws FIFO / Backfill Bulan Laporan / Materialize Artists all deleted. Page renamed **"Klaim Akun"** — only the ClaimsPanel remains (still needed for legacy-label account claiming) + an emerald info banner explaining the new auto-sync. Sidebar nav label updated (`AdminLayout.jsx`).
+- **Backend migrate endpoints kept intact** (super_admin-only, harmless) so existing test suites and emergency API access still work — only the frontend surface was removed.
+- **E2E verified (curl)**: uploaded 2-row Believe CSV → `auto_created_labels=1, auto_created_releases=1, auto_created_tracks=2, auto_created_artists=1`, status `pending_review`; within 5s `/admin/analytics/status` showed fresh rebuild, `/admin/artists` returned new artist WITH revenue rollup (18.75 EUR / 181,687 IDR), `/admin/analytics/monthly` served `source=cache` with correct KPI — all WITHOUT publish. Test import deleted afterwards (cascade removed auto-created entities).
+- **Regression**: `test_phase28_autocreate_artists.py` + `test_phase16_5_batched_csv_import.py` = 13/13 PASS. Screenshot confirmed new Klaim Akun page renders, old tabs gone.
+
 ### Phase 28 — Auto-create Artists during CSV Ingestion (2026-06-30)
 **User insight**: "Data artis dan rilis sudah lengkap di CSV royalti bulanan (kolom artist, label, track, UPC, ISRC). Kenapa harus migrasi lagi? Kenapa tidak otomatis?"
 

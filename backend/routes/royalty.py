@@ -431,6 +431,24 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
 # ============================================================
 # Streaming CSV processor (shared by sync + async paths)
 # ============================================================
+def _trigger_dashboard_recompute():
+    """Phase 29 — fire-and-forget rebuild of the dashboard revenue cache +
+    monthly_analytics rollup. Called right after an import finishes processing
+    so Artist Management / Katalog / Analytics sync automatically without any
+    manual tool."""
+    import asyncio as _aio
+    try:
+        from routes.admin import _recompute_revenue_cache  # lazy import to avoid cycle
+        _aio.create_task(_recompute_revenue_cache())
+    except Exception:
+        pass
+    try:
+        from routes.admin_analytics import recompute_monthly_analytics  # lazy
+        _aio.create_task(recompute_monthly_analytics())
+    except Exception:
+        pass
+
+
 async def _process_csv_import_inline(
     *, import_id: str, file_path: str, period: Optional[str],
     rate_eur_idr: float, fee_percent: float,
@@ -769,6 +787,11 @@ async def _process_csv_import_inline(
             "updated_at": now_iso(),
         }},
     )
+
+    # Phase 29 — auto-sync: rebuild dashboard + analytics caches immediately
+    # so Artis / Katalog / Label / Analytics pages show the new data without
+    # waiting for publish or any manual tool.
+    _trigger_dashboard_recompute()
 
     final = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     return final
@@ -1664,6 +1687,7 @@ async def admin_force_finalize_import(import_id: str, user: dict = Depends(requi
         user["id"], "force_finalize_royalty_import", "royalty", import_id,
         after={"total_lines": stats["total_lines"], "matched_lines": stats["matched_lines"]},
     )
+    _trigger_dashboard_recompute()
     return {"ok": True, "import_id": import_id, "status": "pending_review", **stats}
 
 
