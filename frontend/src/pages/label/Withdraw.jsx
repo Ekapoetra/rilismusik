@@ -159,12 +159,7 @@ export default function LabelWithdraw() {
             {items.map((w) => (
               <div key={w.id} className="py-3 border-b border-white/5 last:border-0 flex items-center justify-between flex-wrap gap-3" data-testid={`withdraw-history-${w.id}`}>
                 <div>
-                  <div className="font-display font-bold text-lg tracking-tight">
-                    {w.amount_idr ? fmtIDR(w.amount_idr)
-                      : (w.legacy_import && w.amount_eur_legacy)
-                        ? "€ " + Number(w.amount_eur_legacy).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : fmtIDR(w.amount_idr)}
-                  </div>
+                  <div className="font-display font-bold text-lg tracking-tight">{fmtIDR(w.amount_idr)}</div>
                   <div className="text-xs text-zinc-500">
                     Request {w.request_date?.slice(0, 10)}
                     {w.paid_date && ` • Dibayar ${w.paid_date.slice(0, 10)}`}

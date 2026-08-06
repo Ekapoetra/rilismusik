@@ -5,11 +5,7 @@ import { Banknote, CheckCircle, XCircle, UploadCloud, History } from "lucide-rea
 import WithdrawImportPanel from "./WithdrawImportPanel";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
-function fmtAmount(w) {
-  if (w.amount_idr) return fmtIDR(w.amount_idr);
-  if (w.legacy_import && w.amount_eur_legacy) return "€ " + Number(w.amount_eur_legacy).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return fmtIDR(w.amount_idr);
-}
+function fmtAmount(w) { return fmtIDR(w.amount_idr); }
 
 const STATUS_PILL = {
   requested: "bg-amber-500/100/15 text-amber-300",

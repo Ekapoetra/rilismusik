@@ -70,8 +70,8 @@ export default function WithdrawImportPanel() {
     <div className="space-y-4" data-testid="admin-withdraw-import-panel">
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-200 text-xs px-4 py-3 leading-relaxed">
         <b>Sinkronisasi riwayat penarikan lama.</b> Upload CSV dengan kolom <code>nama_label</code> + <code>period_end</code> (YYYY-MM).
-        Sistem otomatis: (1) mencocokkan berdasarkan <b>nama label</b>, (2) set bulan laporan terakhir yang sudah ditarik = MAX(<code>period_end</code>),
-        (3) royalti sampai bulan itu ditandai <b>sudah diambil</b> (saldo menyesuaikan), (4) nominal dari CSV tersimpan apa adanya sebagai riwayat penarikan (status: Paid).
+        Sistem otomatis: (1) mencocokkan berdasarkan <b>nama label</b>, (2) set bulan laporan terakhir yang sudah ditarik = MAX(<code>period_end</code>) — <b>period_end = bulan laporan royalti</b>, bukan bulan pengambilan,
+        (3) royalti sampai bulan itu ditandai <b>sudah diambil</b> (saldo menyesuaikan), (4) nominal riwayat <b>dihitung otomatis</b> dari data royalti di web (angka amount di CSV diabaikan), tersimpan status Paid.
         Penarikan berikutnya oleh label otomatis mulai dari bulan SETELAHNYA. Jalankan <b>Preview dulu</b>, cek hasil, baru Commit.
       </div>
 

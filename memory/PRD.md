@@ -230,6 +230,13 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 31.1 — Nominal Riwayat Legacy Dihitung Otomatis (2026-06-30)
+**User revision**: "Nominal legacy nggak usah diikuti — ambil nominal yang otomatis dihitung web. period_end = bulan laporan, bukan bulan pengambilan."
+
+- **Backend** `routes/migrate.py` `_commit_legacy_period_bg` step 4 direwrite: history rows per label di-sort by `period_end`; tiap row dapat `amount_idr` = `sum(royalty_lines.label_idr)` untuk segmen periode `(period_end row sebelumnya, period_end row ini]` via aggregate db_bg. Angka `amount` CSV hanya disimpan sebagai referensi `amount_eur_legacy` (tidak ditampilkan). Doc juga kini menyimpan `request_date` + `paid_date` dari CSV.
+- **Frontend**: fallback tampilan € dihapus — admin + label Withdraw selalu menampilkan `amount_idr` (Rp) hasil hitung web; badge violet LEGACY dipertahankan. Teks panel import diupdate (period_end = bulan laporan; nominal CSV diabaikan).
+- **E2E verified**: royalti Ali 3 bulan (100/200/400 EUR) → publish → import 2 baris wd (pe 2022-12 & 2023-03) → riwayat TX-100001 = Rp 2.907.000 (segmen ≤2022-12), TX-100002 = Rp 3.876.000 (segmen 2023-01..2023-03), saldo turun total Rp 6.783.000, 3 lines flipped. Segmentasi + dedupe + idempotency benar.
+
 ### Phase 31 — Import Riwayat Penarikan di Admin Withdraw + Tampilan Nominal Legacy (2026-06-30)
 **User request**: "Tidak semua label langsung menarik royalti. Ada data tersendiri (music_withdrawals.csv). Ambil bulan terakhir laporan yang sudah mereka tarik (kolom `period_end`), nominal mengikuti apa adanya, riwayat tersimpan otomatis sesuai nama label."
 

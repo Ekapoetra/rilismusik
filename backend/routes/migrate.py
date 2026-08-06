@@ -1117,9 +1117,30 @@ async def _commit_legacy_period_bg(
                     applied_balance_pending += pending_sum
                     applied_balance_available += available_sum
 
-            # 4) Insert history docs (deduped by legacy_trx_id)
+            # 4) Insert history docs (deduped by legacy_trx_id).
+            # Phase 31.1 — nominal riwayat TIDAK memakai angka CSV. Dihitung
+            # otomatis dari royalty_lines web: sum(label_idr) per segmen bulan
+            # laporan. Baris di-sort by period_end; segmen row N = periode
+            # (period_end row N-1, period_end row N].
             if create_history_docs:
-                for hr in bucket["history_rows"]:
+                sorted_rows = sorted(bucket["history_rows"], key=lambda h: h.get("period_end") or "")
+                prev_end = None
+                for hr in sorted_rows:
+                    seg_filter: Dict[str, Any] = {
+                        "label_id": label_id,
+                        "period": {"$lte": hr.get("period_end")},
+                    }
+                    if prev_end:
+                        seg_filter["period"]["$gt"] = prev_end
+                    seg_amount = 0
+                    async for r in db_bg.royalty_lines.aggregate([
+                        {"$match": seg_filter},
+                        {"$group": {"_id": None, "total_idr": {"$sum": "$label_idr"}}},
+                    ], allowDiskUse=True):
+                        seg_amount = int(r["total_idr"] or 0)
+                    seg_start = prev_end
+                    prev_end = hr.get("period_end")
+
                     trx_id = hr.get("trx_id")
                     if trx_id:
                         exists = await db_bg.withdraw_requests.find_one(
@@ -1132,13 +1153,16 @@ async def _commit_legacy_period_bg(
                         "id": new_id(),
                         "label_id": label_id,
                         "status": "paid",
+                        "amount_idr": seg_amount,
                         "amount_eur_legacy": hr.get("amount_eur"),
                         "exchange_rate_legacy": hr.get("exchange_rate"),
                         "payment_method": hr.get("payment_method"),
                         "payment_reference": hr.get("trx_id"),
                         "admin_note": "Legacy import dari music_withdrawals.csv",
-                        "period_from": hr.get("period_start"),
+                        "period_from": hr.get("period_start") or seg_start,
                         "period_to": hr.get("period_end"),
+                        "request_date": hr.get("request_date"),
+                        "paid_date": hr.get("payment_date"),
                         "lines_count": 0,
                         "legacy_import": True,
                         "legacy_trx_id": hr.get("trx_id"),
