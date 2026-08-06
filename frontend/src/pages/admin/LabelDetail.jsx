@@ -17,6 +17,9 @@ export default function AdminLabelDetail() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [emailNotify, setEmailNotify] = useState(true);
+  const [subTier, setSubTier] = useState("pay_per_release");
+  const [subExpiry, setSubExpiry] = useState("");
+  const [subSaving, setSubSaving] = useState(false);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -24,6 +27,9 @@ export default function AdminLabelDetail() {
     const { data } = await api.get(`/admin/labels/${id}`);
     setData(data);
     setRoyalty(String(data.label.royalty_percentage_default ?? 60));
+    const l = data.label;
+    setSubTier(l.payment_type === "annual_subscription" ? (l.subscription_tier || "annual_normal") : "pay_per_release");
+    setSubExpiry(l.subscription_expires_at ? l.subscription_expires_at.slice(0, 10) : "");
   };
   useEffect(() => { load(); }, [id]);
 
@@ -46,6 +52,24 @@ export default function AdminLabelDetail() {
       await load();
       setMsg("Persentase royalti diperbarui.");
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+  };
+
+  const saveSubscription = async () => {
+    setErr(""); setMsg("");
+    if (subTier !== "pay_per_release" && !subExpiry) {
+      setErr("Isi tanggal masa berlaku untuk paket tahunan.");
+      return;
+    }
+    setSubSaving(true);
+    try {
+      const payload = subTier === "pay_per_release"
+        ? { payment_type: "pay_per_release" }
+        : { subscription_tier: subTier, subscription_expires_at: subExpiry };
+      await api.patch(`/admin/labels/${id}`, payload);
+      await load();
+      setMsg("Paket langganan diperbarui.");
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    finally { setSubSaving(false); }
   };
 
   const verifyBank = async () => {
@@ -152,7 +176,9 @@ export default function AdminLabelDetail() {
           <Row k="Email" v={l.email} />
           <Row k="WhatsApp" v={l.whatsapp} />
           <Row k="Tipe" v={l.label_type} />
+          <Row k="Paket" v={l.payment_type === "annual_subscription" ? (l.subscription_tier === "annual_vip" ? "Annual VIP" : "Annual Normal") : "Pay Per Release"} />
           <Row k="Subscription" v={l.subscription_status} />
+          <Row k="Masa Berlaku" v={l.subscription_expires_at ? new Date(l.subscription_expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "—"} />
           <Row k="Kontrak" v={l.contract_status} />
           <Row k="Status Akun" v={l.account_status} />
           <Row k="Royalti %" v={l.royalty_percentage_default + "%"} />
@@ -218,6 +244,49 @@ export default function AdminLabelDetail() {
             </div>
           )}
         </div>
+        {/* Phase 30 — Paket & Langganan manual edit */}
+        {canFinance && (
+          <div className="rm-card p-5 space-y-3" data-testid="admin-label-subscription-card">
+            <h3 className="font-display font-bold tracking-tight text-lg">Paket &amp; Langganan</h3>
+            <div>
+              <label className="rm-label">Paket</label>
+              <select
+                className="rm-input"
+                value={subTier}
+                onChange={(e) => setSubTier(e.target.value)}
+                data-testid="admin-label-sub-tier-select"
+              >
+                <option value="pay_per_release">Pay Per Release (Rp 35.000 / rilis)</option>
+                <option value="annual_normal">Annual Normal (Rp 350.000 / tahun)</option>
+                <option value="annual_vip">Annual VIP (Rp 500.000 / tahun — FREE WAMI)</option>
+              </select>
+            </div>
+            {subTier !== "pay_per_release" && (
+              <div>
+                <label className="rm-label">Masa Berlaku Sampai</label>
+                <input
+                  className="rm-input"
+                  type="date"
+                  value={subExpiry}
+                  onChange={(e) => setSubExpiry(e.target.value)}
+                  data-testid="admin-label-sub-expiry-input"
+                />
+                <div className="text-[11px] text-zinc-500 mt-1">Langganan otomatis aktif jika tanggal di masa depan, expired jika sudah lewat.</div>
+              </div>
+            )}
+            <button
+              className="rm-btn-primary text-sm"
+              onClick={saveSubscription}
+              disabled={subSaving}
+              data-testid="admin-label-sub-save"
+            >
+              {subSaving ? "Menyimpan…" : "Simpan Paket"}
+            </button>
+            <div className="text-[11px] text-zinc-500">
+              Pindah ke Pay Per Release akan menonaktifkan langganan &amp; menghapus masa berlaku. Annual VIP aktif = WAMI gratis untuk label ini.
+            </div>
+          </div>
+        )}
         <div className="rm-card p-5 space-y-2">
           <h3 className="font-display font-bold tracking-tight text-lg">Rekening</h3>
           {data.bank_account ? (

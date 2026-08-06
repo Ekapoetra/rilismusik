@@ -183,6 +183,11 @@ class LabelStatusUpdate(BaseModel):
     account_status: Optional[Literal["active", "suspended", "blacklisted"]] = None
     royalty_percentage_default: Optional[float] = None
     royalty_change_reason: Optional[str] = None
+    # Phase 30 — manual subscription/paket edit by admin
+    payment_type: Optional[Literal["pay_per_release", "annual_subscription"]] = None
+    subscription_tier: Optional[Literal["annual_normal", "annual_vip"]] = None
+    subscription_status: Optional[Literal["active", "inactive", "expired"]] = None
+    subscription_expires_at: Optional[str] = None
 
 
 # ============ ROYALTY ============

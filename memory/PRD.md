@@ -230,6 +230,18 @@ See `/app/memory/test_credentials.md`.
 
 ## Changelog
 
+### Phase 30 — Manual Edit Paket Langganan Label (2026-06-30)
+**User request**: admin bisa edit manual paket label (Pay Per Release / Annual Normal / Annual VIP) + masa berlaku di tab Label.
+
+- **Backend** `models.py` `LabelStatusUpdate` + `routes/admin.py` `PATCH /api/admin/labels/{id}` menerima 4 field baru (super_admin / admin_finance only, 403 untuk role lain):
+  - `payment_type`: `pay_per_release` → auto-clear tier + status=inactive + expires=null; `annual_subscription`.
+  - `subscription_tier`: `annual_normal` | `annual_vip` → auto-set payment_type=annual_subscription.
+  - `subscription_expires_at`: `YYYY-MM-DD` (disimpan 23:59:59 UTC) atau ISO penuh; `""` = hapus. Format salah → HTTP 400. Status auto-derived: tanggal masa depan = `active`, lampau = `expired` (kecuali `subscription_status` eksplisit dikirim).
+  - `subscription_status`: override manual `active`/`inactive`/`expired`.
+  - Kompatibel dengan cron expiry reminder (T-7/T-3/T-1) & guard WAMI-gratis-VIP di payments.py.
+- **Frontend** `pages/admin/LabelDetail.jsx`: kartu baru "Paket & Langganan" (`data-testid="admin-label-subscription-card"`, hanya super_admin/finance) — dropdown 3 paket + date picker masa berlaku (muncul hanya untuk paket tahunan) + tombol Simpan. Info Label kini menampilkan baris "Paket" (nama formatted) + "Masa Berlaku" (locale id-ID).
+- **E2E verified (curl + UI screenshot)**: set VIP+tanggal → active; tanggal lampau → expired; balik PPR → tier/expires cleared; tanggal invalid → 400; admin_support → 403. UI: select VIP + isi tanggal + simpan → pesan sukses + row "Annual VIP" + "30 Juni 2027".
+
 ### Phase 29.1 — Reliable Full Data Reset (Async Background Jobs, 2026-06-30)
 **User report**: tombol "Reset Data Demo" di tab Royalty Import sempat gagal — CSV hilang tapi dashboard masih menampilkan data lengkap. User ingin cara menghapus SEMUA data dengan benar (mulai dari nol).
 

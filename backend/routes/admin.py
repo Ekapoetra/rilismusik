@@ -224,6 +224,43 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
             "changed_at": now_iso(),
             "reason": body.royalty_change_reason,
         })
+    # Phase 30 — manual subscription/paket edit (super_admin / admin_finance)
+    sub_touched = any(f is not None for f in (
+        body.payment_type, body.subscription_tier,
+        body.subscription_expires_at, body.subscription_status,
+    ))
+    if sub_touched:
+        if user["role"] not in ("super_admin", "admin_finance"):
+            raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin yang bisa mengubah paket langganan")
+        if body.payment_type is not None:
+            upd["payment_type"] = body.payment_type
+            if body.payment_type == "pay_per_release":
+                upd["subscription_tier"] = None
+                upd["subscription_status"] = "inactive"
+                upd["subscription_expires_at"] = None
+        if body.subscription_tier is not None:
+            upd["subscription_tier"] = body.subscription_tier
+            upd["payment_type"] = "annual_subscription"
+        if body.subscription_expires_at is not None:
+            raw = body.subscription_expires_at.strip()
+            if raw == "":
+                upd["subscription_expires_at"] = None
+            else:
+                try:
+                    if len(raw) == 10:
+                        dt = datetime.strptime(raw, "%Y-%m-%d").replace(
+                            hour=23, minute=59, second=59, tzinfo=timezone.utc)
+                    else:
+                        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Format masa berlaku tidak valid (pakai YYYY-MM-DD)")
+                upd["subscription_expires_at"] = dt.isoformat()
+                if body.subscription_status is None and upd.get("payment_type", label.get("payment_type")) == "annual_subscription":
+                    upd["subscription_status"] = "active" if dt > datetime.now(timezone.utc) else "expired"
+        if body.subscription_status is not None:
+            upd["subscription_status"] = body.subscription_status
     if upd:
         upd["updated_at"] = now_iso()
         await db.labels.update_one({"id": label_id}, {"$set": upd})
