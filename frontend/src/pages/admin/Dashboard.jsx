@@ -105,11 +105,11 @@ export default function AdminDashboard() {
           <div className="text-xs uppercase tracking-widest font-bold text-zinc-500 mb-3 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" /> Royalti</div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-zinc-500">Total Revenue EUR</div>
+              <div className="text-xs text-zinc-500">Pendapatan Kotor EUR</div>
               <div className="font-display text-2xl font-extrabold tracking-tight">€ {(m.total_revenue_eur || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
             </div>
             <div>
-              <div className="text-xs text-zinc-500">Total Revenue IDR</div>
+              <div className="text-xs text-zinc-500">Total Bagian Label IDR</div>
               <div className="font-display text-2xl font-extrabold tracking-tight">{fmtIDR(m.total_revenue_idr)}</div>
             </div>
           </div>

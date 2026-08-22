@@ -94,7 +94,7 @@ export default function AdminRoyaltyDetail() {
         <div>
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Royalty Import</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Periode {imp.period}</h1>
-          <div className="text-sm text-zinc-400">File: {imp.filename} • Kurs: Rp {imp.exchange_rate_eur_idr?.toLocaleString("id-ID")} / €1 • Fee distributor: {imp.fee_percent}%</div>
+          <div className="text-sm text-zinc-400">File: {imp.filename} • Kurs: Rp {imp.exchange_rate_eur_idr?.toLocaleString("id-ID")} / €1 • Pembagian label langsung tanpa fee tambahan</div>
         </div>
         <div className="flex gap-2 flex-wrap">
           {imp.status === "processing" && (
@@ -187,7 +187,7 @@ export default function AdminRoyaltyDetail() {
         <Card label="Total Lines" v={imp.total_lines} />
         <Card label="Matched" v={imp.matched_lines} accent="emerald" />
         <Card label="Unmatched" v={imp.unmatched_lines} accent="amber" />
-        <Card label="Total Revenue" v={fmtEUR(imp.total_revenue_eur)} />
+        <Card label="Pendapatan Kotor" v={fmtEUR(imp.total_revenue_eur)} />
         <Card label="Bagian Label" v={fmtIDR(imp.total_label_idr)} accent="rose" />
       </div>
 
@@ -196,7 +196,7 @@ export default function AdminRoyaltyDetail() {
         {per_label?.length === 0 ? <div className="text-sm text-zinc-500">Belum ada line matched.</div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-[11px] uppercase tracking-widest text-zinc-500"><th className="py-2">Label</th><th>Lines</th><th>Revenue EUR</th><th className="text-right">Bagian IDR</th></tr></thead>
+              <thead><tr className="text-left text-[11px] uppercase tracking-widest text-zinc-500"><th className="py-2">Label</th><th>Lines</th><th>Pendapatan Kotor EUR</th><th className="text-right">Bagian IDR</th></tr></thead>
               <tbody>
                 {per_label.map((r) => (
                   <tr key={r._id} className="border-t border-white/5">
@@ -217,7 +217,7 @@ export default function AdminRoyaltyDetail() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="text-left text-[10px] uppercase tracking-widest text-zinc-500">
-              <th className="py-2">ISRC</th><th>Track</th><th>Artist</th><th>Platform</th><th>Country</th><th>Streams</th><th>Revenue EUR</th><th>Match</th><th className="text-right">Label IDR</th>
+              <th className="py-2">ISRC</th><th>Track</th><th>Artist</th><th>Platform</th><th>Country</th><th>Streams</th><th>Pendapatan Kotor EUR</th><th>Match</th><th className="text-right">Label IDR</th>
             </tr></thead>
             <tbody>
               {lines.slice(0, 100).map((l) => (

@@ -97,13 +97,13 @@ class TestRoyaltyImport:
         assert body["matched_lines"] == 1
         assert body["unmatched_lines"] == 2
         assert abs(body["total_revenue_eur"] - 100.0) < 0.01
-        # 50 EUR * 0.95 * 0.60 * 17500 = 498,750
-        assert body["total_label_idr"] == 498750
+        # 50 EUR * 0.60 * 17500 = 525,000 (no distributor fee)
+        assert body["total_label_idr"] == 525000
         pytest.import_id = body["id"]
         pytest.import_period = period
 
-    def test_calc_100eur_fee5_label60_rate17500(self, super_session):
-        """€100 matched → 100*0.95*0.6*17500 = 997,500 IDR for the label."""
+    def test_calc_100eur_label60_rate17500_without_fee(self, super_session):
+        """€100 matched → 100*0.6*17500 = 1,050,000 IDR for the label."""
         period = "2026-03"
         csv_bytes = _csv([
             {"isrc": LABEL1_ISRC, "title": "Calc", "artist": "Aditya", "platform": "X",
@@ -116,7 +116,7 @@ class TestRoyaltyImport:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["matched_lines"] == 1
-        assert body["total_label_idr"] == 997500
+        assert body["total_label_idr"] == 1050000
 
     def test_label_role_forbidden(self, label1_session):
         """Label cannot upload royalty CSV."""
@@ -186,8 +186,8 @@ class TestLabelRoyaltyEndpoints:
         assert r.status_code == 200, r.text
         body = r.json()
         assert "summary" in body and "by_platform" in body and "by_country" in body and "by_track" in body
-        # the matched line was 50 EUR -> 498,750 IDR
-        assert body["summary"]["total_idr"] >= 498750
+        # the matched line was 50 EUR -> 525,000 IDR
+        assert body["summary"]["total_idr"] >= 525000
 
     def test_lines_filtered(self, label1_session):
         r = label1_session.get(f"{API}/royalty/lines", params={"period": pytest.import_period})

@@ -231,15 +231,16 @@ def _build_mda_story(d: Dict[str, Any], s: Dict[str, Any]):
          "<b>3.5</b> Pihak Kedua dapat berpindah skema pembayaran sewaktu-waktu tanpa membatalkan "
          "Perjanjian ini."),
 
-        ("PASAL 4 — ROYALTI DAN BIAYA DISTRIBUTOR",
-         "<b>4.1</b> Pihak Pertama memungut biaya distributor sebesar <b>5%</b> dari pendapatan kotor "
-         "(gross revenue) Konten sebagaimana tercantum dalam laporan resmi Believe. "
-         "<b>4.2</b> Pendapatan bersih (net revenue) dikonversi dari EUR ke IDR menggunakan kurs yang "
+        ("PASAL 4 — ROYALTI DAN PEMBAGIAN PENDAPATAN",
+         "<b>4.1</b> Pendapatan yang tercantum sebagai pendapatan bersih pada laporan resmi Believe "
+         "digunakan sebagai pendapatan dasar sebelum pembagian bagian royalti Pihak Kedua. "
+         "<b>4.2</b> Pendapatan dasar tersebut dikonversi dari EUR ke IDR menggunakan kurs yang "
          "ditetapkan oleh Pihak Pertama per periode laporan. "
          "<b>4.3</b> Royalti dilaporkan secara transparan per lagu, per platform, dan per negara di "
          "dashboard Pihak Kedua dalam mata uang IDR. "
-         "<b>4.4</b> Bagian Pihak Kedua atas royalti diatur secara internal oleh Pihak Pertama "
-         "sebagai bagian dari skema kemitraan dan dapat dilihat sebagai nilai akhir IDR di dashboard."),
+         "<b>4.4</b> Bagian Pihak Kedua atas royalti diterapkan langsung pada pendapatan dasar tanpa "
+         "biaya distributor tambahan, diatur sebagai bagian dari skema kemitraan, dan ditampilkan "
+         "sebagai nilai akhir IDR di dashboard."),
 
         ("PASAL 5 — JADWAL WITHDRAW",
          "<b>5.1</b> Pihak Kedua dapat mengajukan withdraw saldo IDR pada tanggal 1–14 setiap bulan. "

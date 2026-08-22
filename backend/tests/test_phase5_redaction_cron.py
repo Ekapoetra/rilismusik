@@ -22,10 +22,8 @@ SUPPORT = {"email": "support1@rilismusik.com", "password": "Support#2026"}
 RELEASE = {"email": "release1@rilismusik.com", "password": "Release#2026"}
 
 FORBIDDEN_LABEL_KEYS = ("royalty_percentage_default", "royalty_percentage_history", "default_royalty_share")
-# Note: fee_percent_applied (5% distributor fee) is intentionally VISIBLE to labels
-# per user requirement 2026-06-24 ("fee 5% tetap diperlihatkan tidak masalah").
 FORBIDDEN_LINE_KEYS = (
-    "label_percentage_applied", "distributor_idr", "exchange_rate",
+    "label_percentage_applied", "fee_percent_applied", "distributor_idr", "exchange_rate",
     "revenue_eur", "fee_eur", "net_eur", "label_eur", "distributor_eur",
     "gross_revenue_eur", "unit_price_eur", "mechanical_cost_eur", "client_share_rate",
 )
@@ -171,7 +169,7 @@ class TestRoyaltyLinesRedaction:
             pytest.skip("no royalty lines for admin view")
         sample = items[0]
         # admin should retain at least these
-        retained = [k for k in ("revenue_eur", "label_percentage_applied", "fee_percent_applied",
+        retained = [k for k in ("revenue_eur", "label_percentage_applied",
                                 "exchange_rate", "label_eur") if k in sample]
         assert retained, f"admin lost ALL internal fields; admin sample keys={list(sample.keys())}"
 

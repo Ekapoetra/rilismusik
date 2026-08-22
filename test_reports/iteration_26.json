@@ -1,0 +1,66 @@
+{
+  "summary": "Executed Phase 32 backend + UI regression on preview URL. Core royalty recalculation, legacy cutoff migration, label-facing visibility, and 409 guard passed. Found UI copy regression (fee 5% wording still shown) and auth CORS credential mismatch.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Response sets HttpOnly auth cookies but CORS returns Access-Control-Allow-Origin: * (no explicit origin/credentials pairing). This violates credentialed CORS expectations from auth playbook and can break cookie-based cross-origin auth semantics.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminRoyaltyImport",
+        "issue": "UI still mentions 'fee 5%' in confirmation text for recalculation, conflicting with requirement to remove fee wording from admin UI.",
+        "selector": "[data-testid='admin-royalty-recalculate-all-button'] (confirmation dialog text)",
+        "priority": "HIGH"
+      },
+      {
+        "component": "AdminLabelDetail / WithdrawImportPanel",
+        "issue": "Helper descriptions still mention 'tanpa fee 5%' (fee copy not fully removed).",
+        "selector": "[data-testid='admin-label-royalty-save'], [data-testid='admin-withdraw-import-panel']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase32_dynamic_royalty_legacy.py",
+    "/app/backend/tests/test_phase22_legacy_withdraw_migration.py",
+    "/app/backend/tests/test_phase22_extras.py",
+    "/app/backend/tests/test_phase32_label_visibility_endpoints.py",
+    "/app/backend/tests/test_phase32_percentage_blocked_by_active_withdraw.py",
+    "/app/test_reports/pytest/iter26_phase32_phase22.xml",
+    "/app/test_reports/pytest/iter26_phase32_visibility.xml",
+    "/app/test_reports/pytest/iter26_phase32_409_guard.xml",
+    "/app/test_reports/pytest/iter26_auth_lockout.xml"
+  ],
+  "action_items": [
+    "Remove all remaining 'fee 5%' wording from admin-facing pages/dialogs (Phase 32 copy consistency).",
+    "Set explicit CORS origins for auth cookie flows (avoid wildcard origin when cookies are issued; ensure credentials policy is coherent).",
+    "Add/keep regression test coverage for label-facing /royalty/lines and /royalty/export.csv legacy filtering (new test added in this iteration)."
+  ],
+  "critical_code_review_comments": [
+    "server.py CORS branch allows '*' when CORS_ORIGINS is empty; with auth cookies this is an unsafe/misaligned default for credentialed browser flows.",
+    "Phase 32 business copy update is incomplete: admin strings still reference old fee model in multiple pages."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase32_dynamic_royalty_legacy.py",
+    "/app/backend/tests/test_phase32_label_visibility_endpoints.py",
+    "/app/backend/tests/test_phase32_percentage_blocked_by_active_withdraw.py",
+    "/app/test_reports/iteration_26.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "85%"
+  },
+  "seed_data_creation": "Created isolated synthetic label/user/royalty/withdraw records inside new pytest cases; all cleaned up in finally blocks.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Auth playbook file /app/auth_testing.md is missing in this workspace (read attempt failed). UI smoke passed for /admin/royalty, /admin/withdraw (with import toggle), /admin/labels/:id tablet check (no overflow). Xendit payments remain MOCKED and were not part of this Phase 32 run.",
+  "rca of the issue": "RCA-1 (CORS): server.py sets wildcard origin when CORS_ORIGINS is blank; login still issues cookies, creating inconsistent credentialed CORS behavior. Mitigation: enforce explicit origin allowlist for auth endpoints/deploy env. RCA-2 (UI copy): Phase 32 formula changed but legacy fee wording remains hardcoded in frontend helper/confirm texts; replace with fee-neutral wording to match business policy."
+}

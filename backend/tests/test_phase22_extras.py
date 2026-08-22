@@ -11,6 +11,7 @@ import io
 import os
 import uuid
 import csv as _csv
+import time
 import requests
 import pytest
 
@@ -46,6 +47,32 @@ def _make_csv(rows):
     for r in rows:
         w.writerow([str(r.get(c, "")) for c in header])
     return buf.getvalue().encode("utf-8")
+
+
+def _commit_and_wait(csv_bytes, token, **options):
+    response = requests.post(
+        f"{API}/admin/migrate/withdraws-legacy-period",
+        files={"file": ("c.csv", csv_bytes, "text/csv")},
+        data={"dry_run": "false", **options},
+        headers=_hdr(token), timeout=60,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    job_id = body.get("job_id")
+    if not job_id:
+        return body
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        job_response = requests.get(f"{API}/admin/migrate/jobs/{job_id}", headers=_hdr(token), timeout=20)
+        job_response.raise_for_status()
+        job = job_response.json()
+        if job["status"] == "done":
+            body["commit"] = job["result"]
+            return body
+        if job["status"] == "error":
+            raise AssertionError(job.get("error_message"))
+        time.sleep(0.3)
+    raise AssertionError(f"job {job_id} timeout")
 
 
 @pytest.fixture(scope="module")
@@ -115,15 +142,8 @@ def test_flip_lines_false_keeps_statuses(super_token, seeded):
          "period_start": "2024-01", "period_end": "2024-12", "amount": "10", "exchange_rate": "16000"},
     ])
     before_statuses = [l["status"] for l in db.royalty_lines.find({"label_id": label_id}, {"_id": 0, "status": 1, "period": 1}).sort("period", 1)]
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("c.csv", csv, "text/csv")},
-        data={"dry_run": "false", "flip_royalty_lines": "false",
-              "adjust_balances": "false", "create_history_docs": "false"},
-        headers=_hdr(super_token), timeout=60,
-    )
-    assert r.status_code == 200, r.text
-    body = r.json()
+    body = _commit_and_wait(csv, super_token, flip_royalty_lines="false",
+                            adjust_balances="false", create_history_docs="false")
     assert body["commit"]["applied"] is True
     after_statuses = [l["status"] for l in db.royalty_lines.find({"label_id": label_id}, {"_id": 0, "status": 1, "period": 1}).sort("period", 1)]
     assert before_statuses == after_statuses, f"Royalty lines should be unchanged when flip=false: {before_statuses} -> {after_statuses}"
@@ -144,6 +164,9 @@ def test_adjust_balances_false_keeps_balances(super_token, seeded):
         "balance_available_idr": 100_000,
         "balance_pending_idr": 50_000,
     }})
+    db.royalty_lines.update_many({"label_id": label_id}, {"$unset": {
+        "legacy_settled": "", "legacy_settled_period_end": "", "legacy_settled_at": "",
+    }})
     # Reset royalty_lines too
     db.royalty_lines.update_many({"label_id": label_id, "period": "2024-10"}, {"$set": {"status": "available"}})
     db.royalty_lines.update_many({"label_id": label_id, "period": "2024-11"}, {"$set": {"status": "available"}})
@@ -153,14 +176,8 @@ def test_adjust_balances_false_keeps_balances(super_token, seeded):
         {"trx_id": f"NOBAL-{seeded['tid']}", "nama_label": seeded["label"]["label_name"],
          "period_start": "2024-01", "period_end": "2024-12"},
     ])
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("c.csv", csv, "text/csv")},
-        data={"dry_run": "false", "flip_royalty_lines": "true",
-              "adjust_balances": "false", "create_history_docs": "false"},
-        headers=_hdr(super_token), timeout=60,
-    )
-    assert r.status_code == 200, r.text
+    _commit_and_wait(csv, super_token, flip_royalty_lines="true",
+                     adjust_balances="false", create_history_docs="false")
     lab = db.labels.find_one({"id": label_id})
     # Balances must be unchanged
     assert lab["balance_available_idr"] == 100_000, f"available changed unexpectedly to {lab['balance_available_idr']}"
@@ -182,6 +199,9 @@ def test_flip_lines_true_and_adjust_true_full_effect(super_token, seeded):
         "balance_available_idr": 100_000,
         "balance_pending_idr": 50_000,
     }})
+    db.royalty_lines.update_many({"label_id": label_id}, {"$unset": {
+        "legacy_settled": "", "legacy_settled_period_end": "", "legacy_settled_at": "",
+    }})
     db.royalty_lines.update_many({"label_id": label_id, "period": "2024-10"}, {"$set": {"status": "available"}})
     db.royalty_lines.update_many({"label_id": label_id, "period": "2024-11"}, {"$set": {"status": "available"}})
     db.royalty_lines.update_many({"label_id": label_id, "period": "2024-12"}, {"$set": {"status": "pending"}})
@@ -192,15 +212,8 @@ def test_flip_lines_true_and_adjust_true_full_effect(super_token, seeded):
         {"trx_id": f"FULL-{seeded['tid']}", "nama_label": seeded["label"]["label_name"],
          "period_start": "2024-01", "period_end": "2024-12", "amount": "5", "exchange_rate": "16000"},
     ])
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("c.csv", csv, "text/csv")},
-        data={"dry_run": "false", "flip_royalty_lines": "true",
-              "adjust_balances": "true", "create_history_docs": "true"},
-        headers=_hdr(super_token), timeout=60,
-    )
-    assert r.status_code == 200, r.text
-    body = r.json()
+    body = _commit_and_wait(csv, super_token, flip_royalty_lines="true",
+                            adjust_balances="true", create_history_docs="true")
     assert body["commit"]["applied"] is True
 
     # Lines: 3 flipped, 1 (2025-03) untouched

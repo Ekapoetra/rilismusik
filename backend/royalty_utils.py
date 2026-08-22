@@ -121,13 +121,11 @@ INTERNAL_EUR_FIELDS = (
     "distributor_eur",
 )
 
-# Percentage / fee fields — must NEVER be exposed to label/artist. The royalty
-# IDR amount shown to them is FINAL; they should not see the label-share split.
-# NOTE: `fee_percent_applied` (5% distributor fee) is INTENTIONALLY shown for
-# transparency per user requirement (2026-06-24): "fee 5% tetap diperlihatkan
-# tidak masalah". Only the label-share percentage is hidden.
+# Percentage / internal split fields must never be exposed to label/artist.
+# The IDR amount shown to them is final. Distributor fee was removed in Phase 32.
 INTERNAL_PERCENT_FIELDS = (
     "label_percentage_applied",
+    "fee_percent_applied",
     "distributor_idr",
     "exchange_rate",
 )
@@ -322,11 +320,15 @@ def calculate_line(
     label_percent: float,
     exchange_rate: float,
 ) -> Dict[str, float]:
-    """Apply distributor fee + label share + EUR→IDR conversion."""
-    fee_eur = round(revenue_eur * (fee_percent / 100.0), 6)
-    net_eur = round(revenue_eur - fee_eur, 6)
-    label_eur = round(net_eur * (label_percent / 100.0), 6)
-    distributor_eur = round(net_eur - label_eur, 6)
+    """Apply the label share directly to Believe net revenue, then EUR→IDR.
+
+    ``fee_percent`` remains in the signature for backward compatibility with
+    old imports/retry calls, but is intentionally ignored.
+    """
+    fee_eur = 0.0
+    net_eur = round(revenue_eur, 6)
+    label_eur = round(revenue_eur * (label_percent / 100.0), 6)
+    distributor_eur = round(revenue_eur - label_eur, 6)
     label_idr = round(label_eur * exchange_rate)
     distributor_idr = round(distributor_eur * exchange_rate)
     revenue_idr = round(revenue_eur * exchange_rate)

@@ -20,6 +20,8 @@ export default function AdminLabelDetail() {
   const [subTier, setSubTier] = useState("pay_per_release");
   const [subExpiry, setSubExpiry] = useState("");
   const [subSaving, setSubSaving] = useState(false);
+  const [royaltySaving, setRoyaltySaving] = useState(false);
+  const [recalcJob, setRecalcJob] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -47,11 +49,33 @@ export default function AdminLabelDetail() {
 
   const setRoyaltyPct = async () => {
     setErr(""); setMsg("");
+    setRoyaltySaving(true);
     try {
-      await api.patch(`/admin/labels/${id}`, { royalty_percentage_default: parseFloat(royalty), royalty_change_reason: reason });
+      const { data: updated } = await api.patch(`/admin/labels/${id}`, { royalty_percentage_default: parseFloat(royalty), royalty_change_reason: reason });
       await load();
-      setMsg("Persentase royalti diperbarui.");
+      const jobId = updated.royalty_recalculation_job_id;
+      if (!jobId) {
+        setMsg("Persentase royalti tersimpan; tidak ada perubahan nilai yang perlu dihitung ulang.");
+        return;
+      }
+      setMsg("Persentase tersimpan. Royalti belum ditarik sedang dihitung ulang tanpa fee tambahan.");
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const { data: job } = await api.get(`/admin/migrate/jobs/${jobId}`);
+        setRecalcJob(job);
+        if (job.status === "done") {
+          const result = job.result || {};
+          setMsg(`Hitung ulang selesai: ${(result.lines_recalculated || 0).toLocaleString("id-ID")} baris diperbarui.`);
+          await load();
+          break;
+        }
+        if (job.status === "error") {
+          setErr(job.error_message || "Hitung ulang royalti gagal.");
+          break;
+        }
+      }
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    finally { setRoyaltySaving(false); }
   };
 
   const saveSubscription = async () => {
@@ -239,8 +263,13 @@ export default function AdminLabelDetail() {
                 <label className="rm-label">Alasan Perubahan</label>
                 <input className="rm-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Misal: review tahunan" data-testid="admin-label-royalty-reason" />
               </div>
-              <button className="rm-btn-primary text-sm" onClick={setRoyaltyPct} data-testid="admin-label-royalty-save">Simpan Royalti</button>
-              <div className="text-[11px] text-zinc-500">Perubahan berlaku mulai bulan berjalan. Histori disimpan otomatis.</div>
+              <button className="rm-btn-primary text-sm" onClick={setRoyaltyPct} disabled={royaltySaving} data-testid="admin-label-royalty-save">{royaltySaving ? "Menghitung ulang…" : "Simpan Royalti"}</button>
+              {recalcJob && (
+                <div className="text-xs text-sky-300" data-testid="admin-label-royalty-recalculation-status">
+                  Status: {recalcJob.status === "processing" ? "memproses" : recalcJob.status} • {(recalcJob.progress_lines_done || 0).toLocaleString("id-ID")} / {(recalcJob.progress_lines_total || 0).toLocaleString("id-ID")} baris
+                </div>
+              )}
+              <div className="text-[11px] text-zinc-500">Persentase diterapkan langsung pada pendapatan dasar. Semua royalti yang belum withdrawn dihitung ulang; royalti settled tetap dibekukan.</div>
             </div>
           )}
         </div>

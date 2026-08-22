@@ -42,6 +42,7 @@ from royalty_utils import (
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
+from .royalty_recalculation import run_global_recalculation_job
 
 # =============================================================================
 #                              ROYALTY (ADMIN + LABEL/ARTIST)
@@ -180,8 +181,9 @@ async def admin_upload_royalty_csv(
     SYNC_THRESHOLD = 5 * 1024 * 1024
     process_async = total_size > SYNC_THRESHOLD
 
-    fee_settings = await db.landing_settings.find_one({"key": "pricing"})
-    fee_percent = float((fee_settings or {}).get("value", {}).get("distributor_fee_percent", 5) or 5)
+    # Phase 32 — no separate distributor fee. Label share applies directly to
+    # Believe's Pendapatan Bersih value.
+    fee_percent = 0.0
 
     now = now_iso()
     import_doc = {
@@ -305,8 +307,7 @@ async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depen
         key=r2_key, content_type=content_type, ttl=7200,
     )
 
-    fee_settings = await db.landing_settings.find_one({"key": "pricing"})
-    fee_percent = float((fee_settings or {}).get("value", {}).get("distributor_fee_percent", 5) or 5)
+    fee_percent = 0.0
 
     now = now_iso()
     import_doc = {
@@ -463,6 +464,10 @@ async def _process_csv_import_inline(
 
     Returns the final import_doc.
     """
+    # Old imports may still pass fee_percent=5 during retry. The fee has been
+    # removed, so every processing path normalizes it to zero.
+    fee_percent = 0.0
+
     # Batch size for `insert_many`. 5,000 docs ≈ 4-8 MB per round trip — well
     # within MongoDB's 16 MB BSON limit and 100k bulk-op cap, while reducing
     # round-trip overhead ~2.5× vs the previous 2,000.
@@ -478,9 +483,6 @@ async def _process_csv_import_inline(
     # CSOT cap on Atlas.
     labels: Dict[str, Dict[str, Any]] = {lab["id"]: lab async for lab in db_bg.labels.find({}, {"_id": 0})}
     labels_by_name = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
-    pct_history: Dict[str, List[Dict[str, Any]]] = {}
-    async for h in db_bg.royalty_percentage_history.find({}, {"_id": 0}):
-        pct_history.setdefault(h["label_id"], []).append(h)
     all_tracks: Dict[str, Dict[str, Any]] = {}
     async for t in db_bg.tracks.find(
         {"isrc": {"$exists": True, "$ne": None}},
@@ -676,8 +678,10 @@ async def _process_csv_import_inline(
             counters["matched"] += 1
             label = labels.get(label_id, {})
             default_pct = float(label.get("royalty_percentage_default", 60) or 60)
-            history = pct_history.get(label_id, [])
-            label_pct = label_percentage_at(history, default_pct, line_period)
+            # Unsettled royalties always follow the label's CURRENT share.
+            # Percentage history is audit-only and no longer changes the rate
+            # based on the reporting month.
+            label_pct = default_pct
             calc = calculate_line(revenue_eur, fee_percent, label_pct, rate_eur_idr)
             counters["total_label_idr"] += calc["label_idr"]
         else:
@@ -726,6 +730,8 @@ async def _process_csv_import_inline(
                 if track and track.get("auto_created_from") == import_id and not track.get("artist_id"):
                     track["artist_id"] = artist_id_for_line
 
+        legacy_cutoff = (labels.get(label_id, {}) if label_id else {}).get("last_withdrawn_period")
+        legacy_settled = bool(legacy_cutoff and line_period and line_period <= legacy_cutoff)
         line_batch.append({
             "id": new_id(), "import_id": import_id, "period": line_period,
             "isrc": raw["isrc"], "upc": raw["upc"],
@@ -746,11 +752,14 @@ async def _process_csv_import_inline(
             "artist_id": artist_id_for_line,
             "match_by": match_by,
             "label_percentage_applied": label_pct,
-            "fee_percent_applied": fee_percent,
+            "fee_percent_applied": 0.0,
             "exchange_rate": rate_eur_idr,
             **calc,
             "match_status": match_status,
-            "status": "draft",
+            "status": "withdrawn" if legacy_settled else "draft",
+            "legacy_settled": legacy_settled,
+            "legacy_settled_period_end": legacy_cutoff if legacy_settled else None,
+            "legacy_settled_at": now_iso() if legacy_settled else None,
             "created_at": now_iso(),
         })
 
@@ -907,11 +916,12 @@ async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyL
     if not track:
         raise HTTPException(status_code=404, detail="Track tidak ditemukan")
     label = await db.labels.find_one({"id": track["label_id"]}, {"_id": 0})
-    history = await db.royalty_percentage_history.find({"label_id": track["label_id"]}, {"_id": 0}).to_list(500)
     # Use line's own period (supports multi-period imports); fall back to import.period
     line_period = line.get("period") or imp.get("period") or imp.get("period_start") or ""
-    label_pct = label_percentage_at(history, float(label.get("royalty_percentage_default", 60) or 60), line_period)
-    calc = calculate_line(line["revenue_eur"], imp["fee_percent"], label_pct, imp["exchange_rate_eur_idr"])
+    label_pct = float(label.get("royalty_percentage_default", 60) or 60)
+    calc = calculate_line(line["revenue_eur"], 0.0, label_pct, imp["exchange_rate_eur_idr"])
+    legacy_cutoff = label.get("last_withdrawn_period")
+    legacy_settled = bool(legacy_cutoff and line_period and line_period <= legacy_cutoff)
     new_total_label_idr = imp["total_label_idr"] - line.get("label_idr", 0) + calc["label_idr"]
     await db.royalty_lines.update_one({"id": line_id}, {"$set": {
         "track_id": track["id"],
@@ -919,14 +929,51 @@ async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyL
         "label_id": track["label_id"],
         "artist_id": track.get("artist_id"),
         "label_percentage_applied": label_pct,
+        "fee_percent_applied": 0.0,
         **calc,
         "match_status": "manually_matched",
+        "status": "withdrawn" if legacy_settled else "draft",
+        "legacy_settled": legacy_settled,
+        "legacy_settled_period_end": legacy_cutoff if legacy_settled else None,
+        "legacy_settled_at": now_iso() if legacy_settled else None,
     }})
     await db.royalty_imports.update_one({"id": import_id}, {
         "$inc": {"matched_lines": 1, "unmatched_lines": -1 if line["match_status"] == "unmatched" else 0},
         "$set": {"total_label_idr": new_total_label_idr, "updated_at": now_iso()},
     })
     return await db.royalty_lines.find_one({"id": line_id}, {"_id": 0})
+
+
+@royalty_r.post("/admin/recalculate-unwithdrawn")
+async def admin_recalculate_all_unwithdrawn(user: dict = Depends(require_admin)):
+    """Queue a no-fee recalculation for every unsettled royalty line.
+
+    This is the one-time production migration path for historical CSV data;
+    source revenue and exchange rates are reused, so no CSV re-upload is needed.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    running = await db.migrate_jobs.find_one({
+        "kind": "recalculate_all_unwithdrawn",
+        "status": {"$in": ["queued", "processing"]},
+    }, {"_id": 0, "id": 1, "status": 1})
+    if running:
+        return {"ok": True, "job_id": running["id"], "status": running["status"], "already_running": True}
+    job_id = new_id()
+    await db.migrate_jobs.insert_one({
+        "id": job_id,
+        "kind": "recalculate_all_unwithdrawn",
+        "status": "queued",
+        "submitted_by": user["id"],
+        "submitted_at": now_iso(),
+        "updated_at": now_iso(),
+        "progress_labels_done": 0,
+        "progress_labels_total": 0,
+    })
+    import asyncio
+    asyncio.create_task(run_global_recalculation_job(job_id=job_id))
+    await log_activity(user["id"], "recalculate_all_unwithdrawn", "royalty", job_id)
+    return {"ok": True, "job_id": job_id, "status": "queued", "already_running": False}
 
 
 @royalty_r.post("/admin/imports/{import_id}/publish")
@@ -1018,7 +1065,12 @@ async def _publish_bg(*, import_id: str, user_id: str):
 
         # 1) Aggregate per label (fast — Mongo does the heavy lifting)
         pipeline = [
-            {"$match": {"import_id": import_id, "match_status": {"$in": ["matched", "manually_matched"]}}},
+            {"$match": {
+                "import_id": import_id,
+                "match_status": {"$in": ["matched", "manually_matched"]},
+                "status": {"$in": ["draft", "pending"]},
+                "legacy_settled": {"$ne": True},
+            }},
             {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
         ]
         per_label: List[Dict[str, Any]] = []
@@ -1077,7 +1129,8 @@ async def _publish_bg(*, import_id: str, user_id: str):
         base_filter = {
             "import_id": import_id,
             "match_status": {"$in": ["matched", "manually_matched"]},
-            "status": {"$ne": "pending"},
+            "status": "draft",
+            "legacy_settled": {"$ne": True},
         }
         last_oid = None
         total_flipped = 0
@@ -1403,9 +1456,9 @@ async def label_royalty_months(user: dict = Depends(get_current_user)):
     """List periods that have published royalty data visible to the current user."""
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
-        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}
+        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
     elif user["role"] == ARTIST_ROLE:
-        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}
+        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
     elif user["role"] in ADMIN_ROLES:
         filt = {"status": {"$in": ["pending", "available", "withdrawn"]}}
     else:
@@ -1419,16 +1472,16 @@ async def label_royalty_months(user: dict = Depends(get_current_user)):
 async def label_royalty_summary(user: dict = Depends(get_current_user), period: Optional[str] = None):
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
-        base = {"label_id": label["id"]}
+        base = {"label_id": label["id"], "legacy_settled": {"$ne": True}}
     elif user["role"] == ARTIST_ROLE:
-        base = {"artist_id": user["id"]}
+        base = {"artist_id": user["id"], "legacy_settled": {"$ne": True}}
     else:
         raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
     if period:
         base["period"] = period
 
     pipeline = [
-        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
         {"$group": {
             "_id": None,
             "total_idr": {"$sum": "$label_idr"},
@@ -1437,34 +1490,34 @@ async def label_royalty_summary(user: dict = Depends(get_current_user), period: 
         }},
     ]
     summary = {"total_idr": 0, "total_streams": 0, "total_lines": 0}
-    async for row in db.royalty_lines.aggregate(pipeline):
+    async for row in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
         summary = {"total_idr": row["total_idr"], "total_streams": row["total_streams"], "total_lines": row["total_lines"]}
 
     # per-platform
     by_platform = []
-    async for row in db.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
         {"$group": {"_id": "$platform", "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
-    ]):
+    ], allowDiskUse=True):
         by_platform.append({"platform": row["_id"] or "Unknown", "total_idr": row["total_idr"], "streams": row["streams"]})
 
     by_country = []
-    async for row in db.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
         {"$group": {"_id": "$country", "total_idr": {"$sum": "$label_idr"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 10},
-    ]):
+    ], allowDiskUse=True):
         by_country.append({"country": row["_id"] or "Unknown", "total_idr": row["total_idr"]})
 
     by_track = []
-    async for row in db.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
         {"$group": {"_id": {"track_id": "$track_id", "title": "$track_title_raw"}, "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 15},
-    ]):
+    ], allowDiskUse=True):
         by_track.append({"track_id": row["_id"].get("track_id"), "title": row["_id"].get("title") or "Unknown", "total_idr": row["total_idr"], "streams": row["streams"]})
 
     return {"summary": summary, "by_platform": by_platform, "by_country": by_country, "by_track": by_track}
@@ -1480,7 +1533,7 @@ async def label_royalty_lines(
     artist_id: Optional[str] = None,
     limit: int = 500,
 ):
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}}
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
         filt["label_id"] = label["id"]
@@ -1514,7 +1567,7 @@ async def label_royalty_export_csv(
 ):
     """Stream CSV export of royalty lines for the current label/period."""
     from fastapi.responses import StreamingResponse
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}}
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
         filt["label_id"] = label["id"]

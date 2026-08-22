@@ -181,7 +181,7 @@ class AdminUserCreateIn(BaseModel):
 
 class LabelStatusUpdate(BaseModel):
     account_status: Optional[Literal["active", "suspended", "blacklisted"]] = None
-    royalty_percentage_default: Optional[float] = None
+    royalty_percentage_default: Optional[float] = Field(default=None, ge=0, le=100)
     royalty_change_reason: Optional[str] = None
     # Phase 30 — manual subscription/paket edit by admin
     payment_type: Optional[Literal["pay_per_release", "annual_subscription"]] = None

@@ -25,6 +25,7 @@ from .deps import (
     require_admin, require_super_admin, log_activity, notify,
 )
 from models import now_iso, new_id
+from .royalty_recalculation import recalculate_label_unwithdrawn, trigger_royalty_caches
 
 
 migrate_r = APIRouter(prefix="/admin/migrate", tags=["admin-migrate"])
@@ -822,7 +823,7 @@ async def bulk_import_withdraws_legacy_period(
     # ---- Build label name index ----
     labels_by_norm: Dict[str, dict] = {}
     label_id_to_doc: Dict[str, dict] = {}
-    async for lab in db.labels.find({}, {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1, "balance_available_idr": 1, "balance_pending_idr": 1}):
+    async for lab in db.labels.find({}, {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1, "balance_available_idr": 1, "balance_pending_idr": 1, "royalty_percentage_default": 1}):
         norm = _normalize_label_name(lab.get("label_name"))
         if norm:
             labels_by_norm.setdefault(norm, lab)  # keep first match on conflict
@@ -898,6 +899,10 @@ async def bulk_import_withdraws_legacy_period(
     total_history_to_insert = 0
     total_balance_pending_adj = 0
     total_balance_available_adj = 0
+    active_withdraw_label_ids = set(await db.withdraw_requests.distinct("label_id", {
+        "status": {"$in": ["requested", "approved"]},
+        "legacy_import": {"$ne": True},
+    }))
 
     for label_id, bucket in per_label_csv.items():
         lab = label_id_to_doc[label_id]
@@ -906,15 +911,16 @@ async def bulk_import_withdraws_legacy_period(
         # idempotency — only advance forward
         will_update_period = (not old_period) or (new_period > old_period)
 
-        # Count royalty_lines that would be flipped (only those AFTER current
-        # last_withdrawn_period and ≤ new_period that are still pending/available)
+        # period_end is the final BULAN LAPORAN already settled in the old
+        # system. Include draft rows too, so old-period CSVs uploaded before
+        # publish can never become withdrawable later.
+        effective_cutoff = max(filter(None, [old_period, new_period]))
         line_filter = {
             "label_id": label_id,
-            "status": {"$in": ["pending", "available"]},
-            "period": {"$lte": new_period},
+            "status": {"$in": ["draft", "pending", "available"]},
+            "legacy_settled": {"$ne": True},
+            "period": {"$lte": effective_cutoff},
         }
-        if old_period:
-            line_filter["period"]["$gt"] = old_period
         lines_count = await db_bg.royalty_lines.count_documents(line_filter)
 
         # Sum the amounts so we can adjust balances correctly
@@ -944,6 +950,7 @@ async def bulk_import_withdraws_legacy_period(
             "pending_to_subtract_idr": pending_sum,
             "available_to_subtract_idr": available_sum,
             "history_docs_to_insert": len(bucket["history_rows"]),
+            "blocked_by_active_withdraw": label_id in active_withdraw_label_ids,
         })
         if will_update_period:
             total_labels_updated += 1
@@ -959,6 +966,18 @@ async def bulk_import_withdraws_legacy_period(
     commit_meta: Dict[str, Any] = {"applied": False}
     job_id: Optional[str] = None
     if not dry_run and per_label_csv:
+        blocked_labels = [
+            bucket["label_name"] for label_id, bucket in per_label_csv.items()
+            if label_id in active_withdraw_label_ids
+        ]
+        if blocked_labels:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Sinkronisasi ditahan: {len(blocked_labels)} label memiliki withdraw aktif. "
+                    "Selesaikan atau tolak request tersebut terlebih dahulu."
+                ),
+            )
         job_id = new_id()
         # Persist a job doc the frontend can poll. The dry-run preview totals
         # are saved alongside so the polling response is self-contained.
@@ -1049,6 +1068,9 @@ async def _commit_legacy_period_bg(
         applied_history_inserted = 0
         applied_balance_pending = 0
         applied_balance_available = 0
+        applied_recalculated_lines = 0
+        applied_recalculation_pending_delta = 0
+        applied_recalculation_available_delta = 0
         labels_done = 0
         labels_total = len(per_label_csv)
 
@@ -1057,24 +1079,28 @@ async def _commit_legacy_period_bg(
             old_period = lab.get("last_withdrawn_period")
             new_period = bucket["max_period_end"]
             will_update_period = (not old_period) or (new_period > old_period)
+            effective_cutoff = max(filter(None, [old_period, new_period]))
 
-            # 1) Update last_withdrawn_period
+            # 1) Store the synced cutoff. `period_end` is a reporting month,
+            # never the calendar month when the withdrawal was requested/paid.
+            label_set = {
+                "legacy_withdraw_synced_at": now_iso(),
+                "legacy_withdraw_period_end": effective_cutoff,
+                "updated_at": now_iso(),
+            }
             if will_update_period:
-                await db_bg.labels.update_one(
-                    {"id": label_id},
-                    {"$set": {"last_withdrawn_period": new_period, "updated_at": now_iso()}},
-                )
+                label_set["last_withdrawn_period"] = new_period
                 applied_period_updates += 1
+            await db_bg.labels.update_one({"id": label_id}, {"$set": label_set})
 
             # 2) Flip royalty_lines (chunked via db_bg, CSOT-safe)
-            if flip_royalty_lines and will_update_period:
+            if flip_royalty_lines:
                 line_filter = {
                     "label_id": label_id,
-                    "status": {"$in": ["pending", "available"]},
-                    "period": {"$lte": new_period},
+                    "status": {"$in": ["draft", "pending", "available"]},
+                    "legacy_settled": {"$ne": True},
+                    "period": {"$lte": effective_cutoff},
                 }
-                if old_period:
-                    line_filter["period"]["$gt"] = old_period
                 # Compute sums BEFORE the flip so the balance adjust is correct
                 pending_sum = 0
                 available_sum = 0
@@ -1101,7 +1127,12 @@ async def _commit_legacy_period_bg(
                         break
                     oids = [d["_id"] for d in batch]
                     last_oid = oids[-1]
-                    await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "withdrawn"}})
+                    await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {
+                        "status": "withdrawn",
+                        "legacy_settled": True,
+                        "legacy_settled_period_end": effective_cutoff,
+                        "legacy_settled_at": now_iso(),
+                    }})
                     flipped += len(oids)
                 applied_lines_flipped += flipped
 
@@ -1117,7 +1148,19 @@ async def _commit_legacy_period_bg(
                     applied_balance_pending += pending_sum
                     applied_balance_available += available_sum
 
-            # 4) Insert history docs (deduped by legacy_trx_id).
+            # 4) Recalculate ONLY the royalty that remains unsettled after the
+            # legacy cutoff. This removes the old 5% fee and applies the label's
+            # current percentage without requiring any CSV re-upload.
+            if adjust_balances:
+                recalc = await recalculate_label_unwithdrawn(
+                    label_id=label_id,
+                    percentage=float(lab.get("royalty_percentage_default", 60) or 60),
+                )
+                applied_recalculated_lines += int(recalc.get("lines_recalculated") or 0)
+                applied_recalculation_pending_delta += int(recalc.get("pending_delta_idr") or 0)
+                applied_recalculation_available_delta += int(recalc.get("available_delta_idr") or 0)
+
+            # 5) Insert admin-only history docs (deduped by legacy_trx_id).
             # Phase 31.1 — nominal riwayat TIDAK memakai angka CSV. Dihitung
             # otomatis dari royalty_lines web: sum(label_idr) per segmen bulan
             # laporan. Baris di-sort by period_end; segmen row N = periode
@@ -1191,6 +1234,7 @@ async def _commit_legacy_period_bg(
                 "labels_updated": applied_period_updates,
                 "lines_flipped": applied_lines_flipped,
                 "history_inserted": applied_history_inserted,
+                "unwithdrawn_lines_recalculated": applied_recalculated_lines,
             },
         )
         await db_bg.migrate_jobs.update_one(
@@ -1207,17 +1251,13 @@ async def _commit_legacy_period_bg(
                     "history_docs_inserted": applied_history_inserted,
                     "balance_pending_subtracted": applied_balance_pending,
                     "balance_available_subtracted": applied_balance_available,
+                    "unwithdrawn_lines_recalculated": applied_recalculated_lines,
+                    "recalculation_pending_delta": applied_recalculation_pending_delta,
+                    "recalculation_available_delta": applied_recalculation_available_delta,
                 },
             }},
         )
-        # Trigger analytics cache rebuild after commit so dashboards reflect
-        # the flipped/withdrawn lines + adjusted balances.
-        import asyncio as _aio
-        try:
-            from routes.admin_analytics import recompute_monthly_analytics
-            _aio.create_task(recompute_monthly_analytics())
-        except Exception:
-            pass
+        await trigger_royalty_caches()
     except Exception as e:
         logger.exception("[WITHDRAW FIFO BG] job %s failed: %s", job_id, e)
         await db_bg.migrate_jobs.update_one(

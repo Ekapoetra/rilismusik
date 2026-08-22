@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
+import { useAuth } from "@/api/AuthContext";
 import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle, Zap } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
@@ -13,6 +14,7 @@ function todayPeriod() {
 }
 
 export default function AdminRoyaltyImport() {
+  const { user } = useAuth();
   const [imports, setImports] = useState([]);
   const [open, setOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -23,6 +25,8 @@ export default function AdminRoyaltyImport() {
   const [uploadPct, setUploadPct] = useState(0);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [recalcBusy, setRecalcBusy] = useState(false);
+  const [recalcJob, setRecalcJob] = useState(null);
 
   const load = async () => { const { data } = await api.get("/royalty/admin/imports"); setImports(data); };
   useEffect(() => { load(); }, []);
@@ -176,6 +180,31 @@ export default function AdminRoyaltyImport() {
     }
   };
 
+  const recalculateAll = async () => {
+    if (!window.confirm("Hitung ulang seluruh royalti yang belum withdrawn dengan persentase label saat ini? Data settled/withdrawn tidak akan diubah.")) return;
+    setErr(""); setMsg(""); setRecalcBusy(true);
+    try {
+      const { data } = await api.post("/royalty/admin/recalculate-unwithdrawn");
+      setMsg(data.already_running ? "Proses hitung ulang yang aktif dilanjutkan." : "Hitung ulang dijadwalkan di background.");
+      for (let attempt = 0; attempt < 900; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const { data: job } = await api.get(`/admin/migrate/jobs/${data.job_id}`);
+        setRecalcJob(job);
+        if (job.status === "done") {
+          const r = job.result || {};
+          setMsg(`Hitung ulang selesai — ${(r.labels_recalculated || 0).toLocaleString("id-ID")} label, ${(r.lines_recalculated || 0).toLocaleString("id-ID")} baris.`);
+          await load();
+          break;
+        }
+        if (job.status === "error") {
+          setErr(job.error_message || "Hitung ulang gagal.");
+          break;
+        }
+      }
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    finally { setRecalcBusy(false); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex justify-between items-center flex-wrap gap-3">
@@ -185,6 +214,17 @@ export default function AdminRoyaltyImport() {
           <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR) + set kurs IDR per periode.</p>
         </div>
         <div className="flex gap-2">
+          {(user?.role === "super_admin" || user?.role === "admin_finance") && (
+            <button
+              className="rm-btn-ghost flex items-center gap-2 text-sky-300"
+              onClick={recalculateAll}
+              disabled={recalcBusy}
+              data-testid="admin-royalty-recalculate-all-button"
+              title="Hitung ulang seluruh royalti aktif tanpa upload CSV ulang"
+            >
+              <RefreshCw className={`w-4 h-4 ${recalcBusy ? "animate-spin" : ""}`} /> {recalcBusy ? "Menghitung…" : "Hitung Ulang Tanpa Fee"}
+            </button>
+          )}
           <button
             className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200"
             onClick={() => setResetOpen(true)}
@@ -201,12 +241,17 @@ export default function AdminRoyaltyImport() {
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
+      {recalcJob && recalcJob.status === "processing" && (
+        <div className="rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-200 px-4 py-3 text-sm" data-testid="admin-royalty-recalculation-status">
+          Rekalkulasi: {(recalcJob.progress_labels_done || 0).toLocaleString("id-ID")} / {(recalcJob.progress_labels_total || 0).toLocaleString("id-ID")} label
+        </div>
+      )}
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-2">Periode</div>
           <div className="col-span-2">Kurs</div>
-          <div className="col-span-2">Revenue EUR</div>
+          <div className="col-span-2">Pendapatan Kotor EUR</div>
           <div className="col-span-2">Bagian Label IDR</div>
           <div className="col-span-2">Lines (matched/total)</div>
           <div className="col-span-2">Status</div>

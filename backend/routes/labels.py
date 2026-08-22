@@ -85,38 +85,25 @@ async def label_dashboard(user: dict = Depends(require_label)):
     active_tickets = await db.support_tickets.count_documents({"label_id": label["id"], "status": {"$nin": ["done", "rejected"]}})
     pending_invoices = await db.payments.count_documents({"label_id": label["id"], "status": "pending"})
 
-    # Last month revenue (latest published royalty period for this label).
-    # Phase 25: query the materialized `monthly_analytics` cache (sub-second)
-    # rather than aggregating royalty_lines (1M+ rows, CSOT-capped) on every
-    # dashboard load. Falls back to db_bg live aggregate if the cache is empty
-    # (e.g. fresh deploy before the first rebuild).
+    # Latest UNWITHDRAWN royalty only. Admin analytics keeps lifetime history,
+    # so its cache cannot be reused for this customer-facing number.
     last_revenue = 0
     last_period = None
-    try:
-        cached = await db.monthly_analytics.find_one(
-            {"dim": "label", "key": label["id"]},
-            {"_id": 0, "period": 1, "revenue_idr": 1},
-            sort=[("period", -1)],
-        )
-        if cached:
-            last_revenue = int(cached.get("revenue_idr") or 0)
-            last_period = cached.get("period")
-    except Exception as e:
-        logger.warning("[LABEL DASHBOARD] cache lookup failed for %s: %s", label["id"], e)
-    if not last_period:
-        # Cache miss → fall back to live aggregate (rare; only on very fresh deploy).
-        # Use db_bg (CSOT-uncapped) so labels with massive history still load.
-        from .deps import db_bg
-        pipeline = [
-            {"$match": {"label_id": label["id"], "status": {"$in": ["pending", "available", "withdrawn"]}}},
-            {"$group": {"_id": "$period", "total": {"$sum": "$label_idr"}}},
-            {"$sort": {"_id": -1}},
-            {"$limit": 1},
-        ]
-        async for row in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
-            last_revenue = int(row.get("total") or 0)
-            last_period = row.get("_id")
-            break
+    from .deps import db_bg
+    pipeline = [
+        {"$match": {
+            "label_id": label["id"],
+            "status": {"$in": ["pending", "available"]},
+            "legacy_settled": {"$ne": True},
+        }},
+        {"$group": {"_id": "$period", "total": {"$sum": "$label_idr"}}},
+        {"$sort": {"_id": -1}},
+        {"$limit": 1},
+    ]
+    async for row in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
+        last_revenue = int(row.get("total") or 0)
+        last_period = row.get("_id")
+        break
 
     return {
         "label": redact_label_for_self(label),

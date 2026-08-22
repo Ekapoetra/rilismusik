@@ -163,3 +163,15 @@ async def seed_indexes_and_admins():
                 {"$set": {f"value.{k}": v for k, v in added.items()} | {"updated_at": now_iso()}},
             )
             logger.info("CMS migration: added %s to '%s'", list(added.keys()), key)
+
+    # Phase 32 — distributor fee has been removed from the royalty formula.
+    # Force old CMS documents to zero so existing production settings cannot
+    # reintroduce the retired fee in public copy/simulators.
+    await db.landing_settings.update_one(
+        {"key": "pricing"},
+        {"$set": {"value.distributor_fee_percent": 0, "updated_at": now_iso()}},
+    )
+    await db.landing_settings.update_one(
+        {"key": "royalty_sim"},
+        {"$set": {"value.fee_percent": 0, "updated_at": now_iso()}},
+    )

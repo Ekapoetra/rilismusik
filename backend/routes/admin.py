@@ -41,6 +41,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .royalty_recalculation import run_label_recalculation_job
 
 # =============================================================================
 #                                ADMIN
@@ -206,6 +207,7 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
     upd: Dict[str, Any] = {}
+    royalty_recalculation_job_id: Optional[str] = None
     if body.account_status is not None:
         upd["account_status"] = body.account_status
         if body.account_status == "blacklisted":
@@ -214,16 +216,43 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
         # only super_admin or admin_finance
         if user["role"] not in ("super_admin", "admin_finance"):
             raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
-        upd["royalty_percentage_default"] = body.royalty_percentage_default
+        active_withdraw = await db.withdraw_requests.find_one({
+            "label_id": label_id,
+            "status": {"$in": ["requested", "approved"]},
+            "legacy_import": {"$ne": True},
+        }, {"_id": 0, "id": 1})
+        if active_withdraw:
+            raise HTTPException(
+                status_code=409,
+                detail="Selesaikan atau tolak withdraw aktif sebelum mengubah persentase royalti.",
+            )
+        new_pct = float(body.royalty_percentage_default)
+        upd["royalty_percentage_default"] = new_pct
         await db.royalty_percentage_history.insert_one({
             "id": new_id(),
             "label_id": label_id,
-            "percentage": body.royalty_percentage_default,
+            "percentage": new_pct,
             "effective_month": datetime.now(timezone.utc).strftime("%Y-%m"),
             "changed_by": user["id"],
             "changed_at": now_iso(),
             "reason": body.royalty_change_reason,
         })
+        if float(label.get("royalty_percentage_default", 60) or 60) != new_pct:
+            royalty_recalculation_job_id = new_id()
+            upd["royalty_recalculation_status"] = "queued"
+            upd["royalty_recalculation_job_id"] = royalty_recalculation_job_id
+            await db.migrate_jobs.insert_one({
+                "id": royalty_recalculation_job_id,
+                "kind": "recalculate_label_unwithdrawn",
+                "status": "queued",
+                "label_id": label_id,
+                "percentage": new_pct,
+                "submitted_by": user["id"],
+                "submitted_at": now_iso(),
+                "updated_at": now_iso(),
+                "progress_lines_done": 0,
+                "progress_lines_total": 0,
+            })
     # Phase 30 — manual subscription/paket edit (super_admin / admin_finance)
     sub_touched = any(f is not None for f in (
         body.payment_type, body.subscription_tier,
@@ -265,7 +294,18 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
         upd["updated_at"] = now_iso()
         await db.labels.update_one({"id": label_id}, {"$set": upd})
         await log_activity(user["id"], "update_label", "label", label_id, before=label, after=upd)
-    return await db.labels.find_one({"id": label_id}, {"_id": 0})
+    if royalty_recalculation_job_id:
+        import asyncio
+        asyncio.create_task(run_label_recalculation_job(
+            job_id=royalty_recalculation_job_id,
+            label_id=label_id,
+            percentage=float(body.royalty_percentage_default),
+        ))
+    result = await db.labels.find_one({"id": label_id}, {"_id": 0})
+    if royalty_recalculation_job_id:
+        result["royalty_recalculation_job_id"] = royalty_recalculation_job_id
+        result["royalty_recalculation_status"] = "queued"
+    return result
 
 
 @admin_r.get("/releases")
@@ -663,7 +703,7 @@ async def admin_revoke_label_account(
 async def admin_change_label_email(
     label_id: str,
     new_email: str = Form(...),
-    notify: bool = Form(True),
+    send_notification: bool = Form(True, alias="notify"),
     user: dict = Depends(require_admin),
 ):
     """Change the email address of a label's PIC user account. Optionally
@@ -714,7 +754,7 @@ async def admin_change_label_email(
     )
 
     notify_sent = {"old": False, "new": False}
-    if notify:
+    if send_notification:
         try:
             from email_service import send_email
             label_name = label.get("label_name", "label Anda")

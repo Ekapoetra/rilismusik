@@ -104,7 +104,6 @@ export default function AdminCMS() {
           <div className="grid md:grid-cols-2 gap-3">
             <F label="Pay Per Release (Rp)"><input data-testid={ADMIN_CMS.payPrice} className="rm-input" type="number" value={s.pricing?.pay_per_release_price || 0} onChange={(e) => setVal("pricing.pay_per_release_price", parseInt(e.target.value || 0))} /></F>
             <F label="Annual Subscription (Rp)"><input data-testid={ADMIN_CMS.subPrice} className="rm-input" type="number" value={s.pricing?.annual_subscription_price || 0} onChange={(e) => setVal("pricing.annual_subscription_price", parseInt(e.target.value || 0))} /></F>
-            <F label="Distributor Fee (%)"><input className="rm-input" type="number" value={s.pricing?.distributor_fee_percent || 0} onChange={(e) => setVal("pricing.distributor_fee_percent", parseFloat(e.target.value || 0))} /></F>
             <F label="Description"><input className="rm-input" value={s.pricing?.description || ""} onChange={(e) => setVal("pricing.description", e.target.value)} /></F>
           </div>
         )}

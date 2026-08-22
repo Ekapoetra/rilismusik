@@ -78,6 +78,7 @@ async def _compute_withdrawable(label_id: str) -> Dict[str, Any]:
     match: Dict[str, Any] = {
         "label_id": label_id,
         "status": "available",
+        "legacy_settled": {"$ne": True},
         "period": {"$ne": None, "$exists": True},
     }
     if last_wd_period:
@@ -214,7 +215,13 @@ async def label_request_withdraw(user: dict = Depends(require_label)):
 @withdraw_r.get("/label")
 async def label_list_withdraws(user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
-    items = await db.withdraw_requests.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Imported legacy history is retained for admin audit only. Its old amount
+    # and exchange-rate basis can differ from the current system and must never
+    # be shown to the customer.
+    items = await db.withdraw_requests.find({
+        "label_id": label["id"],
+        "legacy_import": {"$ne": True},
+    }, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
 

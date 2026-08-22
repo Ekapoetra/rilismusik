@@ -112,23 +112,32 @@ async def root_health():
 app.include_router(api)
 
 # ---- CORS ----
-# Reads CORS_ORIGINS from env: either '*' (allow all) or a comma-separated list.
-# Falls back to FRONTEND_URL + localhost for dev convenience.
+# Credentialed auth cookies require an explicit origin. If a legacy environment
+# still contains CORS_ORIGINS='*', safely narrow it to FRONTEND_URL.
 cors_raw = os.environ.get("CORS_ORIGINS", "").strip()
+frontend_url = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
 if cors_raw == "*":
-    cors_kwargs = {"allow_origins": ["*"], "allow_credentials": False}
+    if not frontend_url:
+        raise RuntimeError("FRONTEND_URL wajib diisi saat CORS_ORIGINS='*'")
+    cors_origins = [frontend_url]
 elif cors_raw:
-    cors_kwargs = {"allow_origins": [o.strip() for o in cors_raw.split(",") if o.strip()], "allow_credentials": True}
+    cors_origins = [o.strip().rstrip("/") for o in cors_raw.split(",") if o.strip() and o.strip() != "*"]
+    if not cors_origins:
+        if not frontend_url:
+            raise RuntimeError("CORS_ORIGINS atau FRONTEND_URL wajib diisi")
+        cors_origins = [frontend_url]
 else:
-    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    cors_kwargs = {"allow_origins": [frontend_url, "http://localhost:3000"], "allow_credentials": True}
+    if not frontend_url:
+        raise RuntimeError("FRONTEND_URL wajib diisi")
+    cors_origins = [frontend_url]
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
-    **cors_kwargs,
 )
 
 

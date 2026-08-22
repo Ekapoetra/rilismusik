@@ -20,10 +20,8 @@ export default function Landing() {
     return <div className="min-h-screen grid place-items-center text-zinc-500">Memuat…</div>;
   }
 
-  const fee = s.pricing?.distributor_fee_percent ?? 5;
   const labelPercent = s.royalty_sim?.label_percent_default ?? 60;
-  const netEur = sim.revenue * (1 - fee / 100);
-  const labelEur = netEur * (labelPercent / 100);
+  const labelEur = sim.revenue * (labelPercent / 100);
   const labelIdr = labelEur * sim.rate;
 
   return (
@@ -74,7 +72,7 @@ export default function Landing() {
             <div className="mt-10 flex items-center gap-5 text-xs text-zinc-500">
               <div><span className="font-bold text-white">150+</span> platform digital</div>
               <div className="w-px h-4 bg-zinc-700" />
-              <div><span className="font-bold text-white">5%</span> fee distributor</div>
+              <div><span className="font-bold text-white">Fleksibel</span> pembagian royalti</div>
               <div className="w-px h-4 bg-zinc-700" />
               <div><span className="font-bold text-white">7 hari</span> minimal release date</div>
             </div>
@@ -247,7 +245,7 @@ export default function Landing() {
               <Link to="/register" className="rm-btn-primary mt-7 text-center">Mulai VIP</Link>
             </div>
           </div>
-          <p className="text-center text-xs text-zinc-500 mt-8">Semua paket sudah termasuk distribusi ke 150+ platform digital. Fee distributor 5% (sudah termasuk di setiap pencairan royalti).</p>
+          <p className="text-center text-xs text-zinc-500 mt-8">Semua paket sudah termasuk distribusi ke 150+ platform digital.</p>
         </div>
       </section>
 
@@ -287,10 +285,10 @@ export default function Landing() {
               <div data-testid={LANDING.simResult} className="font-display text-5xl font-extrabold tracking-tighter mt-2 rm-gradient-text">
                 Rp {Math.round(labelIdr).toLocaleString("id-ID")}
               </div>
-              <div className="text-xs text-zinc-500 mt-1">/ periode estimasi (sudah final, fee 5% sudah dipotong)</div>
+              <div className="text-xs text-zinc-500 mt-1">/ periode estimasi berdasarkan bagian royalti label</div>
               <div className="mt-6 space-y-2 text-sm">
-                <Row k="Revenue Believe" v={`€${sim.revenue.toLocaleString()}`} />
-                <Row k={`− Fee distributor (${fee}%)`} v={`−€${(sim.revenue * fee / 100).toFixed(2)}`} muted />
+                <Row k="Pendapatan kotor RILIS MUSIK" v={`€${sim.revenue.toLocaleString()}`} />
+                <Row k={`Bagian label (${labelPercent}%)`} v={`€${labelEur.toFixed(2)}`} muted />
                 <Row k="Kurs EUR → IDR" v={`Rp ${sim.rate.toLocaleString("id-ID")}`} muted />
                 <div className="border-t border-white/5 pt-3 mt-2">
                   <Row k="Estimasi royalti final" v={`Rp ${Math.round(labelIdr).toLocaleString("id-ID")}`} bold />

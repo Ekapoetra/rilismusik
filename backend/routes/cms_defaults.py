@@ -45,7 +45,7 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
         "annual_normal_price": 350000,
         "annual_subscription_price": 500000,  # VIP — kept key for backwards compat
         "wami_addon_price": 100000,
-        "distributor_fee_percent": 5,
+        "distributor_fee_percent": 0,
         "description": "Pilih skema yang paling cocok untuk skala katalog Anda.",
         "features_pay": ["Unlimited revisi sebelum approve", "Audit metadata oleh admin", "Distribusi ke 150+ DSP via Believe"],
         "features_annual_normal": ["Submit unlimited release", "Prioritas review", "Tanpa biaya per release"],
@@ -54,7 +54,7 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
     "royalty_sim": {
         "default_revenue_eur": 100,
         "default_rate": 17500,
-        "fee_percent": 5,
+        "fee_percent": 0,
         "label_percent_default": 60,
     },
     "dashboard_previews": [

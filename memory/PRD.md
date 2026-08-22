@@ -590,6 +590,23 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - **SEC-004 — HTML escape in email bodies.** Added `email_service.h()` (built on `html.escape(..., quote=True)`); every user-controlled interpolation in transactional emails (`pic_name`, `label_name`, `description`, `bank_name`, `account_number`) is now escaped.
 - **Tests:** `/app/backend/tests/test_phase17_security.py` (7) + `/app/backend/tests/test_phase17_regression.py` (11) — both at 100%.
 
+### Phase 32 — Dynamic no-fee royalty + legacy withdrawal cutoff (2026-08-22)
+- Removed the separate 5% distributor-fee calculation. New formula: `Believe net revenue × current label percentage × original import exchange rate`; 60 means exactly 60%, 95 means exactly 95%.
+- Added background recalculation for a single label whenever admin changes its royalty percentage. Only `draft`, `pending`, and `available` lines are recalculated; `withdrawn` and `legacy_settled` remain immutable. Pending/available balances and import totals are adjusted by audited deltas.
+- Added `POST /api/royalty/admin/recalculate-unwithdrawn` and Admin Royalty UI control for one-time production migration of all unsettled historical rows without re-uploading four years of CSV files.
+- Legacy withdrawal import now treats `period_end` strictly as the final **Bulan Laporan** settled in the prior system. All draft/pending/available lines through that cutoff become `withdrawn + legacy_settled`, are removed from balances, and are hidden from label endpoints.
+- Label-facing royalty months, summaries, lines, exports, dashboard revenue, and withdrawable calculations now include only non-legacy pending/available rows. Imported legacy withdrawal records remain admin-only; withdrawals created in the new system stay visible to labels.
+- CSV rows uploaded after legacy synchronization are automatically locked during ingestion when their reporting month is at/before the stored cutoff. Publishing cannot credit those rows again.
+- Percentage changes and legacy/global recalculation are blocked/skipped while a normal withdraw request is active to prevent an in-flight request amount from changing.
+- Public/admin terminology now presents the imported Believe value as **Pendapatan Kotor RILIS MUSIK** / pendapatan dasar. New MDA documents describe direct revenue sharing without an additional distributor fee.
+- CORS application middleware now requires explicit environment origins with credential support; legacy `CORS_ORIGINS=*` is narrowed to `FRONTEND_URL`. Managed preview ingress may still add wildcard CORS headers externally, while direct backend responses correctly return the explicit origin.
+- Verification: frontend production build passed; 15/15 Phase 32 + Phase 22 backend tests passed; batch ingestion/reporting-month regression 8/8 passed; testing-agent UI and tablet smoke passed. Unrelated Phase 6 demo-fixture tests cannot run after the intentional preview data reset because their Khizanah demo accounts are absent.
+
+### Prioritized backlog after Phase 32
+- **P0 — Production rollout:** redeploy, run “Hitung Ulang Tanpa Fee”, preview legacy CSV, resolve any active-withdraw blockers, commit legacy synchronization, then reconcile label balances against the job result.
+- **P0 — Xendit LIVE:** replace **MOCKED** checkout/webhook behavior for pay-per-release, subscriptions, and WAMI using the previously requested integration flow.
+- **P2:** monthly royalty summary email, background-job completion notifications, and dynamic CMS-to-landing linkage.
+
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.

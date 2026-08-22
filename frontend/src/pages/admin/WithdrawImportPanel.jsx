@@ -71,7 +71,7 @@ export default function WithdrawImportPanel() {
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-200 text-xs px-4 py-3 leading-relaxed">
         <b>Sinkronisasi riwayat penarikan lama.</b> Upload CSV dengan kolom <code>nama_label</code> + <code>period_end</code> (YYYY-MM).
         Sistem otomatis: (1) mencocokkan berdasarkan <b>nama label</b>, (2) set bulan laporan terakhir yang sudah ditarik = MAX(<code>period_end</code>) — <b>period_end = bulan laporan royalti</b>, bukan bulan pengambilan,
-        (3) royalti sampai bulan itu ditandai <b>sudah diambil</b> (saldo menyesuaikan), (4) nominal riwayat <b>dihitung otomatis</b> dari data royalti di web (angka amount di CSV diabaikan), tersimpan status Paid.
+        (3) royalti sampai bulan itu ditandai <b>legacy settled</b>, disembunyikan dari label, dan tidak dapat ditarik ulang, (4) nominal CSV diabaikan; riwayat hanya disimpan untuk audit admin, (5) royalti setelah cutoff dihitung ulang memakai persentase label saat ini.
         Penarikan berikutnya oleh label otomatis mulai dari bulan SETELAHNYA. Jalankan <b>Preview dulu</b>, cek hasil, baru Commit.
       </div>
 
@@ -137,6 +137,7 @@ export default function WithdrawImportPanel() {
                       <div>Lines flipped: <b className="font-mono">{(job.result.royalty_lines_flipped || 0).toLocaleString("id-ID")}</b></div>
                       <div>Riwayat tersimpan: <b className="font-mono">{job.result.history_docs_inserted}</b></div>
                       <div>Saldo pending −: <b className="font-mono">{fmtIDR(job.result.balance_pending_subtracted)}</b></div>
+                      <div>Baris aktif dihitung ulang: <b className="font-mono">{(job.result.unwithdrawn_lines_recalculated || 0).toLocaleString("id-ID")}</b></div>
                     </div>
                   )}
                 </>
@@ -187,7 +188,7 @@ export default function WithdrawImportPanel() {
                   {(result.label_summaries || []).map((s) => (
                     <tr key={s.label_id} className="border-t border-white/5">
                       <td className="px-3 py-2 text-zinc-200">{s.label_name}</td>
-                      <td className="px-3 py-2 text-xs"><span className="text-zinc-500">{s.old_last_withdrawn_period || "—"}</span> <span className="text-zinc-600 mx-1">→</span> <span className={s.period_will_advance ? "text-emerald-300" : "text-zinc-500"}>{s.new_last_withdrawn_period}</span></td>
+                      <td className="px-3 py-2 text-xs"><span className="text-zinc-500">{s.old_last_withdrawn_period || "—"}</span> <span className="text-zinc-600 mx-1">→</span> <span className={s.period_will_advance ? "text-emerald-300" : "text-zinc-500"}>{s.new_last_withdrawn_period}</span>{s.blocked_by_active_withdraw && <span className="block text-red-300 mt-1">Selesaikan withdraw aktif dahulu</span>}</td>
                       <td className="px-3 py-2 text-right text-zinc-400">{s.csv_row_count}</td>
                       <td className="px-3 py-2 text-right text-indigo-300">{(s.royalty_lines_to_flip || 0).toLocaleString("id-ID")}</td>
                     </tr>

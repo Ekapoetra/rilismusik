@@ -199,7 +199,7 @@ export default function AdminAnalytics() {
       {/* KPI Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPI label="Revenue IDR" value={fmtIDR(kpi.total_revenue_idr)} accent="emerald" loading={loading} testId="analytics-kpi-idr" />
-        <KPI label="Revenue EUR" value={fmtEUR(kpi.total_revenue_eur)} accent="indigo" loading={loading} testId="analytics-kpi-eur" />
+        <KPI label="Pendapatan Kotor EUR" value={fmtEUR(kpi.total_revenue_eur)} accent="indigo" loading={loading} testId="analytics-kpi-eur" />
         <KPI label="Total Stream" value={fmtInt(kpi.total_quantity)} accent="amber" loading={loading} testId="analytics-kpi-streams" />
         <KPI label="Platform Aktif" value={fmtInt(kpi.distinct_platforms)} accent="rose" loading={loading} />
         <KPI label="Negara Aktif" value={fmtInt(kpi.distinct_countries)} accent="orange" loading={loading} />
