@@ -27,6 +27,19 @@ async def seed_indexes_and_admins():
     await db_bg.payments.create_index("label_id")
     await db_bg.payments.create_index("status")
     await db_bg.payments.create_index("xendit_invoice_id")
+    await db_bg.payments.create_index("reference_id", unique=True, sparse=True)
+    session_index = (await db_bg.payments.index_information()).get("xendit_session_id_1")
+    if session_index and not session_index.get("partialFilterExpression"):
+        await db_bg.payments.drop_index("xendit_session_id_1")
+    await db_bg.payments.create_index(
+        "xendit_session_id", unique=True,
+        partialFilterExpression={"xendit_session_id": {"$type": "string"}},
+    )
+    await db_bg.payments.create_index([("label_id", 1), ("created_at", -1)])
+    await db_bg.payment_products.create_index("id", unique=True)
+    await db_bg.payment_products.create_index("active")
+    await db_bg.service_orders.create_index("id", unique=True)
+    await db_bg.service_orders.create_index("label_id")
     await db_bg.password_reset_tokens.create_index("token")
     await db_bg.email_verification_tokens.create_index("token")
     await db_bg.login_attempts.create_index("identifier")

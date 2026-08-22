@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
+import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
+import { useSearchParams } from "react-router-dom";
 import { Music, CheckCircle2, Clock, AlertTriangle, Star, Plus, X } from "lucide-react";
 
 const STATUS_LABELS = {
@@ -25,6 +27,7 @@ function fmtIDR(n) {
 }
 
 export default function LabelWami() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [me, setMe] = useState(null);
@@ -34,12 +37,12 @@ export default function LabelWami() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/wami/label");
     setOrders(data);
-  };
+  }, []);
 
-  const loadTracks = async () => {
+  const loadTracks = useCallback(async () => {
     // Fetch live releases & flatten tracks
     const { data: releases } = await api.get("/releases/");
     const liveReleases = releases.filter((r) => r.status === "live");
@@ -53,34 +56,48 @@ export default function LabelWami() {
       } catch (_) { /* ignore */ }
     }
     setTracks(out);
-  };
+  }, []);
 
-  const loadMe = async () => {
+  const loadMe = useCallback(async () => {
     const { data } = await api.get("/auth/me");
     setMe(data);
-  };
+  }, []);
 
   useEffect(() => {
     load();
     loadTracks();
     loadMe();
-  }, []);
+  }, [load, loadTracks, loadMe]);
+
+  useEffect(() => {
+    const paymentId = searchParams.get("payment_id");
+    if (!paymentId) return;
+    let active = true;
+    setBusy(true); setMsg("Mengonfirmasi pembayaran WAMI ke Xendit…");
+    pollPaymentUntilTerminal(paymentId, null, 75)
+      .then(async (result) => {
+        if (!active) return;
+        setMsg(result.status === "paid" ? "Pembayaran WAMI berhasil dikonfirmasi." : `Status pembayaran: ${result.status}`);
+        setSearchParams({}); await load();
+      })
+      .catch((e) => active && setErr(formatApiError(e.response?.data?.detail || e.message)))
+      .finally(() => active && setBusy(false));
+    return () => { active = false; };
+  }, [searchParams, setSearchParams, load]);
 
   const submit = async () => {
     if (!selectedTrackId) return;
     setBusy(true); setErr(""); setMsg("");
     try {
-      const { data } = await api.post("/wami", { track_id: selectedTrackId });
+      const { data } = await api.post("/payments/wami", { track_id: selectedTrackId });
       if (data.free_vip) {
         setMsg("Pendaftaran WAMI dibuat (GRATIS untuk VIP). Admin akan memproses.");
         setOpen(false);
         setSelectedTrackId("");
         load();
       } else {
-        // Auto-pay mock for now
-        setMsg(`Invoice WAMI ${fmtIDR(data.invoice.amount)} dibuat. Buka tab Invoice untuk bayar.`);
-        setOpen(false);
-        setSelectedTrackId("");
+        setMsg(`Membuka checkout WAMI ${fmtIDR(data.invoice.amount)}…`);
+        await openXenditCheckout(data.invoice.id);
       }
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
     finally { setBusy(false); }
@@ -126,8 +143,8 @@ export default function LabelWami() {
         </div>
       )}
 
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="wami-payment-message">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="wami-payment-error">{err}</div>}
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">

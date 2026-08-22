@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
+import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { CreditCard, Disc3, Music } from "lucide-react";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [invoice, setInvoice] = useState(null);
   const [paying, setPaying] = useState(false);
   const [err, setErr] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/releases/${id}`);
       setData(data);
@@ -20,17 +22,28 @@ export default function ReleaseDetail() {
         setInvoice(inv.data.find((i) => i.id === data.payment_id) || null);
       } else { setInvoice(null); }
     } catch (e) { setErr(formatApiError(e.response?.data?.detail) || "Gagal memuat"); }
-  };
+  }, [id]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { load(); }, [load]);
 
-  const mockPay = async () => {
+  useEffect(() => {
+    const paymentId = searchParams.get("payment_id");
+    if (!paymentId) return;
+    let active = true;
+    setPaying(true);
+    pollPaymentUntilTerminal(paymentId, null, 75)
+      .then(async () => { if (active) { setSearchParams({}); await load(); } })
+      .catch((e) => active && setErr(formatApiError(e.response?.data?.detail || e.message)))
+      .finally(() => active && setPaying(false));
+    return () => { active = false; };
+  }, [searchParams, setSearchParams, load]);
+
+  const pay = async () => {
     if (!invoice) return;
     setPaying(true);
     try {
-      await api.post(`/payments/mock-pay/${invoice.id}`);
-      await load();
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+      await openXenditCheckout(invoice.id);
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); }
     finally { setPaying(false); }
   };
 
@@ -68,14 +81,14 @@ export default function ReleaseDetail() {
             <div className="w-10 h-10 rounded-xl bg-amber-500/100/20 text-amber-300 grid place-items-center"><CreditCard className="w-5 h-5" /></div>
             <div>
               <div className="font-display font-bold text-lg">Menunggu Pembayaran</div>
-              <div className="text-sm text-zinc-400">Pay-per-release Rp {(invoice.amount).toLocaleString("id-ID")} via Xendit (MOCK).</div>
+              <div className="text-sm text-zinc-400">Pay-per-release Rp {(invoice.amount).toLocaleString("id-ID")} via checkout Xendit.</div>
             </div>
           </div>
           <div className="text-xs text-zinc-500 mb-3">Invoice: {invoice.xendit_invoice_id}</div>
-          <button className="rm-btn-primary" onClick={mockPay} disabled={paying} data-testid="release-detail-mock-pay">
-            {paying ? "Memproses…" : "Bayar Sekarang (MOCK)"}
+          <button className="rm-btn-primary" onClick={pay} disabled={paying} data-testid="release-detail-xendit-pay">
+            {paying ? "Mengonfirmasi…" : "Bayar via Xendit"}
           </button>
-          <div className="text-[11px] text-zinc-600 mt-2">* MOCK Xendit: tombol ini akan diganti dengan halaman Xendit asli saat key disetel.</div>
+          <div className="text-[11px] text-zinc-600 mt-2">Status pembayaran dikonfirmasi langsung ke Xendit setelah Anda kembali.</div>
         </div>
       )}
 

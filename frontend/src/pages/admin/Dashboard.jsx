@@ -15,12 +15,6 @@ const PRODUCTION_BANNERS = [
     body: "WAV audio, cover image, dan PDF contract yang baru di-upload TIDAK persisten saat pod restart. Tunda upload audio/cover untuk label aktif sampai integrasi cloud storage (S3/Cloudinary) selesai. MDA PDF aman karena bisa di-regenerate dari CMS.",
   },
   {
-    id: "xendit-mock",
-    severity: "info",
-    title: "Xendit payment masih mock — invoice belum redirect ke checkout real",
-    body: "Untuk testing, gunakan endpoint internal mock-pay. Integrasi Xendit LIVE dijadwalkan selanjutnya.",
-  },
-  {
     id: "email-mock",
     severity: "info",
     title: "Email notifikasi belum live — token verify & forgot password hanya di backend log",
@@ -121,7 +115,7 @@ export default function AdminDashboard() {
           <div className="text-xs uppercase tracking-widest font-bold text-zinc-500 mb-3">Quick Tips</div>
           <ul className="text-sm text-zinc-200 space-y-2 leading-relaxed">
             <li>📦 Review rilisan di menu <b>Release Management</b>.</li>
-            <li>💳 Verifikasi pembayaran Xendit (MOCK) di menu <b>Xendit Payments</b>.</li>
+            <li>💳 Pantau dan sinkronkan pembayaran production di menu <b>Xendit Payments</b>.</li>
             <li>🎨 Atur konten landing page di menu <b>Landing Page CMS</b>.</li>
             <li>👥 Tambah admin user (multi-role) di menu <b>Admin Users</b>.</li>
           </ul>

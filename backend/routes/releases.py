@@ -41,6 +41,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from payment_service import create_payment_document, payment_price
 
 # =============================================================================
 #                              RELEASES
@@ -353,25 +354,15 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         payment_id = None
     else:
         new_status = "awaiting_payment"
-        # create pay-per-release invoice (MOCK Xendit)
-        invoice_id = new_id()
-        invoice_doc = {
-            "id": invoice_id,
-            "label_id": label["id"],
-            "release_id": release_id,
-            "type": "pay_per_release",
-            "xendit_invoice_id": f"mock_{invoice_id[:12]}",
-            "xendit_invoice_url": f"/payments/mock-checkout/{invoice_id}",
-            "amount": 35000,
-            "currency": "IDR",
-            "status": "pending",
-            "paid_at": None,
-            "expired_at": (now + timedelta(days=3)).isoformat(),
-            "created_at": now_iso(),
-        }
-        await db.payments.insert_one(invoice_doc)
+        amount = await payment_price("pay_per_release")
+        invoice_doc = await create_payment_document(
+            label_id=label["id"], payment_type="pay_per_release", amount=amount,
+            release_id=release_id,
+            description=f"Distribusi rilisan — {rel.get('release_title')}",
+            return_path=f"/label/releases/{release_id}",
+        )
         payment_status = "pending"
-        payment_id = invoice_id
+        payment_id = invoice_doc["id"]
 
     await db.releases.update_one(
         {"id": release_id},

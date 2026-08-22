@@ -1,302 +1,231 @@
-"""Payments (Xendit mock) router."""
-from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone, timedelta, date
+"""Production Xendit payments using Payment Sessions + backend polling."""
 import os
-import csv
-import io
-import shutil
 import secrets
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
-    get_current_user, require_label, require_artist, require_admin, require_super_admin,
-    public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
-    log_activity, notify, notify_many, admin_user_ids, label_user_ids,
-    LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+    ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
+    require_admin, require_label, log_activity, admin_user_ids, notify_many,
 )
-from email_service import send_payment_receipt_email
 from models import (
-    RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
-    LabelProfileUpdate, BankAccountIn,
-    ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
-    ArtistIn, ArtistUpdateIn,
-    CreateReleasePaymentIn,
-    CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
-    ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
-    WithdrawRequestIn, WithdrawAdminAction,
-    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
-    ContractCreateIn, ContractExtendIn, ContractTerminateIn,
-    BlacklistIn, NotificationMarkIn,
-    CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
-    now_iso, new_id,
+    CreateSubscriptionPaymentIn, CreateWamiOrderIn, PaymentProductCreateIn,
+    PaymentProductUpdateIn, now_iso, new_id,
 )
-from auth_utils import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token,
-    set_auth_cookies, clear_auth_cookies, decode_token,
+from payment_service import (
+    create_payment_document, create_xendit_session, fulfill_payment,
+    payment_price, poll_payment, reconcile_payment, xendit_configured,
 )
-from royalty_utils import (
-    parse_csv_bytes, detect_columns, parse_amount, normalize_header,
-    parse_period_from_value, calculate_line, label_percentage_at,
-    strip_sensitive,
-)
-from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 
-# =============================================================================
-#                              PAYMENTS (MOCK XENDIT)
-# =============================================================================
+
 pay_r = APIRouter(prefix="/payments", tags=["payments"])
 
 
-SUBSCRIPTION_PRICES = {"annual_normal": 350000, "annual_vip": 500000}
-WAMI_ADDON_PRICE = 100000
-WAMI_FREE_TIERS = ("annual_vip",)  # tiers that get WAMI for free
+async def _owned_payment(payment_id: str, user: dict) -> Dict[str, Any]:
+    payment = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Invoice tidak ditemukan")
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        if payment["label_id"] != label["id"]:
+            raise HTTPException(status_code=404, detail="Invoice tidak ditemukan")
+    elif user["role"] not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    return payment
+
+
+@pay_r.get("/config")
+async def payment_config(user: dict = Depends(get_current_user)):
+    return {"provider": "xendit", "mode": "production_polling", "configured": xendit_configured(), "webhook_required": False}
 
 
 @pay_r.post("/subscription")
 async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
     tier = body.tier or "annual_vip"
-    if tier not in SUBSCRIPTION_PRICES:
-        raise HTTPException(status_code=400, detail="Tier tidak valid")
-    invoice_id = new_id()
-    invoice = {
-        "id": invoice_id,
-        "label_id": label["id"],
-        "release_id": None,
-        "track_id": None,
-        "type": "annual_subscription",
-        "tier": tier,
-        "xendit_invoice_id": f"mock_{invoice_id[:12]}",
-        "xendit_invoice_url": f"/payments/mock-checkout/{invoice_id}",
-        "amount": SUBSCRIPTION_PRICES[tier],
-        "currency": "IDR",
-        "status": "pending",
-        "paid_at": None,
-        "expired_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
-        "created_at": now_iso(),
-    }
-    await db.payments.insert_one(invoice)
-    invoice.pop("_id", None)
-    return invoice
+    existing = await db.payments.find_one({
+        "label_id": label["id"], "type": "annual_subscription", "tier": tier, "status": "pending",
+    }, {"_id": 0})
+    if existing:
+        return existing
+    amount = await payment_price(tier)
+    return await create_payment_document(
+        label_id=label["id"], payment_type="annual_subscription", amount=amount,
+        tier=tier, description=f"Paket {tier.replace('_', ' ').title()} 1 Tahun",
+        return_path="/label/invoices",
+    )
 
 
 @pay_r.post("/wami")
 async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(require_label)):
-    """Create Xendit invoice for WAMI registration of a single track (Rp 100.000/lagu)."""
     label = await get_label_by_user(user)
-    # Find track + verify ownership
     track = await db.tracks.find_one({"id": body.track_id}, {"_id": 0})
     if not track:
         raise HTTPException(status_code=404, detail="Track tidak ditemukan")
-    rel = await db.releases.find_one({"id": track.get("release_id")}, {"_id": 0})
-    if not rel or rel.get("label_id") != label["id"]:
+    release = await db.releases.find_one({"id": track.get("release_id")}, {"_id": 0})
+    if not release or release.get("label_id") != label["id"]:
         raise HTTPException(status_code=403, detail="Track ini bukan milik Anda")
-    # Eligibility: only when release is LIVE
-    if rel.get("status") != "live":
+    if release.get("status") != "live":
         raise HTTPException(status_code=400, detail="Pendaftaran WAMI hanya dapat dilakukan setelah rilisan LIVE")
-    # VIP gets WAMI free → no invoice needed; just create order with status=pending.
-    # Must be an ACTIVE annual_vip subscription (expired VIPs pay normally).
-    now_dt = datetime.now(timezone.utc)
-    sub_expires_raw = label.get("subscription_expires_at")
-    sub_active = label.get("subscription_status") == "active"
-    if sub_active and sub_expires_raw:
-        try:
-            sub_active = datetime.fromisoformat(str(sub_expires_raw).replace("Z", "+00:00")) > now_dt
-        except Exception:
-            sub_active = False
-    is_vip = (
-        label.get("payment_type") == "annual_subscription"
-        and label.get("subscription_tier") == "annual_vip"
-        and sub_active
+    existing_order = await db.wami_orders.find_one(
+        {"track_id": body.track_id, "status": {"$nin": ["cancelled", "rejected"]}}, {"_id": 0},
     )
-    # Prevent duplicate active orders
-    existing = await db.wami_orders.find_one({"track_id": body.track_id, "status": {"$nin": ["cancelled", "rejected"]}})
-    if existing:
+    if existing_order:
+        if existing_order.get("status") == "unpaid":
+            existing_invoice = await db.payments.find_one(
+                {"wami_order_id": existing_order["id"], "status": {"$ne": "paid"}}, {"_id": 0},
+                sort=[("created_at", -1)],
+            )
+            if existing_invoice:
+                return {"order": existing_order, "invoice": existing_invoice, "free_vip": False}
         raise HTTPException(status_code=400, detail="Track ini sudah memiliki pendaftaran WAMI aktif")
 
+    vip_expiry_ok = False
+    if label.get("subscription_expires_at"):
+        try:
+            vip_expiry_ok = datetime.fromisoformat(str(label["subscription_expires_at"]).replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        except Exception:
+            vip_expiry_ok = False
+    is_vip = label.get("payment_type") == "annual_subscription" and label.get("subscription_tier") == "annual_vip" and label.get("subscription_status") == "active" and vip_expiry_ok
     order_id = new_id()
+    amount = 0 if is_vip else await payment_price("wami_addon")
     order = {
-        "id": order_id,
-        "label_id": label["id"],
-        "release_id": rel["id"],
-        "release_title": rel.get("release_title"),
-        "track_id": body.track_id,
-        "track_title": track.get("track_title"),
-        "isrc": track.get("isrc"),
-        "is_free_vip": is_vip,
-        "amount_idr": 0 if is_vip else WAMI_ADDON_PRICE,
-        "status": "pending" if is_vip else "unpaid",
-        "wami_reference": None,
-        "admin_note": None,
-        "paid_at": now_iso() if is_vip else None,
-        "registered_at": None,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
+        "id": order_id, "label_id": label["id"], "release_id": release["id"],
+        "release_title": release.get("release_title"), "track_id": body.track_id,
+        "track_title": track.get("track_title"), "isrc": track.get("isrc"),
+        "is_free_vip": is_vip, "amount_idr": amount,
+        "status": "pending" if is_vip else "unpaid", "wami_reference": None,
+        "admin_note": None, "paid_at": now_iso() if is_vip else None,
+        "registered_at": None, "created_at": now_iso(), "updated_at": now_iso(),
     }
     await db.wami_orders.insert_one(order)
-
+    order.pop("_id", None)
     if is_vip:
-        # VIP → no Xendit needed, just notify admins
-        admin_ids = await admin_user_ids(("super_admin", "admin_release"))
         await notify_many(
-            admin_ids, "wami_new",
+            await admin_user_ids(("super_admin", "admin_release")), "wami_new",
             "WAMI baru (VIP — gratis)",
             f"{label.get('label_name')} mengajukan WAMI untuk '{track.get('track_title')}'.",
             "/admin/wami", {"wami_order_id": order_id},
         )
-        order.pop("_id", None)
         return {"order": order, "invoice": None, "free_vip": True}
 
-    # Non-VIP → Xendit invoice
-    invoice_id = new_id()
-    invoice = {
-        "id": invoice_id,
-        "label_id": label["id"],
-        "release_id": rel["id"],
-        "track_id": body.track_id,
-        "type": "wami_addon",
-        "wami_order_id": order_id,
-        "xendit_invoice_id": f"mock_{invoice_id[:12]}",
-        "xendit_invoice_url": f"/payments/mock-checkout/{invoice_id}",
-        "amount": WAMI_ADDON_PRICE,
-        "currency": "IDR",
-        "status": "pending",
-        "paid_at": None,
-        "expired_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
-        "created_at": now_iso(),
-    }
-    await db.payments.insert_one(invoice)
-    order.pop("_id", None)
-    invoice.pop("_id", None)
+    invoice = await create_payment_document(
+        label_id=label["id"], payment_type="wami_addon", amount=amount,
+        release_id=release["id"], track_id=body.track_id, wami_order_id=order_id,
+        description=f"Pendaftaran WAMI — {track.get('track_title')}",
+        return_path="/label/wami",
+    )
+    await db.wami_orders.update_one({"id": order_id}, {"$set": {"payment_id": invoice["id"], "updated_at": now_iso()}})
+    order["payment_id"] = invoice["id"]
     return {"order": order, "invoice": invoice, "free_vip": False}
 
 
-@pay_r.post("/mock-pay/{invoice_id}")
-async def mock_pay(invoice_id: str, user: dict = Depends(get_current_user)):
-    """MOCK: simulate Xendit payment success. Will be replaced with real webhook later."""
-    inv = await db.payments.find_one({"id": invoice_id})
-    if not inv:
-        raise HTTPException(status_code=404, detail="Invoice tidak ditemukan")
+@pay_r.get("/products")
+async def list_payment_products(user: dict = Depends(require_label)):
+    return await db.payment_products.find({"active": True}, {"_id": 0}).sort("created_at", -1).to_list(200)
 
-    # Label can only pay their own; admin/super_admin can simulate any
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        if inv["label_id"] != label["id"]:
-            raise HTTPException(status_code=403, detail="Bukan invoice Anda")
-    elif user["role"] not in ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
 
-    if inv["status"] == "paid":
-        return {"ok": True, "already_paid": True}
+@pay_r.post("/service/{product_id}")
+async def create_service_invoice(product_id: str, user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    product = await db.payment_products.find_one({"id": product_id, "active": True}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Layanan tidak tersedia")
+    order_id = new_id()
+    await db.service_orders.insert_one({
+        "id": order_id, "product_id": product_id, "label_id": label["id"],
+        "name": product["name"], "amount": int(product["amount"]), "status": "unpaid",
+        "created_at": now_iso(), "updated_at": now_iso(),
+    })
+    return await create_payment_document(
+        label_id=label["id"], payment_type="custom_service", amount=int(product["amount"]),
+        product_id=product_id, service_order_id=order_id, description=product["name"],
+        return_path="/label/invoices",
+    )
 
-    await db.payments.update_one({"id": invoice_id}, {"$set": {"status": "paid", "paid_at": now_iso()}})
 
-    if inv["type"] == "pay_per_release":
-        await db.releases.update_one(
-            {"id": inv["release_id"]},
-            {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()}},
-        )
-    elif inv["type"] == "annual_subscription":
-        now = datetime.now(timezone.utc)
-        expires = (now + timedelta(days=365)).isoformat()
-        tier = inv.get("tier") or "annual_vip"
-        await db.labels.update_one(
-            {"id": inv["label_id"]},
-            {"$set": {
-                "subscription_status": "active",
-                "subscription_expires_at": expires,
-                "payment_type": "annual_subscription",
-                "subscription_tier": tier,
-                "updated_at": now_iso(),
-            }},
-        )
-    elif inv["type"] == "wami_addon":
-        # Mark WAMI order as pending (waiting for admin to process)
-        await db.wami_orders.update_one(
-            {"id": inv.get("wami_order_id")},
-            {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()}},
-        )
-        order = await db.wami_orders.find_one({"id": inv.get("wami_order_id")}, {"_id": 0})
-        admin_ids = await admin_user_ids(("super_admin", "admin_release"))
-        await notify_many(
-            admin_ids, "wami_new",
-            "WAMI baru — sudah dibayar",
-            f"WAMI '{order.get('track_title')}' menunggu diproses.",
-            "/admin/wami", {"wami_order_id": order["id"]},
-        )
+@pay_r.get("/admin/products")
+async def admin_list_products(user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    return await db.payment_products.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
-    await log_activity(user["id"], "mock_pay", "payment", invoice_id)
-    # Send payment receipt email (best-effort, after side-effects)
-    try:
-        label = await db.labels.find_one({"id": inv["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
-        if label and label.get("user_id"):
-            user_doc = await db.users.find_one({"id": label["user_id"]}, {"_id": 0, "email": 1})
-            if user_doc and user_doc.get("email"):
-                await send_payment_receipt_email(
-                    to=user_doc["email"],
-                    label_name=label.get("label_name") or "Label",
-                    description=inv.get("description") or inv.get("type") or "Pembayaran",
-                    amount_idr=int(inv.get("amount_idr") or 0),
-                    invoice_id=invoice_id,
-                )
-    except Exception as e:
-        logger.exception("payment receipt email failed for %s: %s", invoice_id, e)
-    return {"ok": True, "invoice": await db.payments.find_one({"id": invoice_id}, {"_id": 0})}
+
+@pay_r.post("/admin/products")
+async def admin_create_product(body: PaymentProductCreateIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    document = {
+        "id": new_id(), "name": body.name.strip(), "description": (body.description or "").strip(),
+        "amount": int(body.amount), "active": body.active, "created_by": user["id"],
+        "created_at": now_iso(), "updated_at": now_iso(),
+    }
+    await db.payment_products.insert_one(document)
+    document.pop("_id", None)
+    return document
+
+
+@pay_r.patch("/admin/products/{product_id}")
+async def admin_update_product(product_id: str, body: PaymentProductUpdateIn, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    update = {key: value for key, value in body.model_dump(exclude_none=True).items()}
+    if "name" in update:
+        update["name"] = update["name"].strip()
+    update["updated_at"] = now_iso()
+    result = await db.payment_products.update_one({"id": product_id}, {"$set": update})
+    if not result.matched_count:
+        raise HTTPException(status_code=404, detail="Layanan tidak ditemukan")
+    return await db.payment_products.find_one({"id": product_id}, {"_id": 0})
+
+
+@pay_r.post("/{payment_id}/checkout")
+async def start_checkout(payment_id: str, user: dict = Depends(get_current_user)):
+    payment = await _owned_payment(payment_id, user)
+    session = await create_xendit_session(payment)
+    await log_activity(user["id"], "xendit_checkout", "payment", payment_id)
+    return {
+        "payment_id": payment_id, "status": session["status"],
+        "payment_url": session["xendit_invoice_url"],
+        "expires_at": session.get("expired_at"),
+    }
+
+
+@pay_r.get("/{payment_id}/status")
+async def payment_status(payment_id: str, user: dict = Depends(get_current_user)):
+    payment = await _owned_payment(payment_id, user)
+    payment = await poll_payment(payment)
+    return {
+        "payment_id": payment["id"], "status": payment["status"],
+        "provider_status": payment.get("provider_status"),
+        "fulfillment_status": payment.get("fulfillment_status"),
+        "paid_at": payment.get("paid_at"),
+    }
+
+
+@pay_r.post("/{payment_id}/mock-pay")
+async def mock_pay(payment_id: str, user: dict = Depends(get_current_user)):
+    if os.environ.get("XENDIT_ALLOW_MOCK_PAY", "false").lower() != "true":
+        raise HTTPException(status_code=404, detail="Endpoint tidak tersedia")
+    payment = await _owned_payment(payment_id, user)
+    await db.payments.update_one({"id": payment_id}, {"$set": {"status": "paid", "provider_status": "COMPLETED", "paid_at": now_iso()}})
+    return {"ok": True, "invoice": await fulfill_payment(await db.payments.find_one({"id": payment_id}, {"_id": 0}))}
 
 
 @pay_r.post("/webhook/xendit")
 async def xendit_webhook(payload: Dict[str, Any], request: Request):
-    """Real Xendit webhook (idempotent). Authenticated via the `x-callback-token`
-    header which Xendit signs every callback with. The token must match
-    `XENDIT_CALLBACK_TOKEN` from env (see Xendit Dashboard → Settings → Callbacks).
-
-    Until LIVE Xendit is wired, the endpoint stays auth-locked: if
-    `XENDIT_CALLBACK_TOKEN` is not configured we reject all incoming payloads to
-    prevent unauthenticated payment-confirmation bypass (security audit SEC-001).
-    """
-    expected_token = os.environ.get("XENDIT_CALLBACK_TOKEN")
-    if not expected_token:
-        # Fail-closed: no token configured → webhook MUST not be reachable.
-        logger.warning("[XENDIT] webhook called but XENDIT_CALLBACK_TOKEN not set — denying")
-        raise HTTPException(status_code=503, detail="Webhook not configured")
-    provided = request.headers.get("x-callback-token") or request.headers.get("X-CALLBACK-TOKEN")
-    # Constant-time comparison to avoid timing attacks
-    if not provided or not secrets.compare_digest(provided, expected_token):
-        logger.warning("[XENDIT] webhook rejected: invalid x-callback-token from %s", request.client.host if request.client else "?")
+    """Optional compatibility path; production confirmation defaults to polling."""
+    if os.environ.get("XENDIT_WEBHOOK_ENABLED", "false").lower() != "true":
+        raise HTTPException(status_code=410, detail="Webhook dinonaktifkan; status dikonfirmasi melalui polling")
+    expected = os.environ.get("XENDIT_WEBHOOK_VERIFICATION_TOKEN", "")
+    provided = request.headers.get("x-callback-token", "")
+    if not expected or not provided or not secrets.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="Invalid callback token")
-
-    invoice_id_external = payload.get("id") or payload.get("external_id")
-    status = (payload.get("status") or "").lower()
-    if not invoice_id_external:
-        raise HTTPException(status_code=400, detail="Missing invoice id")
-    inv = await db.payments.find_one({"xendit_invoice_id": invoice_id_external})
-    if not inv:
+    session_id = payload.get("payment_session_id") or payload.get("id")
+    payment = await db.payments.find_one({"xendit_session_id": session_id}, {"_id": 0})
+    if not payment:
         return {"ok": True, "ignored": True}
-    if inv["status"] == "paid":
-        return {"ok": True, "already_paid": True}
-    if status == "paid":
-        await db.payments.update_one({"id": inv["id"]}, {"$set": {"status": "paid", "paid_at": now_iso()}})
-        if inv["type"] == "pay_per_release":
-            await db.releases.update_one({"id": inv["release_id"]}, {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()}})
-        elif inv["type"] == "annual_subscription":
-            now = datetime.now(timezone.utc)
-            tier = inv.get("tier") or "annual_vip"
-            await db.labels.update_one({"id": inv["label_id"]}, {"$set": {
-                "subscription_status": "active",
-                "subscription_expires_at": (now + timedelta(days=365)).isoformat(),
-                "payment_type": "annual_subscription",
-                "subscription_tier": tier,
-                "updated_at": now_iso(),
-            }})
-        elif inv["type"] == "wami_addon":
-            await db.wami_orders.update_one(
-                {"id": inv.get("wami_order_id")},
-                {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()}},
-            )
-    elif status in ("expired", "failed", "cancelled"):
-        await db.payments.update_one({"id": inv["id"]}, {"$set": {"status": status}})
+    await reconcile_payment(payment, payload)
     return {"ok": True}
-
-

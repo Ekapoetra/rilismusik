@@ -604,7 +604,37 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 
 ### Prioritized backlog after Phase 32
 - **P0 — Production rollout:** redeploy, run “Hitung Ulang Tanpa Fee”, preview legacy CSV, resolve any active-withdraw blockers, commit legacy synchronization, then reconcile label balances against the job result.
-- **P0 — Xendit LIVE:** replace **MOCKED** checkout/webhook behavior for pay-per-release, subscriptions, and WAMI using the previously requested integration flow.
+- **COMPLETED — Xendit LIVE:** production Payment Sessions + secure backend polling for pay-per-release, subscriptions, WAMI, and configurable paid services. Webhook is optional and disabled by user choice.
+- **P2:** monthly royalty summary email, background-job completion notifications, and dynamic CMS-to-landing linkage.
+
+### Phase 33 — Xendit production polling (2026-08-22)
+- Replaced user-facing mock checkout with Xendit Production Payment Sessions (`POST /sessions`, `PAY`, `PAYMENT_LINK`, `IDR`, country `ID`, automatic capture, 30-minute session expiry).
+- Added backend-only Xendit configuration. Secret/public keys and webhook verification token remain in ignored environment configuration and are never returned by APIs or sent to the frontend.
+- Implemented checkout creation and customer return navigation to the live application. Return URLs are navigation only and never treated as proof of payment.
+- Implemented secure status polling through `GET /api/payments/{payment_id}/status`; ownership is enforced for labels, while authorized finance/super-admin roles can reconcile invoices.
+- Added a background polling job every two minutes so successful payments are still fulfilled when customers close the checkout tab instead of returning to RILIS MUSIK.
+- Implemented strict provider reconciliation: local reference ID, amount, and currency must match Xendit before any entitlement is granted.
+- Implemented idempotent fulfillment for all product families:
+  - Pay-per-release → release becomes paid and moves to `under_review`.
+  - Annual Normal/VIP → subscription becomes active and extends 365 days from the later of today/current expiry.
+  - WAMI add-on → order changes from unpaid to pending admin processing.
+  - Custom paid service → service order changes to paid and notifies admin.
+- Added Admin Finance/Super Admin service catalog CRUD so future paid services can be added without new payment integration code. Labels can browse and purchase active services from the invoice page.
+- Disabled old mock-pay endpoint in production (`404`) and disabled webhook confirmation (`410`) per user choice. A token-verified webhook compatibility route remains available only if explicitly enabled later.
+- Configured Xendit production return navigation base to `https://lanjut-core.emergent.host`. No callback URL is required for confirmation because backend/frontend polling is authoritative.
+- Verification completed without creating a production Xendit transaction:
+  - Phase 33 provider-mocked unit/integration tests: 4/4 passed.
+  - Safe API ownership/product tests: 2/2 passed.
+  - Phase 32 royalty regression: passed.
+  - Frontend production build: passed.
+  - Desktop/tablet/mobile Admin Payments and Label Invoices/WAMI smoke: passed.
+  - Deployment readiness: passed with only non-blocking preview CORS warning; deployment automatically applies the production origin.
+- Important testing constraint: calls to the external Xendit provider were **MOCKED only inside automated tests** to honor the instruction not to create a real production transaction. The application integration itself is configured for production and not mocked.
+
+### Prioritized backlog after Phase 33
+- **P0 — Redeploy:** publish the current code/environment to production, then verify `/api/payments/config` reports `production_polling` and `configured=true`.
+- **P0 — Controlled payment acceptance:** first real checkout should be initiated intentionally by the business owner/customer after deployment; reconcile it from Admin Xendit Payments.
+- **P1 — Product catalog:** populate real additional services and pricing in Admin Xendit Payments.
 - **P2:** monthly royalty summary email, background-job completion notifications, and dynamic CMS-to-landing linkage.
 
 ## Files of Reference (entry points)

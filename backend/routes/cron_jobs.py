@@ -11,6 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from .deps import db, db_bg, logger, require_admin, notify, label_user_ids
 from models import now_iso
 from email_service import send_contract_expiry_email, send_subscription_expiry_email
+from payment_service import poll_payment, xendit_configured
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -197,6 +198,29 @@ async def watchdog_stuck_royalty_imports():
         logger.exception("watchdog_stuck_royalty_imports job failed: %s", e)
 
 
+async def reconcile_pending_xendit_payments():
+    """Polling fallback for customers who close the Xendit checkout tab."""
+    if not xendit_configured():
+        return
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    pending = await db.payments.find({
+        "status": "pending",
+        "xendit_session_id": {"$ne": None},
+        "$or": [
+            {"last_provider_poll_at": None},
+            {"last_provider_poll_at": {"$lt": cutoff}},
+        ],
+    }, {"_id": 0}).sort("created_at", 1).limit(100).to_list(100)
+    for payment in pending:
+        try:
+            await poll_payment(payment, force=True)
+        except Exception as exc:
+            logger.warning(
+                "[XENDIT POLL] payment=%s failed: %s",
+                payment.get("id"), type(exc).__name__,
+            )
+
+
 @cron_r.post("/subscription-check")
 async def trigger_subscription_check(user: dict = Depends(require_admin)):
     if user["role"] not in ("super_admin", "admin_finance"):
@@ -224,6 +248,14 @@ async def trigger_stuck_imports_check(user: dict = Depends(require_admin)):
     return {"ok": True, "job": "watchdog_stuck_royalty_imports"}
 
 
+@cron_r.post("/xendit-payments-check")
+async def trigger_xendit_payments_check(user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    await reconcile_pending_xendit_payments()
+    return {"ok": True, "job": "xendit_payment_polling"}
+
+
 def start_scheduler():
     """Register cron jobs and start the scheduler.
 
@@ -244,6 +276,11 @@ def start_scheduler():
         watchdog_stuck_royalty_imports, "interval", minutes=15,
         id="stuck_royalty_imports_watchdog", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=60),
+    )
+    scheduler.add_job(
+        reconcile_pending_xendit_payments, "interval", minutes=2,
+        id="xendit_payment_polling", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90),
     )
     scheduler.start()
 

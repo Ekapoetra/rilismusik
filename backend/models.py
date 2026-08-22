@@ -152,6 +152,20 @@ class CreateSubscriptionPaymentIn(BaseModel):
     tier: SubscriptionTier = "annual_vip"
 
 
+class PaymentProductCreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    amount: int = Field(ge=1000, le=1_000_000_000)
+    active: bool = True
+
+
+class PaymentProductUpdateIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    amount: Optional[int] = Field(default=None, ge=1000, le=1_000_000_000)
+    active: Optional[bool] = None
+
+
 # ============ WAMI ============
 WamiStatus = Literal["unpaid", "pending", "in_progress", "registered", "rejected", "cancelled"]
 
