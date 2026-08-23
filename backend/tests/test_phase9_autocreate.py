@@ -14,16 +14,14 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import DEMO_PPR, DEMO_VIP, FINANCE, RELEASE_ADMIN, SUPERADMIN, temporary_password
 import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
-RELEASE_ADMIN = {"email": "release1@rilismusik.com", "password": "Release#2026"}
-FINANCE_ADMIN = {"email": "finance1@rilismusik.com", "password": "Finance#2026"}
-DEMO_PPR = {"email": "demo_ppr@rilismusik.com", "password": "DemoPPR#2026"}
-DEMO_VIP = {"email": "demo_vip@rilismusik.com", "password": "DemoVIP#2026"}
+SUPER = SUPERADMIN
+FINANCE_ADMIN = FINANCE
 
 
 def _items(resp_json):
@@ -267,7 +265,7 @@ def test_create_account_validations(super_tok):
     r = requests.post(
         f"{API}/admin/labels/{label_id}/create-account",
         headers=_h(super_tok),
-        data={"email": f"ok_{uuid.uuid4().hex[:6]}@example.com", "password": "abc"},
+        data={"email": f"ok_{uuid.uuid4().hex[:6]}@example.com", "password": temporary_password("phase9")[:3]},
         timeout=30,
     )
     assert r.status_code == 400, r.text

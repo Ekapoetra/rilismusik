@@ -67,7 +67,8 @@ def test_admin_dashboard_uses_db_bg_for_revenue_aggregate():
     into the `_recompute_revenue_cache()` helper (stale-while-revalidate
     cache). Either location is acceptable as long as the db_bg client is used.
     """
-    src = (Path(__file__).resolve().parents[1] / "routes" / "admin.py").read_text()
+    routes_dir = Path(__file__).resolve().parents[1] / "routes"
+    src = (routes_dir / "admin.py").read_text() + (routes_dir / "dashboard_cache.py").read_text()
     assert "db_bg.royalty_lines.aggregate" in src, (
         "admin.py must aggregate royalty_lines via db_bg (uncapped client) "
         "either inside admin_dashboard or in the dashboard revenue-cache helper."

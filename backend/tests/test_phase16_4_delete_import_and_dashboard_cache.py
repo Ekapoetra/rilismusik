@@ -14,6 +14,7 @@ import os
 import time
 import pytest
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, SUPERADMIN
 from pathlib import Path
 
 # Load backend/.env so REACT_APP_BACKEND_URL etc. resolve when pytest runs standalone
@@ -26,8 +27,8 @@ except Exception:
 
 BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 
-SUPER_ADMIN = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
+SUPER_ADMIN = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
 
 
 def _login(email: str, password: str) -> str:

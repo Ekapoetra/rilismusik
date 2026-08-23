@@ -11,15 +11,15 @@ import time
 import pytest
 import requests
 from datetime import datetime, timedelta, timezone
+from tests.support_config import DEMO_PASSWORD, FINANCE as FINANCE_CRED, RELEASE_ADMIN as RELEASE_CRED, SUPPORT as SUPPORT_CRED, SUPERADMIN
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
-SUPPORT = ("support1@rilismusik.com", "Support#2026")
-RELEASE_ADMIN = ("release1@rilismusik.com", "Release#2026")
-DEMO_PASSWORD = "Demo#2026"
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
+SUPPORT = (SUPPORT_CRED["email"], SUPPORT_CRED["password"])
+RELEASE_ADMIN = (RELEASE_CRED["email"], RELEASE_CRED["password"])
 
 
 def _login(email, password):
@@ -98,7 +98,7 @@ def demo_labels(super_token):
 def _label_token(label_dict):
     email = label_dict.get("email") or label_dict.get("user_email")
     assert email, f"label dict missing email: {label_dict}"
-    for pw in (DEMO_PASSWORD, "Password#123", "Demo2026!"):
+    for pw in (DEMO_PASSWORD,):
         r = _login(email, pw)
         if r.status_code == 200:
             return r.json()["access_token"], email

@@ -6,6 +6,7 @@ that are not settled/withdrawn are recalculated with the label's CURRENT share.
 from typing import Any, Dict, Iterable, List
 
 from .deps import db_bg, logger
+from .dashboard_cache import schedule_recompute as schedule_dashboard_recompute
 from models import new_id, now_iso
 
 
@@ -262,13 +263,9 @@ async def run_global_recalculation_job(*, job_id: str) -> None:
 
 async def trigger_royalty_caches() -> None:
     import asyncio
-    try:
-        from routes.admin import _recompute_revenue_cache
-        asyncio.create_task(_recompute_revenue_cache())
-    except Exception:
-        pass
+    schedule_dashboard_recompute()
     try:
         from routes.admin_analytics import recompute_monthly_analytics
         asyncio.create_task(recompute_monthly_analytics())
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("[ROYALTY RECALC] analytics cache trigger failed: %s", exc)

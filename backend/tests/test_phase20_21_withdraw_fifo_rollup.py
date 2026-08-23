@@ -10,6 +10,7 @@ Covers:
 import os
 import pytest
 import requests
+from tests.support_config import DEMO_PPR, DEMO_VIP, FINANCE as FINANCE_CRED, SUPPORT as SUPPORT_CRED, SUPERADMIN, temporary_password
 
 def _load_backend_url():
     url = os.environ.get("REACT_APP_BACKEND_URL")
@@ -30,11 +31,11 @@ def _load_backend_url():
 BASE_URL = _load_backend_url()
 API = f"{BASE_URL}/api"
 
-SUPERADMIN = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
-SUPPORT = ("support1@rilismusik.com", "Support#2026")
-PPR_LABEL = ("demo_ppr@rilismusik.com", "DemoPPR#2026")
-VIP_LABEL = ("demo_vip@rilismusik.com", "DemoVIP#2026")
+SUPERADMIN = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
+SUPPORT = (SUPPORT_CRED["email"], SUPPORT_CRED["password"])
+PPR_LABEL = (DEMO_PPR["email"], DEMO_PPR["password"])
+VIP_LABEL = (DEMO_VIP["email"], DEMO_VIP["password"])
 
 
 def _login(email, password):
@@ -71,7 +72,7 @@ def label_s():
     import uuid
     s = requests.Session()
     email = f"TEST_p20label_{uuid.uuid4().hex[:8]}@example.com"
-    pwd = "TestLabel#2026"
+    pwd = temporary_password("phase20-label")
     r = s.post(f"{API}/auth/register", json={
         "label_name": f"TEST Label {uuid.uuid4().hex[:6]}",
         "owner_name": "Test Owner",

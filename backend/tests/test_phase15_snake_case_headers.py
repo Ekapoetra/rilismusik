@@ -20,6 +20,7 @@ import sys
 import time
 import pytest
 import requests
+from tests.support_config import SUPERADMIN
 
 # Local module import
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -41,7 +42,6 @@ if not BASE_URL:
                 BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
                 break
 
-SUPERADMIN = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
 SQL_CSV_PATH = "/tmp/sql_revenues.csv"
 
 SQL_HEADERS = [

@@ -1,209 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { api, formatApiError } from "@/api/client";
-import { useAuth } from "@/api/AuthContext";
+import { useRoyaltyImports } from "@/hooks/useRoyaltyImports";
 import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle, Zap } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
 
-function todayPeriod() {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return d.toISOString().slice(0, 7);
-}
-
 export default function AdminRoyaltyImport() {
-  const { user } = useAuth();
-  const [imports, setImports] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetConfirm, setResetConfirm] = useState("");
-  const [form, setForm] = useState({ period: todayPeriod(), rate_eur_idr: 17500, file: null, note: "" });
-  const [busy, setBusy] = useState(false);
-  const [uploadStage, setUploadStage] = useState("");  // 'initiating' | 'uploading' | 'finalizing'
-  const [uploadPct, setUploadPct] = useState(0);
-  const [err, setErr] = useState("");
-  const [msg, setMsg] = useState("");
-  const [recalcBusy, setRecalcBusy] = useState(false);
-  const [recalcJob, setRecalcJob] = useState(null);
-
-  const load = async () => { const { data } = await api.get("/royalty/admin/imports"); setImports(data); };
-  useEffect(() => { load(); }, []);
-
-  // Auto-poll every 4s while any import is still processing OR publishing
-  const pollRef = useRef(null);
-  useEffect(() => {
-    const anyInFlight = imports.some((i) => i.status === "processing" || i.status === "publishing" || i.status === "deleting");
-    if (anyInFlight && !pollRef.current) {
-      pollRef.current = setInterval(load, 4000);
-    } else if (!anyInFlight && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
-  }, [imports]);
-
-  const retry = async (id, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setErr(""); setMsg("");
-    try {
-      await api.post(`/royalty/admin/imports/${id}/retry`);
-      setMsg("Retry dijadwalkan — proses akan jalan di background.");
-      load();
-    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
-  };
-
-  const forceFinalize = async (id, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setErr(""); setMsg("");
-    if (!window.confirm(
-      "Force-finalize import ini?\n\n" +
-      "Akan menghitung ulang stats dari baris yang sudah masuk MongoDB dan langsung set status=pending_review (tanpa re-upload CSV). " +
-      "Gunakan ini hanya jika status nyangkut di 'processing' >30 menit padahal datanya sudah ada."
-    )) return;
-    try {
-      const { data } = await api.post(`/royalty/admin/imports/${id}/force-finalize`);
-      if (data.ok) {
-        setMsg(`Force-finalize berhasil — ${data.total_lines?.toLocaleString("id-ID") || 0} baris, ${data.matched_lines?.toLocaleString("id-ID") || 0} matched. Status → pending_review.`);
-      } else {
-        setMsg(`Force-finalize: ${data.detail || "tidak ada baris untuk difinalisasi"}.`);
-      }
-      load();
-    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
-  };
-
-  const remove = async (i, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setErr(""); setMsg("");
-    if (!window.confirm(`Hapus import ${i.period || i.period_start || i.id.slice(0,8)} (${i.status})? Semua baris royalti, label/release/track auto-created akan ikut terhapus. Aksi ini permanen.`)) return;
-    try {
-      // Backend returns 202 Accepted — deletion runs in background via _delete_import_bg.
-      // The row status flips to 'deleting' immediately; the auto-poll picks it up.
-      await api.delete(`/royalty/admin/imports/${i.id}`);
-      setMsg("Penghapusan dijadwalkan — baris akan hilang setelah cleanup selesai (beberapa detik untuk import besar).");
-      load();
-    } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }
-  };
-
-  // Direct-to-R2 upload: initiate → PUT to R2 (with progress) → finalize.
-  // Bypasses the Kubernetes ingress body-size limit (~100 MB), handles files up to 5 GB.
-  const submit = async (e) => {
-    e.preventDefault();
-    setErr(""); setMsg("");
-    if (!form.file) { setErr("File CSV wajib diupload"); return; }
-    if (!form.period.match(/^\d{4}-\d{2}$/)) { setErr("Periode harus YYYY-MM"); return; }
-    setBusy(true);
-    setUploadPct(0);
-    try {
-      // Step 1: initiate
-      setUploadStage("initiating");
-      const { data: init } = await api.post("/royalty/admin/imports/initiate", {
-        filename: form.file.name,
-        rate_eur_idr: Number(form.rate_eur_idr),
-        period: form.period,
-        note: form.note || null,
-        file_size_bytes: form.file.size,
-      });
-
-      // Step 2: PUT directly to R2 with progress
-      setUploadStage("uploading");
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", init.presigned_put_url);
-        xhr.setRequestHeader("Content-Type", init.content_type);
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload R2 gagal (HTTP ${xhr.status})`));
-        };
-        xhr.onerror = () => reject(new Error("Network error saat upload ke R2"));
-        xhr.send(form.file);
-      });
-
-      // Step 3: finalize → triggers background processing
-      setUploadStage("finalizing");
-      await api.post(`/royalty/admin/imports/${init.import_id}/finalize`);
-
-      setMsg(`File berhasil diupload (${(form.file.size / 1024 / 1024).toFixed(1)} MB) — processing di background.`);
-      setOpen(false);
-      setForm({ period: todayPeriod(), rate_eur_idr: 17500, file: null, note: "" });
-      setUploadPct(0); setUploadStage("");
-      load();
-    } catch (e2) {
-      setErr(e2.message || formatApiError(e2.response?.data?.detail));
-    }
-    finally { setBusy(false); }
-  };
-
-  const submitReset = async (e) => {
-    e.preventDefault();
-    setErr(""); setMsg("");
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append("confirm", resetConfirm);
-      const { data } = await api.post("/royalty/admin/reset-demo-data", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      const jobId = data.job_id;
-      setMsg("Reset berjalan di background…");
-      const poll = async () => {
-        try {
-          const { data: job } = await api.get(`/admin/migrate/jobs/${jobId}`);
-          if (job.status === "done") {
-            const r = job.result || {};
-            setMsg(`Reset selesai — ${r.imports_deleted ?? 0} import, ${r.lines_deleted ?? 0} lines, ${r.transactions_deleted ?? 0} transaksi, ${r.auto_labels_deleted ?? 0} label & ${r.auto_artists_deleted ?? 0} artis auto-created dihapus. ${r.labels_reset ?? 0} label balance di-reset.`);
-            setBusy(false);
-            load();
-          } else if (job.status === "error") {
-            setErr(job.error_message || "Reset gagal — coba lagi.");
-            setMsg("");
-            setBusy(false);
-          } else {
-            setMsg(`Reset berjalan di background: ${job.phase || job.status}…`);
-            setTimeout(poll, 2000);
-          }
-        } catch {
-          setTimeout(poll, 3000);
-        }
-      };
-      setResetOpen(false);
-      setResetConfirm("");
-      setTimeout(poll, 1500);
-    } catch (e2) {
-      setErr(formatApiError(e2.response?.data?.detail));
-      setBusy(false);
-    }
-  };
-
-  const recalculateAll = async () => {
-    if (!window.confirm("Hitung ulang seluruh royalti yang belum withdrawn dengan persentase label saat ini? Data settled/withdrawn tidak akan diubah.")) return;
-    setErr(""); setMsg(""); setRecalcBusy(true);
-    try {
-      const { data } = await api.post("/royalty/admin/recalculate-unwithdrawn");
-      setMsg(data.already_running ? "Proses hitung ulang yang aktif dilanjutkan." : "Hitung ulang dijadwalkan di background.");
-      for (let attempt = 0; attempt < 900; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const { data: job } = await api.get(`/admin/migrate/jobs/${data.job_id}`);
-        setRecalcJob(job);
-        if (job.status === "done") {
-          const r = job.result || {};
-          setMsg(`Hitung ulang selesai — ${(r.labels_recalculated || 0).toLocaleString("id-ID")} label, ${(r.lines_recalculated || 0).toLocaleString("id-ID")} baris.`);
-          await load();
-          break;
-        }
-        if (job.status === "error") {
-          setErr(job.error_message || "Hitung ulang gagal.");
-          break;
-        }
-      }
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
-    finally { setRecalcBusy(false); }
-  };
+  const {
+    user, imports, open, setOpen, resetOpen, setResetOpen, resetConfirm, setResetConfirm,
+    form, setForm, busy, uploadStage, uploadPct, err, msg, recalcBusy, recalcJob,
+    retry, forceFinalize, remove, submit, submitReset, recalculateAll,
+  } = useRoyaltyImports();
 
   return (
     <div className="space-y-5">
@@ -211,7 +19,7 @@ export default function AdminRoyaltyImport() {
         <div>
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Finance</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Royalty Import</h1>
-          <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR) + set kurs IDR per periode.</p>
+          <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR). Periode wajib dibaca dari kolom Bulan laporan.</p>
         </div>
         <div className="flex gap-2">
           {(user?.role === "super_admin" || user?.role === "admin_finance") && (
@@ -325,10 +133,6 @@ export default function AdminRoyaltyImport() {
           <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4">
             <h3 className="font-display font-extrabold text-xl tracking-tighter">Upload CSV Royalti</h3>
             <div>
-              <label className="rm-label">Periode (YYYY-MM)</label>
-              <input className="rm-input" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="2026-05" data-testid="admin-royalty-period" required />
-            </div>
-            <div>
               <label className="rm-label">Kurs EUR → IDR</label>
               <input type="number" min="1000" step="0.01" className="rm-input" value={form.rate_eur_idr} onChange={(e) => setForm({ ...form, rate_eur_idr: parseFloat(e.target.value) })} data-testid="admin-royalty-rate" required />
               <div className="text-[11px] text-zinc-500 mt-1">Kurs diinput manual per periode. Tidak bisa diubah setelah publish.</div>
@@ -336,7 +140,7 @@ export default function AdminRoyaltyImport() {
             <div>
               <label className="rm-label">File CSV Believe</label>
               <input type="file" accept=".csv,.gz,text/csv,application/gzip" className="rm-input" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} data-testid="admin-royalty-file" disabled={busy} />
-              <div className="text-[11px] text-zinc-500 mt-1">Upload langsung ke Cloudflare R2 — mendukung file <strong>hingga 5 GB</strong>. Auto-detect kolom Believe (ID + EN): ISRC, UPC, Judul track, Nama Artis, Platform, Negara, Kuantitas, Pendapatan Bersih (EUR). Format desimal Eropa <code>0,000123</code> didukung. File .csv.gz juga oke.</div>
+              <div className="text-[11px] text-zinc-500 mt-1">Upload langsung ke Cloudflare R2 — mendukung file <strong>hingga 5 GB</strong>. Kolom <strong>Bulan laporan</strong> wajib ada dan menjadi satu-satunya acuan periode; Bulan Penjualan tidak digunakan. Format desimal Eropa <code>0,000123</code> didukung. File .csv.gz juga oke.</div>
               {form.file && !busy && (
                 <div className="text-[11px] text-emerald-300 mt-2">📁 {form.file.name} ({(form.file.size / 1024 / 1024).toFixed(1)} MB)</div>
               )}
@@ -430,6 +234,8 @@ function StatusBadge({ s }) {
     publishing: { bg: "bg-violet-500/15", color: "text-violet-300", label: "Publishing", icon: Loader2, spin: true },
     publish_error: { bg: "bg-red-500/15", color: "text-red-300", label: "Publish Error", icon: XCircle },
     published: { bg: "bg-sky-500/15", color: "text-sky-300", label: "Published", icon: CheckCircle2 },
+    receiving: { bg: "bg-cyan-500/15", color: "text-cyan-300", label: "Memindahkan Saldo", icon: Loader2, spin: true },
+    receive_error: { bg: "bg-red-500/15", color: "text-red-300", label: "Penerimaan Gagal", icon: XCircle },
     dana_received: { bg: "bg-emerald-500/15", color: "text-emerald-300", label: "Dana Diterima", icon: Banknote },
     error: { bg: "bg-red-500/15", color: "text-red-300", label: "Error", icon: XCircle },
     deleting: { bg: "bg-rose-500/15", color: "text-rose-300", label: "Menghapus…", icon: Loader2, spin: true },

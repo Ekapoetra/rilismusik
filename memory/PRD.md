@@ -12,7 +12,7 @@ Pricing (3-tier):
 - **Annual VIP**: Rp 500.000 / year — unlimited release + **FREE WAMI** + GRATIS konten promosi.
 - **WAMI Add-on**: Rp 100.000 / track (free for ACTIVE VIP subscribers).
 
-Distributor fee 5% (visible to label for transparency), default label share 60% (HIDDEN from label).
+Tidak ada fee distributor tambahan; bagian label dihitung langsung memakai persentase aktif (default 60%, HIDDEN dari label).
 Withdraw window 1–14 (request), 15–20 (payment), 21–end disabled. Min withdraw Rp 1.000.000.
 Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 
@@ -25,7 +25,7 @@ Believe CSV (EUR) uploaded monthly by admin → IDR via manual exchange rate.
 - **Backend**: FastAPI (Python 3.11), Motor (async MongoDB), JWT auth (httpOnly cookies), bcrypt, Pillow for image validation, APScheduler for background cron.
 - **Frontend**: React 19 + React Router 7, Tailwind 3, axios with `withCredentials`, Plus Jakarta Sans + Manrope fonts.
 - **Storage**: MongoDB (collections: users, labels, artists, releases, tracks, payments, royalty_imports, royalty_lines, withdraw_requests, bank_accounts, support_tickets, ticket_comments, contracts, landing_settings, activity_logs, email_verification_tokens, password_reset_tokens, login_attempts, royalty_percentage_history, notifications, wami_orders). Local filesystem for uploads under `/api/files`.
-- **Payments**: Mock Xendit (real webhook handler ready at `/api/payments/webhook/xendit`).
+- **Payments**: Xendit production polling (tanpa webhook); fulfillment idempoten setelah status provider terkonfirmasi.
 
 ## Architecture (Refactored 2026-06-24)
 **Backend** — modular routers under `/app/backend/routes/`:
@@ -211,16 +211,15 @@ See `/app/memory/test_credentials.md`.
 ## Prioritized Backlog
 
 ### P0 (next session)
-- **Optimize CSV processing with `insert_many` batched** — `royalty_lines` are inserted one-by-one via streaming. Refactor to batch insert ~5,000 documents per round trip → drop 1M-row import wall-time from ~10 min to ~1–2 min.
-- **Xendit LIVE integration** — replace mock-pay with real Xendit invoice/webhook for PPR + Subscription tiers + WAMI add-on. Webhook already locked behind `XENDIT_CALLBACK_TOKEN` (Phase 17 SEC-001). Need API keys + dashboard webhook URL.
+- Tidak ada blocker P0 tersisa setelah Phase 35; lakukan verifikasi terkontrol setelah redeploy production.
 
 ### P1 (Production polish)
 - CMS Landing Page dynamic linkage (Admin CMS already drives 12 keys — verify all are referenced live).
-- PATCH /api/admin/labels/{id} should accept `subscription_tier` (admins currently can't change tier via API).
 - Google OAuth login (Emergent managed).
 - PDF export of royalty report (currently CSV only).
 - Contract MIME magic-byte check (currently extension-only).
 - Re-seed demo labels so Phase 2/3/4/6/9 tests pass again post-Phase-13 reset.
+- Pantau hasil reparasi Bulan laporan pada import production lama dan validasi Analytics 2025 setelah job selesai.
 
 ### P2 (Phase 7+ — Growth)
 - Public artist profile pages, royalty forecasting.
@@ -636,6 +635,46 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - **P0 — Controlled payment acceptance:** first real checkout should be initiated intentionally by the business owner/customer after deployment; reconcile it from Admin Xendit Payments.
 - **P1 — Product catalog:** populate real additional services and pricing in Admin Xendit Payments.
 - **P2:** monthly royalty summary email, background-job completion notifications, and dynamic CMS-to-landing linkage.
+
+### Phase 34 — Code-quality remediation 1–8 (2026-08-23)
+- Broke the `routes/admin.py` ↔ `routes/royalty_recalculation.py` dependency. Dashboard cache/recompute now lives in `routes/dashboard_cache.py`; both callers depend on it unidirectionally.
+- Split admin route responsibilities into services:
+  - `admin_dashboard_service.py` — parallel dashboard counts and cached revenue.
+  - `admin_label_service.py` — label update, dynamic royalty queueing, subscription validation, account creation/revoke/email change.
+  - `admin_reset_service.py` — background collection reset, local/R2 cleanup, reseed, and job progress.
+- Reduced `routes/admin.py` from ~985 to ~390 lines; reported route handlers are thin delegates with guards/business logic in services.
+- Refactored Xendit payment creation to a `PaymentCreateData` dataclass. `fulfill_payment()` now delegates to small idempotent handlers for release, subscription, WAMI, and custom-service entitlements.
+- Added local payment-service user lookups so fulfillment tests and runtime database access share the same injected Motor client.
+- Removed tracked test credentials from all backend tests/scripts. Credentials now load from gitignored `backend/.env.test` through `tests/support_config.py`; temporary account passwords/tokens are cryptographically generated.
+- Demo seed script now loads test-environment credentials and never prints passwords. Demo PPR/VIP accounts were restored after destructive reset regression tests.
+- Fixed all reported React hook dependency/stale-closure paths and added cancellation/error handling where appropriate.
+- Replaced array-index keys across release tracks, royalty tables, tickets, CMS editors, landing sections, and related attachment lists with stable IDs/content keys.
+- Broke oversized UI into domain components/hooks:
+  - Landing → `components/landing/LandingSections.jsx`.
+  - CMS → `components/admin/CMSPanels.jsx`.
+  - Label detail → `components/admin/LabelDetailView.jsx`.
+  - Royalty import → `hooks/useRoyaltyImports.js`.
+  - Analytics → `hooks/useAdminAnalytics.js`.
+  - Support tickets → `components/label/SupportTicketModal.jsx`.
+- Added cleanup fixtures for refactor/Phase 8/auth tests so temporary users, labels, royalty lines, and account links do not pollute preview data.
+- Frontend API client now uses relative `/api` and file URLs whenever frontend/backend share the same origin. This keeps credentialed auth on a same-origin path and bypasses platform ingress CORS behavior; backend CORS still returns the explicit configured origin with credentials.
+- Verification:
+  - Python lint/compile and fresh import graph passed; no circular initialization or undefined variables.
+  - Frontend production build compiled successfully with no hook warnings.
+  - Final regression batches: 30/30 and 55/55 passed (1 intentional skip); additional payment/account/auth batches passed.
+  - Credential literal scans passed for tracked test and seed source.
+  - Landing, Label Support, and Admin Label Detail smoke checks passed without horizontal overflow.
+  - Xendit external provider calls remained **MOCKED only in automated tests**; no production payment session was created.
+- Known unrelated preview environment issue: SMTP authentication still returns 535; email-dependent notification delivery is not fixed by this code-quality phase.
+
+### Phase 35 — Production Royalty Period, Dana Received & Withdraw Import Fixes (2026-08-23)
+- Parser periode kini hanya mengenali kolom `Bulan laporan` (termasuk normalisasi snake/kebab case), tidak pernah `Bulan Penjualan` atau field periode form. Nilai kosong/tidak valid ditolak per baris dan tidak masuk total.
+- Form upload periode manual dihapus; upload langsung dan R2 memakai metadata periode hasil CSV.
+- Transisi Published → Dana Diterima menjadi background (`receiving` / `receive_error`) dengan progress, chunked `db_bg`, marker idempoten per label, serta auto-resume setelah restart.
+- Preview dan commit Impor Riwayat Penarikan sama-sama langsung mengembalikan `job_id`; seluruh analisis/agregasi berat berjalan di background dan frontend polling status job.
+- P1 reparasi data lama: tombol **Perbaiki Bulan Laporan** membaca ulang CSV asli dari disk/R2, memvalidasi seluruh periode + kesamaan jumlah baris sebelum mutasi, hanya memperbarui `period`/`row_period`, mempertahankan nominal/saldo/status, lalu rebuild Analytics.
+- Sampel pengguna `JUNI 2026.csv` terkonfirmasi memiliki `Bulan laporan=01/06/2026` sementara `Bulan Penjualan` berbeda; akar bug adalah urutan alias parser lama.
+- Verifikasi: 33/33 regresi backend lulus, frontend production build lulus, smoke UI admin lulus, dan testing independen iteration 29 lulus 100% backend/frontend tanpa API MOCKED.
 
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.

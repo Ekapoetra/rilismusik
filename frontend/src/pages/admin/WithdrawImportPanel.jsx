@@ -4,9 +4,9 @@ import { api } from "@/api/client";
 
 const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 
-function Stat({ label, value, color }) {
+function Stat({ label, value, color, testId }) {
   return (
-    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-3" data-testid={testId}>
       <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{label}</div>
       <div className={`text-xl font-bold mt-1 ${color}`}>{value ?? 0}</div>
     </div>
@@ -27,17 +27,27 @@ export default function WithdrawImportPanel() {
 
   const pollJob = (jobId) => {
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
+    const check = async () => {
       try {
         const { data } = await api.get(`/admin/migrate/jobs/${jobId}`);
         setJob(data);
         if (data.status === "done" || data.status === "error") {
           clearInterval(pollRef.current);
           pollRef.current = null;
+          const report = data.preview_result || data.result;
+          if (report) setResult(report);
+          if (data.status === "error") setErr(data.error_message || "Background job gagal");
           setLoading(false);
         }
-      } catch (e) { /* keep polling */ }
-    }, 3000);
+      } catch (error) {
+        setErr(`Status background job belum dapat dibaca: ${error.response?.data?.detail || error.message}`);
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        setLoading(false);
+      }
+    };
+    pollRef.current = setInterval(check, 3000);
+    check();
   };
 
   const submit = async () => {
@@ -52,12 +62,13 @@ export default function WithdrawImportPanel() {
       fd.append("adjust_balances", "true");
       const { data } = await api.post("/admin/migrate/withdraws-legacy-period", fd, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 115000,
+        timeout: 30000,
       });
-      setResult(data);
-      if (!dryRun && data.job_id) {
+      setJob(data);
+      if (data.job_id) {
         pollJob(data.job_id);
       } else {
+        setResult(data);
         setLoading(false);
       }
     } catch (e) {
@@ -99,8 +110,39 @@ export default function WithdrawImportPanel() {
       </div>
 
       {err && (
-        <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm flex items-start gap-2">
+        <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm flex items-start gap-2" data-testid="admin-withdraw-import-error">
           <AlertCircle className="w-4 h-4 mt-0.5" /> <span>{String(err)}</span>
+        </div>
+      )}
+
+      {job && loading && (
+        <div className="rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs px-3 py-3 space-y-2" data-testid="admin-withdraw-import-job-status">
+          <div className="flex items-center gap-2 font-semibold">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            {job.progress_phase === "committing" ? "COMMIT BERJALAN DI BACKGROUND" : "MENGANALISIS DI BACKGROUND"}
+          </div>
+          <div className="flex justify-between gap-2">
+            <span>Fase</span>
+            <span className="font-mono" data-testid="admin-withdraw-import-job-phase">{job.progress_phase || job.status}</span>
+          </div>
+          {(job.progress_labels_total || 0) > 0 && (
+            <div className="flex justify-between gap-2">
+              <span>Label diproses</span>
+              <span className="font-mono" data-testid="admin-withdraw-import-job-progress">{job.progress_labels_done || 0} / {job.progress_labels_total}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {job?.status === "done" && !job?.dry_run && (
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs px-3 py-3 space-y-2" data-testid="admin-withdraw-import-job-complete">
+          <div className="flex items-center gap-2 font-semibold"><CheckCircle2 className="w-3.5 h-3.5" /> COMMIT SELESAI</div>
+          <div className="grid grid-cols-2 gap-1 pt-1">
+            <div>Label updated: <b className="font-mono">{job.result?.labels_period_updated || 0}</b></div>
+            <div>Baris flipped: <b className="font-mono">{(job.result?.royalty_lines_flipped || 0).toLocaleString("id-ID")}</b></div>
+            <div>Riwayat tersimpan: <b className="font-mono">{job.result?.history_docs_inserted || 0}</b></div>
+            <div>Saldo pending −: <b className="font-mono">{fmtIDR(job.result?.balance_pending_subtracted)}</b></div>
+          </div>
         </div>
       )}
 
@@ -110,52 +152,19 @@ export default function WithdrawImportPanel() {
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs px-3 py-2 flex items-center gap-2" data-testid="admin-withdraw-import-dryrun-banner">
               <AlertCircle className="w-3.5 h-3.5" /> Mode <b>dry-run</b> — data BELUM diubah. Review report di bawah, lalu uncheck Preview + klik COMMIT.
             </div>
-          ) : result.commit?.queued ? (
-            <div className="rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs px-3 py-2 space-y-1.5" data-testid="admin-withdraw-import-job-status">
-              <div className="flex items-center gap-2 font-semibold">
-                {job?.status === "done" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /> : <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {job?.status === "done" ? "COMMIT SELESAI" : "COMMIT BERJALAN DI BACKGROUND"}
-              </div>
-              {job && (
-                <>
-                  <div className="flex justify-between gap-2 pt-1">
-                    <span>Status</span>
-                    <span className={`font-semibold ${job.status === "done" ? "text-emerald-300" : job.status === "error" ? "text-red-300" : "text-amber-300"}`}>
-                      {job.status === "processing" ? "Memproses…" : job.status === "done" ? "SELESAI" : job.status === "error" ? "GAGAL" : job.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span>Labels diproses</span>
-                    <span className="font-mono">{job.progress_labels_done || 0} / {job.progress_labels_total || 0}</span>
-                  </div>
-                  {job.error_message && (
-                    <div className="text-red-300 mt-1 font-mono break-all">{job.error_message}</div>
-                  )}
-                  {job.status === "done" && job.result && (
-                    <div className="grid grid-cols-2 gap-1 pt-2 mt-1 border-t border-indigo-500/20">
-                      <div>Labels updated: <b className="font-mono">{job.result.labels_period_updated}</b></div>
-                      <div>Lines flipped: <b className="font-mono">{(job.result.royalty_lines_flipped || 0).toLocaleString("id-ID")}</b></div>
-                      <div>Riwayat tersimpan: <b className="font-mono">{job.result.history_docs_inserted}</b></div>
-                      <div>Saldo pending −: <b className="font-mono">{fmtIDR(job.result.balance_pending_subtracted)}</b></div>
-                      <div>Baris aktif dihitung ulang: <b className="font-mono">{(job.result.unwithdrawn_lines_recalculated || 0).toLocaleString("id-ID")}</b></div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
           ) : null}
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Stat label="Total CSV Rows" value={result.total_csv_rows} color="text-zinc-200" />
-            <Stat label="Label Cocok" value={result.matched_labels} color="text-emerald-300" />
-            <Stat label="Label Tidak Cocok" value={result.unmatched_label_count} color="text-amber-300" />
-            <Stat label="Baris Royalti → Withdrawn" value={(result.totals_preview?.royalty_lines_to_flip || 0).toLocaleString("id-ID")} color="text-indigo-300" />
-            <Stat label="Riwayat Disimpan" value={result.totals_preview?.history_docs_to_insert} color="text-rose-300" />
+            <Stat testId="admin-withdraw-import-total-rows" label="Total CSV Rows" value={result.total_csv_rows} color="text-zinc-200" />
+            <Stat testId="admin-withdraw-import-matched-labels" label="Label Cocok" value={result.matched_labels} color="text-emerald-300" />
+            <Stat testId="admin-withdraw-import-unmatched-labels" label="Label Tidak Cocok" value={result.unmatched_label_count} color="text-amber-300" />
+            <Stat testId="admin-withdraw-import-lines-to-flip" label="Baris Royalti → Withdrawn" value={(result.totals_preview?.royalty_lines_to_flip || 0).toLocaleString("id-ID")} color="text-indigo-300" />
+            <Stat testId="admin-withdraw-import-history-count" label="Riwayat Disimpan" value={result.totals_preview?.history_docs_to_insert} color="text-rose-300" />
           </div>
 
           {result.unmatched_label_count > 0 && (
             <div className="rm-card p-4">
-              <button onClick={() => setShowUnmatched((s) => !s)} className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-widest text-zinc-500">
+              <button onClick={() => setShowUnmatched((s) => !s)} className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-widest text-zinc-500" data-testid="admin-withdraw-import-unmatched-toggle">
                 <span>Nama Label Tidak Ditemukan — cek ejaan / belum ada di sistem</span>
                 <span className="text-amber-300">{result.unmatched_label_count} {showUnmatched ? "▾" : "▸"}</span>
               </button>

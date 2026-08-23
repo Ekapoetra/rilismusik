@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { Loader2, RefreshCw, XCircle, Trash2 } from "lucide-react";
@@ -14,16 +14,17 @@ export default function AdminRoyaltyDetail() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try { const { data } = await api.get(`/royalty/admin/imports/${id}`); setData(data); }
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
 
-  // Auto-poll every 3s while status is processing OR publishing
+  // Auto-poll every 3s while a background transition is running.
   const pollRef = useRef(null);
   useEffect(() => {
-    const inFlight = data?.import?.status === "processing" || data?.import?.status === "publishing";
+    const inFlight = ["processing", "publishing", "receiving"].includes(data?.import?.status)
+      || data?.import?.period_repair_status === "processing";
     if (inFlight && !pollRef.current) {
       pollRef.current = setInterval(load, 3000);
     } else if (!inFlight && pollRef.current) {
@@ -31,8 +32,7 @@ export default function AdminRoyaltyDetail() {
       pollRef.current = null;
     }
     return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
-    // eslint-disable-next-line
-  }, [data?.import?.status]);
+  }, [data?.import?.status, data?.import?.period_repair_status, load]);
 
   const publish = async () => {
     setBusy(true); setErr(""); setMsg("");
@@ -61,13 +61,26 @@ export default function AdminRoyaltyDetail() {
   };
   const markDana = async () => {
     setBusy(true); setErr(""); setMsg("");
-    try { await api.post(`/royalty/admin/imports/${id}/mark-dana-received`); setMsg("Dana ditandai diterima — saldo pending dipindah ke tersedia."); load(); }
+    try {
+      const { data: response } = await api.post(`/royalty/admin/imports/${id}/mark-dana-received`);
+      setMsg(response?.status === "receiving" ? "Pemindahan saldo dijadwalkan dan berjalan di background." : "Dana sudah diterima.");
+      load();
+    }
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
   };
   const retry = async () => {
     setBusy(true); setErr(""); setMsg("");
     try { await api.post(`/royalty/admin/imports/${id}/retry`); setMsg("Retry dijadwalkan — refresh otomatis akan menampilkan progress."); load(); }
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
+  };
+  const repairPeriod = async () => {
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const { data: response } = await api.post(`/royalty/admin/imports/${id}/repair-reporting-period`);
+      setMsg(response?.already_running ? "Reparasi Bulan laporan masih berjalan." : "Reparasi Bulan laporan dijadwalkan di background.");
+      load();
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    finally { setBusy(false); }
   };
 
   const remove = async () => {
@@ -107,6 +120,11 @@ export default function AdminRoyaltyDetail() {
               <Loader2 className="w-3 h-3 animate-spin" /> Publishing… {imp.publish_progress_pct || imp.progress_pct || 0}%
             </span>
           )}
+          {imp.status === "receiving" && (
+            <span className="px-3 py-2 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-300 flex items-center gap-2" data-testid="royalty-detail-status-receiving">
+              <Loader2 className="w-3 h-3 animate-spin" /> Memindahkan saldo… {imp.receive_progress_pct || imp.progress_pct || 0}%
+            </span>
+          )}
           {(imp.status === "processing" || imp.status === "error") && (
             <button className="rm-btn-ghost flex items-center gap-2" disabled={busy} onClick={retry} data-testid="admin-royalty-retry">
               <RefreshCw className="w-4 h-4" /> Retry
@@ -117,8 +135,13 @@ export default function AdminRoyaltyDetail() {
               {imp.status === "publish_error" ? "Coba Publish Lagi" : "Publish (kredit ke pending)"}
             </button>
           )}
-          {imp.status === "published" && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">Tandai Dana Diterima</button>}
-          {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">✓ Dana sudah diterima</span>}
+          {(imp.status === "published" || imp.status === "receive_error") && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">{imp.status === "receive_error" ? "Coba Tandai Dana Lagi" : "Tandai Dana Diterima"}</button>}
+          {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300" data-testid="royalty-detail-status-received">✓ Dana sudah diterima</span>}
+          {!['awaiting_upload', 'processing', 'publishing', 'receiving', 'deleting'].includes(imp.status) && imp.period_repair_status !== "processing" && (
+            <button className="rm-btn-ghost flex items-center gap-2 text-cyan-300" disabled={busy} onClick={repairPeriod} data-testid="admin-royalty-repair-period">
+              <RefreshCw className="w-4 h-4" /> Perbaiki Bulan Laporan
+            </button>
+          )}
           {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(imp.status) && (
             <button
               className="rm-btn-ghost text-rose-300 hover:bg-rose-500/10 flex items-center gap-2"
@@ -165,23 +188,64 @@ export default function AdminRoyaltyDetail() {
         </div>
       )}
 
-      {(imp.status === "error" || imp.status === "publish_error") && imp.error_message && (
+      {imp.status === "receiving" && (
+        <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-receive-progress">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-zinc-400">Memindahkan saldo pending menjadi tersedia di background…</span>
+            <span className="font-bold text-cyan-300">{imp.receive_progress_pct || imp.progress_pct || 0}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all" style={{ width: `${imp.receive_progress_pct || imp.progress_pct || 0}%` }} />
+          </div>
+          <div className="text-[11px] text-zinc-500">Proses idempoten dan otomatis dilanjutkan setelah backend restart.</div>
+        </div>
+      )}
+
+      {imp.period_repair_status === "processing" && (
+        <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-period-repair-progress">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-zinc-400">Memvalidasi ulang Bulan laporan dari CSV asli dan membangun ulang Analytics…</span>
+            <span className="font-bold text-cyan-300">{imp.period_repair_progress_pct || 0}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-cyan-400 to-sky-400 transition-all" style={{ width: `${imp.period_repair_progress_pct || 0}%` }} />
+          </div>
+          <div className="text-[11px] text-zinc-500">Nominal, saldo, dan status royalti tidak diubah.</div>
+        </div>
+      )}
+
+      {imp.period_repair_status === "done" && (
+        <div className="rounded-2xl bg-cyan-500/10 border border-cyan-500/20 px-4 py-3 text-sm text-cyan-200" data-testid="royalty-detail-period-repair-complete">
+          Bulan laporan sudah diperbaiki dari CSV asli dan cache Analytics sudah dibangun ulang.
+        </div>
+      )}
+
+      {imp.period_repair_status === "error" && imp.period_repair_error && (
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200" data-testid="royalty-detail-period-repair-error">
+          <div className="font-bold">Reparasi Bulan laporan gagal</div>
+          <div className="mt-1 text-red-200/80">{imp.period_repair_error}</div>
+        </div>
+      )}
+
+      {(imp.status === "error" || imp.status === "publish_error" || imp.status === "receive_error") && imp.error_message && (
         <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200 flex items-start gap-3" data-testid="royalty-detail-error-banner">
           <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
-            <div className="font-bold">{imp.status === "publish_error" ? "Publish gagal" : "Import gagal"}</div>
+            <div className="font-bold">{imp.status === "publish_error" ? "Publish gagal" : imp.status === "receive_error" ? "Penerimaan dana gagal" : "Import gagal"}</div>
             <div className="text-red-200/80 mt-1">{imp.error_message}</div>
             <div className="text-[11px] text-red-200/60 mt-1">
               {imp.status === "publish_error"
                 ? "Klik tombol \"Coba Publish Lagi\" di atas — proses idempotent, label yang sudah dikredit tidak akan didouble."
+                : imp.status === "receive_error"
+                  ? "Klik tombol \"Coba Tandai Dana Lagi\" — saldo yang sudah dipindahkan tidak akan dihitung dua kali."
                 : "Klik Retry jika file CSV masih ada di server, atau upload ulang."}
             </div>
           </div>
         </div>
       )}
 
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-royalty-detail-error">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-royalty-detail-message">{msg}</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card label="Total Lines" v={imp.total_lines} />

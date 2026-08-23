@@ -1,9 +1,7 @@
 """Phase 23.1 — CSV `Bulan Laporan` column priority.
 
-User explicitly requested: when processing a royalty CSV, the `Bulan Laporan`
-column (CSV row value, `row_period`) MUST take priority over the form's
-`period` input. The form's period is only a fallback for legacy CSVs that
-omit the Bulan Laporan column.
+User explicitly requested: the `Bulan Laporan` column is the ONLY period
+source. The form field and `Bulan Penjualan` must never be fallbacks.
 
 Why this matters: multi-period Believe CSVs (one upload containing rows from
 multiple months) require each row's true period to be preserved for analytics,
@@ -16,12 +14,13 @@ import csv as _csv
 import time
 import uuid
 import requests
+from tests.support_config import SUPERADMIN
 import pytest
 import pymongo
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
 
 
 def _db():
@@ -131,10 +130,7 @@ def test_csv_bulan_laporan_overrides_form_period(super_token):
         db.labels.delete_many({"label_name": "PHASE231_TEST_LABEL"})
 
 
-def test_form_period_used_as_fallback_when_csv_lacks_bulan_laporan(super_token):
-    """If a (very) legacy CSV omits the Bulan Laporan column entirely, the
-    form's period should be applied as fallback."""
-    db = _db()
+def test_missing_bulan_laporan_is_rejected_even_with_form_period(super_token):
     # Build a CSV WITHOUT the `Bulan Laporan` column
     buf = io.StringIO()
     writer = _csv.writer(buf, quoting=_csv.QUOTE_ALL)
@@ -149,21 +145,5 @@ def test_form_period_used_as_fallback_when_csv_lacks_bulan_laporan(super_token):
         f"{API}/royalty/admin/imports",
         headers=_hdr(super_token), files=files, data=data, timeout=60,
     )
-    assert r.status_code in (200, 201, 202), f"upload failed: {r.text}"
-    import_id = r.json()["id"]
-    try:
-        imp = _wait_until_done(import_id, super_token, max_wait_sec=30)
-        # Form fallback should kick in — all rows tagged with form period
-        assert imp.get("period_breakdown", {}).get("2023-07") == 1, (
-            f"expected 1 row tagged 2023-07 (form fallback), got {imp.get('period_breakdown')}"
-        )
-        assert imp.get("is_multi_period") is False
-        # Now verify each line really carries the form period
-        lines = list(db.royalty_lines.find({"import_id": import_id}))
-        assert all(ln["period"] == "2023-07" for ln in lines), (
-            f"all rows should fall back to form period, got {[ln['period'] for ln in lines]}"
-        )
-    finally:
-        requests.delete(f"{API}/royalty/admin/imports/{import_id}", headers=_hdr(super_token), timeout=30)
-        time.sleep(3)
-        db.labels.delete_many({"label_name": "PHASE231_LEGACY"})
+    assert r.status_code == 400, r.text
+    assert "Bulan laporan" in r.text

@@ -12,16 +12,18 @@ Covers areas not explicitly exercised by phase2-6 suites:
 import os
 import uuid
 import requests
+from dotenv import dotenv_values
+from tests.support_config import DEMO_PPR, DEMO_VIP, FINANCE, MARKETING, RELEASE_ADMIN, SUPPORT, SUPERADMIN, temporary_password
 import pytest
 
-BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
-SA_EMAIL = "superadmin@rilismusik.com"
-SA_PASS = "SuperAdmin#2026"
+BASE = (os.environ.get("REACT_APP_BACKEND_URL") or dotenv_values("/app/frontend/.env")["REACT_APP_BACKEND_URL"]).rstrip("/")
+SA_EMAIL = SUPERADMIN["email"]
+SA_PASS = SUPERADMIN["password"]
 SUB_ADMINS = [
-    ("finance1@rilismusik.com", "Finance#2026"),
-    ("support1@rilismusik.com", "Support#2026"),
-    ("release1@rilismusik.com", "Release#2026"),
-    ("marketing1@rilismusik.com", "Marketing#2026"),
+    (FINANCE["email"], FINANCE["password"]),
+    (SUPPORT["email"], SUPPORT["password"]),
+    (RELEASE_ADMIN["email"], RELEASE_ADMIN["password"]),
+    (MARKETING["email"], MARKETING["password"]),
 ]
 
 
@@ -29,6 +31,27 @@ def _mongo_db():
     import pymongo
     client = pymongo.MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
     return client[os.environ.get("DB_NAME", "test_database")]
+
+
+def _cleanup_refactor_artifacts():
+    db = _mongo_db()
+    labels = list(db.labels.find({"$or": [
+        {"label_name": {"$regex": "^Refactor Test Label"}},
+        {"email": {"$regex": "^test_refactor_"}},
+    ]}, {"_id": 0, "id": 1, "user_id": 1}))
+    label_ids = [label["id"] for label in labels]
+    user_ids = [label.get("user_id") for label in labels if label.get("user_id")]
+    for collection in ("royalty_lines", "withdraw_requests", "balance_transactions", "contracts", "releases", "tracks", "artists", "bank_accounts"):
+        db[collection].delete_many({"label_id": {"$in": label_ids}})
+    db.labels.delete_many({"id": {"$in": label_ids}})
+    db.users.delete_many({"$or": [{"id": {"$in": user_ids}}, {"email": {"$regex": "^test_refactor_"}}]})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_refactor_artifacts():
+    _cleanup_refactor_artifacts()
+    yield
+    _cleanup_refactor_artifacts()
 
 
 def _login(email, password):
@@ -69,7 +92,7 @@ def test_register_persists_verification_token_then_logout():
     email = f"test_refactor_{suffix}@example.com"
     payload = {
         "email": email,
-        "password": "Passw0rd!2026",
+        "password": temporary_password("refactor-smoke"),
         "label_name": f"Refactor Test Label {suffix}",
         "contact_name": "Refactor Tester",
         "pic_name": "Refactor Tester",
@@ -116,9 +139,9 @@ def test_admin_dashboards_and_lists():
 
 def test_admin_cron_triggers_role_matrix():
     sa_tok, _ = _login(SA_EMAIL, SA_PASS)
-    fin_tok, _ = _login("finance1@rilismusik.com", "Finance#2026")
-    sup_tok, _ = _login("support1@rilismusik.com", "Support#2026")
-    rel_tok, _ = _login("release1@rilismusik.com", "Release#2026")
+    fin_tok, _ = _login(FINANCE["email"], FINANCE["password"])
+    sup_tok, _ = _login(SUPPORT["email"], SUPPORT["password"])
+    rel_tok, _ = _login(RELEASE_ADMIN["email"], RELEASE_ADMIN["password"])
 
     # subscription-check: super_admin + finance OK, support/release 403
     for tok in (sa_tok, fin_tok):
@@ -146,12 +169,17 @@ def _find_label(sa_tok, query):
     return items[0]
 
 
+def _demo_login(label):
+    email = label.get("primary_user_email") or label.get("owner_email") or label.get("email")
+    assert email, f"label record missing email field: {label.keys()}"
+    credentials = DEMO_VIP if email == DEMO_VIP["email"] else DEMO_PPR
+    return _login(email, credentials["password"])
+
+
 def test_label_dashboard_strips_internal_fields():
     sa_tok, _ = _login(SA_EMAIL, SA_PASS)
-    lbl = _find_label(sa_tok, "Khizanah")
-    email = lbl.get("primary_user_email") or lbl.get("owner_email") or lbl.get("email")
-    assert email, f"label record missing email field: {lbl.keys()}"
-    tok, login_data = _login(email, "Demo#2026")
+    lbl = _find_label(sa_tok, "Demo Label PPR")
+    tok, login_data = _demo_login(lbl)
     # login response should already redact
     lbl_in_login = login_data.get("label") or {}
     for f in ("royalty_percentage_default", "royalty_percentage_history", "default_royalty_share"):
@@ -174,9 +202,8 @@ def test_label_dashboard_strips_internal_fields():
 
 def test_label_withdraw_window():
     sa_tok, _ = _login(SA_EMAIL, SA_PASS)
-    lbl = _find_label(sa_tok, "Khizanah")
-    email = lbl.get("primary_user_email") or lbl.get("owner_email") or lbl.get("email")
-    tok, _ = _login(email, "Demo#2026")
+    lbl = _find_label(sa_tok, "Demo Label PPR")
+    tok, _ = _demo_login(lbl)
     r = requests.get(f"{BASE}/api/withdraw/window", headers=_hdr(tok), timeout=10)
     assert r.status_code == 200
     body = r.json()
@@ -185,9 +212,8 @@ def test_label_withdraw_window():
 
 def test_notifications_me_shape():
     sa_tok, _ = _login(SA_EMAIL, SA_PASS)
-    lbl = _find_label(sa_tok, "Khizanah")
-    email = lbl.get("primary_user_email") or lbl.get("owner_email") or lbl.get("email")
-    tok, _ = _login(email, "Demo#2026")
+    lbl = _find_label(sa_tok, "Demo Label PPR")
+    tok, _ = _demo_login(lbl)
     r = requests.get(f"{BASE}/api/notifications/me", headers=_hdr(tok), timeout=10)
     assert r.status_code == 200
     data = r.json()
@@ -198,12 +224,10 @@ def test_release_404_for_other_label():
     """Verifies the renamed `label_uids` variable (was label_user_ids) in releases admin action did not break label-side access."""
     sa_tok, _ = _login(SA_EMAIL, SA_PASS)
     # Find two different labels with releases
-    lbl_a = _find_label(sa_tok, "Khizanah")
-    lbl_b = _find_label(sa_tok, "Mustafa")
-    email_a = lbl_a.get("primary_user_email") or lbl_a.get("owner_email") or lbl_a.get("email")
-    email_b = lbl_b.get("primary_user_email") or lbl_b.get("owner_email") or lbl_b.get("email")
-    tok_a, _ = _login(email_a, "Demo#2026")
-    tok_b, _ = _login(email_b, "Demo#2026")
+    lbl_a = _find_label(sa_tok, "Demo Label PPR")
+    lbl_b = _find_label(sa_tok, "Demo Label VIP")
+    tok_a, _ = _demo_login(lbl_a)
+    tok_b, _ = _demo_login(lbl_b)
 
     # label A lists releases
     r = requests.get(f"{BASE}/api/releases/", headers=_hdr(tok_a), timeout=20)

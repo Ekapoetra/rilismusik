@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { Music, CheckCircle2, Clock, AlertTriangle, X, Star } from "lucide-react";
 
@@ -33,13 +33,13 @@ export default function AdminWami() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const params = statusFilter ? { status: statusFilter } : {};
     const { data } = await api.get("/wami/admin", { params });
     setItems(data);
-  };
+  }, [statusFilter]);
 
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => { load(); }, [load]);
 
   const openUpdate = (o) => {
     setModal(o);

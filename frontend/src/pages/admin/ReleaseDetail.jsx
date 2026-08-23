@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -15,13 +15,13 @@ export default function AdminReleaseDetail() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get(`/releases/${id}`);
     setData(data);
     setUpc(data.upc || "");
     setIsrc(data.tracks?.[0]?.isrc || "");
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const act = async (action) => {
     setErr(""); setMsg(""); setBusy(true);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
@@ -21,13 +21,13 @@ export default function Invoices() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [{ data: invoices }, { data: services }] = await Promise.all([
       api.get("/label/invoices"), api.get("/payments/products"),
     ]);
     setItems(invoices); setProducts(services);
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
@@ -45,7 +45,7 @@ export default function Invoices() {
       .catch((e) => active && setErr(formatApiError(e.response?.data?.detail || e.message)))
       .finally(() => active && setPollingId(null));
     return () => { active = false; };
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, load]);
 
   const createAndCheckout = async (path, payload) => {
     setErr(""); setMsg(""); setLoading(true);

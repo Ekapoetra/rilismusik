@@ -16,12 +16,13 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import SUPPORT as SUPPORT_CRED, SUPERADMIN
 import pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-SUPPORT = ("support1@rilismusik.com", "Support#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+SUPPORT = (SUPPORT_CRED["email"], SUPPORT_CRED["password"])
 
 
 def _mongo_db():
@@ -38,6 +39,33 @@ def _login(email, password):
 
 def _hdr(t):
     return {"Authorization": f"Bearer {t}"}
+
+
+def _wait_job(job_id, token, max_wait=30):
+    deadline = time.time() + max_wait
+    while time.time() < deadline:
+        response = requests.get(
+            f"{API}/admin/migrate/jobs/{job_id}", headers=_hdr(token), timeout=15,
+        )
+        response.raise_for_status()
+        job = response.json()
+        if job["status"] in ("done", "error"):
+            return job
+        time.sleep(0.25)
+    raise AssertionError(f"job {job_id} did not finish within {max_wait}s")
+
+
+def _preview_and_wait(csv_bytes, token):
+    response = requests.post(
+        f"{API}/admin/migrate/withdraws-legacy-period",
+        files={"file": ("preview.csv", csv_bytes, "text/csv")},
+        data={"dry_run": "true"}, headers=_hdr(token), timeout=30,
+    )
+    assert response.status_code == 200, response.text
+    queued = response.json()
+    job = _wait_job(queued["job_id"], token)
+    assert job["status"] == "done", job.get("error_message")
+    return job["result"]
 
 
 def _make_csv(rows):
@@ -126,13 +154,7 @@ def test_dry_run_does_not_mutate(super_token, seeded_labels):
     ]
     csv = _make_csv(rows)
     before = db.labels.find_one({"id": f"phase22-A-{test_id}"}, {"last_withdrawn_period": 1})
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("w.csv", csv, "text/csv")},
-        data={"dry_run": "true"}, headers=_hdr(super_token), timeout=30,
-    )
-    assert r.status_code == 200, r.text
-    body = r.json()
+    body = _preview_and_wait(csv, super_token)
     assert body["dry_run"] is True
     assert body["matched_labels"] == 2
     assert body["totals_preview"]["labels_period_will_advance"] == 2
@@ -153,12 +175,7 @@ def test_fuzzy_matcher_handles_punctuation_and_pt_prefix(super_token, seeded_lab
         {"trx_id": "F2", "nama_label": "phase22 - music - label", "period_start": "2024-01", "period_end": "2024-06"},
         {"trx_id": "F3", "nama_label": "PHASE22 MUSIC LABEL.", "period_start": "2024-07", "period_end": "2025-03"},
     ])
-    r = requests.post(
-        f"{API}/admin/migrate/withdraws-legacy-period",
-        files={"file": ("f.csv", csv, "text/csv")},
-        data={"dry_run": "true"}, headers=_hdr(super_token), timeout=30,
-    )
-    body = r.json()
+    body = _preview_and_wait(csv, super_token)
     assert body["matched_labels"] == 1  # all 3 collapse to one label
     sm = body["label_summaries"][0]
     assert sm["new_last_withdrawn_period"] == "2025-03"  # MAX of 3 period_ends
@@ -177,23 +194,14 @@ def _commit_and_wait(csv_bytes, super_token, max_wait=20):
         data={"dry_run": "false"}, headers=_hdr(super_token), timeout=60,
     )
     assert r.status_code == 200, r.text
-    body = r.json()
-    if not body["commit"].get("queued"):
-        return body  # nothing to commit (or sync path) — return as-is
-    job_id = body["commit"]["job_id"]
-    deadline = time.time() + max_wait
-    while time.time() < deadline:
-        jr = requests.get(f"{API}/admin/migrate/jobs/{job_id}",
-                          headers=_hdr(super_token), timeout=15)
-        if jr.status_code == 200:
-            job = jr.json()
-            if job["status"] == "done":
-                body["commit"] = {**job["result"], "queued": True, "job_id": job_id}
-                return body
-            if job["status"] == "error":
-                raise AssertionError(f"job errored: {job.get('error_message')}")
-        time.sleep(0.5)
-    raise AssertionError(f"job {job_id} did not finish within {max_wait}s")
+    queued = r.json()
+    job_id = queued["job_id"]
+    job = _wait_job(job_id, super_token, max_wait=max_wait)
+    if job["status"] == "error":
+        raise AssertionError(f"job errored: {job.get('error_message')}")
+    body = job.get("preview_result") or {}
+    body["commit"] = {**job["result"], "queued": True, "job_id": job_id}
+    return body
 
 
 def test_commit_idempotent(super_token, seeded_labels):

@@ -24,6 +24,7 @@ import time
 import uuid
 import pytest
 import requests
+from tests.support_config import SUPERADMIN
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -35,7 +36,6 @@ if not BASE_URL:
                 BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
                 break
 
-SUPERADMIN = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "rilismusik_db")
 

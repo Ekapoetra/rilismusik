@@ -16,12 +16,13 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import SUPERADMIN
 import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
+SUPER = SUPERADMIN
 
 
 def _login(creds):

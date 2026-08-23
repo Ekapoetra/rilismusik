@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
+from tests.support_config import temporary_token
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 SMTP_USER = os.environ.get("SMTP_USER")
@@ -48,7 +49,7 @@ def test_send_verification_email_via_smtp():
         return await send_verification_email(
             to=SMTP_USER,  # send to self (always deliverable)
             pic_name="Pytest Phase 11",
-            token="pytest-token-smtp",
+            token=temporary_token("verification"),
         )
 
     msg_id = asyncio.run(run())
@@ -63,7 +64,7 @@ def test_send_password_reset_email_via_smtp():
     async def run():
         return await send_password_reset_email(
             to=SMTP_USER,
-            token="pytest-reset-smtp",
+            token=temporary_token("reset"),
         )
 
     msg_id = asyncio.run(run())

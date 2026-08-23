@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { Calendar, TrendingUp } from "lucide-react";
 
@@ -19,7 +19,7 @@ export default function AdminArtists() {
   const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -31,18 +31,20 @@ export default function AdminArtists() {
       data.sort((a, b) => (b.revenue_idr || 0) - (a.revenue_idr || 0));
       setItems(data);
     } finally { setLoading(false); }
-  };
+  }, [q, periodFrom, periodTo]);
 
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/admin/analytics/periods");
         setPeriods(data.periods || []);
-      } catch (_) { /* analytics cache may be cold; ignore */ }
+      } catch (error) {
+        console.warn("Analytics periods unavailable; artist list remains usable.", error);
+      }
     })();
     load();
-  }, []);
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [periodFrom, periodTo]);
+  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const totalRev = items.reduce((s, a) => s + (a.revenue_idr || 0), 0);
 

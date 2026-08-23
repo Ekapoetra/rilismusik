@@ -11,12 +11,14 @@
 import io
 import os
 import uuid
+import time
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, SUPERADMIN, temporary_password
 import pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
 
 
 def _login(email, pw):
@@ -27,6 +29,27 @@ def _login(email, pw):
 
 def _h(t):
     return {"Authorization": f"Bearer {t}"}
+
+
+def _cleanup_phase8_artifacts():
+    import pymongo
+    sync_db = pymongo.MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    labels = list(sync_db.labels.find({"$or": [
+        {"label_name": {"$regex": "^Phase8X Label"}},
+        {"email": {"$regex": "^(claim_p8_|reject_p8_)"}},
+    ]}, {"_id": 0, "id": 1, "user_id": 1}))
+    label_ids = [label["id"] for label in labels]
+    user_ids = [label.get("user_id") for label in labels if label.get("user_id")]
+    sync_db.royalty_lines.delete_many({"label_id": {"$in": label_ids}})
+    sync_db.labels.delete_many({"id": {"$in": label_ids}})
+    sync_db.users.delete_many({"$or": [{"id": {"$in": user_ids}}, {"email": {"$regex": "^(claim_p8_|reject_p8_)"}}]})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_phase8_artifacts():
+    _cleanup_phase8_artifacts()
+    yield
+    _cleanup_phase8_artifacts()
 
 
 @pytest.fixture(scope="module")
@@ -187,7 +210,19 @@ class TestMultiPeriodPublish:
             timeout=30,
         )
         assert pub.status_code == 200, pub.text
-        assert pub.json()["status"] == "published"
+        assert pub.json()["status"] in ("publishing", "published")
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            current = requests.get(
+                f"{API}/royalty/admin/imports/{import_id}", headers=_h(super_token), timeout=15,
+            ).json()
+            if current["import"]["status"] == "published":
+                break
+            if current["import"]["status"] == "publish_error":
+                raise AssertionError(current)
+            time.sleep(0.3)
+        else:
+            raise AssertionError("Publish background job timeout")
 
         # Check balance_transactions description for "s/d"
         # We use admin endpoint to fetch the import detail (includes per_label)
@@ -207,7 +242,7 @@ class TestRejectClaim:
                 "pic_name": "Rejected User",
                 "email": email,
                 "whatsapp": "081200099099",
-                "password": "Reject#2026",
+                "password": temporary_password("phase8-reject"),
                 "account_type": "label",
                 "mda_accepted": True,
                 "claim_existing": True,
@@ -241,7 +276,7 @@ class TestRejectClaim:
 class TestPermissionsExtra:
     def test_finance_cannot_link_claim(self):
         # Finance is not in (super_admin, admin_release, admin_support)
-        tok = _login("finance1@rilismusik.com", "Finance#2026")
+        tok = _login(FINANCE_CRED["email"], FINANCE_CRED["password"])
         # We don't have a real pending user_id but the role check fires first → 403
         r = requests.post(
             f"{API}/admin/migrate/claims/fake_user_id/link/fake_label_id",

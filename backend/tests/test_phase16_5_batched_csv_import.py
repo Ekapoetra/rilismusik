@@ -18,11 +18,12 @@ from pathlib import Path
 
 import pytest
 import requests
+from tests.support_config import SUPERADMIN
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
 
 
 def _mongo_db():

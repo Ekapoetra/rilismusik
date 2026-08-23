@@ -12,13 +12,14 @@ from dotenv import dotenv_values, load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from auth_utils import hash_password
+from tests.support_config import SUPERADMIN, temporary_password
 
 
 load_dotenv("/app/backend/.env", override=True)
 FRONTEND_ENV = dotenv_values("/app/frontend/.env")
 BASE = (os.environ.get("REACT_APP_BACKEND_URL") or FRONTEND_ENV["REACT_APP_BACKEND_URL"]).rstrip("/")
 API = f"{BASE}/api"
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
+SUPER = SUPERADMIN
 
 
 def _db():
@@ -130,7 +131,7 @@ def test_custom_product_and_local_invoices_do_not_call_xendit():
     user_id = f"xendit-user-{suffix}"
     label_id = f"xendit-label-{suffix}"
     email = f"xendit-{suffix}@example.com"
-    password = "XenditPhase33#2026"
+    password = temporary_password("phase33")
     now = datetime.now(timezone.utc).isoformat()
     db.users.insert_one({
         "id": user_id, "name": "Xendit Label", "email": email,

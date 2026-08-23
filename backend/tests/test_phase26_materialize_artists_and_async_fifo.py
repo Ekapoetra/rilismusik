@@ -17,13 +17,14 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, SUPERADMIN
 import pytest
 import pymongo
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
 
 
 def _db():
@@ -319,8 +320,8 @@ def test_withdraw_fifo_commit_returns_job_id_and_runs_in_background(super_token)
         db.migrate_jobs.delete_many({"submitted_by": {"$exists": True}})
 
 
-def test_withdraw_fifo_dry_run_still_synchronous(super_token):
-    """Dry-run must NOT spawn a job — returns full preview synchronously."""
+def test_withdraw_fifo_dry_run_runs_in_background(super_token):
+    """Dry-run analysis is backgrounded to avoid ingress timeout."""
     db = _db()
     label_id = f"phase26-dry-{uuid.uuid4().hex[:8]}"
     db.labels.insert_one({"id": label_id, "label_name": "Phase26 Dry Lab"})
@@ -339,7 +340,10 @@ def test_withdraw_fifo_dry_run_still_synchronous(super_token):
         assert j["dry_run"] is True
         assert j["commit"]["applied"] is False
         assert j["commit"].get("queued") is not True
-        assert j.get("job_id") is None
+        assert j.get("job_id")
+        job = _wait_for_job(super_token, j["job_id"])
+        assert job["status"] == "done"
+        assert job["result"]["matched_labels"] == 1
     finally:
         db.labels.delete_one({"id": label_id})
 

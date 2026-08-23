@@ -26,6 +26,7 @@ from .deps import (
 )
 from models import now_iso, new_id
 from .royalty_recalculation import recalculate_label_unwithdrawn, trigger_royalty_caches
+from .dashboard_cache import schedule_recompute as schedule_dashboard_recompute
 
 
 migrate_r = APIRouter(prefix="/admin/migrate", tags=["admin-migrate"])
@@ -789,7 +790,67 @@ async def bulk_import_withdraws_legacy_period(
     adjust_balances: bool = Form(True),
     user: dict = Depends(require_admin),
 ):
-    """Migrate `music_withdrawals.csv` (legacy schema) into the FIFO system.
+    """Queue legacy-withdraw analysis/commit and return without waiting.
+
+    Both preview and commit run in background because preview itself aggregates
+    millions of royalty rows and can exceed the ingress timeout.
+    """
+    _require_migrate_role(user)
+    content = await file.read()
+    rows = _read_csv_bytes(content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV kosong")
+    if not any("period_end" in row for row in rows[:5]):
+        raise HTTPException(status_code=400, detail="Kolom 'period_end' tidak ditemukan di CSV")
+
+    job_id = new_id()
+    submitted_at = now_iso()
+    await db_bg.migrate_jobs.insert_one({
+        "id": job_id,
+        "kind": "withdraws_legacy_period",
+        "status": "queued",
+        "dry_run": dry_run,
+        "submitted_by": user["id"],
+        "submitted_at": submitted_at,
+        "updated_at": submitted_at,
+        "progress_phase": "queued",
+        "progress_labels_done": 0,
+        "progress_labels_total": 0,
+        "options": {
+            "create_history_docs": create_history_docs,
+            "flip_royalty_lines": flip_royalty_lines,
+            "adjust_balances": adjust_balances,
+        },
+    })
+    import asyncio
+    asyncio.create_task(_run_legacy_withdraw_import_job(
+        job_id=job_id,
+        content=content,
+        dry_run=dry_run,
+        create_history_docs=create_history_docs,
+        flip_royalty_lines=flip_royalty_lines,
+        adjust_balances=adjust_balances,
+        user=user,
+    ))
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "dry_run": dry_run,
+        "commit": {"applied": False, "queued": not dry_run, "job_id": job_id},
+    }
+
+
+async def _analyze_legacy_withdraw_import(
+    *,
+    job_id: str,
+    content: bytes,
+    dry_run: bool,
+    create_history_docs: bool,
+    flip_royalty_lines: bool,
+    adjust_balances: bool,
+    user: dict,
+):
+    """Build the preview and optionally queue the write phase.
 
     Per-row effect (when not dry_run):
       1. For each unique `nama_label` in the CSV:
@@ -811,7 +872,6 @@ async def bulk_import_withdraws_legacy_period(
     Returns a detailed dry-run report so admin can review BEFORE committing.
     """
     _require_migrate_role(user)
-    content = await file.read()
     rows = _read_csv_bytes(content)
     if not rows:
         raise HTTPException(status_code=400, detail="CSV kosong")
@@ -823,7 +883,7 @@ async def bulk_import_withdraws_legacy_period(
     # ---- Build label name index ----
     labels_by_norm: Dict[str, dict] = {}
     label_id_to_doc: Dict[str, dict] = {}
-    async for lab in db.labels.find({}, {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1, "balance_available_idr": 1, "balance_pending_idr": 1, "royalty_percentage_default": 1}):
+    async for lab in db_bg.labels.find({}, {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1, "balance_available_idr": 1, "balance_pending_idr": 1, "royalty_percentage_default": 1}):
         norm = _normalize_label_name(lab.get("label_name"))
         if norm:
             labels_by_norm.setdefault(norm, lab)  # keep first match on conflict
@@ -899,7 +959,7 @@ async def bulk_import_withdraws_legacy_period(
     total_history_to_insert = 0
     total_balance_pending_adj = 0
     total_balance_available_adj = 0
-    active_withdraw_label_ids = set(await db.withdraw_requests.distinct("label_id", {
+    active_withdraw_label_ids = set(await db_bg.withdraw_requests.distinct("label_id", {
         "status": {"$in": ["requested", "approved"]},
         "legacy_import": {"$ne": True},
     }))
@@ -964,7 +1024,6 @@ async def bulk_import_withdraws_legacy_period(
     # ---- Apply if not dry-run (Phase 26: commit is now async to avoid the
     # 120s ingress timeout on production datasets of 3M+ royalty_lines) ----
     commit_meta: Dict[str, Any] = {"applied": False}
-    job_id: Optional[str] = None
     if not dry_run and per_label_csv:
         blocked_labels = [
             bucket["label_name"] for label_id, bucket in per_label_csv.items()
@@ -978,31 +1037,30 @@ async def bulk_import_withdraws_legacy_period(
                     "Selesaikan atau tolak request tersebut terlebih dahulu."
                 ),
             )
-        job_id = new_id()
-        # Persist a job doc the frontend can poll. The dry-run preview totals
-        # are saved alongside so the polling response is self-contained.
-        await db.migrate_jobs.insert_one({
-            "id": job_id,
-            "kind": "withdraws_legacy_period",
-            "status": "processing",
-            "submitted_by": user["id"],
-            "submitted_at": now_iso(),
-            "updated_at": now_iso(),
-            "progress_labels_done": 0,
-            "progress_labels_total": len(per_label_csv),
-            "options": {
+        # Reuse the request job created by the endpoint so the frontend only
+        # needs to poll one id from analysis through commit completion.
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "processing",
+                "progress_phase": "committing",
+                "updated_at": now_iso(),
+                "progress_labels_done": 0,
+                "progress_labels_total": len(per_label_csv),
+                "options": {
                 "create_history_docs": create_history_docs,
                 "flip_royalty_lines": flip_royalty_lines,
                 "adjust_balances": adjust_balances,
-            },
-            "totals_preview": {
-                "labels_period_will_advance": total_labels_updated,
-                "royalty_lines_to_flip": total_lines_to_flip,
-                "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
-                "balance_pending_to_subtract": total_balance_pending_adj,
-                "balance_available_to_subtract": total_balance_available_adj,
-            },
-        })
+                },
+                "totals_preview": {
+                    "labels_period_will_advance": total_labels_updated,
+                    "royalty_lines_to_flip": total_lines_to_flip,
+                    "history_docs_to_insert": total_history_to_insert if create_history_docs else 0,
+                    "balance_pending_to_subtract": total_balance_pending_adj,
+                    "balance_available_to_subtract": total_balance_available_adj,
+                },
+            }},
+        )
         import asyncio
         asyncio.create_task(_commit_legacy_period_bg(
             job_id=job_id,
@@ -1044,6 +1102,62 @@ async def bulk_import_withdraws_legacy_period(
             "adjust_balances": adjust_balances,
         },
     }
+
+
+async def _run_legacy_withdraw_import_job(
+    *,
+    job_id: str,
+    content: bytes,
+    dry_run: bool,
+    create_history_docs: bool,
+    flip_royalty_lines: bool,
+    adjust_balances: bool,
+    user: dict,
+):
+    """Background wrapper for the expensive preview and optional commit."""
+    try:
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "processing", "progress_phase": "analyzing", "updated_at": now_iso()}},
+        )
+        result = await _analyze_legacy_withdraw_import(
+            job_id=job_id,
+            content=content,
+            dry_run=dry_run,
+            create_history_docs=create_history_docs,
+            flip_royalty_lines=flip_royalty_lines,
+            adjust_balances=adjust_balances,
+            user=user,
+        )
+        commit_queued = bool(result.get("commit", {}).get("queued"))
+        if commit_queued:
+            await db_bg.migrate_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"preview_result": result, "updated_at": now_iso()}},
+            )
+        else:
+            await db_bg.migrate_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "done",
+                    "progress_phase": "done",
+                    "result": result,
+                    "finished_at": now_iso(),
+                    "updated_at": now_iso(),
+                }},
+            )
+    except Exception as exc:
+        logger.exception("[WITHDRAW IMPORT BG] job %s failed: %s", job_id, exc)
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "error",
+                "progress_phase": "error",
+                "error_message": f"{type(exc).__name__}: {str(exc)[:400]}",
+                "finished_at": now_iso(),
+                "updated_at": now_iso(),
+            }},
+        )
 
 
 async def _commit_legacy_period_bg(
@@ -1456,8 +1570,7 @@ async def backfill_royalty_period_from_row(
     # Invalidate metrics + analytics caches in the background so charts refresh
     import asyncio as _aio
     try:
-        from routes.admin import _recompute_revenue_cache
-        _aio.create_task(_recompute_revenue_cache())
+        schedule_dashboard_recompute()
     except Exception:
         pass
     try:

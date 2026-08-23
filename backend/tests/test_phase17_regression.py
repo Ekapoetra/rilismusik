@@ -12,6 +12,7 @@ import uuid
 import requests
 import pytest
 from pathlib import Path
+from tests.support_config import SUPERADMIN, temporary_password
 
 # Load backend .env
 _env = Path(__file__).resolve().parents[1] / ".env"
@@ -23,8 +24,8 @@ if _env.exists():
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
 
 
 def _rand_email(prefix="reg"):
@@ -43,7 +44,7 @@ def _mongo_db():
 class TestLabelAuthRegression:
     def test_register_login_me_logout_flow(self):
         email = _rand_email("flow")
-        password = "Password#123"
+        password = temporary_password("phase17-flow")
 
         # Register
         r = requests.post(f"{API}/auth/register", json={
@@ -88,8 +89,8 @@ class TestLabelAuthRegression:
 
     def test_forgot_then_reset_then_relogin(self):
         email = _rand_email("reset")
-        original_pw = "Password#123"
-        new_pw = "Brand_NewPW#999"
+        original_pw = temporary_password("phase17-old")
+        new_pw = temporary_password("phase17-new")
 
         # Register
         r = requests.post(f"{API}/auth/register", json={

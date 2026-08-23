@@ -10,12 +10,16 @@ from datetime import date, timedelta
 
 import pytest
 import requests
+from tests.support_config import DEMO_PASSWORD, FINANCE, RELEASE_ADMIN, SUPPORT, SUPERADMIN, temporary_password
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
+TEST_USER_PASSWORD = temporary_password("api-user")
+TEST_NEW_PASSWORD = temporary_password("api-new")
+WRONG_PASSWORD = temporary_password("wrong")
 
 
 def _mongo_db():
@@ -55,12 +59,12 @@ def label_session():
     email = _rand_email("label")
     r = s.post(f"{API}/auth/register", json={
         "label_name": "TEST Label", "pic_name": "PIC", "email": email,
-        "whatsapp": "+628111", "password": "Password#123", "account_type": "label",
+        "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "account_type": "label",
             "mda_accepted": True,
     })
     assert r.status_code == 200, r.text
     data = r.json()
-    return {"session": s, "email": email, "password": "Password#123",
+    return {"session": s, "email": email, "password": TEST_USER_PASSWORD,
             "user_id": data["user"]["id"], "label_id": data["label"]["id"]}
 
 
@@ -86,7 +90,7 @@ class TestAuth:
         email = _rand_email("reg")
         r = s.post(f"{API}/auth/register", json={
             "label_name": "TEST Reg", "pic_name": "PIC", "email": email,
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
         assert r.status_code == 200, r.text
         body = r.json()
         # SEC-001: verification_token MUST NOT be in HTTP response — only via email
@@ -103,7 +107,7 @@ class TestAuth:
         s = _session()
         r = s.post(f"{API}/auth/register", json={
             "label_name": "Dup", "pic_name": "PIC", "email": label_session["email"],
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
         assert r.status_code == 409
 
     def test_login_wrong_password_returns_401(self):
@@ -111,8 +115,8 @@ class TestAuth:
         email = _rand_email("wrong")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
-        r = s.post(f"{API}/auth/login", json={"email": email, "password": "wrongPass#1"})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
+        r = s.post(f"{API}/auth/login", json={"email": email, "password": WRONG_PASSWORD})
         assert r.status_code == 401
 
     def test_brute_force_lockout_after_5(self):
@@ -123,13 +127,13 @@ class TestAuth:
         email = _rand_email("bf")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
         codes = []
         for i in range(6):
             # Rotate spoofed forwarded-for header to ensure IP-based bypass would fail
             r = s.post(
                 f"{API}/auth/login",
-                json={"email": email, "password": "wrong"},
+                json={"email": email, "password": WRONG_PASSWORD},
                 headers={"X-Forwarded-For": f"10.0.0.{i+1}"},
             )
             codes.append(r.status_code)
@@ -148,7 +152,7 @@ class TestAuth:
         email = _rand_email("logout")
         s.post(f"{API}/auth/register", json={
             "label_name": "X", "pic_name": "X", "email": email,
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
         assert s.post(f"{API}/auth/logout").status_code == 200
         # cookies should be cleared - me should 401
         s.cookies.clear()
@@ -174,7 +178,7 @@ class TestAuth:
         assert r.status_code == 200
         # SEC-001: token NOT returned via HTTP — read from DB (simulates email delivery)
         token = _latest_reset_token(label_session["email"])
-        new_pw = "NewPassword#456"
+        new_pw = TEST_NEW_PASSWORD
         r2 = s.post(f"{API}/auth/reset-password", json={"token": token, "password": new_pw})
         assert r2.status_code == 200
         # Login with new password
@@ -303,7 +307,7 @@ class TestAdminActions:
         email = _rand_email("ppr")
         reg = ns.post(f"{API}/auth/register", json={
             "label_name": "PPR Label", "pic_name": "PIC", "email": email,
-            "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,})
+            "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,})
         assert reg.status_code == 200, f"register failed: {reg.status_code} {reg.text}"
         good_date = (date.today() + timedelta(days=10)).isoformat()
         dr = ns.post(f"{API}/releases/draft", json={
@@ -342,21 +346,21 @@ class TestAdminUsers:
         s = super_admin_session["session"]
         email = _rand_email("adm")
         r = s.post(f"{API}/admin/admin-users", json={
-            "name": "TEST Adm", "email": email, "password": "Password#123", "role": "admin_release",
+            "name": "TEST Adm", "email": email, "password": TEST_USER_PASSWORD, "role": "admin_release",
         })
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["role"] == "admin_release"
         # admin can login
         ns = _session()
-        rl = ns.post(f"{API}/auth/login", json={"email": email, "password": "Password#123"})
+        rl = ns.post(f"{API}/auth/login", json={"email": email, "password": TEST_USER_PASSWORD})
         assert rl.status_code == 200
         # can access dashboard
         rd = ns.get(f"{API}/admin/dashboard")
         assert rd.status_code == 200
         # cannot create another admin (not super_admin)
         rb = ns.post(f"{API}/admin/admin-users", json={
-            "name": "X", "email": _rand_email("x"), "password": "Password#123", "role": "admin_finance",
+            "name": "X", "email": _rand_email("x"), "password": TEST_USER_PASSWORD, "role": "admin_finance",
         })
         assert rb.status_code == 403
 
@@ -369,7 +373,7 @@ class TestArtistSubAccount:
         email = _rand_email("artist")
         r = s.post(f"{API}/artists/", json={
             "artist_name": "TEST Artist", "email": email,
-            "password": "Password#123", "whatsapp": "+62811",
+            "password": TEST_USER_PASSWORD, "whatsapp": "+62811",
         })
         assert r.status_code == 200, r.text
         label_session["artist_email"] = email
@@ -377,7 +381,7 @@ class TestArtistSubAccount:
     def test_artist_login_role(self, label_session):
         ns = _session()
         r = ns.post(f"{API}/auth/login", json={
-            "email": label_session["artist_email"], "password": "Password#123",
+            "email": label_session["artist_email"], "password": TEST_USER_PASSWORD,
         })
         assert r.status_code == 200
         assert r.json()["user"]["role"] == "artist"
@@ -390,7 +394,7 @@ class TestArtistSubAccount:
         assert rr.status_code == 403
         # artist cannot create artist
         ra = ns.post(f"{API}/artists/", json={
-            "artist_name": "Y", "email": _rand_email("y"), "password": "Password#123",
+            "artist_name": "Y", "email": _rand_email("y"), "password": TEST_USER_PASSWORD,
         })
         assert ra.status_code == 403
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { UserPlus, Copy, X } from "lucide-react";
@@ -10,11 +10,11 @@ export default function AdminLabels() {
   const [creating, setCreating] = useState(null);  // label being processed
   const [created, setCreated] = useState(null);   // success result with plaintext password
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/admin/labels", { params: { q: q || undefined, status: status || undefined } });
     setItems(data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [status]);
+  }, [q, status]);
+  useEffect(() => { load(); }, [load]);
 
   const onCreated = () => {
     setCreating(null);

@@ -13,6 +13,7 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import SUPERADMIN
 import pytest
 import pymongo
 import asyncio
@@ -25,7 +26,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
 
 
 def _db():

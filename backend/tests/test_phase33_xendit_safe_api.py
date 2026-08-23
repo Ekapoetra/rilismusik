@@ -9,6 +9,7 @@ import requests
 from dotenv import dotenv_values, load_dotenv
 
 from auth_utils import hash_password
+from tests.support_config import FINANCE, SUPERADMIN, temporary_password
 
 
 load_dotenv("/app/backend/.env", override=True)
@@ -46,13 +47,13 @@ def test_config_disabled_endpoints_and_ownership_access_without_checkout():
         {
             "id": f"x33-u1-{suffix}",
             "email": f"x33a-{suffix}@example.com",
-            "password": "X33Safe#2026A",
+            "password": temporary_password("x33-a"),
             "name": "X33 Label A",
         },
         {
             "id": f"x33-u2-{suffix}",
             "email": f"x33b-{suffix}@example.com",
-            "password": "X33Safe#2026B",
+            "password": temporary_password("x33-b"),
             "name": "X33 Label B",
         },
     ]
@@ -113,8 +114,8 @@ def test_config_disabled_endpoints_and_ownership_access_without_checkout():
 
         token_a = _token(users[0]["email"], users[0]["password"])
         token_b = _token(users[1]["email"], users[1]["password"])
-        token_finance = _token("finance1@rilismusik.com", "Finance#2026")
-        token_super = _token("superadmin@rilismusik.com", "SuperAdmin#2026")
+        token_finance = _token(FINANCE["email"], FINANCE["password"])
+        token_super = _token(SUPERADMIN["email"], SUPERADMIN["password"])
 
         config = requests.get(f"{API}/payments/config", headers=_headers(token_a), timeout=30)
         assert config.status_code == 200
@@ -164,7 +165,7 @@ def test_custom_product_and_invoice_creation_are_local_and_objectid_hidden():
     user_id = f"x33-u3-{suffix}"
     label_id = f"x33-l3-{suffix}"
     email = f"x33c-{suffix}@example.com"
-    password = "X33Safe#2026C"
+    password = temporary_password("x33-c")
     product_id = None
 
     try:
@@ -194,7 +195,7 @@ def test_custom_product_and_invoice_creation_are_local_and_objectid_hidden():
             }
         )
 
-        token_finance = _token("finance1@rilismusik.com", "Finance#2026")
+        token_finance = _token(FINANCE["email"], FINANCE["password"])
         token_label = _token(email, password)
 
         create_product = requests.post(

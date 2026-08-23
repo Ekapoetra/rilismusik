@@ -1,7 +1,8 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API_BASE = `${BACKEND_URL}/api`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "");
+const SAME_ORIGIN = typeof window !== "undefined" && new URL(BACKEND_URL).origin === window.location.origin;
+export const API_BASE = SAME_ORIGIN ? "/api" : `${BACKEND_URL}/api`;
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -47,5 +48,5 @@ export function formatApiError(detail) {
 export function fileUrl(path) {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  return `${BACKEND_URL}${path}`;
+  return SAME_ORIGIN ? path : `${BACKEND_URL}${path}`;
 }

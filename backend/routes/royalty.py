@@ -43,6 +43,7 @@ from royalty_utils import (
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
 from .royalty_recalculation import run_global_recalculation_job
+from .dashboard_cache import reset as reset_dashboard_revenue, schedule_recompute as schedule_dashboard_recompute
 
 # =============================================================================
 #                              ROYALTY (ADMIN + LABEL/ARTIST)
@@ -110,9 +111,9 @@ async def admin_upload_royalty_csv(
     Mendukung file hingga 200 MB (Believe royalty bulanan ~80 MB normal).
     Mendukung .csv dan .csv.gz.
 
-    Period dapat dikosongkan — jika kolom 'Bulan Laporan' (atau period) ada di CSV,
-    setiap baris akan menggunakan period-nya sendiri (multi-period import). Jika
-    period diberikan, semua baris akan diforce ke period tersebut (single-month).
+    Periode setiap baris selalu bersumber dari kolom `Bulan laporan`. Field
+    `period` lama tetap diterima untuk kompatibilitas klien, tetapi tidak pernah
+    dipakai sebagai fallback dan tidak dapat menimpa nilai CSV.
     """
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
@@ -168,11 +169,10 @@ async def admin_upload_royalty_csv(
     col_idx = detect_columns(headers)
     if col_idx["revenue_eur"] is None:
         raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
-    if not period and col_idx.get("period") is None:
+    if col_idx.get("period") is None:
         raise HTTPException(
             status_code=400,
-            detail="Period tidak diberikan dan kolom 'Bulan Laporan'/period tidak ditemukan di CSV. "
-                   "Tambahkan kolom atau isi field period.",
+            detail="Kolom 'Bulan laporan' wajib ada di CSV. Kolom 'Bulan Penjualan' tidak dapat digunakan sebagai periode laporan.",
         )
 
     # ---- Determine sync vs async based on file size ----
@@ -188,9 +188,9 @@ async def admin_upload_royalty_csv(
     now = now_iso()
     import_doc = {
         "id": import_id,
-        "period": period or "multi",
-        "period_start": period,
-        "period_end": period,
+        "period": "multi",
+        "period_start": None,
+        "period_end": None,
         "period_breakdown": {},
         "is_multi_period": False,
         "source": "believe",
@@ -312,11 +312,11 @@ async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depen
     now = now_iso()
     import_doc = {
         "id": import_id,
-        "period": body.period or "multi",
-        "period_start": body.period,
-        "period_end": body.period,
+        "period": "multi",
+        "period_start": None,
+        "period_end": None,
         "period_breakdown": {},
-        "is_multi_period": body.period is None,
+        "is_multi_period": False,
         "source": "believe",
         "filename": fname,
         "file_url": f"/api/files/{r2_key}",
@@ -403,10 +403,10 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
     col_idx = detect_columns(headers_list)
     if col_idx["revenue_eur"] is None:
         raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
-    if not imp.get("period_start") and col_idx.get("period") is None:
+    if col_idx.get("period") is None:
         raise HTTPException(
             status_code=400,
-            detail="Period tidak diberikan dan kolom 'Bulan Laporan'/period tidak ditemukan di CSV.",
+            detail="Kolom 'Bulan laporan' wajib ada di CSV. Kolom 'Bulan Penjualan' tidak dapat digunakan sebagai periode laporan.",
         )
 
     now = now_iso()
@@ -439,8 +439,7 @@ def _trigger_dashboard_recompute():
     manual tool."""
     import asyncio as _aio
     try:
-        from routes.admin import _recompute_revenue_cache  # lazy import to avoid cycle
-        _aio.create_task(_recompute_revenue_cache())
+        schedule_dashboard_recompute()
     except Exception:
         pass
     try:
@@ -578,17 +577,16 @@ async def _process_csv_import_inline(
 
         raw = _match_line(row_dict, col_idx, headers)
         revenue_eur = raw["revenue_eur"]
-        counters["total_revenue_eur"] += revenue_eur
 
         # The CSV's `Bulan Laporan` column (raw["row_period"]) is the source of
         # truth — multi-period CSVs must keep each row's true period intact for
-        # analytics, FIFO withdraw, and rollups to work correctly. The form's
-        # `period` field is now only a fallback for legacy CSVs that lack a
-        # Bulan Laporan column entirely.
-        line_period = raw.get("row_period") or period
+        # analytics, FIFO withdraw, and rollups to work correctly. There is no
+        # fallback to Bulan Penjualan or the legacy form-period field.
+        line_period = raw.get("row_period")
         if not line_period:
             counters["invalid_period_rows"] += 1
             continue
+        counters["total_revenue_eur"] += revenue_eur
         period_counts[line_period] = period_counts.get(line_period, 0) + 1
 
         track = None
@@ -772,12 +770,11 @@ async def _process_csv_import_inline(
 
     sorted_periods = sorted(period_counts.keys())
     is_multi_period = len(sorted_periods) > 1
-    # Derive display_period strictly from the CSV's actual `Bulan Laporan`
-    # values. Form's `period` only kicks in if the CSV had 0 valid rows.
+    # Derive display period strictly from valid `Bulan laporan` values.
     if sorted_periods:
         display_period = sorted_periods[0] if len(sorted_periods) == 1 else "multi"
     else:
-        display_period = period or "multi"
+        display_period = "invalid"
 
     # Route the final status flip through db_bg (CSOT-uncapped). Atlas can be
     # slow to ack this write while a 1M-row import is still settling indexes —
@@ -787,11 +784,12 @@ async def _process_csv_import_inline(
         {"id": import_id},
         {"$set": {
             "period": display_period,
-            "period_start": sorted_periods[0] if sorted_periods else (period or None),
-            "period_end": sorted_periods[-1] if sorted_periods else (period or None),
+            "period_start": sorted_periods[0] if sorted_periods else None,
+            "period_end": sorted_periods[-1] if sorted_periods else None,
             "is_multi_period": is_multi_period,
             "progress_pct": 100,
-            "status": "pending_review",
+            "status": "pending_review" if sorted_periods else "error",
+            "error_message": None if sorted_periods else "Semua baris ditolak karena kolom 'Bulan laporan' kosong atau tidak valid.",
             "finished_at": now_iso(),
             "updated_at": now_iso(),
         }},
@@ -849,6 +847,8 @@ async def admin_list_imports(user: dict = Depends(require_admin)):
             it["progress_pct"] = min(99, int((it.get("processed_lines", 0) / max(it["total_lines"], 1)) * 100))
         elif it.get("status") == "publishing":
             it["progress_pct"] = it.get("publish_progress_pct") or 0
+        elif it.get("status") == "receiving":
+            it["progress_pct"] = it.get("receive_progress_pct") or 0
         elif it.get("status") == "deleting":
             # Surface deletion progress so admin can see movement on large imports.
             done = it.get("deletion_progress_lines", 0)
@@ -871,6 +871,13 @@ async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
         imp["progress_pct"] = min(99, int((imp.get("processed_lines", 0) / max(imp["total_lines"], 1)) * 100))
     elif imp.get("status") == "publishing":
         imp["progress_pct"] = imp.get("publish_progress_pct") or 0
+    elif imp.get("status") == "receiving":
+        imp["progress_pct"] = imp.get("receive_progress_pct") or 0
+
+    # Avoid repeating two multi-million-row reads every 3 seconds while the
+    # receipt background job is already scanning and updating the same import.
+    if imp.get("status") == "receiving":
+        return {"import": imp, "lines": [], "per_label": []}
 
     # Sample top-500 lines + per-label breakdown — both touch the multi-million
     # `royalty_lines` collection and would trip the 10s CSOT cap on production
@@ -1191,9 +1198,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
         # Best-effort: invalidate the dashboard revenue cache so admins see the
         # new totals immediately on next dashboard load instead of waiting 60s.
         try:
-            from routes.admin import _recompute_revenue_cache  # lazy import to avoid cycle
-            import asyncio as _aio
-            _aio.create_task(_recompute_revenue_cache())
+            schedule_dashboard_recompute()
         except Exception:
             pass
 
@@ -1237,63 +1242,158 @@ async def _publish_bg(*, import_id: str, user_id: str):
 
 @royalty_r.post("/admin/imports/{import_id}/mark-dana-received")
 async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_admin)):
-    """Saat dana Believe masuk: pindahkan saldo pending → available."""
+    """Queue pending → available processing and return immediately."""
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
-    imp = await db.royalty_imports.find_one({"id": import_id})
+    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    if imp["status"] != "published":
-        raise HTTPException(status_code=400, detail="Import harus dipublish terlebih dahulu")
     if imp.get("dana_received_at"):
         raise HTTPException(status_code=400, detail="Dana sudah ditandai diterima")
+    if imp.get("status") == "receiving":
+        return imp
+    if imp.get("status") not in ("published", "receive_error"):
+        raise HTTPException(status_code=400, detail="Import harus berstatus Published terlebih dahulu")
 
-    pipeline = [
-        {"$match": {"import_id": import_id, "status": "pending"}},
-        {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
-    ]
-    period_label = (
-        f"{imp.get('period_start')} s/d {imp.get('period_end')}"
-        if imp.get("is_multi_period") else imp.get("period", "")
+    queued_at = now_iso()
+    queued = await db.royalty_imports.update_one(
+        {"id": import_id, "status": {"$in": ["published", "receive_error"]}, "dana_received_at": None},
+        {"$set": {
+            "status": "receiving",
+            "receive_progress_pct": 0,
+            "receive_started_at": queued_at,
+            "error_message": None,
+            "updated_at": queued_at,
+        }},
     )
-    # Heavy aggregate + bulk update on millions of rows — route through db_bg
-    # (uncapped Mongo client) to bypass the 10s CSOT cap that kills production.
-    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
-        await db_bg.labels.update_one({"id": r["_id"]}, {"$inc": {
-            "balance_pending_idr": -int(r["total_idr"]),
-            "balance_available_idr": int(r["total_idr"]),
-        }, "$set": {"updated_at": now_iso()}})
-        await db_bg.balance_transactions.insert_one({
-            "id": new_id(),
-            "label_id": r["_id"],
-            "type": "royalty_available",
-            "amount_idr": int(r["total_idr"]),
-            "reference_type": "royalty_import",
-            "reference_id": import_id,
-            "description": f"Dana royalti periode {period_label} diterima — saldo tersedia",
-            "created_at": now_iso(),
-        })
+    if queued.modified_count == 0:
+        current = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        if current and current.get("status") == "receiving":
+            return current
+        raise HTTPException(status_code=409, detail="Status import berubah. Muat ulang lalu coba kembali.")
 
-    # Chunked update_many over `_id` to avoid maxTimeMS on the cluster
-    CHUNK_SIZE = 2000
-    last_oid = None
-    base_filter = {"import_id": import_id, "status": "pending"}
-    total_flipped = 0
-    while True:
-        q = dict(base_filter)
-        if last_oid is not None:
-            q["_id"] = {"$gt": last_oid}
-        batch = await db_bg.royalty_lines.find(q, {"_id": 1}).sort("_id", 1).limit(CHUNK_SIZE).to_list(CHUNK_SIZE)
-        if not batch:
-            break
-        oids = [d["_id"] for d in batch]
-        last_oid = oids[-1]
-        await db_bg.royalty_lines.update_many({"_id": {"$in": oids}}, {"$set": {"status": "available"}})
-        total_flipped += len(oids)
-    logger.info("[MARK_DANA] %s — flipped %d lines pending→available", import_id, total_flipped)
-    await db.royalty_imports.update_one({"id": import_id}, {"$set": {"status": "dana_received", "dana_received_at": now_iso(), "updated_at": now_iso()}})
-    await log_activity(user["id"], "mark_dana_received", "royalty", import_id)
+    import asyncio
+    asyncio.create_task(_mark_dana_received_bg(import_id=import_id, user_id=user["id"]))
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+
+
+async def _mark_dana_received_bg(*, import_id: str, user_id: str):
+    """Move a published import to available without holding an HTTP request.
+
+    A per-label marker makes balance changes idempotent even if the pod stops
+    between the balance update and ledger insertion.
+    """
+    try:
+        imp = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        if not imp:
+            return
+        period_label = (
+            f"{imp.get('period_start')} s/d {imp.get('period_end')}"
+            if imp.get("is_multi_period") else imp.get("period", "")
+        )
+        pipeline = [
+            {"$match": {"import_id": import_id, "status": "pending"}},
+            {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
+        ]
+        per_label = [r async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True) if r.get("_id")]
+        total_labels = max(len(per_label), 1)
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id}, {"$set": {"receive_progress_pct": 5, "updated_at": now_iso()}},
+        )
+
+        for index, row in enumerate(per_label):
+            label_id = row["_id"]
+            amount_idr = int(row.get("total_idr") or 0)
+            existing_tx = await db_bg.balance_transactions.find_one({
+                "label_id": label_id,
+                "type": "royalty_available",
+                "reference_type": "royalty_import",
+                "reference_id": import_id,
+            }, {"_id": 0, "id": 1})
+            if existing_tx:
+                await db_bg.labels.update_one(
+                    {"id": label_id},
+                    {"$addToSet": {"royalty_received_import_ids": import_id}, "$set": {"updated_at": now_iso()}},
+                )
+            else:
+                await db_bg.labels.update_one(
+                    {"id": label_id, "royalty_received_import_ids": {"$ne": import_id}},
+                    {
+                        "$inc": {
+                            "balance_pending_idr": -amount_idr,
+                            "balance_available_idr": amount_idr,
+                        },
+                        "$addToSet": {"royalty_received_import_ids": import_id},
+                        "$set": {"updated_at": now_iso()},
+                    },
+                )
+                await db_bg.balance_transactions.update_one(
+                    {"id": f"royalty-available:{import_id}:{label_id}"},
+                    {"$setOnInsert": {
+                        "id": f"royalty-available:{import_id}:{label_id}",
+                        "label_id": label_id,
+                        "type": "royalty_available",
+                        "amount_idr": amount_idr,
+                        "reference_type": "royalty_import",
+                        "reference_id": import_id,
+                        "description": f"Dana royalti periode {period_label} diterima — saldo tersedia",
+                        "created_at": now_iso(),
+                    }},
+                    upsert=True,
+                )
+            if (index + 1) % 5 == 0 or index == len(per_label) - 1:
+                progress = 5 + int((index + 1) / total_labels * 70)
+                await db_bg.royalty_imports.update_one(
+                    {"id": import_id},
+                    {"$set": {"receive_progress_pct": min(progress, 75), "updated_at": now_iso()}},
+                )
+
+        total_pending = await db_bg.royalty_lines.count_documents({"import_id": import_id, "status": "pending"})
+        chunk_size = 2000
+        last_oid = None
+        total_flipped = 0
+        while True:
+            query: Dict[str, Any] = {"import_id": import_id, "status": "pending"}
+            if last_oid is not None:
+                query["_id"] = {"$gt": last_oid}
+            batch = await db_bg.royalty_lines.find(query, {"_id": 1}).sort("_id", 1).limit(chunk_size).to_list(chunk_size)
+            if not batch:
+                break
+            object_ids = [doc["_id"] for doc in batch]
+            last_oid = object_ids[-1]
+            await db_bg.royalty_lines.update_many(
+                {"_id": {"$in": object_ids}}, {"$set": {"status": "available"}},
+            )
+            total_flipped += len(object_ids)
+            line_progress = 75 + int(total_flipped / max(total_pending, 1) * 20)
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {"receive_progress_pct": min(line_progress, 95), "updated_at": now_iso()}},
+            )
+
+        finished_at = now_iso()
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "dana_received",
+                "dana_received_at": finished_at,
+                "receive_progress_pct": 100,
+                "error_message": None,
+                "updated_at": finished_at,
+            }},
+        )
+        await log_activity(user_id, "mark_dana_received", "royalty", import_id, after={"lines_flipped": total_flipped})
+        logger.info("[MARK_DANA BG] %s complete — %d lines available", import_id, total_flipped)
+    except Exception as exc:
+        logger.exception("[MARK_DANA BG] %s failed: %s", import_id, exc)
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "status": "receive_error",
+                "error_message": f"Penerimaan dana gagal: {type(exc).__name__}: {str(exc)[:300]}",
+                "updated_at": now_iso(),
+            }},
+        )
 
 
 @royalty_r.post("/admin/reset-demo-data")
@@ -1381,8 +1481,7 @@ async def _reset_royalty_data_bg(*, job_id: str, user_id: str):
         await db_bg.drop_collection("monthly_analytics")
         await db_bg.metrics_cache.delete_many({"_id": "dashboard_revenue"})
         try:
-            from routes.admin import _dashboard_revenue_cache
-            _dashboard_revenue_cache.update({"total_eur": 0, "total_idr": 0, "computed_at": 0.0, "refreshing": False})
+            reset_dashboard_revenue()
         except Exception:
             pass
 
@@ -1736,6 +1835,60 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
     return {"ok": True, "import_id": import_id, "status": "processing"}
 
 
+@royalty_r.post("/admin/imports/{import_id}/repair-reporting-period")
+async def admin_repair_reporting_period(import_id: str, user: dict = Depends(require_admin)):
+    """Re-read the retained source CSV and repair periods from `Bulan laporan`.
+
+    The job validates that every source row has a valid reporting month and
+    that the source-row count exactly matches stored lines before changing any
+    data. Amounts, balances, and line statuses are untouched.
+    """
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp.get("status") in ("awaiting_upload", "processing", "publishing", "receiving", "deleting"):
+        raise HTTPException(status_code=409, detail="Tunggu proses import aktif selesai sebelum memperbaiki periode")
+    if imp.get("period_repair_status") == "processing" and imp.get("period_repair_job_id"):
+        return {
+            "ok": True,
+            "job_id": imp["period_repair_job_id"],
+            "status": "processing",
+            "already_running": True,
+        }
+
+    job_id = new_id()
+    started_at = now_iso()
+    await db_bg.migrate_jobs.insert_one({
+        "id": job_id,
+        "kind": "repair_reporting_period",
+        "status": "queued",
+        "import_id": import_id,
+        "submitted_by": user["id"],
+        "submitted_at": started_at,
+        "updated_at": started_at,
+        "progress_phase": "queued",
+        "progress_rows_done": 0,
+        "progress_rows_total": 0,
+    })
+    await db_bg.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "period_repair_status": "processing",
+            "period_repair_job_id": job_id,
+            "period_repair_progress_pct": 0,
+            "period_repair_error": None,
+            "updated_at": started_at,
+        }},
+    )
+    import asyncio
+    asyncio.create_task(_repair_reporting_period_bg(
+        import_id=import_id, job_id=job_id, user_id=user["id"],
+    ))
+    return {"ok": True, "job_id": job_id, "status": "queued", "already_running": False}
+
+
 async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:
     """Recompute import-level counters from the actual royalty_lines collection.
 
@@ -1793,6 +1946,165 @@ async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:
         "auto_created_artists": auto_artists_n,
         "progress_pct": 100,
     }
+
+
+async def _repair_reporting_period_bg(*, import_id: str, job_id: str, user_id: str):
+    """Safely rewrite only period metadata from the retained source CSV."""
+    try:
+        imp = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        if not imp:
+            raise RuntimeError("Import tidak ditemukan")
+        file_path = await _ensure_local_csv(imp)
+        if not file_path:
+            raise RuntimeError("CSV asli tidak tersedia di disk maupun R2; upload ulang diperlukan")
+
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "processing", "progress_phase": "validating_source", "updated_at": now_iso()}},
+        )
+        headers: List[str] = []
+        column_map: Optional[Dict[str, Optional[int]]] = None
+        source_rows = 0
+        invalid_rows = 0
+        source_period_counts: Dict[str, int] = {}
+        for current_headers, row in iter_csv_file(file_path):
+            if row is None:
+                headers = current_headers
+                column_map = detect_columns(headers)
+                if column_map.get("period") is None:
+                    raise RuntimeError("Kolom 'Bulan laporan' tidak ditemukan di CSV asli")
+                continue
+            source_rows += 1
+            period_value = _match_line(row, column_map, headers).get("row_period")
+            if not period_value:
+                invalid_rows += 1
+                continue
+            source_period_counts[period_value] = source_period_counts.get(period_value, 0) + 1
+
+        stored_rows = await db_bg.royalty_lines.count_documents({"import_id": import_id})
+        if invalid_rows:
+            raise RuntimeError(
+                f"Reparasi dibatalkan: {invalid_rows} baris memiliki Bulan laporan kosong/tidak valid. "
+                "Gunakan upload ulang agar baris tersebut dapat ditolak dengan benar."
+            )
+        if source_rows != stored_rows:
+            raise RuntimeError(
+                f"Reparasi dibatalkan: jumlah baris CSV ({source_rows}) tidak sama dengan royalty_lines ({stored_rows})"
+            )
+
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "progress_phase": "updating_periods",
+                "progress_rows_total": stored_rows,
+                "source_period_breakdown": source_period_counts,
+                "updated_at": now_iso(),
+            }},
+        )
+
+        csv_iterator = iter(iter_csv_file(file_path))
+        csv_headers, first_row = next(csv_iterator)
+        if first_row is not None:
+            raise RuntimeError("Header CSV tidak terbaca")
+        csv_columns = detect_columns(csv_headers)
+        batch_size = 5000
+        last_oid = None
+        updated_rows = 0
+        while True:
+            query: Dict[str, Any] = {"import_id": import_id}
+            if last_oid is not None:
+                query["_id"] = {"$gt": last_oid}
+            line_batch = await db_bg.royalty_lines.find(query, {"_id": 1}).sort("_id", 1).limit(batch_size).to_list(batch_size)
+            if not line_batch:
+                break
+            grouped_ids: Dict[str, List[Any]] = {}
+            for line in line_batch:
+                _, source_row = next(csv_iterator)
+                period_value = _match_line(source_row, csv_columns, csv_headers)["row_period"]
+                grouped_ids.setdefault(period_value, []).append(line["_id"])
+            for period_value, object_ids in grouped_ids.items():
+                await db_bg.royalty_lines.update_many(
+                    {"_id": {"$in": object_ids}},
+                    {"$set": {"period": period_value, "row_period": period_value}},
+                )
+            last_oid = line_batch[-1]["_id"]
+            updated_rows += len(line_batch)
+            progress = min(90, 10 + int(updated_rows / max(stored_rows, 1) * 80))
+            await db_bg.migrate_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"progress_rows_done": updated_rows, "progress_pct": progress, "updated_at": now_iso()}},
+            )
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id},
+                {"$set": {"period_repair_progress_pct": progress, "updated_at": now_iso()}},
+            )
+
+        stats = await _recompute_import_stats_from_lines(import_id)
+        sorted_periods = sorted((stats.get("period_breakdown") or {}).keys())
+        display_period = sorted_periods[0] if len(sorted_periods) == 1 else "multi"
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"progress_phase": "rebuilding_analytics", "progress_pct": 95, "updated_at": now_iso()}},
+        )
+        from routes.admin_analytics import recompute_monthly_analytics
+        await recompute_monthly_analytics()
+
+        finished_at = now_iso()
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                **stats,
+                "period": display_period,
+                "period_repair_status": "done",
+                "period_repair_progress_pct": 100,
+                "period_repaired_at": finished_at,
+                "period_repair_error": None,
+                "updated_at": finished_at,
+            }},
+        )
+        result = {
+            "import_id": import_id,
+            "rows_updated": updated_rows,
+            "period_breakdown": stats.get("period_breakdown") or {},
+            "period_start": stats.get("period_start"),
+            "period_end": stats.get("period_end"),
+            "analytics_rebuilt": True,
+        }
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "done",
+                "progress_phase": "done",
+                "progress_pct": 100,
+                "progress_rows_done": updated_rows,
+                "result": result,
+                "finished_at": finished_at,
+                "updated_at": finished_at,
+            }},
+        )
+        await log_activity(user_id, "repair_reporting_period", "royalty", import_id, after=result)
+    except Exception as exc:
+        logger.exception("[PERIOD REPAIR] %s failed: %s", import_id, exc)
+        error_message = f"{type(exc).__name__}: {str(exc)[:400]}"
+        failed_at = now_iso()
+        await db_bg.migrate_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "error",
+                "progress_phase": "error",
+                "error_message": error_message,
+                "finished_at": failed_at,
+                "updated_at": failed_at,
+            }},
+        )
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$set": {
+                "period_repair_status": "error",
+                "period_repair_error": error_message,
+                "updated_at": failed_at,
+            }},
+        )
 
 
 @royalty_r.post("/admin/imports/{import_id}/force-finalize")
@@ -1976,9 +2288,7 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
 
         # 5) Best-effort cache refresh
         try:
-            from routes.admin import _recompute_revenue_cache
-            import asyncio as _aio
-            _aio.create_task(_recompute_revenue_cache())
+            schedule_dashboard_recompute()
         except Exception:
             pass
         try:
@@ -2007,8 +2317,8 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
 
 
 async def resume_interrupted_imports():
-    """Called on backend startup. For every royalty_import stuck in 'processing'
-    or 'publishing' (hot-reload or pod restart killed the task), either:
+    """Called on backend startup. For every royalty_import stuck in 'processing',
+    'publishing', or 'receiving' (hot-reload or pod restart killed the task), either:
       - Resume CSV processing if the CSV file is still on disk/R2; or
       - Resume publish — fully idempotent so re-running is safe.
       - Mark as 'error' / 'publish_error' if recovery is impossible.
@@ -2076,3 +2386,19 @@ async def resume_interrupted_imports():
                 user_id=imp.get("uploaded_by") or "system",
             ))
             logger.info("resume_interrupted_imports: %s publish resumed", imp["id"])
+
+    # 3) Resume stuck dana-received processing (idempotent per label).
+    try:
+        stuck_receiving = await db.royalty_imports.find(
+            {"status": "receiving"},
+            {"_id": 0, "id": 1, "uploaded_by": 1},
+        ).to_list(100)
+    except Exception as exc:
+        logger.exception("resume_interrupted_imports: cannot query receiving: %s", exc)
+        return
+    for imp in stuck_receiving:
+        asyncio.create_task(_mark_dana_received_bg(
+            import_id=imp["id"],
+            user_id=imp.get("uploaded_by") or "system",
+        ))
+        logger.info("resume_interrupted_imports: %s dana-received resumed", imp["id"])

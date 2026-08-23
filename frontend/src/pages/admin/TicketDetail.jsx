@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS, TICKET_STATUS_LABELS } from "@/components/shared/TicketStatusBadge";
@@ -19,7 +19,7 @@ export default function AdminTicketDetail() {
   const [err, setErr] = useState("");
   const scrollRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const { data: r } = await api.get(`/tickets/${id}`);
       setData(r);
@@ -28,9 +28,9 @@ export default function AdminTicketDetail() {
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail));
     }
-  };
+  }, [id]);
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -132,7 +132,7 @@ export default function AdminTicketDetail() {
                 {attachments.length > 0 && (
                   <ul className="space-y-1">
                     {attachments.map((a, idx) => (
-                      <li key={idx} className="text-xs text-zinc-300 flex items-center gap-2">
+                      <li key={a.url || a.filename} className="text-xs text-zinc-300 flex items-center gap-2">
                         <Paperclip className="w-3 h-3" /> {a.filename}
                         <button type="button" onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))} className="text-red-300 hover:text-red-200"><X className="w-3 h-3" /></button>
                       </li>
@@ -248,7 +248,7 @@ function CommentBubble({ c }) {
         {c.attachments?.length > 0 && (
           <div className="space-y-1">
             {c.attachments.map((url, i) => (
-              <a key={i} href={fileUrl(url)} target="_blank" rel="noreferrer" className="block text-xs text-zinc-300 hover:text-white flex items-center gap-2">
+              <a key={url} href={fileUrl(url)} target="_blank" rel="noreferrer" className="block text-xs text-zinc-300 hover:text-white flex items-center gap-2">
                 <Paperclip className="w-3 h-3" /> Lampiran {i + 1}
               </a>
             ))}

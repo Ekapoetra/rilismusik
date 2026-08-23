@@ -21,6 +21,7 @@ from datetime import date, timedelta
 import pytest
 import pymongo
 import requests
+from tests.support_config import DEMO_PASSWORD, SUPERADMIN
 
 # Direct mongo handle for state resets between test runs (idempotency)
 _mongo = pymongo.MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
@@ -40,8 +41,7 @@ def _reset_label_to_tier(label_id: str, tier: str):
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-DEMO_PASSWORD = "Demo#2026"
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
 
 # Demo labels (timestamp-suffixed emails — discover via /admin/labels?q=)
 LABEL_QUERIES = {

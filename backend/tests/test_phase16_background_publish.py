@@ -37,6 +37,7 @@ import time
 import asyncio
 import pytest
 import requests
+from tests.support_config import FINANCE, RELEASE_ADMIN, SUPERADMIN
 
 # Backend path for direct Mongo access
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -49,9 +50,7 @@ if not BASE_URL:
                 BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
                 break
 
-SUPERADMIN = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
-FINANCE    = {"email": "finance1@rilismusik.com",    "password": "Finance#2026"}
-RELEASE    = {"email": "release1@rilismusik.com",    "password": "Release#2026"}
+RELEASE = RELEASE_ADMIN
 
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME   = os.environ.get("DB_NAME",   "rilismusik_db")

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS, TICKET_STATUS_LABELS } from "@/components/shared/TicketStatusBadge";
@@ -14,14 +14,14 @@ export default function AdminTickets() {
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/tickets/admin", {
       params: { status: status || undefined, category: category || undefined, q: q || undefined },
     });
     setItems(data);
-  };
+  }, [status, category, q]);
 
-  useEffect(() => { load(); }, [status, category]);
+  useEffect(() => { load(); }, [load]);
 
   return (
     <div className="space-y-5 max-w-7xl">

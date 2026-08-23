@@ -11,12 +11,16 @@ import os
 import uuid
 import time
 import requests
+from tests.support_config import SUPERADMIN, temporary_password
 import pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
+TEST_USER_PASSWORD = temporary_password("security-user")
+TEST_NEW_PASSWORD = temporary_password("security-new")
+WRONG_PASSWORD = temporary_password("wrong")
 
 
 def _session():
@@ -67,7 +71,7 @@ def test_sec001_register_does_not_leak_token():
     email = _rand_email("regleak")
     r = requests.post(f"{API}/auth/register", json={
         "label_name": "SEC Test", "pic_name": "PIC", "email": email,
-        "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,
+        "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,
     }, timeout=30)
     assert r.status_code == 200, r.text
     body = r.json()
@@ -99,13 +103,13 @@ def test_sec002_login_lockout_per_email_even_with_rotating_xff():
     email = _rand_email("bflock")
     s.post(f"{API}/auth/register", json={
         "label_name": "X", "pic_name": "X", "email": email,
-        "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,
+        "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,
     })
     codes = []
     for i in range(6):
         r = s.post(
             f"{API}/auth/login",
-            json={"email": email, "password": "wrong"},
+            json={"email": email, "password": WRONG_PASSWORD},
             headers={"X-Forwarded-For": f"10.99.99.{i+1}"},  # rotate IP each request
             timeout=30,
         )
@@ -123,7 +127,7 @@ def test_sec003_reset_invalidates_old_access_token():
     # 1) Register and capture an access token
     r = s.post(f"{API}/auth/register", json={
         "label_name": "SessInv", "pic_name": "PIC", "email": email,
-        "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,
+        "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,
     })
     assert r.status_code == 200, r.text
     old_access = r.json()["access_token"]
@@ -134,7 +138,7 @@ def test_sec003_reset_invalidates_old_access_token():
     # 2) Reset password
     requests.post(f"{API}/auth/forgot-password", json={"email": email}, timeout=30).raise_for_status()
     token = _latest_reset_token(email)
-    r2 = requests.post(f"{API}/auth/reset-password", json={"token": token, "password": "NewPassword#456"}, timeout=30)
+    r2 = requests.post(f"{API}/auth/reset-password", json={"token": token, "password": TEST_NEW_PASSWORD}, timeout=30)
     assert r2.status_code == 200
 
     # 3) Old access token MUST no longer work
@@ -147,7 +151,7 @@ def test_sec003_reset_invalidates_other_outstanding_reset_tokens():
     email = _rand_email("twin")
     requests.post(f"{API}/auth/register", json={
         "label_name": "Twin", "pic_name": "PIC", "email": email,
-        "whatsapp": "+628111", "password": "Password#123", "mda_accepted": True,
+        "whatsapp": "+628111", "password": TEST_USER_PASSWORD, "mda_accepted": True,
     }, timeout=30)
     # Issue two reset tokens
     requests.post(f"{API}/auth/forgot-password", json={"email": email}, timeout=30).raise_for_status()
@@ -159,10 +163,10 @@ def test_sec003_reset_invalidates_other_outstanding_reset_tokens():
     assert len(docs) >= 2, "should have 2 unused reset tokens"
     token_new, token_old = docs[0]["token"], docs[1]["token"]
     # Consume the newer one
-    r = requests.post(f"{API}/auth/reset-password", json={"token": token_new, "password": "ThirdPass#789"}, timeout=30)
+    r = requests.post(f"{API}/auth/reset-password", json={"token": token_new, "password": temporary_password("third")}, timeout=30)
     assert r.status_code == 200
     # The other (older) token MUST now be rejected as already-used
-    r2 = requests.post(f"{API}/auth/reset-password", json={"token": token_old, "password": "FourthPass#000"}, timeout=30)
+    r2 = requests.post(f"{API}/auth/reset-password", json={"token": token_old, "password": temporary_password("fourth")}, timeout=30)
     assert r2.status_code == 400, f"SEC-003: outstanding reset token still valid after another reset (got {r2.status_code})"
 
 

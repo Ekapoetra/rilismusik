@@ -47,15 +47,21 @@ export default function LabelWami() {
     const { data: releases } = await api.get("/releases/");
     const liveReleases = releases.filter((r) => r.status === "live");
     const out = [];
+    const failedReleases = [];
     for (const r of liveReleases) {
       try {
         const { data: detail } = await api.get(`/releases/${r.id}`);
         for (const t of detail.tracks || []) {
           out.push({ ...t, release_title: r.release_title, release_id: r.id });
         }
-      } catch (_) { /* ignore */ }
+      } catch (error) {
+        failedReleases.push(r.release_title || r.id);
+      }
     }
     setTracks(out);
+    if (failedReleases.length) {
+      setErr(`Sebagian detail rilisan gagal dimuat: ${failedReleases.join(", ")}`);
+    }
   }, []);
 
   const loadMe = useCallback(async () => {

@@ -15,14 +15,15 @@ Validates:
 import os
 import uuid
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, SUPPORT as SUPPORT_CRED, SUPERADMIN, temporary_password
 import pytest
 import pymongo
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
-SUPPORT = ("support1@rilismusik.com", "Support#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
+SUPPORT = (SUPPORT_CRED["email"], SUPPORT_CRED["password"])
 
 
 def _db():
@@ -56,7 +57,7 @@ def label_with_user_and_artists():
     artist2_user_id = f"phase25-a2user-{uuid.uuid4().hex[:10]}"
     artist1_id = f"phase25-art1-{uuid.uuid4().hex[:10]}"
     artist2_id = f"phase25-art2-{uuid.uuid4().hex[:10]}"
-    pwd_hash = _hp("Original#2026")
+    pwd_hash = _hp(temporary_password("phase25-original"))
 
     db.users.insert_many([
         {"id": label_user_id, "email": f"label-{label_id[-6:]}@test.com", "password_hash": pwd_hash,
@@ -203,7 +204,7 @@ def test_change_email_rejects_duplicate(super_token, label_with_user_and_artists
     r = requests.post(
         f"{API}/admin/labels/{ctx['label_id']}/change-email",
         headers=_hdr(super_token),
-        data={"new_email": "superadmin@rilismusik.com", "notify": "false"},
+        data={"new_email": SUPERADMIN["email"], "notify": "false"},
         timeout=30,
     )
     assert r.status_code == 409
@@ -245,15 +246,14 @@ def test_change_email_rbac_finance_denied(label_with_user_and_artists):
     assert r.status_code == 403
 
 
-def test_label_dashboard_reads_last_revenue_from_cache(super_token):
-    """Seed a label + monthly_analytics cache doc → dashboard should return
-    the cached value, not the live aggregate."""
+def test_label_dashboard_reads_latest_unwithdrawn_revenue(super_token):
+    """Customer dashboard ignores settled history and shows active royalty."""
     db = _db()
     from auth_utils import hash_password as _hp
     label_id = f"phase25-dash-{uuid.uuid4().hex[:10]}"
     user_id = f"phase25-dashu-{uuid.uuid4().hex[:10]}"
     email = f"dashlabel-{label_id[-6:]}@test.com"
-    pwd = "Dashpass#2026"
+    pwd = temporary_password("phase25-dashboard")
     db.users.insert_one({
         "id": user_id, "email": email, "password_hash": _hp(pwd),
         "role": "label", "status": "active", "name": "Dash Label",
@@ -265,11 +265,11 @@ def test_label_dashboard_reads_last_revenue_from_cache(super_token):
         "email": email, "account_status": "active",
         "balance_available_idr": 12345, "balance_pending_idr": 6789,
     })
-    # Cache has 3 months — Mar should win
-    db.monthly_analytics.insert_many([
-        {"dim": "label", "key": label_id, "period": "2025-01", "revenue_idr": 100000, "revenue_eur": 5.0, "label_name": "Dash"},
-        {"dim": "label", "key": label_id, "period": "2025-02", "revenue_idr": 200000, "revenue_eur": 10.0, "label_name": "Dash"},
-        {"dim": "label", "key": label_id, "period": "2025-03", "revenue_idr": 7777777, "revenue_eur": 15.0, "label_name": "Dash"},
+    db.royalty_lines.insert_many([
+        {"id": f"{label_id}-1", "label_id": label_id, "period": "2025-01", "status": "pending", "label_idr": 100000},
+        {"id": f"{label_id}-2", "label_id": label_id, "period": "2025-02", "status": "available", "label_idr": 200000},
+        {"id": f"{label_id}-3", "label_id": label_id, "period": "2025-03", "status": "pending", "label_idr": 7777777},
+        {"id": f"{label_id}-4", "label_id": label_id, "period": "2025-04", "status": "withdrawn", "label_idr": 9999999},
     ])
     try:
         # Log in as the new label user
@@ -282,6 +282,6 @@ def test_label_dashboard_reads_last_revenue_from_cache(super_token):
         assert body["stats"]["balance_available_idr"] == 12345
         assert body["stats"]["balance_pending_idr"] == 6789
     finally:
-        db.monthly_analytics.delete_many({"key": label_id})
+        db.royalty_lines.delete_many({"label_id": label_id})
         db.labels.delete_one({"id": label_id})
         db.users.delete_one({"id": user_id})

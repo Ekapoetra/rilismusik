@@ -10,6 +10,7 @@ from dotenv import dotenv_values, load_dotenv
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from auth_utils import hash_password
+from tests.support_config import temporary_password
 
 
 load_dotenv("/app/backend/.env")
@@ -39,7 +40,7 @@ def test_label_endpoints_hide_legacy_and_compute_only_post_cutoff_available():
     label_id = f"phase32-vis-label-{suffix}"
     user_id = f"phase32-vis-user-{suffix}"
     email = f"phase32-vis-{suffix}@example.com"
-    password = "Phase32Vis#2026"
+    password = temporary_password("phase32-vis")
     now = "2026-08-01T00:00:00+00:00"
 
     db.users.insert_one({

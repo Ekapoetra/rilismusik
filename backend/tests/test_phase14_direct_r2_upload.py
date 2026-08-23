@@ -8,11 +8,12 @@ import os
 import time
 import pytest
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, RELEASE_ADMIN, SUPERADMIN
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
-RELEASE = ("release1@rilismusik.com", "Release#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
+RELEASE = (RELEASE_ADMIN["email"], RELEASE_ADMIN["password"])
 FRONTEND_ORIGIN = "https://lanjut-core.preview.emergentagent.com"
 
 

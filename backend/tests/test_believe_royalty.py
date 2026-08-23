@@ -8,6 +8,7 @@ import os
 import sys
 import pytest
 import requests
+from tests.support_config import DEMO_PASSWORD, SUPERADMIN, temporary_password
 
 # Allow direct import of backend modules for unit tests.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -33,7 +34,6 @@ if not BASE_URL:
     except FileNotFoundError:
         pass
 
-SUPERADMIN = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
 
 
 # ------------------------------------------------------------------ #
@@ -156,7 +156,7 @@ def admin_finance_session(admin_session):
     """Create a fresh admin_finance user and return its logged-in session."""
     import uuid
     email = f"TEST_finance_{uuid.uuid4().hex[:8]}@rilismusik.com"
-    password = "FinancePwd#2026"
+    password = temporary_password("believe-finance")
     payload = {
         "email": email,
         "password": password,
@@ -191,8 +191,7 @@ def label_session(admin_session):
     if not target:
         pytest.skip("No labels available")
     email = target.get("email")
-    # Demo labels use Demo#2026
-    for pw in ("Demo#2026", "Password#123", "Demo2026!"):
+    for pw in (DEMO_PASSWORD,):
         s = requests.Session()
         r = s.post(f"{BASE_URL}/api/auth/login", json={"email": email, "password": pw}, timeout=20)
         if r.status_code == 200:

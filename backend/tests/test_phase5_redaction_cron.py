@@ -12,14 +12,15 @@ import io
 import time
 import pytest
 import requests
+from tests.support_config import DEMO_PASSWORD, FINANCE as FINANCE_CRED, RELEASE_ADMIN, SUPPORT as SUPPORT_CRED, SUPERADMIN, temporary_password
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER_ADMIN = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
-FINANCE = {"email": "finance1@rilismusik.com", "password": "Finance#2026"}
-SUPPORT = {"email": "support1@rilismusik.com", "password": "Support#2026"}
-RELEASE = {"email": "release1@rilismusik.com", "password": "Release#2026"}
+SUPER_ADMIN = SUPERADMIN
+FINANCE = FINANCE_CRED
+SUPPORT = SUPPORT_CRED
+RELEASE = RELEASE_ADMIN
 
 FORBIDDEN_LABEL_KEYS = ("royalty_percentage_default", "royalty_percentage_history", "default_royalty_share")
 FORBIDDEN_LINE_KEYS = (
@@ -65,7 +66,7 @@ def release_token():
 
 @pytest.fixture(scope="module")
 def label_login():
-    """Find one demo label that authenticates with Demo#2026, return its login payload + token."""
+    """Find one demo label that authenticates with the test-environment password."""
     sa = login(SUPER_ADMIN)["token"]
     # Search for working demo labels
     for name in ("Khizanah", "Mustafa", "WANWE"):
@@ -79,13 +80,13 @@ def label_login():
             email = lab.get("contact_email") or lab.get("email") or (lab.get("user") or {}).get("email")
             if not email:
                 continue
-            lr = requests.post(f"{API}/auth/login", json={"email": email, "password": "Demo#2026"}, timeout=30)
+            lr = requests.post(f"{API}/auth/login", json={"email": email, "password": DEMO_PASSWORD}, timeout=30)
             if lr.status_code == 200:
                 body = lr.json()
                 if "token" not in body:
                     body["token"] = body.get("access_token") or body.get("accessToken")
                 return {"login": body, "label": lab, "email": email}
-    pytest.skip("No demo label authenticates with Demo#2026")
+    pytest.skip("No demo label authenticates with the configured test password")
 
 
 # ---------- (1) REDACTION TESTS ----------
@@ -127,7 +128,7 @@ class TestLabelProfileRedaction:
         email = f"TEST_redact_{suffix}@example.com"
         payload = {
             "email": email,
-            "password": "TestPass#2026",
+            "password": temporary_password("phase5-redact"),
             "label_name": f"TEST_RedactLabel_{suffix}",
             "pic_name": "Redact Tester",
             "whatsapp": "+628111111111",

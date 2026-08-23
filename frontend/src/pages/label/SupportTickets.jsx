@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS } from "@/components/shared/TicketStatusBadge";
 import { SUPPORT } from "@/constants/testIds";
-import { LifeBuoy, Plus, X, Paperclip, AlertTriangle, CheckCircle2 } from "lucide-react";
-
-const CATEGORY_OPTIONS = Object.entries(TICKET_CATEGORY_LABELS).map(([value, label]) => ({ value, label }));
+import { LifeBuoy, Plus, CheckCircle2 } from "lucide-react";
+import { SupportTicketModal } from "@/components/label/SupportTicketModal";
 
 function initialForm() {
   return {
@@ -63,7 +62,9 @@ export default function LabelSupportTickets() {
     let cancelled = false;
     api.get(`/releases/${form.release_id}`).then(({ data }) => {
       if (!cancelled) setReleaseTracks(data.tracks || []);
-    }).catch(() => {});
+    }).catch((error) => {
+      if (!cancelled) setErr(formatApiError(error.response?.data?.detail));
+    });
     return () => { cancelled = true; };
   }, [form.release_id]);
 
@@ -234,223 +235,7 @@ export default function LabelSupportTickets() {
         ))}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4 overflow-y-auto" onClick={() => setOpen(false)}>
-          <form
-            onSubmit={submit}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl rm-glass-strong rounded-[24px] p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex justify-between items-center">
-              <h3 className="font-display font-extrabold text-xl tracking-tighter">Buat Tiket Support</h3>
-              <button type="button" onClick={() => setOpen(false)} className="p-2 text-zinc-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {err && (
-              <div className="rounded-xl bg-red-500/15 text-red-300 px-3 py-2 text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> {err}
-              </div>
-            )}
-
-            <div className="grid md:grid-cols-2 gap-3">
-              <div>
-                <label className="rm-label">Kategori</label>
-                <select
-                  className="rm-input"
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  data-testid={SUPPORT.categorySelect}
-                >
-                  {CATEGORY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="rm-label">Rilisan</label>
-                <select
-                  className="rm-input"
-                  value={form.release_id}
-                  onChange={(e) => setForm({ ...form, release_id: e.target.value, new_audio_track_id: "" })}
-                  data-testid={SUPPORT.releaseSelect}
-                  required
-                >
-                  <option value="">— Pilih rilisan —</option>
-                  {releases.map((r) => (
-                    <option key={r.id} value={r.id}>{r.release_title} — {r.artist_name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="rm-label">Subjek</label>
-              <input
-                className="rm-input"
-                value={form.subject}
-                onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                placeholder="Contoh: Takedown lagu karena masalah hak cipta"
-                data-testid={SUPPORT.subjectInput}
-                required
-                minLength={3}
-                maxLength={200}
-              />
-            </div>
-
-            <div>
-              <label className="rm-label">Deskripsi</label>
-              <textarea
-                className="rm-input min-h-[100px]"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Jelaskan kebutuhan Anda dengan detail…"
-                data-testid={SUPPORT.descriptionInput}
-                required
-                minLength={3}
-                maxLength={4000}
-              />
-            </div>
-
-            {(form.category === "takedown" || form.category === "edit_metadata") && (
-              <div>
-                <label className="rm-label">{form.category === "takedown" ? "Alasan Takedown" : "Alasan Perubahan"}</label>
-                <textarea
-                  className="rm-input min-h-[70px]"
-                  value={form.reason}
-                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                  data-testid={SUPPORT.reasonInput}
-                  required
-                />
-              </div>
-            )}
-
-            {form.category === "edit_metadata" && (
-              <div className="rm-glass rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Metadata Baru</div>
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="rm-label">Judul Rilisan</label>
-                    <input className="rm-input" value={form.new_metadata.release_title} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, release_title: e.target.value } })} />
-                  </div>
-                  <div>
-                    <label className="rm-label">Artist</label>
-                    <input className="rm-input" value={form.new_metadata.artist_name} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, artist_name: e.target.value } })} />
-                  </div>
-                  <div>
-                    <label className="rm-label">Genre</label>
-                    <input className="rm-input" value={form.new_metadata.genre} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, genre: e.target.value } })} />
-                  </div>
-                  <div>
-                    <label className="rm-label">Bahasa</label>
-                    <input className="rm-input" value={form.new_metadata.language} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, language: e.target.value } })} />
-                  </div>
-                  <div>
-                    <label className="rm-label">© Line</label>
-                    <input className="rm-input" value={form.new_metadata.copyright_line} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, copyright_line: e.target.value } })} />
-                  </div>
-                  <div>
-                    <label className="rm-label">℗ Line</label>
-                    <input className="rm-input" value={form.new_metadata.p_line} onChange={(e) => setForm({ ...form, new_metadata: { ...form.new_metadata, p_line: e.target.value } })} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {form.category === "edit_audio" && (
-              <div className="rm-glass rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">File Audio Baru (WAV)</div>
-                {releaseTracks.length > 0 ? (
-                  <div>
-                    <label className="rm-label">Track yang Diganti</label>
-                    <select
-                      className="rm-input"
-                      value={form.new_audio_track_id}
-                      onChange={(e) => setForm({ ...form, new_audio_track_id: e.target.value })}
-                      data-testid={SUPPORT.trackSelect}
-                      required
-                    >
-                      <option value="">— Pilih track —</option>
-                      {releaseTracks.map((t) => (
-                        <option key={t.id} value={t.id}>{t.track_number}. {t.track_title}</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="text-xs text-amber-300">{form.release_id ? "Memuat track…" : "Pilih rilisan terlebih dahulu"}</div>
-                )}
-                <div>
-                  <label className="rm-label">Upload WAV Baru</label>
-                  <input type="file" accept=".wav" className="rm-input" onChange={handleAudioUpload} data-testid={SUPPORT.audioUpload} required={!form.new_audio_url} />
-                  {form.new_audio_url && (
-                    <div className="text-xs text-emerald-300 mt-2 flex items-center gap-2">
-                      <CheckCircle2 className="w-3 h-3" /> {form.new_audio_filename || "WAV terupload"}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {form.category === "edit_cover" && (
-              <div className="rm-glass rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Cover Baru (3000×3000)</div>
-                <input type="file" accept=".jpg,.jpeg,.png" className="rm-input" onChange={handleCoverUpload} data-testid={SUPPORT.coverUpload} required={!form.new_cover_url} />
-                {form.new_cover_url && (
-                  <div className="flex items-center gap-3">
-                    <img src={fileUrl(form.new_cover_url)} alt="cover baru" className="w-20 h-20 rounded-lg object-cover" />
-                    <div className="text-xs text-emerald-300 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Cover 3000×3000 terupload</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {form.category === "content_id_claim" && (
-              <label className="flex items-start gap-3 rm-glass rounded-2xl p-4 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.originality_declared}
-                  onChange={(e) => setForm({ ...form, originality_declared: e.target.checked })}
-                  data-testid={SUPPORT.originalityCheckbox}
-                  className="mt-1"
-                  required
-                />
-                <span className="text-sm text-zinc-300">
-                  Saya menyatakan bahwa lagu ini original 100% milik saya / label saya, dan tidak mengandung
-                  sample / copyright pihak lain yang dapat memicu konflik klaim Content ID. Saya bertanggung
-                  jawab penuh atas pernyataan ini.
-                </span>
-              </label>
-            )}
-
-            <div>
-              <label className="rm-label">Lampiran Tambahan (opsional)</label>
-              <input type="file" className="rm-input" onChange={handleAttachment} accept=".jpg,.jpeg,.png,.pdf,.txt,.docx,.doc" />
-              {form.attachments.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {form.attachments.map((a, idx) => (
-                    <li key={idx} className="text-xs text-zinc-300 flex items-center gap-2">
-                      <Paperclip className="w-3 h-3" /> {a.filename}
-                      <button
-                        type="button"
-                        className="text-red-300 hover:text-red-200"
-                        onClick={() => setForm({ ...form, attachments: form.attachments.filter((_, i) => i !== idx) })}
-                      >Hapus</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className="rm-btn-ghost" onClick={() => setOpen(false)}>Batal</button>
-              <button className="rm-btn-primary" disabled={busy} data-testid={SUPPORT.submitButton}>
-                {busy ? "Mengirim…" : "Kirim Tiket"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <SupportTicketModal open={open} close={() => setOpen(false)} submit={submit} form={form} setForm={setForm} releases={releases} releaseTracks={releaseTracks} busy={busy} err={err} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} handleAttachment={handleAttachment} />
     </div>
   );
 }

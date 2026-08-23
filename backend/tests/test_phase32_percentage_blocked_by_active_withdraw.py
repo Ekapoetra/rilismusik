@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pymongo
 import requests
+from tests.support_config import SUPERADMIN, temporary_password
 from dotenv import dotenv_values, load_dotenv
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -16,7 +17,7 @@ load_dotenv("/app/backend/.env")
 FRONTEND_ENV = dotenv_values("/app/frontend/.env")
 BASE = (os.environ.get("REACT_APP_BACKEND_URL") or FRONTEND_ENV["REACT_APP_BACKEND_URL"]).rstrip("/")
 API = f"{BASE}/api"
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
+SUPER = SUPERADMIN
 
 
 def _db():
@@ -45,7 +46,7 @@ def test_patch_label_percentage_returns_409_when_withdraw_requested_exists():
         "id": user_id,
         "name": "Phase32 Lock",
         "email": f"phase32-lock-{suffix}@example.com",
-        "password_hash": hash_password("Phase32Lock#2026"),
+        "password_hash": hash_password(temporary_password("phase32-lock")),
         "role": "label",
         "status": "active",
         "email_verified_at": now,

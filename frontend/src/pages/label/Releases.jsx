@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -11,15 +11,11 @@ export default function LabelReleases() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line
-  }, [status]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/releases/", { params: { status: status || undefined, q: q || undefined } });
     setItems(data);
-  };
+  }, [status, q]);
+  useEffect(() => { load(); }, [load]);
 
   return (
     <div className="space-y-5 max-w-6xl">

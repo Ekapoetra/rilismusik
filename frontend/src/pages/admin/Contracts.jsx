@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { FileSignature, Plus, Upload, Download, AlertTriangle, CheckCircle2, X, Calendar, Ban, RefreshCw, ChevronDown } from "lucide-react";
 
@@ -40,18 +40,18 @@ export default function AdminContracts() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const params = statusFilter ? { status: statusFilter } : {};
     const { data } = await api.get("/contracts/admin", { params });
     setItems(data);
-  };
-  const loadLabels = async () => {
+  }, [statusFilter]);
+  const loadLabels = useCallback(async () => {
     const { data } = await api.get("/admin/labels");
     setLabels(data);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, [statusFilter]);
-  useEffect(() => { loadLabels(); }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadLabels(); }, [loadLabels]);
 
   const handlePdfUpload = async (e) => {
     const file = e.target.files?.[0];

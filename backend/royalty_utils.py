@@ -60,10 +60,10 @@ HEADER_ALIASES: Dict[str, List[str]] = {
         "country", "territory", "country code", "iso country",
         "negara",
     ],
-    "period": [
-        "period", "sales month", "sale_month", "reporting period", "month",
-        "bulan penjualan", "bulan laporan",
-    ],
+    # The reporting period MUST come from Believe's `Bulan laporan` column.
+    # `normalize_header()` already makes `bulan_laporan` / `bulan-laporan`
+    # equivalent without allowing `Bulan Penjualan` as a fallback.
+    "period": ["bulan laporan"],
     "quantity": [
         "quantity", "units", "streams", "stream count", "play count", "qty",
         # Believe Indonesian header MISSPELLED in the real export.
@@ -192,19 +192,23 @@ def parse_amount(value: Any) -> float:
 
 
 def parse_period_from_value(value: Any) -> Optional[str]:
-    """Convert various date strings to YYYY-MM. Accepts:
-       - 2025/05/01, 2025-05-01, 2025-05, 2025/05, 05/2025, May 2025."""
+    """Convert a valid reporting-month value to YYYY-MM.
+
+    Invalid months and malformed strings are rejected instead of being
+    truncated into a seemingly valid period.
+    """
     if not value:
         return None
     s = str(value).strip()
-    for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y/%m", "%Y-%m", "%d/%m/%Y", "%m/%Y"):
+    for fmt in (
+        "%Y/%m/%d", "%Y-%m-%d", "%Y/%m", "%Y-%m",
+        "%d/%m/%Y", "%m/%Y", "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+    ):
         try:
             return datetime.strptime(s, fmt).strftime("%Y-%m")
         except ValueError:
             continue
-    # fallback: take first 7 chars if it looks like YYYY?MM
-    if len(s) >= 7 and s[:4].isdigit():
-        return f"{s[:4]}-{s[5:7]}"
     return None
 
 

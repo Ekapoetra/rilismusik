@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { api, API_BASE } from "@/api/client";
+import { api, API_BASE, formatApiError } from "@/api/client";
 import { Download, Music, Globe2, TrendingUp } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
@@ -10,17 +10,33 @@ export default function LabelRoyalty() {
   const [summary, setSummary] = useState(null);
   const [lines, setLines] = useState([]);
   const [filter, setFilter] = useState({ platform: "", country: "", track_id: "" });
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    api.get("/royalty/months").then((r) => {
-      setMonths(r.data);
-      if (r.data.length > 0 && !period) setPeriod(r.data[0]);
-    });
-  }, []); // eslint-disable-line
+    let active = true;
+    api.get("/royalty/months")
+      .then((response) => {
+        if (!active) return;
+        setMonths(response.data);
+        setPeriod((current) => current || response.data[0] || "");
+      })
+      .catch((error) => active && setErr(formatApiError(error.response?.data?.detail)));
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    api.get("/royalty/summary", { params: { period: period || undefined } }).then((r) => setSummary(r.data));
-    api.get("/royalty/lines", { params: { period: period || undefined, ...Object.fromEntries(Object.entries(filter).filter(([_, v]) => v)) } }).then((r) => setLines(r.data));
+    let active = true;
+    const params = { period: period || undefined, ...Object.fromEntries(Object.entries(filter).filter(([, value]) => value)) };
+    Promise.all([
+      api.get("/royalty/summary", { params: { period: period || undefined } }),
+      api.get("/royalty/lines", { params }),
+    ]).then(([summaryResponse, linesResponse]) => {
+      if (!active) return;
+      setSummary(summaryResponse.data);
+      setLines(linesResponse.data);
+      setErr("");
+    }).catch((error) => active && setErr(formatApiError(error.response?.data?.detail)));
+    return () => { active = false; };
   }, [period, filter]);
 
   const exportUrl = useMemo(() => {
@@ -47,6 +63,7 @@ export default function LabelRoyalty() {
           <a href={exportUrl} className="rm-btn-ghost flex items-center gap-2 text-sm" data-testid="royalty-export-csv"><Download className="w-4 h-4" /> Export CSV</a>
         </div>
       </div>
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="royalty-error">{err}</div>}
 
       {months.length === 0 ? (
         <div className="rm-card p-10 text-center text-zinc-500">
@@ -64,13 +81,13 @@ export default function LabelRoyalty() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <Panel title="Per Platform" icon={Music}>
-              {summary.by_platform.length === 0 ? <Empty /> : summary.by_platform.map((p, i) => (
-                <Row key={i} k={p.platform} v={fmtIDR(p.total_idr)} sub={`${p.streams?.toLocaleString("id-ID")} streams`} />
+              {summary.by_platform.length === 0 ? <Empty /> : summary.by_platform.map((p) => (
+                <Row key={p.platform || "unknown-platform"} k={p.platform} v={fmtIDR(p.total_idr)} sub={`${p.streams?.toLocaleString("id-ID")} streams`} />
               ))}
             </Panel>
             <Panel title="Top Country" icon={Globe2}>
-              {summary.by_country.length === 0 ? <Empty /> : summary.by_country.map((c, i) => (
-                <Row key={i} k={c.country} v={fmtIDR(c.total_idr)} />
+              {summary.by_country.length === 0 ? <Empty /> : summary.by_country.map((c) => (
+                <Row key={c.country || "unknown-country"} k={c.country} v={fmtIDR(c.total_idr)} />
               ))}
             </Panel>
           </div>
@@ -84,7 +101,7 @@ export default function LabelRoyalty() {
                 <thead><tr className="text-left text-[11px] uppercase tracking-widest text-zinc-500"><th className="py-2">#</th><th>Track</th><th>Streams</th><th className="text-right">Royalti IDR</th></tr></thead>
                 <tbody>
                   {summary.by_track.map((t, i) => (
-                    <tr key={i} className="border-t border-white/5">
+                    <tr key={`${t.isrc || "no-isrc"}-${t.title || "untitled"}`} className="border-t border-white/5">
                       <td className="py-2 text-zinc-600">{i + 1}</td>
                       <td className="font-semibold truncate max-w-[260px]">{t.title}</td>
                       <td>{t.streams?.toLocaleString("id-ID")}</td>

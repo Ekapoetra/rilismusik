@@ -15,7 +15,7 @@ from models import (
     PaymentProductUpdateIn, now_iso, new_id,
 )
 from payment_service import (
-    create_payment_document, create_xendit_session, fulfill_payment,
+    PaymentCreateData, create_payment_document, create_xendit_session, fulfill_payment,
     payment_price, poll_payment, reconcile_payment, xendit_configured,
 )
 
@@ -51,11 +51,11 @@ async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: d
     if existing:
         return existing
     amount = await payment_price(tier)
-    return await create_payment_document(
+    return await create_payment_document(PaymentCreateData(
         label_id=label["id"], payment_type="annual_subscription", amount=amount,
         tier=tier, description=f"Paket {tier.replace('_', ' ').title()} 1 Tahun",
         return_path="/label/invoices",
-    )
+    ))
 
 
 @pay_r.post("/wami")
@@ -111,12 +111,12 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
         )
         return {"order": order, "invoice": None, "free_vip": True}
 
-    invoice = await create_payment_document(
+    invoice = await create_payment_document(PaymentCreateData(
         label_id=label["id"], payment_type="wami_addon", amount=amount,
         release_id=release["id"], track_id=body.track_id, wami_order_id=order_id,
         description=f"Pendaftaran WAMI — {track.get('track_title')}",
         return_path="/label/wami",
-    )
+    ))
     await db.wami_orders.update_one({"id": order_id}, {"$set": {"payment_id": invoice["id"], "updated_at": now_iso()}})
     order["payment_id"] = invoice["id"]
     return {"order": order, "invoice": invoice, "free_vip": False}
@@ -139,11 +139,11 @@ async def create_service_invoice(product_id: str, user: dict = Depends(require_l
         "name": product["name"], "amount": int(product["amount"]), "status": "unpaid",
         "created_at": now_iso(), "updated_at": now_iso(),
     })
-    return await create_payment_document(
+    return await create_payment_document(PaymentCreateData(
         label_id=label["id"], payment_type="custom_service", amount=int(product["amount"]),
         product_id=product_id, service_order_id=order_id, description=product["name"],
         return_path="/label/invoices",
-    )
+    ))
 
 
 @pay_r.get("/admin/products")

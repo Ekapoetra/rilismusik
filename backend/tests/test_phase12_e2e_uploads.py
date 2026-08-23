@@ -14,6 +14,7 @@ import sys
 import uuid
 import time
 import requests
+from tests.support_config import DEMO_VIP, SUPERADMIN, temporary_password
 import pytest
 from pathlib import Path
 
@@ -24,10 +25,10 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
-VIP_EMAIL = "demo_vip@rilismusik.com"
-VIP_PASS = "DemoVIP#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
+VIP_EMAIL = DEMO_VIP["email"]
+VIP_PASS = DEMO_VIP["password"]
 
 
 def _login(email: str, password: str) -> str:

@@ -41,7 +41,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
-from payment_service import create_payment_document, payment_price
+from payment_service import PaymentCreateData, create_payment_document, payment_price
 
 # =============================================================================
 #                              RELEASES
@@ -355,12 +355,12 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     else:
         new_status = "awaiting_payment"
         amount = await payment_price("pay_per_release")
-        invoice_doc = await create_payment_document(
+        invoice_doc = await create_payment_document(PaymentCreateData(
             label_id=label["id"], payment_type="pay_per_release", amount=amount,
             release_id=release_id,
             description=f"Distribusi rilisan — {rel.get('release_title')}",
             return_path=f"/label/releases/{release_id}",
-        )
+        ))
         payment_status = "pending"
         payment_id = invoice_doc["id"]
 

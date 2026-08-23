@@ -4,6 +4,7 @@ This integration intentionally uses backend polling. Redirect return URLs are
 navigation only and are never trusted as proof of payment.
 """
 import os
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -12,7 +13,7 @@ from fastapi import HTTPException
 from pymongo import ReturnDocument
 
 from models import new_id, now_iso
-from routes.deps import db, logger, admin_user_ids, label_user_ids, notify_many
+from routes.deps import db, logger, notify_many
 from email_service import send_payment_receipt_email
 
 
@@ -29,6 +30,34 @@ DEFAULT_PRICES = {
     "annual_vip": 500_000,
     "wami_addon": 100_000,
 }
+
+
+async def admin_user_ids(roles: tuple[str, ...]) -> list[str]:
+    users = await db.users.find(
+        {"role": {"$in": list(roles)}, "status": {"$ne": "disabled"}},
+        {"_id": 0, "id": 1},
+    ).to_list(1000)
+    return [user["id"] for user in users if user.get("id")]
+
+
+async def label_user_ids(label_id: str) -> list[str]:
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0, "user_id": 1})
+    return [label["user_id"]] if label and label.get("user_id") else []
+
+
+@dataclass(frozen=True)
+class PaymentCreateData:
+    label_id: str
+    payment_type: str
+    amount: int
+    description: str
+    return_path: str = "/label/invoices"
+    release_id: Optional[str] = None
+    track_id: Optional[str] = None
+    wami_order_id: Optional[str] = None
+    tier: Optional[str] = None
+    product_id: Optional[str] = None
+    service_order_id: Optional[str] = None
 
 
 def _required_env(name: str) -> str:
@@ -55,26 +84,20 @@ async def payment_price(code: str) -> int:
     return int(configured or DEFAULT_PRICES[code])
 
 
-async def create_payment_document(
-    *, label_id: str, payment_type: str, amount: int, description: str,
-    release_id: Optional[str] = None, track_id: Optional[str] = None,
-    wami_order_id: Optional[str] = None, tier: Optional[str] = None,
-    product_id: Optional[str] = None, service_order_id: Optional[str] = None,
-    return_path: str = "/label/invoices",
-) -> Dict[str, Any]:
+async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
     payment_id = new_id()
     document = {
         "id": payment_id,
-        "label_id": label_id,
-        "release_id": release_id,
-        "track_id": track_id,
-        "wami_order_id": wami_order_id,
-        "service_order_id": service_order_id,
-        "product_id": product_id,
-        "type": payment_type,
-        "tier": tier,
-        "description": description,
-        "amount": int(amount),
+        "label_id": data.label_id,
+        "release_id": data.release_id,
+        "track_id": data.track_id,
+        "wami_order_id": data.wami_order_id,
+        "service_order_id": data.service_order_id,
+        "product_id": data.product_id,
+        "type": data.payment_type,
+        "tier": data.tier,
+        "description": data.description,
+        "amount": int(data.amount),
         "currency": "IDR",
         "status": "pending",
         "provider": "xendit",
@@ -84,7 +107,7 @@ async def create_payment_document(
         "payment_request_id": None,
         "payment_id_provider": None,
         "fulfillment_status": "pending",
-        "return_path": return_path,
+        "return_path": data.return_path,
         "paid_at": None,
         "expired_at": None,
         "last_provider_poll_at": None,
@@ -225,12 +248,9 @@ async def _send_receipt(payment: Dict[str, Any]) -> None:
         logger.warning("[XENDIT] receipt email failed payment=%s error=%s", payment["id"], type(exc).__name__)
 
 
-async def fulfill_payment(payment: Dict[str, Any]) -> Dict[str, Any]:
-    """Apply paid entitlements exactly once, safe across repeated polling."""
-    if payment.get("fulfillment_status") == "fulfilled":
-        return payment
+async def _claim_fulfillment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     stale_before = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
-    claimed = await db.payments.find_one_and_update(
+    return await db.payments.find_one_and_update(
         {
             "id": payment["id"],
             "$or": [
@@ -246,84 +266,120 @@ async def fulfill_payment(payment: Dict[str, Any]) -> Dict[str, Any]:
         return_document=ReturnDocument.AFTER,
         projection={"_id": 0},
     )
+
+
+async def _fulfill_release(payment: Dict[str, Any]) -> None:
+    await db.releases.update_one(
+        {"id": payment["release_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()},
+         "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+    )
+
+
+def _subscription_expiry(label: Optional[Dict[str, Any]]) -> datetime:
+    base = datetime.now(timezone.utc)
+    raw = (label or {}).get("subscription_expires_at")
+    if not raw:
+        return base
+    try:
+        current = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        return current if current > base else base
+    except (TypeError, ValueError):
+        return base
+
+
+async def _fulfill_subscription(payment: Dict[str, Any]) -> None:
+    label = await db.labels.find_one({"id": payment["label_id"]}, {"_id": 0})
+    expiry = _subscription_expiry(label) + timedelta(days=365)
+    await db.labels.update_one(
+        {"id": payment["label_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"$set": {
+            "subscription_status": "active", "subscription_expires_at": expiry.isoformat(),
+            "payment_type": "annual_subscription",
+            "subscription_tier": payment.get("tier") or "annual_vip", "updated_at": now_iso(),
+        }, "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+    )
+
+
+async def _fulfill_wami(payment: Dict[str, Any]) -> None:
+    await db.wami_orders.update_one(
+        {"id": payment.get("wami_order_id"), "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()},
+         "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+    )
+    order = await db.wami_orders.find_one({"id": payment.get("wami_order_id")}, {"_id": 0})
+    if order:
+        await notify_many(
+            await admin_user_ids(("super_admin", "admin_release")), "wami_new",
+            "WAMI baru — sudah dibayar", f"WAMI '{order.get('track_title')}' menunggu diproses.",
+            "/admin/wami", {"wami_order_id": order["id"]},
+        )
+
+
+async def _fulfill_custom_service(payment: Dict[str, Any]) -> None:
+    await db.service_orders.update_one(
+        {"id": payment.get("service_order_id"), "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"$set": {"status": "paid", "paid_at": now_iso(), "updated_at": now_iso()},
+         "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+    )
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_finance", "admin_support")),
+        "service_order_paid", "Layanan baru sudah dibayar",
+        f"Pesanan '{payment.get('description')}' siap diproses.",
+        "/admin/payments", {"payment_id": payment["id"]},
+    )
+
+
+FULFILLMENT_HANDLERS = {
+    "pay_per_release": _fulfill_release,
+    "annual_subscription": _fulfill_subscription,
+    "wami_addon": _fulfill_wami,
+    "custom_service": _fulfill_custom_service,
+}
+
+
+async def _apply_entitlement(payment: Dict[str, Any]) -> None:
+    handler = FULFILLMENT_HANDLERS.get(payment["type"])
+    if not handler:
+        raise ValueError(f"Unsupported payment type: {payment['type']}")
+    await handler(payment)
+
+
+async def _finalize_fulfillment(payment: Dict[str, Any]) -> None:
+    payment_id = payment["id"]
+    await db.payments.update_one({"id": payment_id}, {"$set": {
+        "status": "paid", "fulfillment_status": "fulfilled", "fulfilled_at": now_iso(),
+        "paid_at": payment.get("paid_at") or now_iso(), "updated_at": now_iso(),
+    }})
+    await notify_many(
+        await label_user_ids(payment["label_id"]), "payment_paid", "Pembayaran berhasil",
+        f"Pembayaran {payment.get('description') or payment['type']} telah dikonfirmasi Xendit.",
+        payment.get("return_path") or "/label/invoices", {"payment_id": payment_id},
+    )
+    await _send_receipt(payment)
+
+
+async def _record_fulfillment_failure(payment_id: str, exc: Exception) -> None:
+    logger.exception("[XENDIT] fulfillment failed payment=%s: %s", payment_id, exc)
+    await db.payments.update_one({"id": payment_id}, {"$set": {
+        "fulfillment_status": "failed", "fulfillment_error": type(exc).__name__, "updated_at": now_iso(),
+    }})
+
+
+async def fulfill_payment(payment: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply paid entitlements exactly once, safe across repeated polling."""
+    if payment.get("fulfillment_status") == "fulfilled":
+        return payment
+    claimed = await _claim_fulfillment(payment)
     if not claimed:
         return await db.payments.find_one({"id": payment["id"]}, {"_id": 0})
-
-    payment_id = claimed["id"]
     try:
-        if claimed["type"] == "pay_per_release":
-            await db.releases.update_one(
-                {"id": claimed["release_id"], "fulfilled_payment_ids": {"$ne": payment_id}},
-                {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()},
-                 "$addToSet": {"fulfilled_payment_ids": payment_id}},
-            )
-        elif claimed["type"] == "annual_subscription":
-            label = await db.labels.find_one({"id": claimed["label_id"]}, {"_id": 0})
-            base = datetime.now(timezone.utc)
-            if label and label.get("subscription_expires_at"):
-                try:
-                    current_expiry = datetime.fromisoformat(str(label["subscription_expires_at"]).replace("Z", "+00:00"))
-                    if current_expiry > base:
-                        base = current_expiry
-                except Exception:
-                    pass
-            await db.labels.update_one(
-                {"id": claimed["label_id"], "fulfilled_payment_ids": {"$ne": payment_id}},
-                {"$set": {
-                    "subscription_status": "active",
-                    "subscription_expires_at": (base + timedelta(days=365)).isoformat(),
-                    "payment_type": "annual_subscription",
-                    "subscription_tier": claimed.get("tier") or "annual_vip",
-                    "updated_at": now_iso(),
-                }, "$addToSet": {"fulfilled_payment_ids": payment_id}},
-            )
-        elif claimed["type"] == "wami_addon":
-            await db.wami_orders.update_one(
-                {"id": claimed.get("wami_order_id"), "fulfilled_payment_ids": {"$ne": payment_id}},
-                {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()},
-                 "$addToSet": {"fulfilled_payment_ids": payment_id}},
-            )
-            order = await db.wami_orders.find_one({"id": claimed.get("wami_order_id")}, {"_id": 0})
-            if order:
-                await notify_many(
-                    await admin_user_ids(("super_admin", "admin_release")), "wami_new",
-                    "WAMI baru — sudah dibayar",
-                    f"WAMI '{order.get('track_title')}' menunggu diproses.",
-                    "/admin/wami", {"wami_order_id": order["id"]},
-                )
-        elif claimed["type"] == "custom_service":
-            await db.service_orders.update_one(
-                {"id": claimed.get("service_order_id"), "fulfilled_payment_ids": {"$ne": payment_id}},
-                {"$set": {"status": "paid", "paid_at": now_iso(), "updated_at": now_iso()},
-                 "$addToSet": {"fulfilled_payment_ids": payment_id}},
-            )
-            await notify_many(
-                await admin_user_ids(("super_admin", "admin_finance", "admin_support")),
-                "service_order_paid", "Layanan baru sudah dibayar",
-                f"Pesanan '{claimed.get('description')}' siap diproses.",
-                "/admin/payments", {"payment_id": payment_id},
-            )
-
-        await db.payments.update_one({"id": payment_id}, {"$set": {
-            "status": "paid",
-            "fulfillment_status": "fulfilled",
-            "fulfilled_at": now_iso(),
-            "paid_at": claimed.get("paid_at") or now_iso(),
-            "updated_at": now_iso(),
-        }})
-        await notify_many(
-            await label_user_ids(claimed["label_id"]), "payment_paid", "Pembayaran berhasil",
-            f"Pembayaran {claimed.get('description') or claimed['type']} telah dikonfirmasi Xendit.",
-            claimed.get("return_path") or "/label/invoices", {"payment_id": payment_id},
-        )
-        await _send_receipt(claimed)
+        await _apply_entitlement(claimed)
+        await _finalize_fulfillment(claimed)
     except Exception as exc:
-        logger.exception("[XENDIT] fulfillment failed payment=%s: %s", payment_id, exc)
-        await db.payments.update_one({"id": payment_id}, {"$set": {
-            "fulfillment_status": "failed", "fulfillment_error": type(exc).__name__, "updated_at": now_iso(),
-        }})
+        await _record_fulfillment_failure(claimed["id"], exc)
         raise
-    return await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    return await db.payments.find_one({"id": claimed["id"]}, {"_id": 0})
 
 
 async def reconcile_payment(payment: Dict[str, Any], remote: Dict[str, Any]) -> Dict[str, Any]:

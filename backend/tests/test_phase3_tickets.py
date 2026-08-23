@@ -16,14 +16,15 @@ import uuid
 
 import pytest
 import requests
+from tests.support_config import SUPERADMIN, temporary_password
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
 LABEL1_EMAIL = "label1@test.com"
-LABEL1_PASS = "Password#123"
+LABEL1_PASS = temporary_password("phase3-label")
 
 
 def _session():
@@ -66,7 +67,7 @@ def other_label():
     email = _rand_email("lbl")
     r = s.post(f"{API}/auth/register", json={
         "label_name": "TEST P3 Other Label", "pic_name": "PIC",
-        "email": email, "whatsapp": "+62811", "password": "Password#123",
+        "email": email, "whatsapp": "+62811", "password": LABEL1_PASS,
         "account_type": "label",
             "mda_accepted": True,
     })

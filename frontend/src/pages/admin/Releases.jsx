@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
@@ -23,7 +23,7 @@ export default function AdminReleases() {
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState("revenue"); // revenue | date
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -35,18 +35,20 @@ export default function AdminReleases() {
       if (sortBy === "revenue") data.sort((a, b) => (b.revenue_idr || 0) - (a.revenue_idr || 0));
       setItems(data);
     } finally { setLoading(false); }
-  };
+  }, [status, q, periodFrom, periodTo, sortBy]);
 
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/admin/analytics/periods");
         setPeriods(data.periods || []);
-      } catch (_) { /* ignore cold cache */ }
+      } catch (error) {
+        console.warn("Analytics periods unavailable; release list remains usable.", error);
+      }
     })();
     load();
-  }, []);
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [status, periodFrom, periodTo, sortBy]);
+  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const totalRev = items.reduce((s, r) => s + (r.revenue_idr || 0), 0);
 

@@ -21,6 +21,7 @@ import time
 import io
 import pytest
 import requests
+from tests.support_config import FINANCE, SUPERADMIN, temporary_password
 
 def _read_frontend_env_url():
     try:
@@ -35,12 +36,12 @@ def _read_frontend_env_url():
 BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or _read_frontend_env_url()).rstrip("/")
 assert BASE_URL, "REACT_APP_BACKEND_URL must be set"
 
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
 
 # A sub-admin for the 403 test (admin_finance has no super_admin role)
-FINANCE_EMAIL = "finance1@rilismusik.com"
-FINANCE_PASS = "Finance#2026"
+FINANCE_EMAIL = FINANCE["email"]
+FINANCE_PASS = FINANCE["password"]
 
 ENDPOINT = f"{BASE_URL}/api/admin/admin/danger/reset-all-data"
 
@@ -109,7 +110,7 @@ class TestRBAC:
 # Phase B: seed test data, then DESTROY, then verify clean slate
 # ---------------------------------------------------------------------------
 TEST_LABEL_EMAIL = f"TEST_reset_{int(time.time())}@example.com"
-TEST_LABEL_PASS = "TestReset#2026"
+TEST_LABEL_PASS = temporary_password("phase13-reset")
 
 state = {}  # shared across tests in this module
 

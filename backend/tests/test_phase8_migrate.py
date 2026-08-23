@@ -12,13 +12,14 @@ import io
 import os
 import uuid
 import requests
+from tests.support_config import FINANCE, SUPERADMIN, temporary_password
 import pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 API = f"{BASE}/api"
 
-SUPER_EMAIL = "superadmin@rilismusik.com"
-SUPER_PASS = "SuperAdmin#2026"
+SUPER_EMAIL = SUPERADMIN["email"]
+SUPER_PASS = SUPERADMIN["password"]
 
 
 def _login(email, password):
@@ -177,7 +178,7 @@ class TestClaimFlow:
                 "pic_name": "Phase8 Claimant",
                 "email": email,
                 "whatsapp": "081234567099",
-                "password": "Phase8Claim#",
+                "password": temporary_password("phase8-claim"),
                 "account_type": "label",
                 "mda_accepted": True,
                 "claim_existing": True,
@@ -229,7 +230,7 @@ class TestClaimFlow:
 
 class TestMigratePermissions:
     def test_non_super_admin_rejected(self):
-        token = _login("finance1@rilismusik.com", "Finance#2026")
+        token = _login(FINANCE["email"], FINANCE["password"])
         files = {"file": ("x.csv", "label_name\nx\n", "text/csv")}
         r = requests.post(f"{API}/admin/migrate/labels", headers=_hdr(token), files=files, timeout=15)
         assert r.status_code == 403
@@ -241,7 +242,7 @@ class TestMigratePermissions:
             f"{API}/auth/register",
             json={
                 "label_name": "Phase8 Outsider", "pic_name": "Out", "email": email,
-                "whatsapp": "081234567088", "password": "Phase8Out#",
+                "whatsapp": "081234567088", "password": temporary_password("phase8-out"),
                 "account_type": "label", "mda_accepted": True,
             },
             timeout=15,

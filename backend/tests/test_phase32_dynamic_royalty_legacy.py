@@ -13,13 +13,14 @@ from dotenv import dotenv_values, load_dotenv
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from auth_utils import hash_password
+from tests.support_config import SUPERADMIN, temporary_password
 
 
 load_dotenv("/app/backend/.env")
 FRONTEND_ENV = dotenv_values("/app/frontend/.env")
 BASE = (os.environ.get("REACT_APP_BACKEND_URL") or FRONTEND_ENV["REACT_APP_BACKEND_URL"]).rstrip("/")
 API = f"{BASE}/api"
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
+SUPER = SUPERADMIN
 
 
 def _db():
@@ -72,7 +73,7 @@ def test_dynamic_percentage_and_legacy_cutoff_end_to_end():
     user_id = f"phase32-user-{suffix}"
     import_id = f"phase32-import-{suffix}"
     email = f"phase32-{suffix}@example.com"
-    password = "Phase32#2026"
+    password = temporary_password("phase32")
     label_name = f"Phase32 Label {suffix}"
     now = "2026-07-01T00:00:00+00:00"
     super_token = _token(SUPER)
@@ -200,7 +201,7 @@ def test_dynamic_percentage_and_legacy_cutoff_end_to_end():
         db.releases.insert_one({"id": release_id, "label_id": label_id, "release_title": "Phase 32", "status": "live"})
         db.tracks.insert_one({"id": track_id, "release_id": release_id, "label_id": label_id, "isrc": isrc, "track_title": "Late CSV"})
         royalty_csv = (
-            "ISRC,UPC,Track Title,Artist,Album,Platform,Country,Period,Quantity,Net Revenue EUR\n"
+            "ISRC,UPC,Track Title,Artist,Album,Platform,Country,Bulan Laporan,Quantity,Net Revenue EUR\n"
             f"{isrc},,Late CSV,Tester,Phase 32,Spotify,ID,2024-12,10,10\n"
         ).encode()
         response = requests.post(

@@ -14,14 +14,14 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import FINANCE, RELEASE_ADMIN, SUPERADMIN
 import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-SUPER = {"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"}
-FINANCE = {"email": "finance1@rilismusik.com", "password": "Finance#2026"}
-RELEASE = {"email": "release1@rilismusik.com", "password": "Release#2026"}
+SUPER = SUPERADMIN
+RELEASE = RELEASE_ADMIN
 
 
 def _login(creds):

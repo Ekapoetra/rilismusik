@@ -12,6 +12,7 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import SUPERADMIN, temporary_password
 import pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
@@ -28,7 +29,7 @@ def _register_payload(extra=None):
         "pic_name": "MDA Tester",
         "email": _email(),
         "whatsapp": "+6281234567890",
-        "password": "MdaPass#2026",
+        "password": temporary_password("phase7-mda"),
         "account_type": "label",
         "mda_accepted": True,
     }
@@ -108,7 +109,7 @@ class TestMdaPreview:
         # We rely on super_admin to count
         sa = requests.post(
             f"{API}/auth/login",
-            json={"email": "superadmin@rilismusik.com", "password": "SuperAdmin#2026"},
+            json=SUPERADMIN,
             timeout=15,
         )
         assert sa.status_code == 200

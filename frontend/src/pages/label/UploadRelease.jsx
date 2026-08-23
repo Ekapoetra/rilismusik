@@ -5,6 +5,10 @@ import { UPLOAD_RELEASE } from "@/constants/testIds";
 import { Trash2, Plus, UploadCloud, Music, ImageIcon } from "lucide-react";
 
 const RELEASE_TYPES = ["single", "ep", "album", "compilation"];
+const newTrack = (artistName = "") => ({
+  client_id: crypto.randomUUID(), track_title: "", artist_name: artistName,
+  composer: "", lyricist: "", producer: "", explicit: false, track_number: 1,
+});
 
 function todayPlus(days) {
   const d = new Date();
@@ -31,7 +35,7 @@ export default function UploadRelease() {
     p_line: "",
     platforms: ["Spotify", "Apple Music", "YouTube Music", "TikTok"],
     notes: "",
-    tracks: [{ track_title: "", artist_name: "", composer: "", lyricist: "", producer: "", explicit: false, track_number: 1 }],
+    tracks: [newTrack()],
   });
   const [declaration, setDeclaration] = useState(false);
   const [coverFile, setCoverFile] = useState(null);
@@ -48,7 +52,7 @@ export default function UploadRelease() {
 
   const addTrack = () => setForm({
     ...form,
-    tracks: [...form.tracks, { track_title: "", artist_name: form.artist_name, composer: "", lyricist: "", producer: "", explicit: false, track_number: form.tracks.length + 1 }]
+    tracks: [...form.tracks, { ...newTrack(form.artist_name), track_number: form.tracks.length + 1 }]
   });
 
   const removeTrack = (i) => setForm({ ...form, tracks: form.tracks.filter((_, idx) => idx !== i) });
@@ -59,7 +63,7 @@ export default function UploadRelease() {
     if (!form.tracks.length || form.tracks.some(t => !t.track_title)) { setErr("Semua track wajib punya judul"); return; }
     setSaving(true);
     try {
-      const tracks = form.tracks.map((t, i) => ({ ...t, track_number: i + 1, artist_name: t.artist_name || form.artist_name }));
+      const tracks = form.tracks.map(({ client_id, ...track }, i) => ({ ...track, track_number: i + 1, artist_name: track.artist_name || form.artist_name }));
       const payload = { ...form, tracks };
       let r;
       if (release?.id) {
@@ -193,7 +197,7 @@ export default function UploadRelease() {
           </div>
           <div className="space-y-4">
             {form.tracks.map((t, i) => (
-              <div key={i} className="border border-white/5 rounded-2xl p-4 bg-white/[0.02]">
+              <div key={t.client_id} className="border border-white/5 rounded-2xl p-4 bg-white/[0.02]">
                 <div className="flex justify-between items-center mb-3">
                   <div className="text-sm font-bold text-zinc-200">Track #{i + 1}</div>
                   {form.tracks.length > 1 && <button className="text-red-500 hover:text-red-700" onClick={() => removeTrack(i)} data-testid={`upload-release-remove-track-${i}`}><Trash2 className="w-4 h-4" /></button>}
@@ -305,7 +309,7 @@ function Stepper({ step }) {
         const active = step === idx;
         const done = step > idx;
         return (
-          <React.Fragment key={i}>
+          <React.Fragment key={label}>
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${active ? "bg-[#FF1F8E] text-white" : done ? "bg-emerald-500/15 text-emerald-300" : "bg-white/[0.06] text-zinc-500"}`}>
               <span className="w-5 h-5 rounded-full grid place-items-center bg-white/30">{done ? "✓" : idx}</span>
               {label}

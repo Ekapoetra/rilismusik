@@ -1,0 +1,38 @@
+import React from "react";
+import { fileUrl } from "@/api/client";
+import { SUPPORT } from "@/constants/testIds";
+import { TICKET_CATEGORY_LABELS } from "@/components/shared/TicketStatusBadge";
+import { X, Paperclip, AlertTriangle, CheckCircle2 } from "lucide-react";
+
+const CATEGORY_OPTIONS = Object.entries(TICKET_CATEGORY_LABELS).map(([value, label]) => ({ value, label }));
+
+const Field = ({ label, children }) => <div><label className="rm-label">{label}</label>{children}</div>;
+
+function MetadataFields({ form, setForm }) {
+  const update = (key, value) => setForm({ ...form, new_metadata: { ...form.new_metadata, [key]: value } });
+  const fields = [["Judul Rilisan", "release_title"], ["Artist", "artist_name"], ["Genre", "genre"], ["Bahasa", "language"], ["© Line", "copyright_line"], ["℗ Line", "p_line"]];
+  return <div className="rm-glass rounded-2xl p-4 space-y-3"><div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Metadata Baru</div><div className="grid md:grid-cols-2 gap-3">{fields.map(([label, key]) => <Field key={key} label={label}><input className="rm-input" value={form.new_metadata[key]} onChange={(e) => update(key, e.target.value)} /></Field>)}</div></div>;
+}
+
+function CategoryFields({ form, setForm, releaseTracks, handleAudioUpload, handleCoverUpload }) {
+  if (form.category === "edit_metadata") return <MetadataFields form={form} setForm={setForm} />;
+  if (form.category === "edit_audio") return <div className="rm-glass rounded-2xl p-4 space-y-3"><div className="text-xs font-bold uppercase tracking-widest text-zinc-400">File Audio Baru (WAV)</div>{releaseTracks.length ? <Field label="Track yang Diganti"><select className="rm-input" value={form.new_audio_track_id} onChange={(e) => setForm({ ...form, new_audio_track_id: e.target.value })} data-testid={SUPPORT.trackSelect} required><option value="">— Pilih track —</option>{releaseTracks.map((track) => <option key={track.id} value={track.id}>{track.track_number}. {track.track_title}</option>)}</select></Field> : <div className="text-xs text-amber-300">{form.release_id ? "Memuat track…" : "Pilih rilisan terlebih dahulu"}</div>}<Field label="Upload WAV Baru"><input type="file" accept=".wav" className="rm-input" onChange={handleAudioUpload} data-testid={SUPPORT.audioUpload} required={!form.new_audio_url} />{form.new_audio_url && <div className="text-xs text-emerald-300 mt-2 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> {form.new_audio_filename || "WAV terupload"}</div>}</Field></div>;
+  if (form.category === "edit_cover") return <div className="rm-glass rounded-2xl p-4 space-y-3"><div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Cover Baru (3000×3000)</div><input type="file" accept=".jpg,.jpeg,.png" className="rm-input" onChange={handleCoverUpload} data-testid={SUPPORT.coverUpload} required={!form.new_cover_url} />{form.new_cover_url && <div className="flex items-center gap-3"><img src={fileUrl(form.new_cover_url)} alt="cover baru" className="w-20 h-20 rounded-lg object-cover" /><div className="text-xs text-emerald-300 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Cover 3000×3000 terupload</div></div>}</div>;
+  if (form.category === "content_id_claim") return <label className="flex items-start gap-3 rm-glass rounded-2xl p-4 cursor-pointer"><input type="checkbox" checked={form.originality_declared} onChange={(e) => setForm({ ...form, originality_declared: e.target.checked })} data-testid={SUPPORT.originalityCheckbox} className="mt-1" required /><span className="text-sm text-zinc-300">Saya menyatakan bahwa lagu ini original 100% milik saya / label saya, dan tidak mengandung sample / copyright pihak lain yang dapat memicu konflik klaim Content ID. Saya bertanggung jawab penuh atas pernyataan ini.</span></label>;
+  return null;
+}
+
+export function SupportTicketModal({ open, close, submit, form, setForm, releases, releaseTracks, busy, err, handleAudioUpload, handleCoverUpload, handleAttachment }) {
+  if (!open) return null;
+  return <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4 overflow-y-auto" onClick={close}><form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rm-glass-strong rounded-[24px] p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+    <div className="flex justify-between items-center"><h3 className="font-display font-extrabold text-xl tracking-tighter">Buat Tiket Support</h3><button type="button" onClick={close} className="p-2 text-zinc-400 hover:text-white" data-testid="support-ticket-modal-close"><X className="w-5 h-5" /></button></div>
+    {err && <div className="rounded-xl bg-red-500/15 text-red-300 px-3 py-2 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {err}</div>}
+    <div className="grid md:grid-cols-2 gap-3"><Field label="Kategori"><select className="rm-input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} data-testid={SUPPORT.categorySelect}>{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field label="Rilisan"><select className="rm-input" value={form.release_id} onChange={(e) => setForm({ ...form, release_id: e.target.value, new_audio_track_id: "" })} data-testid={SUPPORT.releaseSelect} required><option value="">— Pilih rilisan —</option>{releases.map((release) => <option key={release.id} value={release.id}>{release.release_title} — {release.artist_name}</option>)}</select></Field></div>
+    <Field label="Subjek"><input className="rm-input" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Contoh: Takedown lagu karena masalah hak cipta" data-testid={SUPPORT.subjectInput} required minLength={3} maxLength={200} /></Field>
+    <Field label="Deskripsi"><textarea className="rm-input min-h-[100px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Jelaskan kebutuhan Anda dengan detail…" data-testid={SUPPORT.descriptionInput} required minLength={3} maxLength={4000} /></Field>
+    {["takedown", "edit_metadata"].includes(form.category) && <Field label={form.category === "takedown" ? "Alasan Takedown" : "Alasan Perubahan"}><textarea className="rm-input min-h-[70px]" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} data-testid={SUPPORT.reasonInput} required /></Field>}
+    <CategoryFields form={form} setForm={setForm} releaseTracks={releaseTracks} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} />
+    <Field label="Lampiran Tambahan (opsional)"><input type="file" className="rm-input" onChange={handleAttachment} accept=".jpg,.jpeg,.png,.pdf,.txt,.docx,.doc" />{form.attachments.length > 0 && <ul className="mt-2 space-y-1">{form.attachments.map((attachment) => <li key={attachment.url || attachment.filename} className="text-xs text-zinc-300 flex items-center gap-2"><Paperclip className="w-3 h-3" /> {attachment.filename}<button type="button" className="text-red-300 hover:text-red-200" onClick={() => setForm({ ...form, attachments: form.attachments.filter((item) => item.url !== attachment.url) })}>Hapus</button></li>)}</ul>}</Field>
+    <div className="flex justify-end gap-2 pt-2"><button type="button" className="rm-btn-ghost" onClick={close}>Batal</button><button className="rm-btn-primary" disabled={busy} data-testid={SUPPORT.submitButton}>{busy ? "Mengirim…" : "Kirim Tiket"}</button></div>
+  </form></div>;
+}

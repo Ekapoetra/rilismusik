@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env.test")
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from auth_utils import hash_password
@@ -25,11 +26,11 @@ async def main():
     now = now_iso()
     today = datetime.now(timezone.utc)
 
-    DEMO_LABELS = [
+    demo_labels = [
         {
             "tag": "PPR",
-            "email": "demo_ppr@rilismusik.com",
-            "password": "DemoPPR#2026",
+            "email": os.environ["TEST_DEMO_PPR_EMAIL"],
+            "password": os.environ["TEST_DEMO_PPR_PASSWORD"],
             "label_name": "Demo Label PPR",
             "pic_name": "Demo PPR PIC",
             "whatsapp": "081200000001",
@@ -46,8 +47,8 @@ async def main():
         },
         {
             "tag": "VIP",
-            "email": "demo_vip@rilismusik.com",
-            "password": "DemoVIP#2026",
+            "email": os.environ["TEST_DEMO_VIP_EMAIL"],
+            "password": os.environ["TEST_DEMO_VIP_PASSWORD"],
             "label_name": "Demo Label VIP",
             "pic_name": "Demo VIP PIC",
             "whatsapp": "081200000002",
@@ -65,7 +66,7 @@ async def main():
         },
     ]
 
-    for cfg in DEMO_LABELS:
+    for cfg in demo_labels:
         # Cleanup any prior demo
         existing = await db.users.find_one({"email": cfg["email"]})
         if existing:
@@ -244,7 +245,7 @@ async def main():
                     "updated_at": (today - timedelta(days=10)).isoformat(),
                 })
 
-        print(f"✓ Demo {cfg['tag']}: {cfg['email']} / {cfg['password']}  | balance Rp {cfg['balance_available_idr']:,}".replace(",", "."))
+        print(f"✓ Demo {cfg['tag']}: {cfg['email']} | balance Rp {cfg['balance_available_idr']:,}".replace(",", "."))
 
     client.close()
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { Banknote, CheckCircle, XCircle, UploadCloud, History } from "lucide-react";
@@ -27,11 +27,11 @@ export default function AdminWithdraw() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/withdraw/admin", { params: { status: status || undefined } });
     setItems(data);
-  };
-  useEffect(() => { load(); api.get("/withdraw/window").then(r => setWindow(r.data)); /* eslint-disable-next-line */ }, [status]);
+  }, [status]);
+  useEffect(() => { load(); api.get("/withdraw/window").then(r => setWindow(r.data)); }, [load]);
 
   const submitAction = async () => {
     setBusy(true); setErr(""); setMsg("");

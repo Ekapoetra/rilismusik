@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { api } from "@/api/client";
+import React from "react";
+import { useAdminAnalytics, fmtPeriod } from "@/hooks/useAdminAnalytics";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
   Tooltip, Legend, CartesianGrid,
@@ -12,105 +12,12 @@ const fmtIDR = (n) =>
 const fmtEUR = (n) =>
   "€ " + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 const fmtInt = (n) => Number(n || 0).toLocaleString("id-ID");
-const fmtPeriod = (p) => {
-  if (!p || p.length !== 7) return p || "";
-  const [y, m] = p.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  return `${months[parseInt(m, 10) - 1] || m} ${y}`;
-};
-
-// -- default period range: last 12 months (or all available data) ----------
-function defaultRange(periods) {
-  if (!periods || periods.length === 0) return [null, null];
-  const max = periods[periods.length - 1];
-  // last 12 months back from max
-  const [y, m] = max.split("-").map(Number);
-  const fromDate = new Date(Date.UTC(y, m - 1, 1));
-  fromDate.setUTCMonth(fromDate.getUTCMonth() - 11);
-  const fromStr = `${fromDate.getUTCFullYear()}-${String(fromDate.getUTCMonth() + 1).padStart(2, "0")}`;
-  // clamp to actual min
-  const clampedFrom = periods.includes(fromStr) ? fromStr : periods[0];
-  return [clampedFrom, max];
+export default function AdminAnalytics() {
+  const state = useAdminAnalytics();
+  return <AnalyticsView {...state} />;
 }
 
-export default function AdminAnalytics() {
-  const [periods, setPeriods] = useState([]);
-  const [periodFrom, setPeriodFrom] = useState("");
-  const [periodTo, setPeriodTo] = useState("");
-  const [filters, setFilters] = useState({ label_id: "", platform: "", country: "", artist_id: "", track_id: "" });
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
-  const [cacheStatus, setCacheStatus] = useState(null);
-
-  // -- load available periods + initial data ----------
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: p } = await api.get("/admin/analytics/periods");
-        setPeriods(p.periods || []);
-        const [from, to] = defaultRange(p.periods || []);
-        setPeriodFrom(from || "");
-        setPeriodTo(to || "");
-        const { data: s } = await api.get("/admin/analytics/status");
-        setCacheStatus(s);
-      } catch (e) {
-        setErr("Gagal memuat list periode: " + (e.response?.data?.detail || e.message));
-      }
-    })();
-  }, []);
-
-  // -- fetch analytics whenever the range / filter changes ----------
-  useEffect(() => {
-    if (!periodFrom || !periodTo) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true); setErr("");
-      try {
-        const params = new URLSearchParams();
-        params.set("period_from", periodFrom);
-        params.set("period_to", periodTo);
-        params.set("top_n", "10");
-        Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
-        const { data: r } = await api.get(`/admin/analytics/monthly?${params.toString()}`);
-        if (!cancelled) setData(r);
-      } catch (e) {
-        if (!cancelled) setErr("Gagal: " + (e.response?.data?.detail || e.message));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [periodFrom, periodTo, filters]);
-
-  const recompute = async () => {
-    setRefreshing(true); setErr("");
-    try {
-      const { data: r } = await api.post("/admin/analytics/recompute");
-      setCacheStatus(r.meta);
-      // re-fetch dashboard
-      const params = new URLSearchParams();
-      params.set("period_from", periodFrom);
-      params.set("period_to", periodTo);
-      params.set("top_n", "10");
-      const { data: d2 } = await api.get(`/admin/analytics/monthly?${params.toString()}`);
-      setData(d2);
-    } catch (e) {
-      setErr("Recompute gagal: " + (e.response?.data?.detail || e.message));
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const monthly = data?.monthly || [];
-  const monthlyChart = useMemo(() => monthly.map(m => ({
-    period: m.period,
-    label: fmtPeriod(m.period),
-    EUR: m.revenue_eur,
-    IDR: m.revenue_idr,
-  })), [monthly]);
-
+function AnalyticsView({ periods, periodFrom, setPeriodFrom, periodTo, setPeriodTo, filters, setFilters, data, loading, err, refreshing, cacheStatus, recompute, monthlyChart }) {
   const kpi = data?.kpi || {};
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
@@ -402,7 +309,7 @@ function TopList({ title, icon: Icon, accent, rows, loading, testId, onClick, ex
       ) : (
         <ul className="space-y-1.5">
           {rows.map((r, i) => (
-            <li key={r.key || i} className="group">
+            <li key={r.key || `${r.name}-${r.revenue_idr}`} className="group">
               <button
                 onClick={() => onClick && r.key && onClick(r.key)}
                 className="w-full flex items-center gap-2 text-left hover:bg-white/5 -mx-2 px-2 py-1.5 rounded-lg transition"

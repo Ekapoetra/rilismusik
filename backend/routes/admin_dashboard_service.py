@@ -1,0 +1,40 @@
+"""Admin dashboard aggregation service."""
+import asyncio
+
+from .deps import db
+from .dashboard_cache import get_stale_while_revalidate
+
+
+async def build_admin_dashboard() -> dict:
+    count_queries = [
+        db.labels.count_documents({}),
+        db.artists.count_documents({}),
+        db.releases.count_documents({}),
+        db.releases.count_documents({"status": "under_review"}),
+        db.releases.count_documents({"status": "delivered"}),
+        db.releases.count_documents({"status": "live"}),
+        db.payments.count_documents({"status": "pending"}),
+        db.payments.count_documents({"status": "paid"}),
+        db.withdraw_requests.count_documents({"status": "requested"}),
+        db.support_tickets.count_documents({"status": {"$nin": ["done", "rejected"]}}),
+        db.labels.count_documents({"subscription_status": "active"}),
+        db.labels.count_documents({"account_status": "suspended"}),
+    ]
+    values, revenue, last_csv = await asyncio.gather(
+        asyncio.gather(*count_queries),
+        get_stale_while_revalidate(),
+        db.royalty_imports.find_one({}, {"_id": 0}, sort=[("created_at", -1)]),
+    )
+    keys = [
+        "total_labels", "total_artists", "total_releases", "pending_review",
+        "delivered", "live", "pending_invoices", "paid_invoices",
+        "pending_withdraws", "active_tickets", "active_subscriptions", "suspended_labels",
+    ]
+    result = dict(zip(keys, values))
+    result.update({
+        "total_revenue_eur": revenue["total_eur"],
+        "total_revenue_idr": revenue["total_idr"],
+        "revenue_cache_age_sec": revenue.get("age_sec"),
+        "last_csv_import": last_csv,
+    })
+    return result

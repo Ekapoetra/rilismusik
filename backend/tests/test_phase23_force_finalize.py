@@ -18,15 +18,16 @@ import os
 import time
 import uuid
 import requests
+from tests.support_config import FINANCE as FINANCE_CRED, RELEASE_ADMIN, SUPPORT as SUPPORT_CRED, SUPERADMIN
 import pytest
 import pymongo
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
-SUPER = ("superadmin@rilismusik.com", "SuperAdmin#2026")
-FINANCE = ("finance1@rilismusik.com", "Finance#2026")
-SUPPORT = ("support1@rilismusik.com", "Support#2026")
-RELEASE = ("release1@rilismusik.com", "Release#2026")
+SUPER = (SUPERADMIN["email"], SUPERADMIN["password"])
+FINANCE = (FINANCE_CRED["email"], FINANCE_CRED["password"])
+SUPPORT = (SUPPORT_CRED["email"], SUPPORT_CRED["password"])
+RELEASE = (RELEASE_ADMIN["email"], RELEASE_ADMIN["password"])
 
 
 def _db():
