@@ -1,5 +1,6 @@
 """Regression coverage for three production bugs reported after Phase 34."""
 import csv
+import asyncio
 import io
 import os
 import time
@@ -9,8 +10,12 @@ from pathlib import Path
 import pymongo
 import pytest
 import requests
+from dotenv import load_dotenv
 
 from royalty_utils import detect_columns, parse_period_from_value
+
+load_dotenv("/app/backend/.env")
+import storage_service
 from tests.support_config import SUPERADMIN
 
 
@@ -302,6 +307,108 @@ def test_existing_import_period_can_be_repaired_from_retained_csv(super_token):
         assert repaired_import["period_repair_status"] == "done"
     finally:
         csv_path.unlink(missing_ok=True)
+        db.migrate_jobs.delete_many({"id": job_id})
+        db.royalty_lines.delete_many({"import_id": import_id})
+        db.royalty_imports.delete_one({"id": import_id})
+
+
+def test_missing_source_can_be_reuploaded_directly_to_r2_and_repaired(super_token):
+    db = _db()
+    # Clean any artifact left by an interrupted previous run of this test.
+    stale_import_ids = [doc["id"] for doc in db.royalty_imports.find(
+        {"id": {"$regex": "^ph35-repair-r2-"}}, {"_id": 0, "id": 1},
+    )]
+    for pending in db.royalty_import_repair_uploads.find(
+        {"import_id": {"$in": stale_import_ids}}, {"_id": 0, "object_key": 1},
+    ):
+        if storage_service.is_configured():
+            asyncio.run(storage_service.delete_object(key=pending["object_key"]))
+    db.royalty_import_repair_uploads.delete_many({"import_id": {"$in": stale_import_ids}})
+    db.migrate_jobs.delete_many({"import_id": {"$in": stale_import_ids}})
+    db.royalty_lines.delete_many({"import_id": {"$in": stale_import_ids}})
+    db.royalty_imports.delete_many({"id": {"$in": stale_import_ids}})
+    suffix = uuid.uuid4().hex[:8]
+    import_id = f"ph35-repair-r2-{suffix}"
+    csv_bytes = (
+        "Bulan laporan;Bulan Penjualan;Nama Label;Pendapatan Bersih\n"
+        "01/04/2025;01/01/2025;PH35 R2 Repair;1,00\n"
+        "01/05/2025;01/02/2025;PH35 R2 Repair;2,00\n"
+    ).encode()
+    db.royalty_imports.insert_one({
+        "id": import_id,
+        "filename": f"missing-{suffix}.csv",
+        "status": "dana_received",
+        "period": "multi",
+        "period_start": "2025-01",
+        "period_end": "2025-02",
+        "period_breakdown": {"2025-01": 1, "2025-02": 1},
+        "uploaded_by": "phase35-r2-test",
+        "period_repair_status": "error",
+        "period_repair_error": "CSV asli tidak tersedia",
+    })
+    db.royalty_lines.insert_many([
+        {
+            "id": f"{import_id}-1", "import_id": import_id, "period": "2025-01",
+            "row_period": "2025-01", "status": "available", "match_status": "matched",
+            "label_idr": 10_000, "revenue_eur": 1,
+        },
+        {
+            "id": f"{import_id}-2", "import_id": import_id, "period": "2025-02",
+            "row_period": "2025-02", "status": "available", "match_status": "matched",
+            "label_idr": 20_000, "revenue_eur": 2,
+        },
+    ])
+    upload_id = None
+    object_key = None
+    job_id = None
+    try:
+        initiated = requests.post(
+            f"{API}/royalty/admin/imports/{import_id}/repair-source/initiate",
+            headers=_headers(super_token),
+            json={"filename": "APRIL 2025.csv", "size_bytes": len(csv_bytes)},
+            timeout=20,
+        )
+        assert initiated.status_code == 200, initiated.text
+        initiation = initiated.json()
+        upload_id = initiation["upload_id"]
+        assert initiation["content_type"] == "text/csv"
+        uploaded = requests.put(
+            initiation["upload_url"],
+            headers={"Content-Type": initiation["content_type"]},
+            data=csv_bytes,
+            timeout=30,
+        )
+        assert uploaded.status_code in (200, 201, 204), uploaded.text
+
+        finalized = requests.post(
+            f"{API}/royalty/admin/imports/{import_id}/repair-source/finalize",
+            headers=_headers(super_token),
+            json={"upload_id": upload_id},
+            timeout=20,
+        )
+        assert finalized.status_code == 200, finalized.text
+        final_body = finalized.json()
+        assert final_body["source_attached"] is True
+        job_id = final_body["job_id"]
+        job = _wait_job(super_token, job_id, timeout=60)
+        assert job["status"] == "done", job.get("error_message")
+        assert job["result"]["period_breakdown"] == {"2025-04": 1, "2025-05": 1}
+
+        repaired = db.royalty_imports.find_one({"id": import_id})
+        assert repaired["status"] == "dana_received"
+        assert repaired["repair_source"]["filename"] == "APRIL 2025.csv"
+        assert repaired["period_repair_status"] == "done"
+        assert db.royalty_lines.count_documents({"import_id": import_id, "status": "available"}) == 2
+        assert [line["period"] for line in db.royalty_lines.find({"import_id": import_id}).sort("_id", 1)] == ["2025-04", "2025-05"]
+        object_key = repaired["repair_source"]["object_key"]
+    finally:
+        if not object_key and upload_id:
+            pending = db.royalty_import_repair_uploads.find_one({"id": upload_id})
+            object_key = pending.get("object_key") if pending else None
+        if object_key and storage_service.is_configured():
+            asyncio.run(storage_service.delete_object(key=object_key))
+        (Path("/app/backend/uploads/csv") / f"{import_id}.csv").unlink(missing_ok=True)
+        db.royalty_import_repair_uploads.delete_many({"import_id": import_id})
         db.migrate_jobs.delete_many({"id": job_id})
         db.royalty_lines.delete_many({"import_id": import_id})
         db.royalty_imports.delete_one({"id": import_id})

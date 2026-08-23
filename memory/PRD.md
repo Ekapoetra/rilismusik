@@ -676,6 +676,12 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Sampel pengguna `JUNI 2026.csv` terkonfirmasi memiliki `Bulan laporan=01/06/2026` sementara `Bulan Penjualan` berbeda; akar bug adalah urutan alias parser lama.
 - Verifikasi: 33/33 regresi backend lulus, frontend production build lulus, smoke UI admin lulus, dan testing independen iteration 29 lulus 100% backend/frontend tanpa API MOCKED.
 
+### Phase 35.1 — Recovery CSV Lama yang Hilang dari Production (2026-08-23)
+- RCA production: import lama hanya menunjuk CSV yang sudah hilang dari disk pod dan tidak memiliki objek R2; reparasi tidak mungkin membaca ulang `Bulan laporan` tanpa sumber asli.
+- Error reparasi kini menampilkan **Unggah CSV Sumber & Perbaiki**. File dikirim langsung browser → R2 memakai presigned PUT, sehingga CSV besar tidak melewati batas body ingress.
+- Initiate/finalize memakai upload ID + object key buatan server, TTL 15 menit, validasi objek dan ukuran persis, lalu otomatis menjalankan reparasi background; data royalti tidak diimpor ulang dan nominal/saldo/status tetap.
+- Verifikasi preview: 14/14 tes backend/R2/security lulus, build + smoke UI desktop/mobile lulus, tanpa MOCKED API. Objek R2 dan data uji telah dibersihkan.
+
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.

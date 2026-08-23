@@ -277,6 +277,15 @@ class InitiateUploadIn(BaseModel):
     file_size_bytes: Optional[int] = None  # client-reported, for capacity hints
 
 
+class RepairSourceInitiateIn(BaseModel):
+    filename: str = Field(..., min_length=1, max_length=200)
+    size_bytes: int = Field(..., gt=0, le=5 * 1024 * 1024 * 1024)
+
+
+class RepairSourceFinalizeIn(BaseModel):
+    upload_id: str = Field(..., min_length=1, max_length=100)
+
+
 @royalty_r.post("/admin/imports/initiate")
 async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depends(require_admin)):
     """Step 1 of large-file upload: returns a presigned PUT URL so the browser
@@ -1725,7 +1734,8 @@ async def _ensure_local_csv(imp: dict) -> Optional[str]:
     local = _import_file_path(import_id, imp.get("filename"))
     if local:
         return local
-    r2_key = imp.get("r2_key")
+    repair_source = imp.get("repair_source") or {}
+    r2_key = repair_source.get("object_key") or imp.get("r2_key")
     if not r2_key:
         return None
     meta = await storage_service.head_object(key=r2_key)
@@ -1887,6 +1897,117 @@ async def admin_repair_reporting_period(import_id: str, user: dict = Depends(req
         import_id=import_id, job_id=job_id, user_id=user["id"],
     ))
     return {"ok": True, "job_id": job_id, "status": "queued", "already_running": False}
+
+
+@royalty_r.post("/admin/imports/{import_id}/repair-source/initiate")
+async def admin_initiate_repair_source_upload(
+    import_id: str,
+    body: RepairSourceInitiateIn,
+    user: dict = Depends(require_admin),
+):
+    """Issue a short-lived direct-to-R2 URL for a missing original CSV."""
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0, "id": 1, "status": 1})
+    if not imp:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    if imp.get("status") in ("awaiting_upload", "processing", "publishing", "receiving", "deleting"):
+        raise HTTPException(status_code=409, detail="Tunggu proses import aktif selesai")
+    filename = body.filename.strip()
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File sumber wajib berformat .csv")
+    if not storage_service.is_configured():
+        raise HTTPException(status_code=500, detail="Cloud storage belum dikonfigurasi")
+
+    upload_id = new_id()
+    object_key = f"csv-repair/{import_id}/{upload_id}.csv"
+    content_type = "text/csv"
+    ttl_seconds = 900
+    upload_url = await storage_service.generate_presigned_put_url(
+        key=object_key, content_type=content_type, ttl=ttl_seconds,
+    )
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + timedelta(seconds=ttl_seconds)
+    await db_bg.royalty_import_repair_uploads.insert_one({
+        "id": upload_id,
+        "import_id": import_id,
+        "object_key": object_key,
+        "filename": filename,
+        "expected_size": body.size_bytes,
+        "content_type": content_type,
+        "status": "pending",
+        "created_by": user["id"],
+        "created_at": created_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+    })
+    return {
+        "upload_id": upload_id,
+        "upload_url": upload_url,
+        "content_type": content_type,
+        "expires_in": ttl_seconds,
+    }
+
+
+@royalty_r.post("/admin/imports/{import_id}/repair-source/finalize")
+async def admin_finalize_repair_source_upload(
+    import_id: str,
+    body: RepairSourceFinalizeIn,
+    user: dict = Depends(require_admin),
+):
+    """Validate the R2 object, attach it, then queue period repair."""
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    pending = await db_bg.royalty_import_repair_uploads.find_one({
+        "id": body.upload_id,
+        "import_id": import_id,
+        "status": "pending",
+    }, {"_id": 0})
+    if not pending:
+        raise HTTPException(status_code=404, detail="Upload sumber pengganti tidak ditemukan atau sudah difinalisasi")
+    if datetime.fromisoformat(pending["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="URL upload kedaluwarsa. Minta URL baru.")
+
+    metadata = await storage_service.head_object(key=pending["object_key"])
+    if not metadata:
+        raise HTTPException(status_code=400, detail="File belum berhasil di-upload ke R2")
+    actual_size = int(metadata.get("ContentLength", 0))
+    if actual_size != int(pending["expected_size"]):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ukuran file R2 tidak cocok: diterima {actual_size}, seharusnya {pending['expected_size']}",
+        )
+
+    finalized_at = now_iso()
+    attached = await db_bg.royalty_imports.update_one(
+        {"id": import_id},
+        {"$set": {
+            "repair_source": {
+                "object_key": pending["object_key"],
+                "filename": pending["filename"],
+                "size_bytes": actual_size,
+                "content_type": pending["content_type"],
+                "etag": metadata.get("ETag"),
+                "uploaded_at": finalized_at,
+                "uploaded_by": user["id"],
+            },
+            "period_repair_status": None,
+            "period_repair_error": None,
+            "updated_at": finalized_at,
+        }},
+    )
+    if attached.matched_count != 1:
+        raise HTTPException(status_code=404, detail="Import tidak ditemukan")
+    await db_bg.royalty_import_repair_uploads.update_one(
+        {"id": body.upload_id, "status": "pending"},
+        {"$set": {"status": "finalized", "finalized_at": finalized_at}},
+    )
+    # Remove any stale local copy so the repair job must download the newly
+    # finalized R2 replacement instead of reusing an older failed source.
+    for extension in (".csv", ".csv.gz"):
+        stale_path = UPLOAD_DIR / "csv" / f"{import_id}{extension}"
+        stale_path.unlink(missing_ok=True)
+    queued = await admin_repair_reporting_period(import_id=import_id, user=user)
+    return {**queued, "upload_id": body.upload_id, "source_attached": True}
 
 
 async def _recompute_import_stats_from_lines(import_id: str) -> Dict[str, Any]:

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Loader2, RefreshCw, XCircle, Trash2 } from "lucide-react";
+import { Loader2, RefreshCw, Upload, XCircle, Trash2 } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
@@ -13,6 +13,9 @@ export default function AdminRoyaltyDetail() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [repairFile, setRepairFile] = useState(null);
+  const [repairUploadBusy, setRepairUploadBusy] = useState(false);
+  const [repairUploadPct, setRepairUploadPct] = useState(0);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/royalty/admin/imports/${id}`); setData(data); }
@@ -81,6 +84,41 @@ export default function AdminRoyaltyDetail() {
       load();
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setBusy(false); }
+  };
+  const uploadRepairSource = async () => {
+    if (!repairFile) { setErr("Pilih CSV asli untuk laporan ini."); return; }
+    if (!repairFile.name.toLowerCase().endsWith(".csv")) { setErr("File sumber wajib berformat .csv"); return; }
+    setRepairUploadBusy(true); setRepairUploadPct(0); setErr(""); setMsg("");
+    try {
+      const { data: initiated } = await api.post(`/royalty/admin/imports/${id}/repair-source/initiate`, {
+        filename: repairFile.name,
+        size_bytes: repairFile.size,
+      });
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", initiated.upload_url);
+        xhr.setRequestHeader("Content-Type", initiated.content_type);
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) setRepairUploadPct(Math.round((event.loaded / event.total) * 100));
+        };
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300
+          ? resolve()
+          : reject(new Error(`Upload R2 gagal (${xhr.status})`));
+        xhr.onerror = () => reject(new Error("Koneksi upload R2 terputus"));
+        xhr.send(repairFile);
+      });
+      const { data: finalized } = await api.post(`/royalty/admin/imports/${id}/repair-source/finalize`, {
+        upload_id: initiated.upload_id,
+      });
+      setRepairUploadPct(100);
+      setRepairFile(null);
+      setMsg(finalized?.job_id
+        ? "CSV sumber tersimpan di R2. Reparasi Bulan laporan dimulai di background."
+        : "CSV sumber tersimpan di R2.");
+      await load();
+    } catch (e) {
+      setErr(formatApiError(e.response?.data?.detail || e.message));
+    } finally { setRepairUploadBusy(false); }
   };
 
   const remove = async () => {
@@ -221,9 +259,35 @@ export default function AdminRoyaltyDetail() {
       )}
 
       {imp.period_repair_status === "error" && imp.period_repair_error && (
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200" data-testid="royalty-detail-period-repair-error">
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-4 text-sm text-red-200 space-y-3" data-testid="royalty-detail-period-repair-error">
           <div className="font-bold">Reparasi Bulan laporan gagal</div>
           <div className="mt-1 text-red-200/80">{imp.period_repair_error}</div>
+          <div className="pt-3 border-t border-red-400/20 space-y-3">
+            <div className="text-xs text-zinc-300">Jika CSV asli sudah tidak tersimpan, unggah ulang file yang sama. File hanya dipakai untuk memperbaiki periode—royalti dan saldo tidak diimpor ulang.</div>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={repairUploadBusy}
+              onChange={(event) => setRepairFile(event.target.files?.[0] || null)}
+              className="rm-input text-xs"
+              data-testid="admin-royalty-repair-source-file"
+            />
+            {repairUploadBusy && (
+              <div className="space-y-1" data-testid="admin-royalty-repair-source-progress">
+                <div className="flex justify-between text-[11px] text-zinc-400"><span>Upload langsung ke R2</span><span>{repairUploadPct}%</span></div>
+                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 transition-all" style={{ width: `${repairUploadPct}%` }} /></div>
+              </div>
+            )}
+            <button
+              className="rm-btn-primary flex items-center gap-2"
+              disabled={!repairFile || repairUploadBusy}
+              onClick={uploadRepairSource}
+              data-testid="admin-royalty-repair-source-upload"
+            >
+              {repairUploadBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {repairUploadBusy ? "Mengunggah…" : "Unggah CSV Sumber & Perbaiki"}
+            </button>
+          </div>
         </div>
       )}
 
