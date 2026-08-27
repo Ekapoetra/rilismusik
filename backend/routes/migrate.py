@@ -25,6 +25,7 @@ from .deps import (
     require_admin, require_super_admin, log_activity, notify,
 )
 from models import now_iso, new_id
+from royalty_utils import normalize_label_match_name
 from .royalty_recalculation import recalculate_label_unwithdrawn, trigger_royalty_caches
 from .dashboard_cache import schedule_recompute as schedule_dashboard_recompute
 
@@ -116,15 +117,7 @@ def _normalize_label_name(s: Optional[str]) -> str:
       "f - audio"              -> "f audio"
       " F - Audio "            -> "f audio"
     """
-    if not s:
-        return ""
-    import re
-    out = s.strip().lower()
-    out = re.sub(r"^pt[\.\,]?\s+", "", out)  # drop "PT " / "PT, " / "PT. " prefix
-    out = re.sub(r"[\.\,\;\:\!\?\(\)\[\]\{\}\"\'`]", " ", out)
-    out = re.sub(r"[\-\_]", " ", out)
-    out = re.sub(r"\s+", " ", out).strip()
-    return out
+    return normalize_label_match_name(s)
 
 
 def _require_migrate_role(user: dict):

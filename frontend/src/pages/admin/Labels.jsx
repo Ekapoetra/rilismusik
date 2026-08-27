@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
-import { UserPlus, Copy, X } from "lucide-react";
+import { UserPlus, Copy, FileSpreadsheet, X } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
 
 export default function AdminLabels() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -23,9 +25,12 @@ export default function AdminLabels() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operations</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Label Management</h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operations</div>
+          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Label Management</h1>
+        </div>
+        {["super_admin", "admin_finance"].includes(user?.role) && <Link to="/admin/labels/rate-import" className="rm-btn-primary flex items-center gap-2" data-testid="admin-label-rate-import-link"><FileSpreadsheet className="w-4 h-4" /> Impor Rate</Link>}
       </div>
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px]">
@@ -42,7 +47,7 @@ export default function AdminLabels() {
             <option value="blacklisted">Blacklisted</option>
           </select>
         </div>
-        <button className="rm-btn-ghost" onClick={load}>Filter</button>
+        <button className="rm-btn-ghost" onClick={load} data-testid="admin-labels-filter">Filter</button>
       </div>
 
       <div className="rm-card overflow-hidden">

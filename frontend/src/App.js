@@ -27,6 +27,7 @@ import LabelWami from "@/pages/label/Wami";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminAnalytics from "@/pages/admin/Analytics";
 import AdminLabels from "@/pages/admin/Labels";
+import LabelRateImport from "@/pages/admin/LabelRateImport";
 import AdminLabelDetail from "@/pages/admin/LabelDetail";
 import AdminReleases from "@/pages/admin/Releases";
 import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
@@ -95,6 +96,7 @@ function App() {
               }
             />
             <Route path="/admin/labels" element={<AdminLabels />} />
+            <Route path="/admin/labels/rate-import" element={<ProtectedRoute roles={["super_admin", "admin_finance"]}><LabelRateImport /></ProtectedRoute>} />
             <Route path="/admin/labels/:id" element={<AdminLabelDetail />} />
             <Route path="/admin/artists" element={<AdminArtists />} />
             <Route path="/admin/releases" element={<AdminReleases />} />

@@ -34,6 +34,21 @@ def slug_artist(name: str) -> str:
     return s
 
 
+def normalize_label_match_name(value: Optional[str]) -> str:
+    """Normalize label names for controlled bulk matching.
+
+    Keeps matching deterministic while handling casing, punctuation, repeated
+    whitespace, separators, and common leading PT variants.
+    """
+    if not value:
+        return ""
+    normalized = str(value).strip().lower()
+    normalized = re.sub(r"^pt[\.,]?\s+", "", normalized)
+    normalized = re.sub(r"[\.,;:!?()\[\]{}\"'`]", " ", normalized)
+    normalized = re.sub(r"[-_]", " ", normalized)
+    return " ".join(normalized.split())
+
+
 # Canonical key -> list of normalized aliases (lowercased, stripped).
 HEADER_ALIASES: Dict[str, List[str]] = {
     "isrc": ["isrc", "isrc code", "isrc_code"],

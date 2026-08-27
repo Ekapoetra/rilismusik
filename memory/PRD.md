@@ -677,19 +677,19 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Verifikasi: 33/33 regresi backend lulus, frontend production build lulus, smoke UI admin lulus, dan testing independen iteration 29 lulus 100% backend/frontend tanpa API MOCKED.
 
 ### Phase 35.1 — Recovery CSV Lama yang Hilang dari Production (2026-08-23)
-- RCA production: import lama hanya menunjuk CSV yang sudah hilang dari disk pod dan tidak memiliki objek R2; reparasi tidak mungkin membaca ulang `Bulan laporan` tanpa sumber asli.
-- Error reparasi kini menampilkan **Unggah CSV Sumber & Perbaiki**. File dikirim langsung browser → R2 memakai presigned PUT, sehingga CSV besar tidak melewati batas body ingress.
-- Initiate/finalize memakai upload ID + object key buatan server, TTL 15 menit, validasi objek dan ukuran persis, lalu otomatis menjalankan reparasi background; data royalti tidak diimpor ulang dan nominal/saldo/status tetap.
-- Verifikasi preview: 14/14 tes backend/R2/security lulus, build + smoke UI desktop/mobile lulus, tanpa MOCKED API. Objek R2 dan data uji telah dibersihkan.
+- RCA: CSV import lama hilang dari disk pod/R2. Flow **Unggah CSV Sumber & Perbaiki** mengirim file langsung browser → R2 dengan presigned PUT, TTL 15 menit, validasi objek/ukuran, lalu otomatis menjalankan reparasi tanpa mengimpor ulang royalti atau mengubah nominal/saldo/status.
+- Verifikasi: 14/14 tes backend/R2/security, build, dan smoke UI desktop/mobile lulus tanpa MOCKED API; artefak uji dibersihkan.
 
 ### Phase 36 — Legacy Dana-Received Reconciliation & Scalable Analytics (2026-08-27)
-- RCA production: dua import memiliki `dana_received_at` tetapi status tertinggal `published`; guard timestamp lama menolak klik sebelum melakukan rekonsiliasi.
-- Mark Dana kini status-first dan idempoten: status legacy selesai direkonsiliasi langsung, sedangkan baris pending dilanjutkan lewat background tanpa kredit ganda. Startup otomatis memperbaiki seluruh state legacy serupa.
-- Rebuild Analytics diubah dari satu `all_docs` besar menjadi streaming per dimensi, batch 5.000, staging unik, dan atomic `rename(dropTarget=True)` agar aman untuk 3M+ baris serta cache lama tetap terbaca.
-- Rebuild manual langsung mengembalikan job ID, menyimpan progress/phase, dilanjutkan setelah restart, dan otomatis terpicu bila bulan maksimum source berbeda dari cache (kasus Juni vs Mei 2026).
-- Endpoint periode selalu menggabungkan bulan dari `royalty_lines` dengan cache agar bulan source baru tidak disembunyikan cache lama.
-- Reparasi Bulan laporan sekarang selesai setelah period tersimpan dan hanya menjadwalkan Analytics terpisah; job reparasi `processing` otomatis dilanjutkan saat backend restart.
-- Verifikasi: RCA troubleshooter selesai; 29/29 regresi utama dan 24/24 self-retest lulus (6 filter-data skip); testing independen iteration 31 100% untuk flow yang dijalankan, tanpa MOCKED API.
+- Status legacy `dana_received_at` + `published` kini direkonsiliasi otomatis/idempoten; baris pending dilanjutkan background tanpa kredit ganda.
+- Analytics rebuild streaming per dimensi (batch 5.000), staging atomic, background/resumable, mendeteksi drift bulan source/cache, dan periode selalu menggabungkan source `royalty_lines`.
+- Reparasi period selesai terpisah dari rebuild Analytics dan otomatis dilanjutkan setelah restart. Verifikasi 29/29 + 24/24 serta iteration 31 lulus tanpa MOCKED API.
+
+### Phase 37 — Bulk Import Rate Label XLSX/CSV (2026-08-27)
+- Halaman Admin **Impor Rate Label** menerima XLSX/CSV (`Nama Label`, `Rate` 0–100; `No.` diabaikan), menyediakan template, serta preview tersimpan sebelum commit.
+- Matching ternormalisasi menampilkan matched, unchanged, unmatched, nama ambigu, duplikat konflik/redundan, invalid, dan label yang diblokir withdraw aktif; preview tidak memiliki side effect.
+- Commit background/idempoten memperbarui `royalty_percentage_default`, histori persentase, dan recalculation pending/available; withdrawn/legacy-settled tidak diubah, konflik setelah preview tidak ditimpa, dan job otomatis resume.
+- Verifikasi: 10/10 tes label-rate, build + desktop/mobile E2E iteration 32 lulus tanpa MOCKED API; data uji dibersihkan.
 
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
