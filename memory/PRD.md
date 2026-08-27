@@ -682,6 +682,15 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Initiate/finalize memakai upload ID + object key buatan server, TTL 15 menit, validasi objek dan ukuran persis, lalu otomatis menjalankan reparasi background; data royalti tidak diimpor ulang dan nominal/saldo/status tetap.
 - Verifikasi preview: 14/14 tes backend/R2/security lulus, build + smoke UI desktop/mobile lulus, tanpa MOCKED API. Objek R2 dan data uji telah dibersihkan.
 
+### Phase 36 — Legacy Dana-Received Reconciliation & Scalable Analytics (2026-08-27)
+- RCA production: dua import memiliki `dana_received_at` tetapi status tertinggal `published`; guard timestamp lama menolak klik sebelum melakukan rekonsiliasi.
+- Mark Dana kini status-first dan idempoten: status legacy selesai direkonsiliasi langsung, sedangkan baris pending dilanjutkan lewat background tanpa kredit ganda. Startup otomatis memperbaiki seluruh state legacy serupa.
+- Rebuild Analytics diubah dari satu `all_docs` besar menjadi streaming per dimensi, batch 5.000, staging unik, dan atomic `rename(dropTarget=True)` agar aman untuk 3M+ baris serta cache lama tetap terbaca.
+- Rebuild manual langsung mengembalikan job ID, menyimpan progress/phase, dilanjutkan setelah restart, dan otomatis terpicu bila bulan maksimum source berbeda dari cache (kasus Juni vs Mei 2026).
+- Endpoint periode selalu menggabungkan bulan dari `royalty_lines` dengan cache agar bulan source baru tidak disembunyikan cache lama.
+- Reparasi Bulan laporan sekarang selesai setelah period tersimpan dan hanya menjadwalkan Analytics terpisah; job reparasi `processing` otomatis dilanjutkan saat backend restart.
+- Verifikasi: RCA troubleshooter selesai; 29/29 regresi utama dan 24/24 self-retest lulus (6 filter-data skip); testing independen iteration 31 100% untuk flow yang dijalankan, tanpa MOCKED API.
+
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.

@@ -22,13 +22,13 @@ derived from CSV "Reporting month" — what Believe calls "bulan laporan").
 """
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .deps import db, db_bg, logger, require_admin, require_super_admin, SUPER_ADMIN
-from models import now_iso
+from models import new_id, now_iso
 
 analytics_r = APIRouter(prefix="/admin/analytics", tags=["admin-analytics"])
 
@@ -39,12 +39,19 @@ DIMENSIONS = ["total", "platform", "country", "label", "artist", "track", "relea
 
 # Module-local guard so concurrent recomputes don't pile up.
 _recompute_lock = asyncio.Lock()
-_last_recompute_meta: Dict[str, Any] = {"finished_at": None, "duration_sec": None, "doc_count": 0, "running": False}
+_last_recompute_meta: Dict[str, Any] = {
+    "finished_at": None,
+    "duration_sec": None,
+    "doc_count": 0,
+    "running": False,
+    "progress_pct": 0,
+    "progress_phase": None,
+    "job_id": None,
+}
 
 
-async def _stream_dim_aggregate(*, dim: str) -> List[Dict[str, Any]]:
-    """Group `royalty_lines` by (period, <dim_field>). Returns a list of docs
-    ready to insert into `monthly_analytics`.
+async def _stream_dim_aggregate(*, dim: str) -> AsyncIterator[Dict[str, Any]]:
+    """Yield grouped documents without retaining a whole dimension in RAM.
 
     For `dim == "total"`, the group key is just `{period: $period}` and the doc
     represents a per-month roll-up.
@@ -86,7 +93,6 @@ async def _stream_dim_aggregate(*, dim: str) -> List[Dict[str, Any]]:
         }},
     ]
 
-    docs: List[Dict[str, Any]] = []
     async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
         period = r["_id"]["period"]
         if not isinstance(period, str) or len(period) != 7:
@@ -101,8 +107,7 @@ async def _stream_dim_aggregate(*, dim: str) -> List[Dict[str, Any]]:
         }
         if dim != "total":
             doc["key"] = r["_id"].get("key")
-        docs.append(doc)
-    return docs
+        yield doc
 
 
 async def _hydrate_labels(docs: List[Dict[str, Any]]) -> None:
@@ -173,53 +178,92 @@ async def _hydrate_labels(docs: List[Dict[str, Any]]) -> None:
             d["release_date"] = info.get("release_date", "")
 
 
-async def recompute_monthly_analytics() -> Dict[str, Any]:
-    """Drop & rebuild the `monthly_analytics` collection. Idempotent + safe to
-    schedule concurrently — only one rebuild runs at a time.
-    """
+async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: str = "automatic") -> Dict[str, Any]:
+    """Stream a complete rebuild into staging, then atomically swap it live."""
     async with _recompute_lock:
         t0 = datetime.now(timezone.utc)
-        _last_recompute_meta["running"] = True
+        job_id = job_id or new_id()
+        staging = f"monthly_analytics_staging_{job_id.replace('-', '')}"
+        _last_recompute_meta.update({
+            "running": True,
+            "job_id": job_id,
+            "progress_pct": 0,
+            "progress_phase": "starting",
+            "reason": reason,
+        })
+        await db_bg.rollup_health.update_one(
+            {"id": "monthly_analytics"},
+            {"$set": {
+                "id": "monthly_analytics",
+                "running": True,
+                "job_id": job_id,
+                "reason": reason,
+                "progress_pct": 0,
+                "progress_phase": "starting",
+                "started_at": now_iso(),
+                "updated_at": now_iso(),
+                "last_error": None,
+            }},
+            upsert=True,
+        )
         try:
-            all_docs: List[Dict[str, Any]] = []
-            for dim in DIMENSIONS:
-                docs = await _stream_dim_aggregate(dim=dim)
-                all_docs.extend(docs)
-            # Resolve labels/artists/tracks to display names (one round trip per
-            # collection, batched).
-            await _hydrate_labels(all_docs)
-
-            # Atomic swap: insert the new docs first into a staging collection,
-            # then drop+rename. Avoids a window where the dashboard shows
-            # half-recomputed data.
-            staging = "monthly_analytics_staging"
             await db_bg.drop_collection(staging)
-            if all_docs:
-                # insert_many requires a stable _id; we leave Mongo to assign one
-                await db_bg[staging].insert_many(all_docs, ordered=False)
-                # Indexes for the dashboard's main query patterns:
-                #   1) `(period, dim)` — full-month slice across all dims
-                #   2) `(dim, revenue_idr -1)` — Top-N per dim
-                #   3) `(dim, key, period)` — Phase 24: fast lookup per entity id
-                #      (used by Artist/Release/Label Management list endpoints)
+            total_docs = 0
+            per_dim_counts: Dict[str, int] = {}
+            source_periods: List[str] = []
+            batch_size = 5000
+            for dim_index, dim in enumerate(DIMENSIONS):
+                phase = f"aggregating_{dim}"
+                progress = int(dim_index / len(DIMENSIONS) * 85)
+                _last_recompute_meta.update({"progress_phase": phase, "progress_pct": progress})
+                await db_bg.rollup_health.update_one(
+                    {"id": "monthly_analytics", "job_id": job_id},
+                    {"$set": {"progress_phase": phase, "progress_pct": progress, "updated_at": now_iso()}},
+                )
+                batch: List[Dict[str, Any]] = []
+                dim_count = 0
+                async for doc in _stream_dim_aggregate(dim=dim):
+                    batch.append(doc)
+                    if dim == "total":
+                        source_periods.append(doc["period"])
+                    if len(batch) >= batch_size:
+                        await _hydrate_labels(batch)
+                        await db_bg[staging].insert_many(batch, ordered=False)
+                        dim_count += len(batch)
+                        total_docs += len(batch)
+                        batch = []
+                if batch:
+                    await _hydrate_labels(batch)
+                    await db_bg[staging].insert_many(batch, ordered=False)
+                    dim_count += len(batch)
+                    total_docs += len(batch)
+                per_dim_counts[dim] = dim_count
+
+            _last_recompute_meta.update({"progress_phase": "indexing", "progress_pct": 90})
+            await db_bg.rollup_health.update_one(
+                {"id": "monthly_analytics", "job_id": job_id},
+                {"$set": {"progress_phase": "indexing", "progress_pct": 90, "doc_count": total_docs, "updated_at": now_iso()}},
+            )
+            if total_docs:
                 await db_bg[staging].create_index([("period", 1), ("dim", 1)])
                 await db_bg[staging].create_index([("dim", 1), ("revenue_idr", -1)])
                 await db_bg[staging].create_index([("dim", 1), ("key", 1), ("period", 1)])
-            await db_bg.drop_collection("monthly_analytics")
-            if all_docs:
-                # `rename` is atomic on the cluster but requires the target name
-                # not to exist — we already dropped it above.
-                await db_bg[staging].rename("monthly_analytics")
+                # dropTarget keeps the old cache readable until this atomic swap.
+                await db_bg[staging].rename("monthly_analytics", dropTarget=True)
+            else:
+                await db_bg.drop_collection("monthly_analytics")
             duration = (datetime.now(timezone.utc) - t0).total_seconds()
-            per_dim_counts: Dict[str, int] = {}
-            for d in all_docs:
-                per_dim_counts[d["dim"]] = per_dim_counts.get(d["dim"], 0) + 1
             _last_recompute_meta.update({
                 "finished_at": now_iso(),
                 "duration_sec": round(duration, 2),
-                "doc_count": len(all_docs),
+                "doc_count": total_docs,
                 "per_dim_counts": per_dim_counts,
                 "last_error": None,
+                "running": False,
+                "progress_pct": 100,
+                "progress_phase": "done",
+                "source_period_min": min(source_periods) if source_periods else None,
+                "source_period_max": max(source_periods) if source_periods else None,
             })
             # Persist health to Mongo so it survives pod restarts (and other
             # workers in a multi-replica deploy can read it). Stored as a
@@ -233,6 +277,12 @@ async def recompute_monthly_analytics() -> Dict[str, Any]:
                         "duration_sec": _last_recompute_meta["duration_sec"],
                         "doc_count": _last_recompute_meta["doc_count"],
                         "per_dim_counts": per_dim_counts,
+                        "running": False,
+                        "job_id": job_id,
+                        "progress_pct": 100,
+                        "progress_phase": "done",
+                        "source_period_min": _last_recompute_meta["source_period_min"],
+                        "source_period_max": _last_recompute_meta["source_period_max"],
                         "last_error": None,
                         "updated_at": now_iso(),
                     }},
@@ -241,7 +291,7 @@ async def recompute_monthly_analytics() -> Dict[str, Any]:
             except Exception:
                 logger.warning("[ANALYTICS] failed to persist rollup_health doc")
             logger.info("[ANALYTICS] recompute done in %.2fs — %d docs across %d dims",
-                        duration, len(all_docs), len(DIMENSIONS))
+                        duration, total_docs, len(DIMENSIONS))
             return dict(_last_recompute_meta)
         except Exception as e:
             logger.exception("[ANALYTICS] recompute FAILED: %s", e)
@@ -254,15 +304,56 @@ async def recompute_monthly_analytics() -> Dict[str, Any]:
                         "id": "monthly_analytics",
                         "last_error": _last_recompute_meta["last_error"],
                         "last_error_at": now_iso(),
+                        "running": False,
+                        "job_id": job_id,
+                        "progress_phase": "error",
                         "updated_at": now_iso(),
                     }},
                     upsert=True,
                 )
             except Exception:
                 pass
+            await db_bg.drop_collection(staging)
             raise
         finally:
             _last_recompute_meta["running"] = False
+
+
+async def _run_scheduled_recompute(*, job_id: str, reason: str) -> None:
+    try:
+        await recompute_monthly_analytics(job_id=job_id, reason=reason)
+    except Exception:
+        logger.exception("[ANALYTICS] scheduled rebuild %s failed", job_id)
+
+
+async def schedule_monthly_analytics_recompute(*, reason: str = "automatic") -> Dict[str, Any]:
+    """Queue one rebuild per process and return immediately."""
+    if _last_recompute_meta.get("running"):
+        return dict(_last_recompute_meta)
+    job_id = new_id()
+    _last_recompute_meta.update({
+        "running": True,
+        "job_id": job_id,
+        "progress_pct": 0,
+        "progress_phase": "queued",
+        "reason": reason,
+    })
+    await db_bg.rollup_health.update_one(
+        {"id": "monthly_analytics"},
+        {"$set": {
+            "id": "monthly_analytics",
+            "running": True,
+            "job_id": job_id,
+            "reason": reason,
+            "progress_pct": 0,
+            "progress_phase": "queued",
+            "updated_at": now_iso(),
+            "last_error": None,
+        }},
+        upsert=True,
+    )
+    asyncio.create_task(_run_scheduled_recompute(job_id=job_id, reason=reason))
+    return dict(_last_recompute_meta)
 
 
 # -----------------------------------------------------------------------------
@@ -271,16 +362,16 @@ async def recompute_monthly_analytics() -> Dict[str, Any]:
 
 @analytics_r.post("/recompute")
 async def admin_recompute_analytics(user: dict = Depends(require_super_admin)):
-    """Force-rebuild the monthly_analytics cache from royalty_lines.
-
-    Heavy operation — only super_admin. Triggered automatically post-publish
-    and post-delete-import; this endpoint exists for manual recovery (e.g.
-    after a hot data fix or migration).
-    """
-    if _last_recompute_meta.get("running"):
-        return {"ok": False, "message": "Recompute already running", "meta": _last_recompute_meta}
-    meta = await recompute_monthly_analytics()
-    return {"ok": True, "meta": meta}
+    """Queue a scalable rebuild and return before the ingress timeout."""
+    already_running = bool(_last_recompute_meta.get("running"))
+    meta = await schedule_monthly_analytics_recompute(reason=f"manual:{user['id']}")
+    return {
+        "ok": True,
+        "queued": not already_running,
+        "message": "Recompute already running" if already_running else "Recompute queued",
+        "job_id": meta.get("job_id"),
+        "meta": meta,
+    }
 
 
 @analytics_r.get("/status")
@@ -289,30 +380,33 @@ async def admin_analytics_status(user: dict = Depends(require_admin)):
     minutes ago'. Falls back to the persisted `rollup_health` doc when this
     pod hasn't run a rebuild yet (e.g. after a fresh restart).
     """
-    meta = dict(_last_recompute_meta)
-    if not meta.get("finished_at"):
-        try:
-            health = await db.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0})
-            if health:
-                meta.update({
-                    "finished_at": health.get("finished_at"),
-                    "duration_sec": health.get("duration_sec"),
-                    "doc_count": health.get("doc_count", 0),
-                    "per_dim_counts": health.get("per_dim_counts", {}),
-                    "last_error": health.get("last_error"),
-                    "last_error_at": health.get("last_error_at"),
-                    "from_persisted": True,
-                })
-        except Exception:
-            pass
+    meta: Dict[str, Any] = {}
+    try:
+        health = await db.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0})
+        if health:
+            meta.update(health)
+            meta["from_persisted"] = True
+    except Exception:
+        pass
+    # The local running state is newer than persisted state while the task is
+    # being queued; otherwise persisted health wins across pod restarts.
+    if _last_recompute_meta.get("running"):
+        meta.update(_last_recompute_meta)
+    elif not meta:
+        meta.update(_last_recompute_meta)
     return {
-        "running": _last_recompute_meta.get("running", False),
+        "running": bool(meta.get("running", False)),
+        "job_id": meta.get("job_id"),
+        "progress_pct": int(meta.get("progress_pct") or 0),
+        "progress_phase": meta.get("progress_phase"),
         "finished_at": meta.get("finished_at"),
         "duration_sec": meta.get("duration_sec"),
         "doc_count": meta.get("doc_count", 0),
         "per_dim_counts": meta.get("per_dim_counts", {}),
         "last_error": meta.get("last_error"),
         "last_error_at": meta.get("last_error_at"),
+        "source_period_min": meta.get("source_period_min"),
+        "source_period_max": meta.get("source_period_max"),
     }
 
 
@@ -575,11 +669,15 @@ async def admin_analytics_periods(user: dict = Depends(require_admin)):
     ]):
         if r.get("_id"):
             periods.append(r["_id"])
-    if not periods:
-        # Cache cold — try a quick `distinct` on royalty_lines as fallback
-        try:
-            raw = await db_bg.royalty_lines.distinct("period")
-            periods = sorted([p for p in raw if isinstance(p, str) and len(p) == 7])
-        except Exception:
-            pass
+    # Always merge source periods. A stale cache must not hide a newly imported
+    # month (the production symptom was June 2026 hidden behind May 2026).
+    try:
+        raw = await db_bg.royalty_lines.distinct("period")
+        periods = sorted(set(periods).union({
+            p for p in raw
+            if isinstance(p, str) and len(p) == 7 and p[4] == "-" and p[:4].isdigit()
+            and p[5:].isdigit() and 1 <= int(p[5:]) <= 12
+        }))
+    except Exception:
+        pass
     return {"periods": periods, "min": periods[0] if periods else None, "max": periods[-1] if periods else None}

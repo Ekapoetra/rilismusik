@@ -59,16 +59,44 @@ export function useAdminAnalytics() {
     return () => { active = false; };
   }, [periodFrom, periodTo, filters]);
 
+  useEffect(() => {
+    if (!cacheStatus?.running) return undefined;
+    let active = true;
+    const poll = async () => {
+      try {
+        const statusResponse = await api.get("/admin/analytics/status");
+        if (!active) return;
+        const status = statusResponse.data;
+        setCacheStatus(status);
+        if (!status.running) {
+          const periodResponse = await api.get("/admin/analytics/periods");
+          if (!active) return;
+          const available = periodResponse.data.periods || [];
+          const [fallbackFrom, fallbackTo] = defaultRange(available);
+          setPeriods(available);
+          setPeriodFrom((current) => available.includes(current) ? current : fallbackFrom);
+          setPeriodTo(fallbackTo);
+          setRefreshing(false);
+        }
+      } catch (error) {
+        if (active) {
+          setErr(`Status rebuild gagal dibaca: ${formatApiError(error.response?.data?.detail || error.message)}`);
+          setRefreshing(false);
+        }
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(timer); };
+  }, [cacheStatus?.running]);
+
   const recompute = async () => {
     setRefreshing(true); setErr("");
     try {
       const response = await api.post("/admin/analytics/recompute");
       setCacheStatus(response.data.meta);
-      const refreshed = await api.get(`/admin/analytics/monthly?${analyticsQuery(periodFrom, periodTo)}`);
-      setData(refreshed.data);
     } catch (error) {
       setErr(`Recompute gagal: ${formatApiError(error.response?.data?.detail || error.message)}`);
-    } finally {
       setRefreshing(false);
     }
   };

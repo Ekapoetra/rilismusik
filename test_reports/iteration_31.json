@@ -1,0 +1,43 @@
+{
+  "summary": "Executed backend + frontend regression verification for production stale dana-received reconciliation and analytics cache rebuild/period visibility behaviors on preview. Requested critical flows passed in backend tests and targeted UI checks.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase35_production_bugfixes.py",
+    "/app/backend/tests/test_phase18_analytics.py",
+    "/app/backend/tests/test_iter28_import_auth_playbook.py",
+    "/app/tests/iter31_seed_ui.py",
+    "/app/test_reports/pytest/iter31_phase35.xml",
+    "/app/test_reports/pytest/iter31_phase18.xml",
+    "/app/test_reports/pytest/iter31_auth_playbook.xml"
+  ],
+  "action_items": [
+    "No blocking fix found in requested scope.",
+    "Optional: keep a small wait/poll guard in UI tests before asserting analytics period options to avoid transient empty-option reads immediately after navigation."
+  ],
+  "critical_code_review_comments": [
+    "resume_interrupted_imports() now correctly resumes processing/publishing/receiving jobs, reconciles stale published+dana_received_at imports, resumes period repairs, and queues analytics rebuild on startup drift.",
+    "admin_analytics recompute is background-queued, persists rollup health/progress, streams per-dimension batches, and atomically swaps staging collection with rename(dropTarget=True).",
+    "mark-dana endpoint behavior is idempotent-safe and status-first; stale timestamp reconciliation does not double-post balances/ledger entries."
+  ],
+  "updated_files": [
+    "/app/tests/iter31_seed_ui.py",
+    "/app/test_reports/iteration_31.json"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 passed; 6 skipped in analytics live-filter cases due sparse dataset)",
+    "frontend": "100% for executed targeted flows (analytics periods incl. 2026-06 with seeded stale-cache scenario, 390px no overflow, royalty stale published+dana_received_at reconciliation to dana_received)"
+  },
+  "seed_data_creation": "Created temporary ITER31 seed artifacts via /app/tests/iter31_seed_ui.py (analytics periods + stale published import id c306c465-3a37-4bbf-a959-3fa8a3f53749), then cleaned all DB artifacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If royalty/analytics pages look empty on preview, seed temporary rows before UI assertions. Use /app/tests/iter31_seed_ui.py seed|cleanup for repeatable setup/teardown.",
+  "rca of the issue": "Previously, stale published imports with dana_received_at were rejected by endpoint guard before status reconciliation, and analytics cache visibility depended on stale cache periods. Current implementation resolves status first (or resumes receiving safely) and periods endpoint unions source periods with cache."
+}

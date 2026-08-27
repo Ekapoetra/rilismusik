@@ -452,8 +452,8 @@ def _trigger_dashboard_recompute():
     except Exception:
         pass
     try:
-        from routes.admin_analytics import recompute_monthly_analytics  # lazy
-        _aio.create_task(recompute_monthly_analytics())
+        from routes.admin_analytics import schedule_monthly_analytics_recompute  # lazy
+        _aio.create_task(schedule_monthly_analytics_recompute(reason="import_processed"))
     except Exception:
         pass
 
@@ -1215,9 +1215,9 @@ async def _publish_bg(*, import_id: str, user_id: str):
         # charts reflect the just-published data. Heavy aggregate (1M+ rows on
         # production) — fire-and-forget so this BG task can finish.
         try:
-            from routes.admin_analytics import recompute_monthly_analytics  # lazy
+            from routes.admin_analytics import schedule_monthly_analytics_recompute  # lazy
             import asyncio as _aio2
-            _aio2.create_task(recompute_monthly_analytics())
+            _aio2.create_task(schedule_monthly_analytics_recompute(reason=f"publish:{import_id}"))
         except Exception:
             pass
 
@@ -1257,16 +1257,44 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
-    if imp.get("dana_received_at"):
-        raise HTTPException(status_code=400, detail="Dana sudah ditandai diterima")
+    if imp.get("status") == "dana_received":
+        return imp
     if imp.get("status") == "receiving":
         return imp
     if imp.get("status") not in ("published", "receive_error"):
         raise HTTPException(status_code=400, detail="Import harus berstatus Published terlebih dahulu")
 
+    # Legacy production data can have dana_received_at set while the status is
+    # still `published`. Reconcile completed rows instead of permanently
+    # rejecting the action based on the stale timestamp.
+    if imp.get("dana_received_at"):
+        pending_lines = await db_bg.royalty_lines.count_documents({
+            "import_id": import_id, "status": "pending",
+        })
+        if pending_lines == 0:
+            reconciled_at = now_iso()
+            await db_bg.royalty_imports.update_one(
+                {"id": import_id, "status": {"$in": ["published", "receive_error"]}},
+                {"$set": {
+                    "status": "dana_received",
+                    "receive_progress_pct": 100,
+                    "status_reconciled_at": reconciled_at,
+                    "updated_at": reconciled_at,
+                }},
+            )
+            await log_activity(
+                user["id"], "reconcile_dana_received_status", "royalty", import_id,
+                after={"reason": "timestamp_present_no_pending_lines"},
+            )
+            return await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
+        await db_bg.royalty_imports.update_one(
+            {"id": import_id},
+            {"$unset": {"dana_received_at": ""}, "$set": {"updated_at": now_iso()}},
+        )
+
     queued_at = now_iso()
     queued = await db.royalty_imports.update_one(
-        {"id": import_id, "status": {"$in": ["published", "receive_error"]}, "dana_received_at": None},
+        {"id": import_id, "status": {"$in": ["published", "receive_error"]}},
         {"$set": {
             "status": "receiving",
             "receive_progress_pct": 0,
@@ -2165,10 +2193,15 @@ async def _repair_reporting_period_bg(*, import_id: str, job_id: str, user_id: s
         display_period = sorted_periods[0] if len(sorted_periods) == 1 else "multi"
         await db_bg.migrate_jobs.update_one(
             {"id": job_id},
-            {"$set": {"progress_phase": "rebuilding_analytics", "progress_pct": 95, "updated_at": now_iso()}},
+            {"$set": {"progress_phase": "queueing_analytics", "progress_pct": 95, "updated_at": now_iso()}},
         )
-        from routes.admin_analytics import recompute_monthly_analytics
-        await recompute_monthly_analytics()
+        # Analytics rebuild is a separate resumable background job. Period
+        # repair must not remain stuck/failed merely because a 3M-row rollup is
+        # still running or the pod restarts during that rollup.
+        from routes.admin_analytics import schedule_monthly_analytics_recompute
+        analytics_meta = await schedule_monthly_analytics_recompute(
+            reason=f"period_repair:{import_id}",
+        )
 
         finished_at = now_iso()
         await db_bg.royalty_imports.update_one(
@@ -2189,7 +2222,8 @@ async def _repair_reporting_period_bg(*, import_id: str, job_id: str, user_id: s
             "period_breakdown": stats.get("period_breakdown") or {},
             "period_start": stats.get("period_start"),
             "period_end": stats.get("period_end"),
-            "analytics_rebuilt": True,
+            "analytics_rebuild_queued": True,
+            "analytics_job_id": analytics_meta.get("job_id"),
         }
         await db_bg.migrate_jobs.update_one(
             {"id": job_id},
@@ -2413,9 +2447,9 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
         except Exception:
             pass
         try:
-            from routes.admin_analytics import recompute_monthly_analytics
+            from routes.admin_analytics import schedule_monthly_analytics_recompute
             import asyncio as _aio2
-            _aio2.create_task(recompute_monthly_analytics())
+            _aio2.create_task(schedule_monthly_analytics_recompute(reason=f"delete_import:{import_id}"))
         except Exception:
             pass
 
@@ -2523,3 +2557,107 @@ async def resume_interrupted_imports():
             user_id=imp.get("uploaded_by") or "system",
         ))
         logger.info("resume_interrupted_imports: %s dana-received resumed", imp["id"])
+
+    # 4) Reconcile legacy imports where dana_received_at exists but the status
+    # remained Published. This is the exact inconsistent production state that
+    # previously made the button return "Dana sudah ditandai diterima" forever.
+    try:
+        stale_received = await db.royalty_imports.find(
+            {
+                "status": {"$in": ["published", "receive_error"]},
+                "dana_received_at": {"$exists": True, "$ne": None},
+            },
+            {"_id": 0, "id": 1, "uploaded_by": 1},
+        ).to_list(500)
+    except Exception as exc:
+        logger.exception("resume_interrupted_imports: cannot query stale received: %s", exc)
+        stale_received = []
+    for imp in stale_received:
+        pending_lines = await db_bg.royalty_lines.count_documents({
+            "import_id": imp["id"], "status": "pending",
+        })
+        if pending_lines == 0:
+            await db_bg.royalty_imports.update_one(
+                {"id": imp["id"], "status": {"$in": ["published", "receive_error"]}},
+                {"$set": {
+                    "status": "dana_received",
+                    "receive_progress_pct": 100,
+                    "status_reconciled_at": now_iso(),
+                    "updated_at": now_iso(),
+                }},
+            )
+            logger.info("resume_interrupted_imports: %s stale received status reconciled", imp["id"])
+        else:
+            await db_bg.royalty_imports.update_one(
+                {"id": imp["id"], "status": {"$in": ["published", "receive_error"]}},
+                {
+                    "$unset": {"dana_received_at": ""},
+                    "$set": {
+                        "status": "receiving",
+                        "receive_progress_pct": 0,
+                        "receive_started_at": now_iso(),
+                        "updated_at": now_iso(),
+                    },
+                },
+            )
+            asyncio.create_task(_mark_dana_received_bg(
+                import_id=imp["id"],
+                user_id=imp.get("uploaded_by") or "system",
+            ))
+            logger.info("resume_interrupted_imports: %s stale received processing resumed", imp["id"])
+
+    # 5) Resume interrupted reporting-period repairs. Re-running is safe: each
+    # batch writes the same period values and validates the source first.
+    try:
+        stuck_repairs = await db.royalty_imports.find(
+            {"period_repair_status": "processing"},
+            {"_id": 0, "id": 1, "period_repair_job_id": 1, "uploaded_by": 1},
+        ).to_list(100)
+    except Exception as exc:
+        logger.exception("resume_interrupted_imports: cannot query period repairs: %s", exc)
+        stuck_repairs = []
+    for imp in stuck_repairs:
+        repair_job_id = imp.get("period_repair_job_id") or new_id()
+        await db_bg.migrate_jobs.update_one(
+            {"id": repair_job_id},
+            {"$set": {
+                "id": repair_job_id,
+                "kind": "repair_reporting_period",
+                "status": "queued",
+                "import_id": imp["id"],
+                "progress_phase": "resuming",
+                "updated_at": now_iso(),
+            }},
+            upsert=True,
+        )
+        await db_bg.royalty_imports.update_one(
+            {"id": imp["id"]},
+            {"$set": {"period_repair_job_id": repair_job_id, "updated_at": now_iso()}},
+        )
+        asyncio.create_task(_repair_reporting_period_bg(
+            import_id=imp["id"],
+            job_id=repair_job_id,
+            user_id=imp.get("uploaded_by") or "system",
+        ))
+        logger.info("resume_interrupted_imports: %s period repair resumed", imp["id"])
+
+    # 6) Resume a killed Analytics rebuild, or automatically rebuild when the
+    # source has a newer max month than the live cache.
+    try:
+        health = await db.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0}) or {}
+        source_latest = await db_bg.royalty_lines.find_one(
+            {"period": {"$type": "string"}}, {"_id": 0, "period": 1}, sort=[("period", -1)],
+        )
+        cache_latest = await db_bg.monthly_analytics.find_one(
+            {"dim": "total"}, {"_id": 0, "period": 1}, sort=[("period", -1)],
+        )
+        source_max = (source_latest or {}).get("period")
+        cache_max = (cache_latest or {}).get("period")
+        if health.get("running") or (source_max and source_max != cache_max):
+            from routes.admin_analytics import schedule_monthly_analytics_recompute
+            await schedule_monthly_analytics_recompute(
+                reason="startup_resume" if health.get("running") else f"startup_period_drift:{cache_max}->{source_max}",
+            )
+            logger.info("resume_interrupted_imports: analytics rebuild queued (%s -> %s)", cache_max, source_max)
+    except Exception as exc:
+        logger.exception("resume_interrupted_imports: analytics recovery check failed: %s", exc)

@@ -265,7 +265,7 @@ async def trigger_royalty_caches() -> None:
     import asyncio
     schedule_dashboard_recompute()
     try:
-        from routes.admin_analytics import recompute_monthly_analytics
-        asyncio.create_task(recompute_monthly_analytics())
+        from routes.admin_analytics import schedule_monthly_analytics_recompute
+        asyncio.create_task(schedule_monthly_analytics_recompute(reason="royalty_recalculation"))
     except Exception as exc:
         logger.warning("[ROYALTY RECALC] analytics cache trigger failed: %s", exc)

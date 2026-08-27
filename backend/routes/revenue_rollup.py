@@ -171,8 +171,8 @@ async def rollup_revenue_by_id(
     logger = logging.getLogger("rilismusik")
     logger.warning("[ROLLUP] cache empty for dim=%s, falling back to live", dim)
     try:
-        from .admin_analytics import recompute_monthly_analytics
-        asyncio.create_task(recompute_monthly_analytics())
+        from .admin_analytics import schedule_monthly_analytics_recompute
+        asyncio.create_task(schedule_monthly_analytics_recompute(reason=f"cache_miss:{dim}"))
     except Exception:
         pass
 

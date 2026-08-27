@@ -114,16 +114,22 @@ class TestRecomputeAuth:
         assert r.status_code == 403
 
     def test_recompute_super_allowed(self, super_client):
-        r = super_client.post(f"{BASE_URL}/api/admin/analytics/recompute", timeout=300)
+        started = time.time()
+        r = super_client.post(f"{BASE_URL}/api/admin/analytics/recompute", timeout=30)
         assert r.status_code == 200, r.text
         d = r.json()
-        # Either ok:true with meta, or ok:false "already running"
-        assert "meta" in d
-        meta = d["meta"]
-        assert "finished_at" in meta and "doc_count" in meta
-        # after a successful run, status endpoint should reflect it
-        s = super_client.get(f"{BASE_URL}/api/admin/analytics/status").json()
-        assert s["doc_count"] == meta["doc_count"]
+        assert time.time() - started < 5, "recompute endpoint must queue, not block"
+        assert d.get("job_id") and d.get("meta", {}).get("running") is True
+        deadline = time.time() + 120
+        s = None
+        while time.time() < deadline:
+            s = super_client.get(f"{BASE_URL}/api/admin/analytics/status", timeout=30).json()
+            if not s.get("running") and s.get("job_id") == d["job_id"]:
+                break
+            time.sleep(0.5)
+        assert s and s.get("running") is False
+        assert s.get("progress_pct") == 100
+        assert s.get("doc_count", 0) >= 0
 
 
 # ------------------------- /monthly (cache path) -------------------------

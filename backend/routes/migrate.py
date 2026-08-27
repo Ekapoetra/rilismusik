@@ -1574,8 +1574,8 @@ async def backfill_royalty_period_from_row(
     except Exception:
         pass
     try:
-        from routes.admin_analytics import recompute_monthly_analytics
-        _aio.create_task(recompute_monthly_analytics())
+        from routes.admin_analytics import schedule_monthly_analytics_recompute
+        _aio.create_task(schedule_monthly_analytics_recompute(reason="migration_complete"))
     except Exception:
         pass
 
@@ -1828,8 +1828,8 @@ async def _materialize_artists_bg(
             # Cache refresh
             import asyncio as _aio
             try:
-                from routes.admin_analytics import recompute_monthly_analytics
-                _aio.create_task(recompute_monthly_analytics())
+                from routes.admin_analytics import schedule_monthly_analytics_recompute
+                _aio.create_task(schedule_monthly_analytics_recompute(reason="backfill_complete"))
             except Exception:
                 pass
             await log_activity(

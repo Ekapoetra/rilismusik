@@ -33,15 +33,26 @@ function AnalyticsView({ periods, periodFrom, setPeriodFrom, periodTo, setPeriod
         </div>
         <button
           onClick={recompute}
-          disabled={refreshing}
+          disabled={refreshing || cacheStatus?.running}
           className="rm-btn-ghost flex items-center gap-2 disabled:opacity-60"
           data-testid="analytics-recompute-btn"
           title="Force rebuild monthly_analytics cache dari royalty_lines"
         >
-          {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          {refreshing ? "Recomputing…" : "Rebuild Cache"}
+          {(refreshing || cacheStatus?.running) ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          {cacheStatus?.running ? `Rebuilding ${cacheStatus.progress_pct || 0}%` : refreshing ? "Menjadwalkan…" : "Rebuild Cache"}
         </button>
       </div>
+
+      {cacheStatus?.running && (
+        <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 space-y-2" data-testid="analytics-rebuild-progress">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-cyan-200 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analytics sedang dibangun ulang di background</span>
+            <span className="font-mono text-cyan-300" data-testid="analytics-rebuild-percent">{cacheStatus.progress_pct || 0}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 transition-all" style={{ width: `${cacheStatus.progress_pct || 0}%` }} /></div>
+          <div className="text-[11px] text-zinc-500" data-testid="analytics-rebuild-phase">{cacheStatus.progress_phase || "queued"} — cache lama tetap dapat dibaca sampai cache baru siap.</div>
+        </div>
+      )}
 
       {err && (
         <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 px-4 py-3 text-sm" data-testid="analytics-error">
@@ -169,8 +180,9 @@ function AnalyticsView({ periods, periodFrom, setPeriodFrom, periodTo, setPeriod
             <Disc3 className="w-3.5 h-3.5" /> Status Cache
           </div>
           <div className="text-sm space-y-2">
-            <div className="flex justify-between"><span className="text-zinc-500">Sumber data</span><span className="text-zinc-200 font-mono text-xs">{data?.source || "—"}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-500">Cache update</span><span className="text-zinc-200 font-mono text-xs">{cacheStatus?.finished_at ? new Date(cacheStatus.finished_at).toLocaleString("id-ID") : "Belum pernah"}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-500">Sumber data</span><span className="text-zinc-200 font-mono text-xs" data-testid="analytics-cache-source">{data?.source || "—"}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-500">Cache update</span><span className="text-zinc-200 font-mono text-xs" data-testid="analytics-cache-updated-at">{cacheStatus?.finished_at ? new Date(cacheStatus.finished_at).toLocaleString("id-ID") : "Belum pernah"}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-500">Status</span><span className={cacheStatus?.running ? "text-cyan-300 font-mono text-xs" : "text-emerald-300 font-mono text-xs"} data-testid="analytics-cache-status">{cacheStatus?.running ? `Rebuilding ${cacheStatus.progress_pct || 0}%` : "Siap"}</span></div>
             <div className="flex justify-between"><span className="text-zinc-500">Durasi recompute</span><span className="text-zinc-200 font-mono text-xs">{cacheStatus?.duration_sec ? `${cacheStatus.duration_sec}s` : "—"}</span></div>
             <div className="flex justify-between"><span className="text-zinc-500">Doc count</span><span className="text-zinc-200 font-mono text-xs">{fmtInt(cacheStatus?.doc_count || 0)}</span></div>
             {cacheStatus?.per_dim_counts && Object.keys(cacheStatus.per_dim_counts).length > 0 && (

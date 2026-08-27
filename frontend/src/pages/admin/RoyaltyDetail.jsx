@@ -242,7 +242,7 @@ export default function AdminRoyaltyDetail() {
       {imp.period_repair_status === "processing" && (
         <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-period-repair-progress">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-zinc-400">Memvalidasi ulang Bulan laporan dari CSV asli dan membangun ulang Analytics…</span>
+            <span className="text-zinc-400">Memvalidasi dan memperbaiki Bulan laporan dari CSV asli…</span>
             <span className="font-bold text-cyan-300">{imp.period_repair_progress_pct || 0}%</span>
           </div>
           <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -254,7 +254,7 @@ export default function AdminRoyaltyDetail() {
 
       {imp.period_repair_status === "done" && (
         <div className="rounded-2xl bg-cyan-500/10 border border-cyan-500/20 px-4 py-3 text-sm text-cyan-200" data-testid="royalty-detail-period-repair-complete">
-          Bulan laporan sudah diperbaiki dari CSV asli dan cache Analytics sudah dibangun ulang.
+          Bulan laporan sudah diperbaiki dari CSV asli. Rebuild Analytics berjalan terpisah di background.
         </div>
       )}
 

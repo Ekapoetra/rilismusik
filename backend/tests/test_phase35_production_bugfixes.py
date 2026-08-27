@@ -54,6 +54,18 @@ def _wait_job(token, job_id, timeout=30):
     raise AssertionError(f"job {job_id} tidak selesai dalam {timeout}s")
 
 
+def _wait_analytics(token, job_id=None, timeout=90):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        response = requests.get(f"{API}/admin/analytics/status", headers=_headers(token), timeout=20)
+        response.raise_for_status()
+        status = response.json()
+        if not status.get("running") and (not job_id or status.get("job_id") == job_id):
+            return status
+        time.sleep(0.25)
+    raise AssertionError(f"analytics job {job_id or '(active)'} tidak selesai dalam {timeout}s")
+
+
 @pytest.fixture(scope="module")
 def super_token():
     return _login()
@@ -182,12 +194,109 @@ def test_mark_dana_received_runs_background_and_is_idempotent(super_token):
             headers=_headers(super_token),
             timeout=15,
         )
-        assert repeated.status_code == 400
+        assert repeated.status_code == 200
+        assert repeated.json()["status"] == "dana_received"
     finally:
         db.royalty_lines.delete_many({"import_id": import_id})
         db.royalty_imports.delete_one({"id": import_id})
         db.balance_transactions.delete_many({"reference_id": import_id})
         db.labels.delete_one({"id": label_id})
+
+
+def test_mark_dana_reconciles_stale_timestamp_with_published_status(super_token):
+    db = _db()
+    suffix = uuid.uuid4().hex[:8]
+    import_id = f"ph35-stale-received-{suffix}"
+    db.royalty_imports.insert_one({
+        "id": import_id,
+        "status": "published",
+        "period": "2023-11",
+        "dana_received_at": "2026-01-01T00:00:00+00:00",
+        "uploaded_by": "phase35-test",
+    })
+    db.royalty_lines.insert_one({
+        "id": f"{import_id}-1",
+        "import_id": import_id,
+        "status": "available",
+        "match_status": "matched",
+        "period": "2023-11",
+        "label_idr": 10_000,
+        "revenue_eur": 1,
+    })
+    try:
+        response = requests.post(
+            f"{API}/royalty/admin/imports/{import_id}/mark-dana-received",
+            headers=_headers(super_token), timeout=20,
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "dana_received"
+        assert body["dana_received_at"] == "2026-01-01T00:00:00+00:00"
+        assert body["receive_progress_pct"] == 100
+        assert body.get("status_reconciled_at")
+        assert db.balance_transactions.count_documents({"reference_id": import_id}) == 0
+    finally:
+        db.royalty_lines.delete_many({"import_id": import_id})
+        db.royalty_imports.delete_one({"id": import_id})
+
+
+def test_analytics_rebuild_is_background_streaming_and_exposes_source_months(super_token):
+    db = _db()
+    _wait_analytics(super_token, timeout=90)
+    suffix = uuid.uuid4().hex[:8]
+    line_ids = [f"ph35-analytics-{suffix}-a", f"ph35-analytics-{suffix}-b"]
+    db.royalty_lines.insert_many([
+        {
+            "id": line_ids[0], "import_id": f"ph35-analytics-{suffix}", "period": "2024-07",
+            "status": "available", "match_status": "matched", "revenue_eur": 10,
+            "label_idr": 100_000, "quantity": 100, "platform": "PH35 Analytics",
+            "country": "ID",
+        },
+        {
+            "id": line_ids[1], "import_id": f"ph35-analytics-{suffix}", "period": "2026-06",
+            "status": "available", "match_status": "matched", "revenue_eur": 20,
+            "label_idr": 200_000, "quantity": 200, "platform": "PH35 Analytics",
+            "country": "ID",
+        },
+    ])
+    try:
+        periods_before = requests.get(
+            f"{API}/admin/analytics/periods", headers=_headers(super_token), timeout=30,
+        )
+        assert periods_before.status_code == 200
+        assert "2026-06" in periods_before.json()["periods"]
+
+        started = time.monotonic()
+        queued = requests.post(
+            f"{API}/admin/analytics/recompute", headers=_headers(super_token), timeout=20,
+        )
+        assert queued.status_code == 200, queued.text
+        assert time.monotonic() - started < 5
+        queued_body = queued.json()
+        assert queued_body["job_id"]
+        assert queued_body["meta"]["running"] is True
+        completed = _wait_analytics(super_token, queued_body["job_id"], timeout=90)
+        assert completed["progress_pct"] == 100
+        assert completed["progress_phase"] == "done"
+        assert completed["source_period_max"] >= "2026-06"
+
+        monthly = requests.get(
+            f"{API}/admin/analytics/monthly",
+            headers=_headers(super_token),
+            params={"period_from": "2024-07", "period_to": "2026-06"},
+            timeout=30,
+        )
+        assert monthly.status_code == 200, monthly.text
+        by_period = {row["period"]: row for row in monthly.json()["monthly"]}
+        assert by_period["2024-07"]["revenue_idr"] >= 100_000
+        assert by_period["2026-06"]["revenue_idr"] >= 200_000
+    finally:
+        db.royalty_lines.delete_many({"id": {"$in": line_ids}})
+        restored = requests.post(
+            f"{API}/admin/analytics/recompute", headers=_headers(super_token), timeout=20,
+        )
+        if restored.status_code == 200 and restored.json().get("job_id"):
+            _wait_analytics(super_token, restored.json()["job_id"], timeout=90)
 
 
 def test_legacy_withdraw_preview_and_commit_are_background_jobs(super_token):
