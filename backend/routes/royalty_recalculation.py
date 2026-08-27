@@ -64,9 +64,14 @@ async def recalculate_label_unwithdrawn(
 ) -> Dict[str, Any]:
     """Recalculate one label's unsettled lines and adjust live balances by delta."""
     pct = max(0.0, min(100.0, float(percentage)))
+    label = await db_bg.labels.find_one(
+        {"id": label_id}, {"_id": 0, "last_withdrawn_period": 1},
+    ) or {}
     match = _line_filter(label_id)
+    if label.get("last_withdrawn_period"):
+        match["period"] = {"$gt": label["last_withdrawn_period"]}
     total_lines = await db_bg.royalty_lines.count_documents(match)
-    skipped_incomplete = await db_bg.royalty_lines.count_documents({
+    incomplete_filter = {
         "label_id": label_id,
         "status": {"$in": RECALCULABLE_STATUSES},
         "legacy_settled": {"$ne": True},
@@ -74,7 +79,10 @@ async def recalculate_label_unwithdrawn(
             {"revenue_eur": {"$exists": False}}, {"revenue_eur": None},
             {"exchange_rate": {"$exists": False}}, {"exchange_rate": None},
         ],
-    })
+    }
+    if label.get("last_withdrawn_period"):
+        incomplete_filter["period"] = {"$gt": label["last_withdrawn_period"]}
+    skipped_incomplete = await db_bg.royalty_lines.count_documents(incomplete_filter)
     before = await _sum_by_status(match)
     import_ids = await db_bg.royalty_lines.distinct("import_id", match)
 

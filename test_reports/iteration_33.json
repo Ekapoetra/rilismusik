@@ -1,0 +1,41 @@
+{
+  "summary": "Completed backend+frontend verification for balance audit/reconciliation and withdraw FIFO source-of-truth behavior on preview environment. All executed tests passed; UI audit flow was run in PREVIEW ONLY mode (no global commit from UI).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase38_balance_reconciliation.py",
+    "/app/backend/tests/test_phase20_21_withdraw_fifo_rollup.py",
+    "/app/backend/tests/test_iter33_balance_audit_api.py",
+    "/app/test_reports/pytest/iter33_balance_reconciliation.xml",
+    "/app/test_reports/pytest/iter33_withdraw_fifo.xml"
+  ],
+  "action_items": [
+    "No blocking defects found in requested scope.",
+    "Proceed with redeploy flow once main agent final review is complete."
+  ],
+  "critical_code_review_comments": [
+    "Source-of-truth balance computation is consistently applied from royalty_lines (non-legacy, period > cutoff) with active withdraw reservation subtracted from available.",
+    "Global balance-audit preview/rows/commit background jobs are idempotent in executed scenarios, preserve ObjectId-free payloads, and resume support exists via startup job resume.",
+    "mark-dana-received background logic excludes cutoff-period historical pending from pending→available movement by settling historical lines as withdrawn before final flip."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter33_balance_audit_api.py",
+    "/app/test_reports/iteration_33.json"
+  ],
+  "success_rate": {
+    "backend": "100% (26/26 passed)",
+    "frontend": "100% for executed flows (finance audit preview/progress/summary/table, support RBAC toggle hidden, desktop+390px no page-level overflow)"
+  },
+  "seed_data_creation": "Created temporary ITER33_* label and royalty_lines records inside backend tests; all cleaned in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "UI run intentionally did NOT click Rekonsiliasi Semua on demo labels. If re-running UI, keep preview-only unless using scoped safe test labels. One Playwright run saw post-login redirect to /admin/withdraw (state-based) while waiting for /admin/dashboard; follow-up RBAC run passed.",
+  "rca of the issue": "Original production symptom (negative pending with mirrored positive available) aligns with historical pending lines being included during dana-received transitions. Executed regression confirms current implementation mitigates this by cutoff-aware filtering and historical settlement to withdrawn before availability updates."
+}

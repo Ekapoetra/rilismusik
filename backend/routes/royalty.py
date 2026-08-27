@@ -1329,10 +1329,69 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
             if imp.get("is_multi_period") else imp.get("period", "")
         )
         pipeline = [
-            {"$match": {"import_id": import_id, "status": "pending"}},
-            {"$group": {"_id": "$label_id", "total_idr": {"$sum": "$label_idr"}}},
+            {"$match": {
+                "import_id": import_id,
+                "status": "pending",
+                "legacy_settled": {"$ne": True},
+            }},
+            {"$group": {
+                "_id": {"label_id": "$label_id", "period": "$period"},
+                "total_idr": {"$sum": "$label_idr"},
+            }},
         ]
-        per_label = [r async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True) if r.get("_id")]
+        period_rows = [
+            row async for row in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True)
+            if (row.get("_id") or {}).get("label_id")
+        ]
+        label_ids = list({row["_id"]["label_id"] for row in period_rows})
+        labels = await db_bg.labels.find(
+            {"id": {"$in": label_ids}},
+            {"_id": 0, "id": 1, "last_withdrawn_period": 1},
+        ).to_list(len(label_ids) or 1)
+        cutoff_by_label = {label["id"]: label.get("last_withdrawn_period") for label in labels}
+        active_withdraw_ids = set(await db_bg.withdraw_requests.distinct("label_id", {
+            "label_id": {"$in": label_ids},
+            "status": {"$in": ["requested", "approved"]},
+            "legacy_import": {"$ne": True},
+        }))
+        if active_withdraw_ids:
+            raise RuntimeError(
+                f"Penerimaan dana diblokir: {len(active_withdraw_ids)} label sedang memiliki withdraw aktif"
+            )
+
+        eligible_totals: Dict[str, int] = {}
+        historical_labels = set()
+        for row in period_rows:
+            label_id = row["_id"]["label_id"]
+            period = row["_id"].get("period")
+            cutoff = cutoff_by_label.get(label_id)
+            if cutoff and period and period <= cutoff:
+                historical_labels.add(label_id)
+                continue
+            eligible_totals[label_id] = eligible_totals.get(label_id, 0) + int(row.get("total_idr") or 0)
+
+        # Any historical pending rows are already covered by the label's FIFO
+        # cutoff and must never be moved back into available balance.
+        historical_flipped = 0
+        for label_id in historical_labels:
+            cutoff = cutoff_by_label[label_id]
+            result = await db_bg.royalty_lines.update_many(
+                {
+                    "import_id": import_id,
+                    "label_id": label_id,
+                    "status": "pending",
+                    "legacy_settled": {"$ne": True},
+                    "period": {"$lte": cutoff},
+                },
+                {"$set": {
+                    "status": "withdrawn",
+                    "settled_by_period_cutoff": True,
+                    "settled_by_period_cutoff_at": now_iso(),
+                }},
+            )
+            historical_flipped += result.modified_count
+
+        per_label = [{"_id": label_id, "total_idr": total} for label_id, total in eligible_totals.items()]
         total_labels = max(len(per_label), 1)
         await db_bg.royalty_imports.update_one(
             {"id": import_id}, {"$set": {"receive_progress_pct": 5, "updated_at": now_iso()}},
@@ -1385,12 +1444,17 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
                     {"$set": {"receive_progress_pct": min(progress, 75), "updated_at": now_iso()}},
                 )
 
-        total_pending = await db_bg.royalty_lines.count_documents({"import_id": import_id, "status": "pending"})
+        pending_filter = {
+            "import_id": import_id,
+            "status": "pending",
+            "legacy_settled": {"$ne": True},
+        }
+        total_pending = await db_bg.royalty_lines.count_documents(pending_filter)
         chunk_size = 2000
         last_oid = None
         total_flipped = 0
         while True:
-            query: Dict[str, Any] = {"import_id": import_id, "status": "pending"}
+            query: Dict[str, Any] = dict(pending_filter)
             if last_oid is not None:
                 query["_id"] = {"$gt": last_oid}
             batch = await db_bg.royalty_lines.find(query, {"_id": 1}).sort("_id", 1).limit(chunk_size).to_list(chunk_size)
@@ -1419,8 +1483,14 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
                 "updated_at": finished_at,
             }},
         )
-        await log_activity(user_id, "mark_dana_received", "royalty", import_id, after={"lines_flipped": total_flipped})
-        logger.info("[MARK_DANA BG] %s complete — %d lines available", import_id, total_flipped)
+        await log_activity(user_id, "mark_dana_received", "royalty", import_id, after={
+            "lines_flipped": total_flipped,
+            "historical_lines_settled": historical_flipped,
+        })
+        logger.info(
+            "[MARK_DANA BG] %s complete — %d lines available, %d historical settled",
+            import_id, total_flipped, historical_flipped,
+        )
     except Exception as exc:
         logger.exception("[MARK_DANA BG] %s failed: %s", import_id, exc)
         await db_bg.royalty_imports.update_one(

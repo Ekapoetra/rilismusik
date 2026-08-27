@@ -686,10 +686,13 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Reparasi period selesai terpisah dari rebuild Analytics dan otomatis dilanjutkan setelah restart. Verifikasi 29/29 + 24/24 serta iteration 31 lulus tanpa MOCKED API.
 
 ### Phase 37 — Bulk Import Rate Label XLSX/CSV (2026-08-27)
-- Halaman Admin **Impor Rate Label** menerima XLSX/CSV (`Nama Label`, `Rate` 0–100; `No.` diabaikan), menyediakan template, serta preview tersimpan sebelum commit.
-- Matching ternormalisasi menampilkan matched, unchanged, unmatched, nama ambigu, duplikat konflik/redundan, invalid, dan label yang diblokir withdraw aktif; preview tidak memiliki side effect.
-- Commit background/idempoten memperbarui `royalty_percentage_default`, histori persentase, dan recalculation pending/available; withdrawn/legacy-settled tidak diubah, konflik setelah preview tidak ditimpa, dan job otomatis resume.
-- Verifikasi: 10/10 tes label-rate, build + desktop/mobile E2E iteration 32 lulus tanpa MOCKED API; data uji dibersihkan.
+- **Impor Rate Label** menerima XLSX/CSV dengan matching ternormalisasi dan preview matched/unmatched/ambigu/duplikat/invalid/blocked sebelum commit tanpa side effect.
+- Commit background/idempoten memperbarui rate, histori, dan recalculation unsettled tanpa membuka data withdrawn; 10/10 tes + E2E iteration 32 lulus tanpa MOCKED API.
+
+### Phase 38 — FIFO Balance Audit & Global Reconciliation (2026-08-27)
+- RCA Poetra Studio: mark-dana lama memindahkan baris pending periode ≤ `last_withdrawn_period` kembali ke available, menghasilkan pending negatif dan available positif. Dashboard kini membaca source-of-truth `royalty_lines` periode setelah cutoff; mark-dana dan rate recalculation juga cutoff-aware.
+- Admin Withdraw memiliki **Audit Saldo Label**: preview seluruh label menampilkan withdraw terakhir, report terbaru, range tersisa, saldo saat ini→benar, stale rows, dan active-withdraw block; commit background/idempoten menetapkan saldo absolut nonnegatif serta menyelesaikan baris ≤ cutoff.
+- Verifikasi: 26/26 backend, desktop/mobile UI, RCA independen iteration 33, build, dan deployment scan lulus tanpa MOCKED API.
 
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.

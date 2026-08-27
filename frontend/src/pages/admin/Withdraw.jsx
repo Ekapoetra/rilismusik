@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Banknote, CheckCircle, XCircle, UploadCloud, History } from "lucide-react";
+import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale } from "lucide-react";
 import WithdrawImportPanel from "./WithdrawImportPanel";
+import BalanceAuditPanel from "./BalanceAuditPanel";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
@@ -18,6 +19,7 @@ export default function AdminWithdraw() {
   const { user: me } = useAuth();
   const [items, setItems] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [window, setWindow] = useState(null);
   const [open, setOpen] = useState(null); // selected wd for action
@@ -60,8 +62,8 @@ export default function AdminWithdraw() {
         {window && <p className="text-sm text-zinc-400 mt-1">Hari ke-{window.day} (Asia/Jakarta) — {window.message}</p>}
       </div>
 
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
+      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-withdraw-error">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-withdraw-message">{msg}</div>}
 
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="min-w-[200px]">
@@ -74,10 +76,11 @@ export default function AdminWithdraw() {
             <option value="rejected">Rejected</option>
           </select>
         </div>
+        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
         {me?.role === "super_admin" && (
           <button
-            className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto"
-            onClick={() => setImportOpen((s) => !s)}
+            className="rm-btn-ghost text-sm flex items-center gap-2"
+            onClick={() => { setImportOpen((s) => !s); setAuditOpen(false); }}
             data-testid="admin-withdraw-import-toggle"
           >
             <History className="w-4 h-4" /> {importOpen ? "Tutup Import Riwayat" : "Import Riwayat Penarikan (CSV)"}
@@ -90,6 +93,10 @@ export default function AdminWithdraw() {
           <h3 className="font-display font-bold text-lg tracking-tight mb-3">Import Riwayat Penarikan</h3>
           <WithdrawImportPanel />
         </div>
+      )}
+
+      {auditOpen && ["super_admin", "admin_finance"].includes(me?.role) && (
+        <div className="rm-card p-5"><BalanceAuditPanel /></div>
       )}
 
       <div className="rm-card overflow-hidden">

@@ -72,42 +72,20 @@ async def _compute_withdrawable(label_id: str) -> Dict[str, Any]:
         last_withdrawn_period: "YYYY-MM" | None,  # for UI context
       }
     """
-    label = await db.labels.find_one({"id": label_id}, {"_id": 0, "last_withdrawn_period": 1})
-    last_wd_period = (label or {}).get("last_withdrawn_period")
-
-    match: Dict[str, Any] = {
-        "label_id": label_id,
-        "status": "available",
-        "legacy_settled": {"$ne": True},
-        "period": {"$ne": None, "$exists": True},
+    from .balance_utils import compute_label_balance_snapshot
+    snapshot = await compute_label_balance_snapshot(label_id=label_id)
+    return {
+        "withdrawable_idr": 0 if snapshot["has_active_withdraw"] else snapshot["balance_available_idr"],
+        "period_from": None if snapshot["has_active_withdraw"] else snapshot["available_period_from"],
+        "period_to": None if snapshot["has_active_withdraw"] else snapshot["available_period_to"],
+        "lines_count": 0 if snapshot["has_active_withdraw"] else snapshot["available_lines"],
+        "last_withdrawn_period": snapshot["last_withdrawn_period"],
+        "latest_report_period": snapshot["latest_report_period"],
+        "balance_pending_idr": snapshot["balance_pending_idr"],
+        "balance_available_idr": snapshot["balance_available_idr"],
+        "balance_withdraw_requested_idr": snapshot["balance_withdraw_requested_idr"],
+        "has_active_withdraw": snapshot["has_active_withdraw"],
     }
-    if last_wd_period:
-        # Strict > so we don't re-withdraw the previously-paid period.
-        match["period"]["$gt"] = last_wd_period
-
-    pipeline = [
-        {"$match": match},
-        {"$group": {
-            "_id": None,
-            "withdrawable_idr": {"$sum": "$label_idr"},
-            "lines_count": {"$sum": 1},
-            "period_from": {"$min": "$period"},
-            "period_to": {"$max": "$period"},
-        }},
-    ]
-    out = {
-        "withdrawable_idr": 0,
-        "period_from": None,
-        "period_to": None,
-        "lines_count": 0,
-        "last_withdrawn_period": last_wd_period,
-    }
-    async for r in db_bg.royalty_lines.aggregate(pipeline, allowDiskUse=True):
-        out["withdrawable_idr"] = int(r.get("withdrawable_idr") or 0)
-        out["lines_count"] = int(r.get("lines_count") or 0)
-        out["period_from"] = r.get("period_from")
-        out["period_to"] = r.get("period_to")
-    return out
 
 
 @withdraw_r.get("/window")
@@ -129,6 +107,8 @@ async def label_computed_withdrawable(user: dict = Depends(require_label)):
         "min_withdraw_idr": MIN_WITHDRAW_IDR,
         "can_withdraw": can_withdraw,
         "reason": None if can_withdraw else (
+            "Masih ada withdraw yang sedang diproses"
+            if info.get("has_active_withdraw") else
             "Belum ada royalti tersedia setelah penarikan terakhir"
             if info["lines_count"] == 0 else
             f"Total Rp {info['withdrawable_idr']:,} di bawah minimum Rp {MIN_WITHDRAW_IDR:,}"

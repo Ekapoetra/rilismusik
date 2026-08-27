@@ -78,6 +78,8 @@ async def label_update(body: LabelProfileUpdate, user: dict = Depends(require_la
 @label_r.get("/dashboard")
 async def label_dashboard(user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
+    from .balance_utils import compute_label_balance_snapshot
+    balance = await compute_label_balance_snapshot(label_id=label["id"], label=label)
     total_releases = await db.releases.count_documents({"label_id": label["id"]})
     active_releases = await db.releases.count_documents({"label_id": label["id"], "status": {"$in": ["approved", "delivered", "live"]}})
     total_tracks = await db.tracks.count_documents({"label_id": label["id"]})
@@ -95,6 +97,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
             "label_id": label["id"],
             "status": {"$in": ["pending", "available"]},
             "legacy_settled": {"$ne": True},
+            **({"period": {"$gt": label.get("last_withdrawn_period")}} if label.get("last_withdrawn_period") else {}),
         }},
         {"$group": {"_id": "$period", "total": {"$sum": "$label_idr"}}},
         {"$sort": {"_id": -1}},
@@ -108,9 +111,12 @@ async def label_dashboard(user: dict = Depends(require_label)):
     return {
         "label": redact_label_for_self(label),
         "stats": {
-            "balance_available_idr": label.get("balance_available_idr", 0),
-            "balance_pending_idr": label.get("balance_pending_idr", 0),
-            "balance_withdraw_requested_idr": label.get("balance_withdraw_requested_idr", 0),
+            "balance_available_idr": balance["balance_available_idr"],
+            "balance_pending_idr": balance["balance_pending_idr"],
+            "balance_withdraw_requested_idr": balance["balance_withdraw_requested_idr"],
+            "last_withdrawn_period": balance["last_withdrawn_period"],
+            "latest_report_period": balance["latest_report_period"],
+            "balance_source": "royalty_lines_fifo",
             "last_month_revenue_idr": last_revenue,
             "last_month_period": last_period,
             "total_releases": total_releases,
