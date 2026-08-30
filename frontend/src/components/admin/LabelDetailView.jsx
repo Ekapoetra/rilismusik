@@ -1,5 +1,7 @@
 import React from "react";
 
+const fmtIDR = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
+
 export const DetailRow = ({ label, value }) => <div className="flex justify-between text-sm py-1.5 border-b border-white/5 last:border-0"><span className="text-zinc-500">{label}</span><span className="font-semibold capitalize">{value ?? "—"}</span></div>;
 
 function AccountActions({ label, openEmail, openRevoke }) {
@@ -19,12 +21,25 @@ export function LabelDetailCards({ data, permissions, actions, royaltyState, sub
   const label = data.label;
   const packageName = label.payment_type === "annual_subscription" ? (label.subscription_tier === "annual_vip" ? "Annual VIP" : "Annual Normal") : "Pay Per Release";
   return <div className="grid md:grid-cols-2 gap-4">
+    {data.financial_summary && <FinancialOverview summary={data.financial_summary} />}
     <div className="rm-card p-5 space-y-2"><h3 className="font-display font-bold tracking-tight text-lg">Info Label</h3><DetailRow label="Penanggung Jawab" value={label.pic_name} /><DetailRow label="Email" value={label.email} /><DetailRow label="WhatsApp" value={label.whatsapp} /><DetailRow label="Tipe" value={label.label_type} /><DetailRow label="Paket" value={packageName} /><DetailRow label="Subscription" value={label.subscription_status} /><DetailRow label="Masa Berlaku" value={label.subscription_expires_at ? new Date(label.subscription_expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "—"} /><DetailRow label="Kontrak" value={label.contract_status} /><DetailRow label="Status Akun" value={label.account_status} /><DetailRow label="Royalti %" value={`${label.royalty_percentage_default}%`} /><DetailRow label="Created" value={label.created_at?.slice(0, 10)} /></div>
     <div className="rm-card p-5 space-y-3"><h3 className="font-display font-bold tracking-tight text-lg">Aksi</h3><div className="flex gap-2 flex-wrap"><button className="rm-btn-ghost text-sm" onClick={() => actions.setStatus("active")} data-testid="admin-label-activate" disabled={permissions.isBlacklisted}>Aktifkan</button><button className="rm-btn-ghost text-sm" onClick={() => actions.setStatus("suspended")} data-testid="admin-label-suspend" disabled={permissions.isBlacklisted}>Suspend</button>{permissions.canBlacklist && !permissions.isBlacklisted && <button className="rm-btn-ghost text-sm text-red-300" onClick={actions.openBlacklist} data-testid="admin-label-blacklist">Blacklist…</button>}{permissions.canBlacklist && permissions.isBlacklisted && <button className="rm-btn-ghost text-sm text-emerald-300" onClick={actions.unblacklist} data-testid="admin-label-unblacklist">Lepas Blacklist</button>}</div><AccountActions label={label} openEmail={actions.openEmail} openRevoke={actions.openRevoke} />{permissions.canFinance && <FinanceRoyaltyControls {...royaltyState} />}</div>
     {permissions.canFinance && <SubscriptionCard {...subscriptionState} />}
     <div className="rm-card p-5 space-y-2"><h3 className="font-display font-bold tracking-tight text-lg">Rekening</h3>{data.bank_account ? <><DetailRow label="Bank" value={data.bank_account.bank_name} /><DetailRow label="Nomor" value={data.bank_account.account_number} /><DetailRow label="Atas Nama" value={data.bank_account.account_holder_name} /><DetailRow label="Verifikasi" value={data.bank_account.verified_status} />{permissions.canFinance && data.bank_account.verified_status !== "verified" && <button className="rm-btn-primary text-sm mt-2" onClick={actions.verifyBank} data-testid="admin-label-verify-bank">Verifikasi Rekening</button>}</> : <div className="text-sm text-zinc-500">Label belum input rekening.</div>}</div>
-    <div className="rm-card p-5 space-y-2"><h3 className="font-display font-bold tracking-tight text-lg">Statistik</h3><DetailRow label="Artist" value={data.artists_count} /><DetailRow label="Rilisan" value={data.releases_count} /><DetailRow label="Saldo Tersedia" value={`Rp ${(label.balance_available_idr || 0).toLocaleString("id-ID")}`} /><DetailRow label="Saldo Pending" value={`Rp ${(label.balance_pending_idr || 0).toLocaleString("id-ID")}`} /></div>
+    <div className="rm-card p-5 space-y-2"><h3 className="font-display font-bold tracking-tight text-lg">Statistik</h3><DetailRow label="Artist" value={data.artists_count} /><DetailRow label="Rilisan" value={data.releases_count} /><DetailRow label="Report Pertama" value={data.financial_summary?.first_period} /><DetailRow label="Report Terbaru" value={data.financial_summary?.latest_period} /><DetailRow label="Withdraw Terakhir" value={data.financial_summary?.last_withdrawn_period} /></div>
   </div>;
+}
+
+function FinancialOverview({ summary }) {
+  const metrics = [
+    ["total-royalty", "Total Royalti", summary.total_royalty_idr, "text-zinc-50"],
+    ["withdrawn", "Sudah Ditarik", summary.withdrawn_paid_idr, "text-zinc-200"],
+    ["processing", "Sedang Diproses", summary.withdraw_processing_idr, "text-amber-300"],
+    ["available", "Bisa Ditarik", summary.available_idr, "text-emerald-300"],
+    ["pending", "Pending", summary.pending_idr, "text-amber-300"],
+    ["unwithdrawn", "Total Belum Ditarik", summary.total_unwithdrawn_idr, "text-blue-300"],
+  ];
+  return <section className="md:col-span-2 border border-white/10 rounded-lg overflow-hidden" data-testid="admin-label-financial-summary"><div className="px-5 py-4 border-b border-white/10 flex flex-wrap justify-between gap-3"><div><h3 className="font-display font-bold tracking-normal text-lg">Ringkasan Royalti</h3><p className="text-xs text-zinc-500 mt-1">Source-of-truth royalty_lines FIFO</p></div><div className="text-xs text-zinc-500">{summary.first_period || "—"} — {summary.latest_period || "—"}</div></div><div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">{metrics.map(([id, label, value, tone]) => <div className="px-4 py-4 border-r border-b xl:border-b-0 border-white/10 last:border-r-0" key={id} data-testid={`admin-label-finance-${id}`}><div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{label}</div><div className={`font-mono tabular-nums font-bold text-base mt-2 break-words ${tone}`}>{fmtIDR(value)}</div></div>)}</div></section>;
 }
 
 const ModalShell = ({ close, children }) => <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={close}>{children}</div>;

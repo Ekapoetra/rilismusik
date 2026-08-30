@@ -7,6 +7,8 @@ import csv
 import io
 import shutil
 import secrets
+import tempfile
+from pathlib import Path
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -125,28 +127,25 @@ async def admin_upload_royalty_csv(
     if rate_eur_idr <= 0:
         raise HTTPException(status_code=400, detail="Kurs harus > 0")
 
-    # ---- Stream file to disk in chunks (memory-safe for 80+ MB files) ----
-    MAX_BYTES = 200 * 1024 * 1024  # 200 MB hard cap
+    # Legacy multipart compatibility for small files. Large imports use the
+    # durable initiate → direct R2 PUT → finalize flow.
+    MAX_BYTES = 10 * 1024 * 1024
     import_id = new_id()
     fname = file.filename or "upload.csv"
     ext = ".csv.gz" if fname.lower().endswith(".gz") else ".csv"
-    target = UPLOAD_DIR / "csv" / f"{import_id}{ext}"
-    total_size = 0
-    with open(target, "wb") as f:
-        while True:
-            chunk = await file.read(1 * 1024 * 1024)  # 1 MB chunks
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if total_size > MAX_BYTES:
-                f.close()
-                target.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"File terlalu besar (>{MAX_BYTES // (1024*1024)} MB). Pecah jadi beberapa CSV.",
-                )
-            f.write(chunk)
-    file_url = f"/api/files/csv/{target.name}"
+    content = await file.read(MAX_BYTES + 1)
+    total_size = len(content)
+    if total_size > MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Upload multipart maksimal 10 MB. Gunakan upload langsung R2 untuk file besar.",
+        )
+    temporary = tempfile.NamedTemporaryFile(
+        prefix=f"royalty-{import_id}-", suffix=ext, delete=False,
+    )
+    temporary.write(content)
+    temporary.close()
+    target = Path(temporary.name)
 
     # ---- Quick header validation by peeking the first row ----
     headers: List[str] = []
@@ -168,12 +167,29 @@ async def admin_upload_royalty_csv(
 
     col_idx = detect_columns(headers)
     if col_idx["revenue_eur"] is None:
+        target.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Kolom revenue/amount tidak ditemukan di CSV")
     if col_idx.get("period") is None:
+        target.unlink(missing_ok=True)
         raise HTTPException(
             status_code=400,
             detail="Kolom 'Bulan laporan' wajib ada di CSV. Kolom 'Bulan Penjualan' tidak dapat digunakan sebagai periode laporan.",
         )
+
+    if not storage_service.is_configured():
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=503, detail="Cloud storage belum dikonfigurasi")
+    r2_key = f"csv/{import_id}{ext}"
+    try:
+        await storage_service.upload_bytes(
+            key=r2_key,
+            data=content,
+            content_type="application/gzip" if ext.endswith(".gz") else "text/csv",
+        )
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    file_url = f"r2://{r2_key}"
 
     # ---- Determine sync vs async based on file size ----
     # Files <= 5 MB → process synchronously (preserves existing API behavior
@@ -196,6 +212,7 @@ async def admin_upload_royalty_csv(
         "source": "believe",
         "filename": fname,
         "file_url": file_url,
+        "r2_key": r2_key,
         "file_size_bytes": total_size,
         "exchange_rate_eur_idr": rate_eur_idr,
         "fee_percent": fee_percent,
@@ -240,13 +257,16 @@ async def admin_upload_royalty_csv(
         return import_doc
 
     # Sync path (small files) — process inline and update doc with final stats
-    result = await _process_csv_import_inline(
-        import_id=import_id,
-        file_path=str(target),
-        period=period,
-        rate_eur_idr=rate_eur_idr,
-        fee_percent=fee_percent,
-    )
+    try:
+        result = await _process_csv_import_inline(
+            import_id=import_id,
+            file_path=str(target),
+            period=period,
+            rate_eur_idr=rate_eur_idr,
+            fee_percent=fee_percent,
+        )
+    finally:
+        target.unlink(missing_ok=True)
     await log_activity(
         user["id"], "upload_royalty_csv", "royalty", import_id,
         after={
@@ -845,6 +865,8 @@ async def _process_csv_import_bg(
                 await db.royalty_imports.update_one({"id": import_id}, {"$set": err_update})
             except Exception as inner:
                 logger.exception("Failed to record error_state for %s (both clients): %s", import_id, inner)
+    finally:
+        Path(file_path).unlink(missing_ok=True)
 
 
 @royalty_r.get("/admin/imports")

@@ -676,25 +676,19 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Sampel pengguna `JUNI 2026.csv` terkonfirmasi memiliki `Bulan laporan=01/06/2026` sementara `Bulan Penjualan` berbeda; akar bug adalah urutan alias parser lama.
 - Verifikasi: 33/33 regresi backend lulus, frontend production build lulus, smoke UI admin lulus, dan testing independen iteration 29 lulus 100% backend/frontend tanpa API MOCKED.
 
-### Phase 35.1 — Recovery CSV Lama yang Hilang dari Production (2026-08-23)
-- RCA: CSV import lama hilang dari disk pod/R2. Flow **Unggah CSV Sumber & Perbaiki** mengirim file langsung browser → R2 dengan presigned PUT, TTL 15 menit, validasi objek/ukuran, lalu otomatis menjalankan reparasi tanpa mengimpor ulang royalti atau mengubah nominal/saldo/status.
-- Verifikasi: 14/14 tes backend/R2/security, build, dan smoke UI desktop/mobile lulus tanpa MOCKED API; artefak uji dibersihkan.
+### Phases 35.1–38 — Production Data Integrity (2026-08-23—2026-08-27)
+- Recovery CSV lama memakai direct R2 presigned upload; status Dana Diterima legacy direkonsiliasi idempoten; Analytics rebuild streaming/resumable dan period repair terpisah.
+- **Impor Rate Label** menerima XLSX/CSV dengan preview matching ternormalisasi dan commit background untuk rate + recalculation unsettled.
+- **Audit Saldo Label** membandingkan FIFO source-of-truth, menetapkan saldo absolut nonnegatif, dan menyelesaikan baris ≤ withdraw cutoff; mark-dana/recalculation cutoff-aware.
+- Seluruh flow diuji backend, E2E desktop/mobile, RCA independen iterations 31–33, build, dan deployment scan tanpa MOCKED API.
 
-### Phase 36 — Legacy Dana-Received Reconciliation & Scalable Analytics (2026-08-27)
-- Status legacy `dana_received_at` + `published` kini direkonsiliasi otomatis/idempoten; baris pending dilanjutkan background tanpa kredit ganda.
-- Analytics rebuild streaming per dimensi (batch 5.000), staging atomic, background/resumable, mendeteksi drift bulan source/cache, dan periode selalu menggabungkan source `royalty_lines`.
-- Reparasi period selesai terpisah dari rebuild Analytics dan otomatis dilanjutkan setelah restart. Verifikasi 29/29 + 24/24 serta iteration 31 lulus tanpa MOCKED API.
-
-### Phase 37 — Bulk Import Rate Label XLSX/CSV (2026-08-27)
-- **Impor Rate Label** menerima XLSX/CSV dengan matching ternormalisasi dan preview matched/unmatched/ambigu/duplikat/invalid/blocked sebelum commit tanpa side effect.
-- Commit background/idempoten memperbarui rate, histori, dan recalculation unsettled tanpa membuka data withdrawn; 10/10 tes + E2E iteration 32 lulus tanpa MOCKED API.
-
-### Phase 38 — FIFO Balance Audit & Global Reconciliation (2026-08-27)
-- RCA Poetra Studio: mark-dana lama memindahkan baris pending periode ≤ `last_withdrawn_period` kembali ke available, menghasilkan pending negatif dan available positif. Dashboard kini membaca source-of-truth `royalty_lines` periode setelah cutoff; mark-dana dan rate recalculation juga cutoff-aware.
-- Admin Withdraw memiliki **Audit Saldo Label**: preview seluruh label menampilkan withdraw terakhir, report terbaru, range tersisa, saldo saat ini→benar, stale rows, dan active-withdraw block; commit background/idempoten menetapkan saldo absolut nonnegatif serta menyelesaikan baris ≤ cutoff.
-- Verifikasi: 26/26 backend, desktop/mobile UI, RCA independen iteration 33, build, dan deployment scan lulus tanpa MOCKED API.
+### Phase 39 — Label Analytics & Admin Financial Summary (2026-08-30)
+- Dashboard label kini memiliki analytics live untuk report published/received: stream chart latest/6/12 bulan, report terbaru, serta Top Track/Platform/Negara dengan stream + pendapatan; draft, data label lain, dan legacy-settled tetap tersembunyi.
+- Admin Detail Label menampilkan total royalti/stream, sudah ditarik, sedang diproses, tersedia, pending, total belum ditarik, dan rentang report berbasis FIFO source-of-truth.
+- Legacy multipart CSV kecil dipersistenkan ke R2 dan temp file dibersihkan; file besar tetap direct R2. CORS explicit-origin dan seeded sub-admin password drift repair ditambahkan.
+- Verifikasi: feature backend/frontend iteration 34, auth/CORS iteration 35, self-tests, build, dan deployment scan lulus tanpa MOCKED API.
 
 ## Files of Reference (entry points)
-- Backend: `/app/backend/server.py` (slim 101-line entry), `/app/backend/routes/` (modular routers), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
+- Backend: `/app/backend/server.py`, `/app/backend/routes/` (termasuk `label_analytics.py`, `balance_audit.py`), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.
 - Tests: `/app/backend/tests/test_phase{2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17}_*.py` + `test_refactor_smoke.py` + `test_rilismusik_api.py`.

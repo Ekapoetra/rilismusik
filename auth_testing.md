@@ -12,7 +12,8 @@
 5. Confirm authenticated API calls also accept the existing Bearer-token fallback.
 
 ## CORS checks
-- Send a preflight request with the configured `FRONTEND_URL` origin.
+- Public preview/production requests are same-origin (`/api`). Kubernetes/Cloudflare may answer public OPTIONS before FastAPI.
+- Send the credentialed preflight directly to backend port 8001 with the configured `FRONTEND_URL` origin.
 - Expect that exact origin in `Access-Control-Allow-Origin`.
 - Expect `Access-Control-Allow-Credentials: true`.
 - Verify unconfigured origins do not receive credentialed CORS approval.

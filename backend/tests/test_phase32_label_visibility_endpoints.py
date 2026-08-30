@@ -180,9 +180,11 @@ def test_label_endpoints_hide_legacy_and_compute_only_post_cutoff_available():
         computed = requests.get(f"{API}/withdraw/label/computed", headers=_headers(token), timeout=30)
         computed.raise_for_status()
         computed_data = computed.json()
-        assert computed_data["withdrawable_idr"] == 300
-        assert computed_data["period_from"] == "2025-02"
-        assert computed_data["period_to"] == "2025-02"
+        # Active withdraw reserves available lines and blocks a duplicate request.
+        assert computed_data["withdrawable_idr"] == 0
+        assert computed_data["period_from"] is None
+        assert computed_data["period_to"] is None
+        assert computed_data["has_active_withdraw"] is True
     finally:
         db.withdraw_requests.delete_many({"label_id": label_id})
         db.royalty_lines.delete_many({"label_id": label_id})

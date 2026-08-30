@@ -1,155 +1,115 @@
 {
-  "theme": "Light Theme",
-  "archetype": "Archetype 3: Soft & Pastel (Matured to 'Apple Glass' variant)",
-  "brand": {
-    "name": "RILIS MUSIK",
-    "tone": "Premium, trustworthy, effortless, transparent, modern B2B/B2C hybrid"
-  },
+  "project_name": "RILIS MUSIK Label Dashboard",
+  "theme": "dark",
+  "archetype": "THE PERFORMANCE PRO (Adapted for Music Data)",
+  "language": "id",
   "typography": {
-    "primary_font": "Plus Jakarta Sans",
-    "secondary_font": "Manrope",
-    "heading_strategy": "tracking-tight, rounded premium feel, font-semibold to font-extrabold",
-    "body_strategy": "tracking-normal, high legibility, font-medium for standard text",
-    "scales": {
-      "h1": "text-5xl md:text-6xl+ tracking-tighter leading-none",
-      "h2": "text-3xl md:text-4xl tracking-tight leading-tight",
-      "h3": "text-2xl tracking-tight leading-snug",
-      "body": "text-base leading-relaxed text-slate-600",
-      "labels": "text-xs tracking-[0.1em] uppercase font-bold text-slate-500"
-    }
-  },
-  "colors": {
-    "primary": "#FF3B30",
-    "primary_hover": "#FF5248",
-    "secondary": "#0A0A0A",
-    "background_base": "#FBFBFD",
-    "background_glass": "rgba(255, 255, 255, 0.7)",
-    "surface": "#FFFFFF",
-    "text_main": "#1D1D1F",
-    "text_muted": "#86868B",
-    "border_light": "rgba(0,0,0,0.05)",
-    "glass_border": "rgba(255,255,255,0.6)",
-    "status": {
-      "success": "#34C759",
-      "warning": "#FF9500",
-      "error": "#FF3B30",
-      "info": "#007AFF",
-      "draft": "#8E8E93"
+    "headings": "Manrope",
+    "body": "IBM Plex Sans",
+    "weights": {
+      "light": 300,
+      "regular": 400,
+      "semibold": 600,
+      "black": 900
     },
-    "gradients": {
-      "hero_bg": "bg-gradient-to-br from-[#FFF0F0] via-[#F4F5F7] to-[#E5EDF5]",
-      "glass_shine": "bg-gradient-to-br from-white/80 to-white/30"
-    }
-  },
-  "spacing_and_layout": {
-    "container_padding": "px-6 md:px-12 lg:px-24",
-    "section_gap": "py-24 md:py-32",
-    "border_radius": {
-      "card": "rounded-[24px]",
-      "button": "rounded-full",
-      "badge": "rounded-full",
-      "image": "rounded-[32px]"
-    },
-    "shadows": {
-      "glass": "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
-      "floating_card": "shadow-[0_20px_40px_rgba(0,0,0,0.08)]",
-      "hover_lift": "shadow-[0_30px_60px_rgba(0,0,0,0.12)]"
-    }
-  },
-  "components": {
-    "glass_card": {
-      "classes": "bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[24px] p-8",
-      "usage": "Benefit cards, Pricing tiers, Dashboard preview widgets, Auth panels"
-    },
-    "solid_card": {
-      "classes": "bg-white border border-slate-100 shadow-sm rounded-[24px] p-6",
-      "usage": "Data-heavy dashboard widgets, standard content blocks where glass is too noisy"
-    },
-    "navbar": {
-      "classes": "fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl bg-white/70 backdrop-blur-2xl border border-white/60 rounded-full px-6 py-3 shadow-sm z-50 flex justify-between items-center",
-      "usage": "Landing page primary navigation (floating pill style)"
-    },
-    "primary_button": {
-      "classes": "bg-[#FF3B30] hover:bg-[#FF5248] text-white font-semibold rounded-full px-8 py-3 transition-all duration-300 hover:shadow-[0_8px_20px_rgba(255,59,48,0.3)] active:scale-95",
-      "usage": "Main CTAs, Register, Submit Release"
-    },
-    "secondary_button": {
-      "classes": "bg-white hover:bg-slate-50 text-[#1D1D1F] border border-slate-200 font-semibold rounded-full px-8 py-3 transition-all duration-300",
-      "usage": "Secondary actions, filters, cancels"
-    },
-    "status_badges": {
-      "draft": "bg-slate-100 text-slate-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "submitted": "bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "under_review": "bg-orange-50 text-orange-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "need_revision": "bg-yellow-50 text-yellow-700 rounded-full px-3 py-1 text-xs font-semibold",
-      "approved": "bg-emerald-50 text-emerald-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "delivered": "bg-indigo-50 text-indigo-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "live": "bg-green-100 text-green-700 rounded-full px-3 py-1 text-xs font-bold",
-      "rejected": "bg-red-50 text-red-600 rounded-full px-3 py-1 text-xs font-semibold",
-      "takedown_requested": "bg-gray-100 text-gray-700 rounded-full px-3 py-1 text-xs font-semibold",
-      "taken_down": "bg-gray-800 text-gray-100 rounded-full px-3 py-1 text-xs font-semibold"
-    },
-    "tables": {
-      "container": "bg-white rounded-[24px] border border-slate-100 overflow-hidden",
-      "header": "bg-slate-50/50 text-slate-500 text-xs uppercase tracking-wider px-6 py-4 border-b border-slate-100",
-      "row": "hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0",
-      "cell": "px-6 py-4 text-sm text-[#1D1D1F]"
-    }
-  },
-  "layout_patterns": {
-    "landing_page": {
-      "hero": "Relative container with soft mesh gradient background. Central content aligned. Floating 3D/glass cards showing 'Royalty Simulation' or 'Music Artwork' orbiting the text.",
-      "benefits": "Bento-box grid mode. grid-cols-1 md:grid-cols-4. Mixing span-2 and span-1 cards. All cards are glass_card.",
-      "how_it_works": "Vertical timeline with large numbers (tracking-tighter) and connecting dashed lines. Side-alternating on desktop.",
-      "pricing": "Two columns. Glass cards. Recommended tier has a glowing 1px border. Switch toggle for Pay-Per-Release vs Annual.",
-      "royalty_simulator": "Floating glass card overlapping sections, with large sliders and big tabular numbers for IDR output.",
-      "faq": "Accordion list. Very clean, bottom borders only, no bounding boxes."
-    },
-    "label_dashboard": {
-      "layout": "Mobile-first. Bottom nav bar on mobile (fixed, glassmorphism), slim sidebar on desktop.",
-      "dashboard_home": "Grid of solid_cards. Top row: large number metric cards (Saldo, Revenue). Charts below. Recent releases table at bottom.",
-      "upload_release": "Multi-step form wizard (glass_card on desktop, full-width on mobile). Metadata inputs, tracklist with drag-and-drop, artwork upload zone with image preview."
-    },
-    "admin_dashboard": {
-      "layout": "Desktop-first. Fixed left sidebar (dark or light solid, not glass for readability). Top bar for global search and user profile.",
-      "data_views": "Maximized screen width. Use solid_cards for tables. Strict grid alignments for heavy data tables with pagination, search, and bulk actions."
-    }
-  },
-  "motion": {
-    "hover": "Subtle translate-y-1, shadow increase, duration-300 ease-out.",
-    "page_load": "Staggered fade-up for hero elements and list items. (framer-motion).",
-    "glass_shine": "A fast moving gradient mask across the border on hover for premium tiers."
-  },
-  "media": {
-    "image_urls": [
-      {
-        "url": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwxfHxpbmRpZSUyMG11c2ljJTIwcHJvZHVjZXIlMjBzdHVkaW98ZW58MHx8fHwxNzgyMzE4NDQ4fDA&ixlib=rb-4.1.0&q=85",
-        "category": "hero_background_element",
-        "description": "Person playing acoustic guitars in a studio. Use as a masked or floating background element."
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1636226570637-3fbda7ca09dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwzfHxpbmRpZSUyMG11c2ljJTIwcHJvZHVjZXIlMjBzdHVkaW98ZW58MHx8fHwxNzgyMzE4NDQ4fDA&ixlib=rb-4.1.0&q=85",
-        "category": "dashboard_preview_context",
-        "description": "Computer desk with monitors. Use to contextualize the dashboard mockups."
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1580656449278-e8381933522c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwxfHx2aW55bCUyMHJlY29yZCUyMGFsYnVtJTIwY292ZXJ8ZW58MHx8fHwxNzgyMzE4NDQ4fDA&ixlib=rb-4.1.0&q=85",
-        "category": "floating_artwork",
-        "description": "Black vinyl record on orange surface. Cut out the record and float it in the hero section."
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxsaXZlJTIwbXVzaWMlMjBjb25jZXJ0JTIwY3Jvd2R8ZW58MHx8fHwxNzgyMzE4NDQ5fDA&ixlib=rb-4.1.0&q=85",
-        "category": "testimonial_bg",
-        "description": "Live concert crowd. Use with heavy blur and overlay for the testimonials section background."
-      }
+    "rules": [
+      "CRITICAL: Do NOT use Inter, Space Grotesk, Roboto, or Open Sans.",
+      "Headings > 24px must use tracking-tight.",
+      "Financial figures must use tabular-nums for vertical alignment.",
+      "Use text-zinc-50 for primary data points, text-zinc-400 for labels."
     ]
   },
+  "colors": {
+    "background": "#09090B",
+    "surface": "#18181B",
+    "surface_hover": "#27272A",
+    "border": "rgba(255, 255, 255, 0.1)",
+    "primary": "#2563EB",
+    "primary_hover": "#1D4ED8",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "forbidden": [
+      "#7351B7",
+      "#1B93A4",
+      "pure black",
+      "pure white"
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": "Flat solid backgrounds. Max 8px border-radius (rounded-lg). NEVER nest cards within cards.",
+    "borders": "1px subtle inner stroke (border-white/10) on all cards to separate from background.",
+    "shadows": "Minimal. Use ambient glow for active states, flat dark otherwise.",
+    "glassmorphism": "Used ONLY for sticky headers. bg-zinc-950/80 backdrop-blur-xl border-b border-white/10. NEVER use fully transparent headers."
+  },
+  "grids_and_layouts": {
+    "global_padding": "Generous. Use p-6 or p-8 inside containers.",
+    "dashboard_grid": "High Density Grid. grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6.",
+    "alignment": "Left-align all text, data, and charts. Never center-align dashboard metrics.",
+    "mobile_first": "Always stack widgets vertically on mobile (grid-cols-1). Ensure charts have horizontal scrolling if they exceed width."
+  },
+  "component_strategy": {
+    "buttons": "Pill-shaped or slightly rounded (rounded-md). Subtle hover translation (-translate-y-[1px]).",
+    "dropdowns": "Shadcn Select. Solid bg-zinc-900. No transparent backgrounds.",
+    "tables": "Flat tables with border-b border-white/5. Hover state: bg-white/5.",
+    "charts": "Shadcn Charts (Recharts). Use monochrome blue tones for streams, green for revenue to avoid clutter. No grids on charts, minimalist axes.",
+    "empty_states": "Crucial. Display dashed border container (border-dashed border-zinc-700) with a subdued Lucide icon and text 'Belum ada data laporan'."
+  },
+  "page_structures": {
+    "dashboard_depan": {
+      "header": {
+        "title": "Dashboard Analitik Label",
+        "controls": "Select Dropdown for period (Bulan Terbaru, 6 Bulan, 12 Bulan)"
+      },
+      "financial_summary": {
+        "layout": "Bento Grid (grid-cols-2 lg:grid-cols-6)",
+        "metrics": [
+          {"label": "Total Pendapatan", "state": "neutral"},
+          {"label": "Sudah Ditarik", "state": "neutral"},
+          {"label": "Sedang Diproses", "state": "warning"},
+          {"label": "Bisa Ditarik", "state": "success"},
+          {"label": "Tertunda", "state": "warning"},
+          {"label": "Total Belum Ditarik", "state": "neutral"}
+        ]
+      },
+      "main_chart": {
+        "title": "Pertumbuhan Stream & Pendapatan",
+        "type": "Bar/Line Hybrid or Area Chart",
+        "layout": "col-span-full h-80"
+      },
+      "top_performers_row": {
+        "layout": "grid-cols-1 lg:grid-cols-3 gap-6",
+        "widgets": [
+          {"title": "Track Teratas", "metrics": "Stream & Pendapatan", "format": "List with rank numbers"},
+          {"title": "Platform Teratas", "metrics": "Stream & Pendapatan", "format": "List with platform icons"},
+          {"title": "Negara Teratas", "metrics": "Stream & Pendapatan", "format": "List with country codes"}
+        ]
+      }
+    }
+  },
+  "motion_and_interaction": {
+    "hover": "All interactive elements must explicitly state hover text color (e.g., hover:text-white).",
+    "transitions": "Use specific transitions like transition-colors, transition-transform duration-200. NO transition-all.",
+    "loading": "Use skeleton loaders (animate-pulse bg-zinc-800) matching exactly the widget sizes."
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure minimum 4.5:1 for text. Hover states must have higher contrast.",
+    "data_testid": "CRITICAL: Add data-testid to every button, link, select, tab, and card. Example: data-testid='period-selector-dropdown', data-testid='metric-total-pendapatan'."
+  },
   "instructions_to_main_agent": [
-    "Use pure HTML+Tailwind for the landing page to achieve the overlapping floating glass cards. Do not restrict yourself to Shadcn's rigid Card structures there.",
-    "For the Label and Admin dashboards, use Shadcn UI but aggressively override the border-radius to 24px and remove the default gray borders in favor of lighter slate-100 borders to maintain the Apple-like clean feel.",
-    "Apply data-testid attributes to ALL interactive elements (buttons, inputs, tabs, table rows) using kebab-case (e.g., data-testid='submit-release-button').",
-    "Font setup: Use 'Plus Jakarta Sans' for headings and 'Manrope' for body. You MUST add these via Google Fonts.",
-    "The Hero section must feature the headline 'Distribusi Musik Lebih Rapi, Royalti Lebih Transparan.' with floating mockups or glass elements overlapping it.",
-    "Ensure the floating pill navbar uses backdrop-blur-2xl and bg-white/70."
+    "Build the dashboard using React (.jsx/.js) and Tailwind CSS. Do NOT use .tsx.",
+    "Implement Shadcn UI for the charts, select, and cards, but strip heavy Vercel-look borders in favor of the flat dark design rules.",
+    "Ensure the dashboard handles 'no data' gracefully (since reports are uploaded via CSV by admin).",
+    "Avoid nested Shadcn <Card> components. Use plain <div className='p-6 bg-zinc-900 rounded-lg border border-white/10'> for better layout control.",
+    "Include lucide-react icons for visual anchors (e.g., Music, MapPin, Play, DollarSign).",
+    "Keep terminology in Indonesian as per user request."
+  ],
+  "universal_guidelines_for_main_agent": [
+    "Do not converge toward generic outputs. Break standard grid symmetries slightly if it aids hierarchy.",
+    "Never center align the main app container. Always maintain left alignment for data.",
+    "Use 2-3x more spacing (p-6, p-8) between discrete widgets.",
+    "Use 'sonner' for toast notifications, located in /app/src/components/ui/sonner.js",
+    "Do not use AI emoji characters. Rely strictly on lucide-react or Phosphor Icons."
   ]
 }

@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck } from "lucide-react";
+import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
+import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play } from "lucide-react";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -12,6 +14,7 @@ function fmtIDR(n) {
 export default function LabelDashboardHome() {
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
+  const analytics = useLabelAnalytics();
 
   useEffect(() => {
     api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
@@ -20,6 +23,7 @@ export default function LabelDashboardHome() {
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { stats, label } = data;
+  const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -44,11 +48,13 @@ export default function LabelDashboardHome() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Tersedia" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" />
         <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} icon={Receipt} accent="amber" />
-        <StatCard label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} icon={Receipt} accent="blue" />
-        <StatCard label="Revenue Bulan Lalu" value={fmtIDR(stats.last_month_revenue_idr)} sub={stats.last_month_period} icon={Disc3} accent="rose" />
+        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} icon={Receipt} accent="blue" />
+        <StatCard testId="label-dashboard-unwithdrawn-total" label="Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" />
+        <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={(analytics.data?.latest_report?.streams || 0).toLocaleString("id-ID")} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
+        <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -57,6 +63,8 @@ export default function LabelDashboardHome() {
         <StatCard testId={LABEL_DASHBOARD.totalArtists} label="Total Artist" value={stats.total_artists} icon={Users} mini />
         <StatCard label="Tiket Aktif" value={stats.active_tickets} icon={AlertCircle} mini />
       </div>
+
+      <LabelAnalyticsOverview analytics={analytics} />
 
       {/* Recent releases */}
       <div className="rm-card p-5">

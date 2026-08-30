@@ -122,7 +122,7 @@ async def seed_indexes_and_admins():
         )
         logger.info("Super admin password updated for: %s", admin_email)
 
-    # ---- Sub-admin accounts (idempotent — only create if missing) ----
+    # ---- Sub-admin accounts (idempotent + repair deterministic password drift) ----
     sub_admins = [
         ("Admin Support", "support1@rilismusik.com", "Support#2026", "admin_support"),
         ("Admin Finance", "finance1@rilismusik.com", "Finance#2026", "admin_finance"),
@@ -131,7 +131,8 @@ async def seed_indexes_and_admins():
         ("Admin Content", "content1@rilismusik.com", "Content#2026", "admin_content"),
     ]
     for name, email, pwd, role in sub_admins:
-        if await db.users.find_one({"email": email}) is None:
+        existing_sub_admin = await db.users.find_one({"email": email})
+        if existing_sub_admin is None:
             await db.users.insert_one({
                 "id": new_id(),
                 "name": name,
@@ -144,6 +145,14 @@ async def seed_indexes_and_admins():
                 "updated_at": now_iso(),
             })
             logger.info("Sub-admin seeded: %s (%s)", email, role)
+        elif not existing_sub_admin.get("password_hash") or not verify_password(
+            pwd, existing_sub_admin["password_hash"],
+        ):
+            await db.users.update_one(
+                {"id": existing_sub_admin["id"]},
+                {"$set": {"password_hash": hash_password(pwd), "updated_at": now_iso()}},
+            )
+            logger.info("Sub-admin password repaired: %s (%s)", email, role)
 
     # ---- Default landing settings (idempotent — only insert missing top-level keys) ----
     for key, value in DEFAULT_LANDING_SETTINGS.items():

@@ -101,7 +101,55 @@ async def admin_get_label(label_id: str, user: dict = Depends(require_admin)):
     bank = await db.bank_accounts.find_one({"label_id": label_id}, {"_id": 0})
     artists_count = await db.artists.count_documents({"label_id": label_id})
     releases_count = await db.releases.count_documents({"label_id": label_id})
-    return {"label": label, "bank_account": bank, "artists_count": artists_count, "releases_count": releases_count}
+    from .balance_utils import compute_label_balance_snapshot
+    balance = await compute_label_balance_snapshot(label_id=label_id, label=label)
+    lifetime = {"royalty_idr": 0, "streams": 0, "first_period": None, "latest_period": None}
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": {"label_id": label_id, "status": {"$in": ["pending", "available", "withdrawn"]}}},
+        {"$group": {
+            "_id": None,
+            "royalty_idr": {"$sum": "$label_idr"},
+            "streams": {"$sum": "$quantity"},
+            "first_period": {"$min": "$period"},
+            "latest_period": {"$max": "$period"},
+        }},
+    ], allowDiskUse=True):
+        lifetime = {
+            "royalty_idr": int(row.get("royalty_idr") or 0),
+            "streams": int(row.get("streams") or 0),
+            "first_period": row.get("first_period"),
+            "latest_period": row.get("latest_period"),
+        }
+    withdrawn_paid = 0
+    async for row in db_bg.withdraw_requests.aggregate([
+        {"$match": {"label_id": label_id, "status": "paid"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount_idr"}}},
+    ]):
+        withdrawn_paid = int(row.get("total") or 0)
+    financial_summary = {
+        "total_royalty_idr": lifetime["royalty_idr"],
+        "total_streams": lifetime["streams"],
+        "withdrawn_paid_idr": withdrawn_paid,
+        "withdraw_processing_idr": balance["balance_withdraw_requested_idr"],
+        "available_idr": balance["balance_available_idr"],
+        "pending_idr": balance["balance_pending_idr"],
+        "total_unwithdrawn_idr": (
+            balance["balance_pending_idr"]
+            + balance["balance_available_idr"]
+            + balance["balance_withdraw_requested_idr"]
+        ),
+        "first_period": lifetime["first_period"],
+        "latest_period": lifetime["latest_period"],
+        "last_withdrawn_period": balance["last_withdrawn_period"],
+        "source": "royalty_lines_fifo",
+    }
+    return {
+        "label": label,
+        "bank_account": bank,
+        "artists_count": artists_count,
+        "releases_count": releases_count,
+        "financial_summary": financial_summary,
+    }
 
 
 @admin_r.patch("/labels/{label_id}")
