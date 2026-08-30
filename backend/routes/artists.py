@@ -9,7 +9,7 @@ import shutil
 import secrets
 
 from .deps import (
-    db, logger, UPLOAD_DIR,
+    db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
@@ -56,14 +56,39 @@ async def list_artists(
 ):
     label = await get_label_by_user(user)
     items = await db.artists.find({"label_id": label["id"]}, {"_id": 0}).sort("created_at", -1).to_list(500)
-    # Phase 21: enrich with revenue rollup + last_active_period
-    from .revenue_rollup import rollup_revenue_by_id
-    rollup = await rollup_revenue_by_id(
-        field="artist_id",
-        ids=[i["id"] for i in items],
-        period_from=period_from,
-        period_to=period_to,
-    )
+    # Label-facing artist income is unsettled only. Lifetime rollups include
+    # withdrawn rows and must remain admin-only.
+    artist_ids = [item["id"] for item in items]
+    line_filter: Dict[str, Any] = {
+        "label_id": label["id"],
+        "artist_id": {"$in": artist_ids},
+        "status": {"$in": ["pending", "available"]},
+        "legacy_settled": {"$ne": True},
+    }
+    period_query: Dict[str, str] = {}
+    if label.get("last_withdrawn_period"):
+        period_query["$gt"] = label["last_withdrawn_period"]
+    if period_from:
+        period_query["$gte"] = max(period_from, label.get("last_withdrawn_period") or period_from)
+    if period_to:
+        period_query["$lte"] = period_to
+    if period_query:
+        line_filter["period"] = period_query
+    rollup: Dict[str, Dict[str, Any]] = {}
+    if artist_ids:
+        async for row in db_bg.royalty_lines.aggregate([
+            {"$match": line_filter},
+            {"$group": {
+                "_id": "$artist_id",
+                "revenue_eur": {"$sum": "$revenue_eur"},
+                "revenue_idr": {"$sum": "$label_idr"},
+                "lines": {"$sum": 1},
+                "first_period": {"$min": "$period"},
+                "last_period": {"$max": "$period"},
+            }},
+        ], allowDiskUse=True):
+            if row.get("_id"):
+                rollup[row["_id"]] = row
     for it in items:
         r = rollup.get(it["id"], {})
         it["revenue_eur"] = r.get("revenue_eur", 0)
@@ -71,6 +96,7 @@ async def list_artists(
         it["royalty_lines_count"] = r.get("lines", 0)
         it["last_active_period"] = r.get("last_period")
         it["first_active_period"] = r.get("first_period")
+        it["revenue_scope"] = "unwithdrawn"
     return items
 
 

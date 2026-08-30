@@ -688,6 +688,11 @@ Four critical/medium audit findings remediated. 18/18 security + regression test
 - Legacy multipart CSV kecil dipersistenkan ke R2 dan temp file dibersihkan; file besar tetap direct R2. CORS explicit-origin dan seeded sub-admin password drift repair ditambahkan.
 - Verifikasi: feature backend/frontend iteration 34, auth/CORS iteration 35, self-tests, build, dan deployment scan lulus tanpa MOCKED API.
 
+### Phase 40 — Label Artist Unwithdrawn Income (2026-08-30)
+- Halaman Artist akun label tidak lagi memakai lifetime rollup; nominal hanya menjumlahkan royalty_lines `pending/available`, non-legacy, milik label tersebut, dan periode strictly setelah `last_withdrawn_period`.
+- Withdrawn/draft/legacy-settled/cross-label dikecualikan. Artist yang seluruh royalti sudah ditarik tampil `Rp0` + “Tidak ada saldo”; request/approved tetap dihitung sampai Paid sesuai pilihan user.
+- Verifikasi: 28/28 testing independen iteration 36, 5/5 self-retest, build, desktop/mobile, ObjectId isolation, cleanup, dan deployment scan lulus tanpa MOCKED API.
+
 ## Files of Reference (entry points)
 - Backend: `/app/backend/server.py`, `/app/backend/routes/` (termasuk `label_analytics.py`, `balance_audit.py`), `/app/backend/models.py`, `/app/backend/auth_utils.py`, `/app/backend/royalty_utils.py`.
 - Frontend: `/app/frontend/src/App.js`, `/app/frontend/src/api/AuthContext.jsx`, `/app/frontend/src/pages/Landing.jsx`, `/app/frontend/src/pages/label/*.jsx`, `/app/frontend/src/pages/admin/*.jsx`.
