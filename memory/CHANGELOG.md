@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-08-31 — Phase 48: Complete Label Search in Manual Withdraw
+- Klarifikasi: picker manual legacy withdraw menampilkan semua dokumen label, tidak memfilter berdasarkan pernah/belum withdraw.
+- Fixed initial-list limitation: input sekarang menjalankan server-side search ke `/api/admin/labels?q=...`, sehingga label lama di luar 1.000 hasil awal tetap dapat ditemukan.
+- Backend search meng-escape input sebagai literal regex agar nama dengan karakter khusus tetap aman dan dapat dicari.
+- Regression search + manual legacy flow 2/2 lulus; browser membuktikan request server-side dan hasil dropdown tampil; frontend build lulus.
+
 ## 2026-08-31 — Phase 47: Manual Legacy Withdraw
 - Admin Finance/Super Admin kini dapat menambah riwayat withdraw legacy dari Admin → Withdraw.
 - Input mencakup searchable label picker, bulan awal, bulan pencairan terbaru, tanggal pengajuan, tanggal pencairan, dan catatan.

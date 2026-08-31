@@ -7,6 +7,7 @@ import csv
 import io
 import shutil
 import secrets
+import re
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -89,8 +90,9 @@ async def admin_list_labels(user: dict = Depends(require_admin), q: Optional[str
     if status:
         filt["account_status"] = status
     if q:
-        filt["label_name"] = {"$regex": q, "$options": "i"}
-    items = await db.labels.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
+        filt["label_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    result_limit = 200 if q else 1000
+    items = await db.labels.find(filt, {"_id": 0}).sort("created_at", -1).to_list(result_limit)
     return items
 
 

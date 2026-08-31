@@ -3,6 +3,7 @@
 ## P0 — Production rollout
 - Redeploy current preview code so production mendapat perbaikan login apex/`www` dan konfigurasi official Hostinger mailbox.
 - Redeploy juga membawa fitur Admin Withdraw → Tambah Riwayat Manual Legacy.
+- Redeploy membawa pencarian label server-side agar seluruh label production dapat ditemukan, termasuk label lama di luar 1.000 hasil awal.
 - Setelah redeploy, smoke test login/me/refresh pada `https://rilismusik.com` dan `https://www.rilismusik.com` dari Windows dan macOS.
 - Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
 - Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.

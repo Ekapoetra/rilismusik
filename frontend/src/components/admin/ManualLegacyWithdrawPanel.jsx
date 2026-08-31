@@ -8,9 +8,11 @@ const EMPTY = { label_id: "", period_from: "", period_to: "", request_date: toda
 
 export const ManualLegacyWithdrawPanel = ({ onComplete }) => {
   const [labels, setLabels] = useState([]);
+  const [initialLabels, setInitialLabels] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [labelQuery, setLabelQuery] = useState("");
   const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  const [labelSearchLoading, setLabelSearchLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -19,9 +21,27 @@ export const ManualLegacyWithdrawPanel = ({ onComplete }) => {
   const pollRef = useRef(null);
 
   useEffect(() => {
-    api.get("/admin/labels").then(({ data }) => setLabels((data || []).sort((a, b) => (a.label_name || "").localeCompare(b.label_name || "")))).catch((err) => setError(formatApiError(err.response?.data?.detail)));
+    api.get("/admin/labels").then(({ data }) => {
+      const sorted = (data || []).sort((a, b) => (a.label_name || "").localeCompare(b.label_name || ""));
+      setLabels(sorted); setInitialLabels(sorted);
+    }).catch((err) => setError(formatApiError(err.response?.data?.detail)));
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!labelPickerOpen || form.label_id) return undefined;
+    const query = labelQuery.trim();
+    if (query.length < 2) { setLabels(initialLabels); setLabelSearchLoading(false); return undefined; }
+    setLabelSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/admin/labels", { params: { q: query } });
+        setLabels((data || []).sort((a, b) => (a.label_name || "").localeCompare(b.label_name || "")));
+      } catch (err) { setError(formatApiError(err.response?.data?.detail)); }
+      finally { setLabelSearchLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [labelQuery, labelPickerOpen, form.label_id, initialLabels]);
 
   const ready = form.label_id && form.period_from && form.period_to && form.request_date && form.paid_date;
   const filteredLabels = labels.filter((label) => (label.label_name || "").toLowerCase().includes(labelQuery.toLowerCase())).slice(0, 12);
@@ -63,7 +83,7 @@ export const ManualLegacyWithdrawPanel = ({ onComplete }) => {
     </div>
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300" data-testid="admin-manual-legacy-withdraw-error"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>}
     <div className="grid gap-4 md:grid-cols-2">
-      <Field label="Nama Label" wide><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input className="rm-input pl-10" value={labelQuery} onFocus={() => setLabelPickerOpen(true)} onBlur={() => setTimeout(() => setLabelPickerOpen(false), 150)} onChange={(event) => { setLabelQuery(event.target.value); setForm({ ...form, label_id: "" }); setLabelPickerOpen(true); }} placeholder="Cari nama label…" role="combobox" aria-expanded={labelPickerOpen} aria-controls="manual-legacy-label-options" autoComplete="off" data-testid="admin-manual-legacy-label-select" required />{labelPickerOpen && <div id="manual-legacy-label-options" role="listbox" className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-white/10 bg-[#111016] p-1 shadow-2xl" data-testid="admin-manual-legacy-label-options">{filteredLabels.length ? filteredLabels.map((label) => <button key={label.id} type="button" role="option" aria-selected={form.label_id === label.id} className="w-full rounded-md px-3 py-2 text-left text-sm text-zinc-200 transition-colors hover:bg-white/10 focus:bg-white/10 focus:outline-none" onMouseDown={(event) => event.preventDefault()} onClick={() => { setForm({ ...form, label_id: label.id }); setLabelQuery(label.label_name); setLabelPickerOpen(false); }} data-testid={`admin-manual-legacy-label-option-${label.id}`}>{label.label_name}</button>) : <div className="px-3 py-3 text-sm text-zinc-500" data-testid="admin-manual-legacy-label-empty">Label tidak ditemukan.</div>}</div>}</div></Field>
+      <Field label="Nama Label" wide><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input className="rm-input pl-10 pr-10" value={labelQuery} onFocus={() => setLabelPickerOpen(true)} onBlur={() => setTimeout(() => setLabelPickerOpen(false), 150)} onChange={(event) => { setLabelQuery(event.target.value); setForm({ ...form, label_id: "" }); setLabelPickerOpen(true); }} placeholder="Cari semua nama label…" role="combobox" aria-expanded={labelPickerOpen} aria-controls="manual-legacy-label-options" autoComplete="off" data-testid="admin-manual-legacy-label-select" required />{labelSearchLoading && <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" data-testid="admin-manual-legacy-label-searching" />}{labelPickerOpen && <div id="manual-legacy-label-options" role="listbox" className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-white/10 bg-[#111016] p-1 shadow-2xl" data-testid="admin-manual-legacy-label-options">{filteredLabels.length ? filteredLabels.map((label) => <button key={label.id} type="button" role="option" aria-selected={form.label_id === label.id} className="w-full rounded-md px-3 py-2 text-left text-sm text-zinc-200 transition-colors hover:bg-white/10 focus:bg-white/10 focus:outline-none" onMouseDown={(event) => event.preventDefault()} onClick={() => { setForm({ ...form, label_id: label.id }); setLabelQuery(label.label_name); setLabelPickerOpen(false); }} data-testid={`admin-manual-legacy-label-option-${label.id}`}>{label.label_name}</button>) : <div className="px-3 py-3 text-sm text-zinc-500" data-testid="admin-manual-legacy-label-empty">Label tidak ditemukan.</div>}</div>}</div></Field>
       <Field label="Bulan Awal"><input type="month" className="rm-input" value={form.period_from} onChange={(event) => setForm({ ...form, period_from: event.target.value })} data-testid="admin-manual-legacy-period-from" required /></Field>
       <Field label="Bulan Pencairan Terbaru"><input type="month" className="rm-input" value={form.period_to} onChange={(event) => setForm({ ...form, period_to: event.target.value })} data-testid="admin-manual-legacy-period-to" required /></Field>
       <Field label="Tanggal Pengajuan"><input type="date" className="rm-input" value={form.request_date} onChange={(event) => setForm({ ...form, request_date: event.target.value })} data-testid="admin-manual-legacy-request-date" required /></Field>
