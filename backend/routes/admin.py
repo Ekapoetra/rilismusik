@@ -1,6 +1,6 @@
 """Admin console + blacklist router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, timezone, timedelta, date
 import os
 import csv
@@ -8,6 +8,7 @@ import io
 import shutil
 import secrets
 import re
+from pymongo.collation import Collation
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -85,14 +86,28 @@ async def admin_refresh_revenue(user: dict = Depends(require_admin)):
 
 
 @admin_r.get("/labels")
-async def admin_list_labels(user: dict = Depends(require_admin), q: Optional[str] = None, status: Optional[str] = None):
+async def admin_list_labels(
+    user: dict = Depends(require_admin), q: Optional[str] = None, status: Optional[str] = None,
+    sort_by: Literal["balance", "label", "email"] = "balance",
+    sort_dir: Literal["asc", "desc"] = "desc",
+):
     filt: Dict[str, Any] = {}
     if status:
         filt["account_status"] = status
     if q:
         filt["label_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
     result_limit = 200 if q else 1000
-    items = await db.labels.find(filt, {"_id": 0}).sort("created_at", -1).to_list(result_limit)
+    sort_field = {
+        "balance": "balance_available_idr", "label": "label_name", "email": "email",
+    }[sort_by]
+    direction = 1 if sort_dir == "asc" else -1
+    sort_spec = [(sort_field, direction)]
+    if sort_field != "label_name":
+        sort_spec.append(("label_name", 1))
+    cursor = db.labels.find(filt, {"_id": 0}).sort(sort_spec)
+    if sort_by in {"label", "email"}:
+        cursor = cursor.collation(Collation(locale="en", strength=2, numericOrdering=True))
+    items = await cursor.to_list(result_limit)
     for item in items:
         item["balance_available_idr"] = max(int(item.get("balance_available_idr") or 0), 0)
     return items

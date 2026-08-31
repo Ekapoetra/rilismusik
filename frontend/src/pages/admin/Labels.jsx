@@ -7,19 +7,25 @@ import { useAuth } from "@/api/AuthContext";
 const fmtIDR = (value) => new Intl.NumberFormat("id-ID", {
   style: "currency", currency: "IDR", maximumFractionDigits: 0,
 }).format(Number(value || 0));
+const fmtPeriod = (period) => {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period || "")) return period || "Belum pernah WD";
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${period}-01T00:00:00Z`));
+};
 
 export default function AdminLabels() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [sort, setSort] = useState("balance_desc");
   const [creating, setCreating] = useState(null);  // label being processed
   const [created, setCreated] = useState(null);   // success result with plaintext password
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/admin/labels", { params: { q: q || undefined, status: status || undefined } });
+    const [sortBy, sortDir] = sort.split("_");
+    const { data } = await api.get("/admin/labels", { params: { q: q || undefined, status: status || undefined, sort_by: sortBy, sort_dir: sortDir } });
     setItems(data);
-  }, [q, status]);
+  }, [q, status, sort]);
   useEffect(() => { load(); }, [load]);
 
   const onCreated = () => {
@@ -51,6 +57,17 @@ export default function AdminLabels() {
             <option value="blacklisted">Blacklisted</option>
           </select>
         </div>
+        <div className="min-w-[230px]">
+          <label className="rm-label">Urutan</label>
+          <select className="rm-input" value={sort} onChange={(e) => setSort(e.target.value)} data-testid="admin-labels-sort">
+            <option value="balance_desc">Saldo terbesar → terkecil</option>
+            <option value="balance_asc">Saldo terkecil → terbesar</option>
+            <option value="label_asc">Label A → Z</option>
+            <option value="label_desc">Label Z → A</option>
+            <option value="email_asc">Email A → Z</option>
+            <option value="email_desc">Email Z → A</option>
+          </select>
+        </div>
         <button className="rm-btn-ghost" onClick={load} data-testid="admin-labels-filter">Filter</button>
       </div>
 
@@ -58,9 +75,10 @@ export default function AdminLabels() {
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-3">Label</div>
           <div className="col-span-2">Email</div>
-          <div className="col-span-2">Tipe</div>
+          <div className="col-span-1">Tipe</div>
           <div className="col-span-1">Status</div>
-          <div className="col-span-3 text-right" data-testid="admin-labels-available-balance-header">Saldo Available</div>
+          <div className="col-span-2 text-right" data-testid="admin-labels-available-balance-header">Saldo Available</div>
+          <div className="col-span-2 text-right" data-testid="admin-labels-last-withdraw-header">Withdraw Terakhir</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
         {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Belum ada label.</div> : items.map((l) => {
@@ -80,7 +98,7 @@ export default function AdminLabels() {
                 <div className="text-xs text-zinc-500">{l.pic_name || "—"}</div>
               </div>
               <div className="col-span-6 md:col-span-2 text-sm truncate">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
-              <div className="col-span-6 md:col-span-2 text-sm capitalize">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
+              <div className="col-span-6 md:col-span-1 text-sm capitalize truncate">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
               <div className="col-span-4 md:col-span-1">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${
                   l.account_status === "active" ? "bg-emerald-500/15 text-emerald-300"
@@ -89,12 +107,17 @@ export default function AdminLabels() {
                   : "bg-red-500/15 text-red-300"
                 }`}>{(l.account_status || "—").replace(/_/g, " ")}</span>
               </div>
-              <div className="col-span-6 md:col-span-3 text-right" data-testid={`admin-label-available-balance-${l.id}`}>
+              <div className="col-span-4 md:col-span-2 text-right" data-testid={`admin-label-available-balance-${l.id}`}>
                 <div className="text-[10px] uppercase tracking-widest text-zinc-500 md:hidden">Saldo Available</div>
                 <div className="font-display font-bold tabular-nums text-emerald-300">{fmtIDR(l.balance_available_idr)}</div>
                 <div className="text-[10px] text-zinc-600">belum withdrawn</div>
               </div>
-              <div className="col-span-2 md:col-span-1 text-right space-y-1">
+              <div className="col-span-4 md:col-span-2 text-right" data-testid={`admin-label-last-withdraw-${l.id}`}>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500 md:hidden">Withdraw Terakhir</div>
+                <div className={`text-sm font-semibold ${l.last_withdrawn_period ? "text-zinc-200" : "text-zinc-500"}`}>{fmtPeriod(l.last_withdrawn_period)}</div>
+                {l.last_withdrawn_period && <div className="text-[10px] font-mono text-zinc-600">{l.last_withdrawn_period}</div>}
+              </div>
+              <div className="col-span-4 md:col-span-1 text-right space-y-1">
                 <Link to={`/admin/labels/${l.id}`} className="block text-sm font-semibold rm-gradient-text" data-testid={`admin-label-detail-${l.id}`}>Detail →</Link>
                 {unclaimed && (
                   <button

@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-08-31 — Phase 50: Label Sorting & Last Withdrawal
+- Added backend sorting for label name, email, and available balance with asc/desc direction.
+- Default Label Management ordering is available balance highest-to-lowest.
+- Added `Withdraw Terakhir` column sourced from `last_withdrawn_period`; empty values display `Belum pernah WD`.
+- Alphabetical sorting is case-insensitive and balance sorting has a stable label-name tie-breaker.
+- Regression 3/3 passed, frontend build passed, and desktop/mobile layout checks passed.
+
 ## 2026-08-31 — Phase 49: Available Balance in Label Management
 - Added `Saldo Available` column to Admin → Label Management for every label.
 - Values are formatted in Indonesian Rupiah and use the reconciled `balance_available_idr`, representing funds not withdrawn/legacy-settled and net of active withdrawal reservations.
