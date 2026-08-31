@@ -1,9 +1,9 @@
 # RILIS MUSIK — Prioritized Roadmap
 
-## P0 — External production blocker
-- **Repair Hostinger SMTP credentials.** Preview logs show `535 authentication failed`; release submission email and monthly royalty email remain retry-safe but cannot deliver until credentials are corrected.
-- After credentials are corrected, send one controlled release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
-- Publish current code to production and run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
+## P0 — Production rollout
+- Publish current preview code/environment update so production uses the corrected official Hostinger mailbox.
+- Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
+- Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
 
 ## P1 — Product follow-up
 - Add Admin Finance UI for monthly email delivery status/retry (backend status endpoint already exists).

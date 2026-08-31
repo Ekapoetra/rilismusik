@@ -104,6 +104,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - P0 multi-device authentication is implemented and independently verified.
 - P1 account, release/PPR, support/add-on, and copyright PDF scope is implemented.
 - P2 monthly summary scheduling and background completion notifications are implemented.
+- Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

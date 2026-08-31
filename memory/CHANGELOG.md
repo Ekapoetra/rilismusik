@@ -47,8 +47,10 @@
 - Independent HIGH issue (`admin_marketing` redirect) fixed and self-verified.
 - No application API is mocked. Historical Xendit provider unit tests may mock the external provider only to avoid creating real production transactions.
 
-### Known external issue
-- Hostinger SMTP currently returns `535 authentication failed` in preview. Email features correctly record failure/retry and never block core flows, but live delivery requires valid SMTP credentials.
+### SMTP credential remediation (2026-08-31)
+- Preview SMTP dipindahkan ke mailbox resmi `official@rilismusik.com` melalui `smtp.hostinger.com:465` dengan SSL/TLS.
+- Auth-only verification berhasil dan satu email verifikasi internal berhasil dikirim melalui pipeline `email_service.send_email`.
+- Password tetap hanya berada di environment backend dan tidak dicatat di source code atau dokumentasi.
 
 ## 2026-08-23—2026-08-30 — Phases 35–40: Production data integrity
 - Enforced strict `Bulan laporan` parsing and rejected invalid/missing periods.
