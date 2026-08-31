@@ -20,6 +20,8 @@
 - Expect that exact origin in `Access-Control-Allow-Origin`.
 - Expect `Access-Control-Allow-Credentials: true`.
 - Verify unconfigured origins do not receive credentialed CORS approval.
+- For a configured custom apex domain, verify both apex and `www` variants are allowed.
+- Browser API/file requests must stay relative (`/api/...`) even when `REACT_APP_BACKEND_URL` uses the other domain alias.
 
 ## Frontend checks
 - Auth requests use credentials.

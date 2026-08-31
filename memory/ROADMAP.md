@@ -1,7 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
-- Publish current preview code/environment update so production uses the corrected official Hostinger mailbox.
+- Redeploy current preview code so production mendapat perbaikan login apex/`www` dan konfigurasi official Hostinger mailbox.
+- Setelah redeploy, smoke test login/me/refresh pada `https://rilismusik.com` dan `https://www.rilismusik.com` dari Windows dan macOS.
 - Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
 - Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
 

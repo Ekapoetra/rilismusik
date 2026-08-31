@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-08-31 — Phase 46: Production apex/`www` login CORS
+- RCA dari Console pengguna: halaman `https://www.rilismusik.com` memanggil endpoint absolut `https://rilismusik.com/api/auth/*`, sehingga browser memblokir credentialed request karena origin berbeda.
+- Frontend browser sekarang selalu memakai URL relatif `/api` dan path file relatif, sehingga request mengikuti hostname aktif (apex maupun `www`).
+- Backend CORS dan bootstrap R2 otomatis menambahkan pasangan apex/`www` untuk custom domain eksplisit, tanpa memperluas preview subdomain.
+- Verifikasi independen iteration 39: 12/12 auth/CORS regressions lulus, Playwright login same-origin lulus, dan frontend production build lulus; tidak ada API MOCKED.
+
 ## 2026-08-31 — Phases 41–45: P0–P2 Completion
 
 ### Phase 41 — Multi-device authentication

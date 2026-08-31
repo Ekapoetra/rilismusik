@@ -1,8 +1,10 @@
 import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "");
-const SAME_ORIGIN = typeof window !== "undefined" && new URL(BACKEND_URL).origin === window.location.origin;
-export const API_BASE = SAME_ORIGIN ? "/api" : `${BACKEND_URL}/api`;
+const IS_BROWSER = typeof window !== "undefined";
+// Every deployed frontend is served by the same ingress as `/api`. Always use
+// a relative browser URL so apex/www aliases cannot turn auth into cross-origin.
+export const API_BASE = IS_BROWSER ? "/api" : `${BACKEND_URL}/api`;
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -48,5 +50,5 @@ export function formatApiError(detail) {
 export function fileUrl(path) {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  return SAME_ORIGIN ? path : `${BACKEND_URL}${path}`;
+  return IS_BROWSER ? path : `${BACKEND_URL}${path}`;
 }

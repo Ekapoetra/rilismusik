@@ -68,6 +68,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 ### Frontend
 - React + React Router + Tailwind CSS + Recharts.
 - API client memakai `process.env.REACT_APP_BACKEND_URL`/same-origin `/api` dan `withCredentials`.
+- Browser selalu memakai path API relatif agar alias domain apex/`www` tidak berubah menjadi credentialed cross-origin request.
 - UI primitives berada di `/app/frontend/src/components/ui/`.
 - Semua elemen interaktif/kritis menggunakan `data-testid`.
 

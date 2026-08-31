@@ -12,6 +12,7 @@ load_dotenv(ROOT_DIR / ".env")
 
 import os
 import logging
+from urllib.parse import urlsplit, urlunsplit
 from fastapi import FastAPI, APIRouter
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
@@ -47,6 +48,28 @@ import storage_service
 
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
+
+
+def expand_origin_variants(origins: list[str]) -> list[str]:
+    """Allow both apex and www aliases for a configured custom domain."""
+    expanded: list[str] = []
+    for raw_origin in origins:
+        origin = raw_origin.strip().rstrip("/")
+        if not origin:
+            continue
+        if origin not in expanded:
+            expanded.append(origin)
+        parsed = urlsplit(origin)
+        host = parsed.hostname or ""
+        base_host = host[4:] if host.startswith("www.") else host
+        if base_host.count(".") != 1:
+            continue
+        alternate_host = base_host if host.startswith("www.") else f"www.{base_host}"
+        port = f":{parsed.port}" if parsed.port else ""
+        alternate = urlunsplit((parsed.scheme, f"{alternate_host}{port}", "", "", ""))
+        if alternate not in expanded:
+            expanded.append(alternate)
+    return expanded
 
 
 # Hybrid file serving: try R2 (presigned redirect) first, fall back to local disk
@@ -136,6 +159,7 @@ else:
     if not frontend_url:
         raise RuntimeError("FRONTEND_URL wajib diisi")
     cors_origins = [frontend_url]
+cors_origins = expand_origin_variants(cors_origins)
 
 app.add_middleware(
     CORSMiddleware,
@@ -187,6 +211,7 @@ async def _bootstrap_async():
         else:
             fallback = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
             frontend_origins = [fallback] if fallback else []
+        frontend_origins = expand_origin_variants(frontend_origins)
         if frontend_origins:
             await storage_service.ensure_cors(frontend_origins)
             logger.info("R2 ensure_cors finished with origins=%s", frontend_origins)
