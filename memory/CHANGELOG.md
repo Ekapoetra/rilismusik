@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-08-31 — Phase 51: Admin Dashboard Withdraw Breakdown
+- Admin Dashboard now keeps Total Bagian Label and shows `Sudah Withdraw` plus `Belum Withdraw` directly below it.
+- Withdrawn includes modern `status=withdrawn` and `legacy_settled=true` through one condition, preventing double-counting.
+- Unwithdrawn is calculated as total label share minus withdrawn, preserving the accounting invariant exactly.
+- Cache persistence/warm-up now includes both breakdown values and automatically upgrades old cache documents.
+- Removed obsolete warning banners that incorrectly claimed R2 and email were not live.
+- Independent iteration 41: 14 passed, 1 skipped; API, UI, cache compatibility, Rupiah rendering, and responsive layout all passed.
+
 ## 2026-08-31 — Phase 50: Label Sorting & Last Withdrawal
 - Added backend sorting for label name, email, and available balance with asc/desc direction.
 - Default Label Management ordering is available balance highest-to-lowest.

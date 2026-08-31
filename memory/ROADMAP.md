@@ -5,6 +5,7 @@
 - Redeploy juga membawa fitur Admin Withdraw → Tambah Riwayat Manual Legacy.
 - Redeploy juga membawa kolom Rupiah `Saldo Available` pada daftar Label Management.
 - Redeploy membawa default sort saldo terbesar, pilihan sort label/email/saldo, dan kolom bulan withdraw terakhir.
+- Redeploy membawa breakdown Admin Dashboard: Total Bagian Label, Sudah Withdraw, dan Belum Withdraw.
 - Redeploy membawa pencarian label server-side agar seluruh label production dapat ditemukan, termasuk label lama di luar 1.000 hasil awal.
 - Setelah redeploy, smoke test login/me/refresh pada `https://rilismusik.com` dan `https://www.rilismusik.com` dari Windows dan macOS.
 - Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.

@@ -19,6 +19,9 @@ export const ADMIN_DASHBOARD = {
   totalReleases: 'admin-dashboard-total-releases',
   pendingReview: 'admin-dashboard-pending-review',
   pendingInvoices: 'admin-dashboard-pending-invoices',
+  totalLabelShare: 'admin-dashboard-total-label-share',
+  withdrawnLabelShare: 'admin-dashboard-withdrawn-label-share',
+  unwithdrawnLabelShare: 'admin-dashboard-unwithdrawn-label-share',
 };
 
 export const ADMIN_RELEASE = {

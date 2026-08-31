@@ -34,6 +34,8 @@ async def build_admin_dashboard() -> dict:
     result.update({
         "total_revenue_eur": revenue["total_eur"],
         "total_revenue_idr": revenue["total_idr"],
+        "total_label_withdrawn_idr": revenue["withdrawn_idr"],
+        "total_label_unwithdrawn_idr": revenue["unwithdrawn_idr"],
         "revenue_cache_age_sec": revenue.get("age_sec"),
         "last_csv_import": last_csv,
     })

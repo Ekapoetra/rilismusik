@@ -7,20 +7,7 @@ function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 }
 
-const PRODUCTION_BANNERS = [
-  {
-    id: "storage-ephemeral",
-    severity: "warn",
-    title: "Cloud storage belum aktif — upload file akan ephemeral",
-    body: "WAV audio, cover image, dan PDF contract yang baru di-upload TIDAK persisten saat pod restart. Tunda upload audio/cover untuk label aktif sampai integrasi cloud storage (S3/Cloudinary) selesai. MDA PDF aman karena bisa di-regenerate dari CMS.",
-  },
-  {
-    id: "email-mock",
-    severity: "info",
-    title: "Email notifikasi belum live — token verify & forgot password hanya di backend log",
-    body: "Untuk reset password / verify email, cek backend log: tail -n 200 /var/log/supervisor/backend.err.log",
-  },
-];
+const PRODUCTION_BANNERS = [];
 
 function DismissibleBanner({ b, onDismiss }) {
   const color = b.severity === "warn"
@@ -104,7 +91,11 @@ export default function AdminDashboard() {
             </div>
             <div>
               <div className="text-xs text-zinc-500">Total Bagian Label IDR</div>
-              <div className="font-display text-2xl font-extrabold tracking-tight">{fmtIDR(m.total_revenue_idr)}</div>
+              <div className="font-display text-2xl font-extrabold tracking-tight" data-testid={ADMIN_DASHBOARD.totalLabelShare}>{fmtIDR(m.total_revenue_idr)}</div>
+              <div className="mt-3 divide-y divide-white/5 border-t border-white/10 text-xs">
+                <div className="flex items-center justify-between gap-3 py-2"><span className="text-zinc-500">Sudah Withdraw</span><strong className="tabular-nums text-zinc-300" data-testid={ADMIN_DASHBOARD.withdrawnLabelShare}>{fmtIDR(m.total_label_withdrawn_idr)}</strong></div>
+                <div className="flex items-center justify-between gap-3 py-2"><span className="text-zinc-500">Belum Withdraw</span><strong className="tabular-nums text-emerald-300" data-testid={ADMIN_DASHBOARD.unwithdrawnLabelShare}>{fmtIDR(m.total_label_unwithdrawn_idr)}</strong></div>
+              </div>
             </div>
           </div>
           <div className="mt-4 text-xs text-zinc-500">
