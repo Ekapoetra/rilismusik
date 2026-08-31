@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { LabelDetailCards, LabelDetailModals } from "@/components/admin/LabelDetailView";
+import { BankChangePanel } from "@/components/admin/BankChangePanel";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -126,6 +127,7 @@ export default function AdminLabelDetail() {
     {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}{msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
     {isBlacklisted && label.blacklist_reason && <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm"><div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1">Alasan Blacklist</div><div className="text-red-100">{label.blacklist_reason}</div></div>}
     <LabelDetailCards data={data} permissions={permissions} actions={actions} royaltyState={royaltyState} subscriptionState={subscriptionState} />
+    <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />
     <LabelDetailModals data={data} modals={modals} />
   </div>;
 }

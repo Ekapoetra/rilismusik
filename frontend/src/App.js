@@ -49,7 +49,7 @@ import ArtistDashboard from "@/pages/artist/Dashboard";
 
 const LABEL_ROLES = ["label"];
 const ARTIST_ROLES = ["artist"];
-const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"];
+const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"];
 
 function App() {
   return (

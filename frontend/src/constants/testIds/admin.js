@@ -47,6 +47,8 @@ export const ADMIN_USER = {
   passwordInput: 'admin-user-password-input',
   roleSelect: 'admin-user-role-select',
   saveButton: 'admin-user-save-button',
+  deleteConfirmModal: 'admin-user-delete-confirm-modal',
+  deleteConfirmButton: 'admin-user-delete-confirm-button',
 };
 
 export const ADMIN_TICKET = {

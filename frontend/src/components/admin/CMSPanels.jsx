@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { ADMIN_CMS } from "@/constants/testIds";
+import { api, fileUrl, formatApiError } from "@/api/client";
 
 const Field = ({ label, children }) => <div><label className="rm-label">{label}</label>{children}</div>;
 
@@ -92,7 +93,26 @@ function LegalPanel({ settings, setValue }) {
   </div>;
 }
 
-const PANELS = { general: GeneralPanel, hero: HeroPanel, benefits: BenefitsPanel, pricing: PricingPanel, faq: FaqPanel, seo: SeoPanel, footer: FooterPanel, legal_entity: LegalPanel };
+function DocumentsPanel({ settings, setValue }) {
+  const documents = settings.documents || {};
+  const [uploading, setUploading] = useState("");
+  const [error, setError] = useState("");
+  const upload = async (event, key) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    setUploading(key); setError("");
+    try { const data = new FormData(); data.append("file", file); const response = await api.post("/cms/documents/upload-signature", data, { headers: { "Content-Type": "multipart/form-data" } }); setValue(`documents.${key}`, response.data.url); }
+    catch (err) { setError(formatApiError(err.response?.data?.detail)); }
+    finally { setUploading(""); }
+  };
+  return <div className="space-y-4" data-testid="admin-cms-documents-panel">
+    <div className="text-sm text-zinc-400">Aset ini digunakan pada Surat Pernyataan Hak Cipta yang dapat diunduh setelah rilisan disetujui.</div>
+    {error && <div role="alert" className="text-sm text-red-300" data-testid="admin-cms-documents-error">{error}</div>}
+    <div className="grid md:grid-cols-2 gap-3"><Field label="Nama Penanggung Jawab">{textInput(documents.responsible_person_name, (e) => setValue("documents.responsible_person_name", e.target.value), "admin-cms-responsible-name")}</Field><Field label="Jabatan">{textInput(documents.responsible_person_title, (e) => setValue("documents.responsible_person_title", e.target.value), "admin-cms-responsible-title")}</Field></div>
+    <div className="grid md:grid-cols-2 gap-4">{[["signature_url", "Tanda Tangan"], ["stamp_url", "Stempel"]].map(([key, label]) => <div key={key} className="rounded-lg border border-white/10 p-4"><div className="text-sm font-bold mb-3">{label}</div>{documents[key] && <img src={fileUrl(documents[key])} alt={label} className="mb-3 h-24 w-full object-contain bg-white rounded-md p-2" data-testid={`admin-cms-${key}-preview`} />}<label className="rm-btn-ghost inline-flex cursor-pointer text-sm"><input type="file" className="sr-only" accept=".png,.jpg,.jpeg,.webp" onChange={(event) => upload(event, key)} data-testid={`admin-cms-${key}-upload`} />{uploading === key ? "Mengunggah…" : `Upload ${label}`}</label></div>)}</div>
+  </div>;
+}
+
+const PANELS = { general: GeneralPanel, hero: HeroPanel, benefits: BenefitsPanel, pricing: PricingPanel, faq: FaqPanel, seo: SeoPanel, footer: FooterPanel, legal_entity: LegalPanel, documents: DocumentsPanel };
 
 export const CMSPanel = ({ tab, settings, setValue }) => {
   const Panel = PANELS[tab];

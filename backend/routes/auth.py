@@ -77,6 +77,7 @@ async def register(body: RegisterLabelIn, response: Response):
         "role": LABEL_ROLE,
         "email_verified_at": None,
         "status": "active",
+        "token_version": 0,
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
@@ -133,8 +134,9 @@ async def register(body: RegisterLabelIn, response: Response):
         })
         # Send verification email (best-effort, won't block registration)
         await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
-        access = create_access_token(user_id, email, LABEL_ROLE)
-        refresh = create_refresh_token(user_id)
+        session_id = secrets.token_urlsafe(18)
+        access = create_access_token(user_id, email, LABEL_ROLE, 0, session_id)
+        refresh = create_refresh_token(user_id, 0, session_id)
         set_auth_cookies(response, access, refresh)
         return {
             "user": public_user(user_doc),
@@ -226,8 +228,9 @@ async def register(body: RegisterLabelIn, response: Response):
     logger.debug("Verification token issued for user_id=%s", user_id)
     await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
 
-    access = create_access_token(user_id, email, LABEL_ROLE)
-    refresh = create_refresh_token(user_id)
+    session_id = secrets.token_urlsafe(18)
+    access = create_access_token(user_id, email, LABEL_ROLE, 0, session_id)
+    refresh = create_refresh_token(user_id, 0, session_id)
     set_auth_cookies(response, access, refresh)
 
     return {
@@ -275,8 +278,8 @@ async def login(body: LoginIn, response: Response, request: Request):
             await db.login_attempts.update_one({"identifier": k}, {"$set": update}, upsert=True)
         raise HTTPException(status_code=401, detail="Email atau password salah")
 
-    if user.get("status") == "suspended":
-        raise HTTPException(status_code=403, detail="Akun ditangguhkan")
+    if user.get("status") in {"suspended", "disabled"}:
+        raise HTTPException(status_code=403, detail="Akun tidak aktif")
 
     # Block blacklisted labels at login
     if user["role"] == LABEL_ROLE:
@@ -287,8 +290,10 @@ async def login(body: LoginIn, response: Response, request: Request):
     # On success, clear BOTH counters
     await db.login_attempts.delete_many({"identifier": {"$in": [email_key, ip_key]}})
 
-    access = create_access_token(user["id"], user["email"], user["role"], int(user.get("token_version") or 0))
-    refresh = create_refresh_token(user["id"], int(user.get("token_version") or 0))
+    token_version = int(user.get("token_version") or 0)
+    session_id = secrets.token_urlsafe(18)
+    access = create_access_token(user["id"], user["email"], user["role"], token_version, session_id)
+    refresh = create_refresh_token(user["id"], token_version, session_id)
     set_auth_cookies(response, access, refresh)
 
     payload = {"user": public_user(user), "access_token": access, "refresh_token": refresh}
@@ -330,8 +335,16 @@ async def refresh(request: Request, response: Response):
     user = await db.users.find_one({"id": payload["sub"]})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    access = create_access_token(user["id"], user["email"], user["role"])
-    new_refresh = create_refresh_token(user["id"])
+    if user.get("status") in {"suspended", "disabled"}:
+        raise HTTPException(status_code=403, detail="Akun tidak aktif")
+    token_version = int(user.get("token_version") or 0)
+    if int(payload.get("tv") or 0) != token_version:
+        raise HTTPException(status_code=401, detail="Sesi sudah berakhir, silakan login ulang")
+    session_id = payload.get("sid") or secrets.token_urlsafe(18)
+    access = create_access_token(
+        user["id"], user["email"], user["role"], token_version, session_id,
+    )
+    new_refresh = create_refresh_token(user["id"], token_version, session_id)
     set_auth_cookies(response, access, new_refresh)
     return {"ok": True}
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { ADMIN_USER } from "@/constants/testIds";
-import { Plus, X, Shield, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, X, Shield, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 
 const ROLES = [
   { v: "super_admin", l: "Super Admin" },
@@ -10,6 +10,7 @@ const ROLES = [
   { v: "admin_finance", l: "Admin Finance" },
   { v: "admin_support", l: "Admin Support" },
   { v: "admin_content", l: "Admin Content/CMS" },
+  { v: "admin_marketing", l: "Admin Marketing" },
 ];
 
 export default function AdminUsers() {
@@ -19,6 +20,7 @@ export default function AdminUsers() {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "admin_release" });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
   // Danger zone — full data reset
   const [resetOpen, setResetOpen] = useState(false);
   const [resetConfirm, setResetConfirm] = useState("");
@@ -87,6 +89,14 @@ export default function AdminUsers() {
     }
   };
 
+  const deleteAdmin = async () => {
+    if (!deleteTarget) return;
+    setSaving(true); setErr("");
+    try { await api.delete(`/admin/admin-users/${deleteTarget.id}`); setDeleteTarget(null); await load(); }
+    catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
   return (
     <div className="space-y-5 max-w-5xl">
       <div className="flex justify-between items-center flex-wrap gap-3">
@@ -104,14 +114,14 @@ export default function AdminUsers() {
           <div className="col-span-4">Nama</div>
           <div className="col-span-4">Email</div>
           <div className="col-span-3">Role</div>
-          <div className="col-span-1">Status</div>
+          <div className="col-span-2">Status / Aksi</div>
         </div>
         {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Belum ada admin user.</div> : items.map((u) => (
           <div key={u.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0">
             <div className="col-span-12 md:col-span-4 flex items-center gap-2"><Shield className="w-4 h-4 text-zinc-600" />{u.name}</div>
             <div className="col-span-6 md:col-span-4 text-sm truncate">{u.email}</div>
             <div className="col-span-3 md:col-span-3 text-sm capitalize">{u.role.replace(/_/g, " ")}</div>
-            <div className="col-span-3 md:col-span-1 text-xs capitalize">{u.status}</div>
+            <div className="col-span-3 md:col-span-2 flex items-center justify-between gap-2 text-xs capitalize" data-testid={`admin-user-status-${u.id}`}><span>{u.status}</span>{u.id !== me?.id && <button type="button" className="grid h-8 w-8 place-items-center rounded-md text-red-300 transition-colors hover:bg-red-500/15" title="Hapus akses admin" onClick={() => setDeleteTarget(u)} data-testid={`admin-user-delete-${u.id}`}><Trash2 className="w-4 h-4" /></button>}</div>
           </div>
         ))}
       </div>
@@ -147,6 +157,16 @@ export default function AdminUsers() {
               <button className="rm-btn-primary" disabled={saving} data-testid={ADMIN_USER.saveButton}>{saving ? "Menyimpan…" : "Simpan"}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => !saving && setDeleteTarget(null)}>
+          <div className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4 border border-red-500/30" onClick={(event) => event.stopPropagation()} data-testid={ADMIN_USER.deleteConfirmModal}>
+            <h3 className="font-display text-xl font-extrabold text-red-200">Hapus Akses Admin</h3>
+            <p className="text-sm text-zinc-300">Akun <b>{deleteTarget.name}</b> ({deleteTarget.email}) akan dinonaktifkan dan seluruh sesinya langsung berakhir.</p>
+            <div className="flex justify-end gap-2"><button type="button" className="rm-btn-ghost" onClick={() => setDeleteTarget(null)} disabled={saving} data-testid="admin-user-delete-cancel-button">Batal</button><button type="button" className="rm-btn-primary" onClick={deleteAdmin} disabled={saving} data-testid={ADMIN_USER.deleteConfirmButton}>{saving ? "Menghapus…" : "Hapus Akses"}</button></div>
+          </div>
         </div>
       )}
 

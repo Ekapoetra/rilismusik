@@ -12,6 +12,8 @@ from .deps import db, db_bg, logger, require_admin, notify, label_user_ids
 from models import now_iso
 from email_service import send_contract_expiry_email, send_subscription_expiry_email
 from payment_service import poll_payment, xendit_configured
+from .monthly_royalty_email import send_monthly_summaries
+from .background_job_notifications import notify_completed_background_jobs
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -256,6 +258,25 @@ async def trigger_xendit_payments_check(user: dict = Depends(require_admin)):
     return {"ok": True, "job": "xendit_payment_polling"}
 
 
+@cron_r.post("/monthly-royalty-summary")
+async def trigger_monthly_royalty_summary(period: str | None = None, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    return await send_monthly_summaries(period)
+
+
+@cron_r.get("/monthly-royalty-summary/status")
+async def monthly_royalty_summary_status(user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    return await db.monthly_email_deliveries.find({}, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
+
+
+@cron_r.post("/background-completion-check")
+async def trigger_background_completion_check(user: dict = Depends(require_admin)):
+    return await notify_completed_background_jobs()
+
+
 def start_scheduler():
     """Register cron jobs and start the scheduler.
 
@@ -281,6 +302,15 @@ def start_scheduler():
         reconcile_pending_xendit_payments, "interval", minutes=2,
         id="xendit_payment_polling", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90),
+    )
+    scheduler.add_job(
+        send_monthly_summaries, "cron", day=3, hour=2, minute=0,
+        id="monthly_royalty_summary", replace_existing=True,
+    )
+    scheduler.add_job(
+        notify_completed_background_jobs, "interval", minutes=5,
+        id="background_job_completion_notifications", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=120),
     )
     scheduler.start()
 

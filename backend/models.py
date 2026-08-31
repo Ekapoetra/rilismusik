@@ -56,9 +56,18 @@ class LabelProfileUpdate(BaseModel):
 
 
 class BankAccountIn(BaseModel):
-    bank_name: str
-    account_number: str
-    account_holder_name: str
+    bank_name: str = Field(min_length=2, max_length=100)
+    account_number: str = Field(min_length=4, max_length=50)
+    account_holder_name: str = Field(min_length=2, max_length=120)
+
+
+class BankAccountChangeRequestIn(BankAccountIn):
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class BankAccountChangeActionIn(BaseModel):
+    action: Literal["approve", "reject"]
+    note: Optional[str] = Field(default=None, max_length=500)
 
 
 # ============ RELEASE ============
@@ -94,6 +103,15 @@ class TrackIn(BaseModel):
     isrc: Optional[str] = None
     audio_url: Optional[str] = None
     artist_id: Optional[str] = None  # link to artist sub-account
+    preview_start_seconds: int = Field(default=0, ge=0, le=3600)
+    title_language: Optional[str] = None
+    lyric_language: Optional[str] = None
+    track_type: Literal["original", "cover", "live"] = "original"
+    featuring_artist_id: Optional[str] = None
+    featuring_artist_name: Optional[str] = None
+    spotify_artist_id: Optional[str] = None
+    youtube_artist_id: Optional[str] = None
+    lyrics: Optional[str] = Field(default=None, max_length=20000)
 
 
 class ReleaseDraftIn(BaseModel):
@@ -115,6 +133,7 @@ class ReleaseDraftIn(BaseModel):
 
 class ReleaseSubmitConfirmation(BaseModel):
     contract_declaration_checked: bool
+    addon_product_ids: List[str] = Field(default_factory=list)
 
 
 class AdminReleaseAction(BaseModel):
@@ -190,7 +209,7 @@ class AdminUserCreateIn(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
-    role: Literal["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"]
+    role: Literal["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"]
 
 
 class LabelStatusUpdate(BaseModel):
@@ -267,6 +286,7 @@ class TicketCreateIn(BaseModel):
     new_cover_url: Optional[str] = None                # for edit_cover (3000x3000 uploaded)
     reason: Optional[str] = None                       # for takedown / edit_metadata reason
     originality_declared: Optional[bool] = None        # for content_id_claim
+    youtube_url: Optional[str] = Field(default=None, max_length=500)
     attachments: List[str] = Field(default_factory=list)
 
 

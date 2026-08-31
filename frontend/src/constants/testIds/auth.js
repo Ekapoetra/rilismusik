@@ -14,6 +14,8 @@
 export const LOGIN = {
 	emailInput: 'login-email-input',
 	passwordInput: 'login-password-input',
+        passwordVisibilityButton: 'login-password-visibility-button',
+        errorAlert: 'login-error-alert',
 	submitButton: 'login-submit-button',
 	forgotPasswordLink: 'login-forgot-password-link',
 	registerLink: 'login-register-link',

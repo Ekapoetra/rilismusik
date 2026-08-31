@@ -17,7 +17,7 @@ from .deps import (
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
-    LabelProfileUpdate, BankAccountIn,
+    LabelProfileUpdate, BankAccountIn, BankAccountChangeRequestIn, BankAccountChangeActionIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
@@ -41,6 +41,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .bank_change_service import create_bank_change_request, review_bank_change_request
 
 # =============================================================================
 #                                LABEL
@@ -161,7 +162,58 @@ async def submit_bank(body: BankAccountIn, user: dict = Depends(require_label)):
     }
     await db.bank_accounts.insert_one(bank)
     bank.pop("_id", None)
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_finance")),
+        "bank_account_new", "Rekening baru menunggu verifikasi",
+        f"{label.get('label_name')} menambahkan rekening baru.",
+        f"/admin/labels/{label['id']}", {"label_id": label["id"]},
+    )
     return bank
+
+
+@label_r.get("/bank-account/change-requests")
+async def list_label_bank_change_requests(user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    return await db.bank_account_change_requests.find(
+        {"label_id": label["id"]}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+
+
+@label_r.post("/bank-account/change-request")
+async def request_bank_change(
+    body: BankAccountChangeRequestIn, user: dict = Depends(require_label),
+):
+    label = await get_label_by_user(user)
+    document = await create_bank_change_request(
+        label=label, payload=body.model_dump(), requester=user, approval_target="admin",
+    )
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_finance")),
+        "bank_change_requested", "Perubahan rekening menunggu persetujuan",
+        f"{label.get('label_name')} mengajukan perubahan rekening.",
+        f"/admin/labels/{label['id']}", {"request_id": document["id"], "label_id": label["id"]},
+    )
+    await log_activity(user["id"], "request_bank_change", "bank_account", document["id"], after={"status": document["status"]})
+    return document
+
+
+@label_r.post("/bank-account/change-requests/{request_id}/action")
+async def label_review_bank_change(
+    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_label),
+):
+    label = await get_label_by_user(user)
+    document = await review_bank_change_request(
+        request_id=request_id, action=body.action, note=body.note, reviewer=user,
+        expected_status="pending_label_approval", label_id=label["id"],
+    )
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_finance")),
+        "bank_change_reviewed", f"Perubahan rekening {body.action}",
+        f"{label.get('label_name')} telah {body.action} perubahan rekening dari admin.",
+        f"/admin/labels/{label['id']}", {"request_id": request_id, "label_id": label["id"]},
+    )
+    await log_activity(user["id"], f"label_{body.action}_bank_change", "bank_account", request_id)
+    return document
 
 
 @label_r.get("/invoices")

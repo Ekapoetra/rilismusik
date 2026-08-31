@@ -1,20 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Building2, Landmark } from "lucide-react";
+import { Building2 } from "lucide-react";
+import { BankAccountPanel } from "@/components/label/BankAccountPanel";
 
 export default function LabelProfile() {
   const { refresh, user } = useAuth();
   const [profile, setProfile] = useState(null);
-  const [bank, setBank] = useState(null);
-  const [bForm, setBForm] = useState({ bank_name: "", account_number: "", account_holder_name: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
     api.get("/label/me").then(r => setProfile(r.data));
-    api.get("/label/bank-account").then(r => setBank(r.data));
   }, []);
 
   const saveProfile = async () => {
@@ -24,16 +22,6 @@ export default function LabelProfile() {
       setProfile(data);
       setMsg("Profil tersimpan.");
       refresh();
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
-    finally { setSaving(false); }
-  };
-
-  const saveBank = async () => {
-    setSaving(true); setErr(""); setMsg("");
-    try {
-      const { data } = await api.post("/label/bank-account", bForm);
-      setBank(data);
-      setMsg("Rekening disimpan. Menunggu verifikasi admin.");
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setSaving(false); }
   };
@@ -65,29 +53,8 @@ export default function LabelProfile() {
         </div>
       </div>
 
-      <div className="rm-card p-6 space-y-4">
-        <div className="flex items-center gap-2 font-display font-bold text-lg tracking-tight"><Landmark className="w-5 h-5" /> Rekening Bank</div>
-        {bank ? (
-          <div className="space-y-3">
-            <Row k="Nama Bank" v={bank.bank_name} />
-            <Row k="Nomor Rekening" v={bank.account_number} />
-            <Row k="Atas Nama" v={bank.account_holder_name} />
-            <Row k="Status Verifikasi" v={bank.verified_status} />
-            <div className="text-xs text-zinc-500 bg-white/5 rounded-xl p-3">Rekening hanya bisa diinput sekali. Untuk perubahan, hubungi support@rilismusik.com.</div>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-3">
-            <F label="Nama Bank"><input className="rm-input" value={bForm.bank_name} onChange={e => setBForm({ ...bForm, bank_name: e.target.value })} placeholder="Bank BCA" data-testid="bank-name" /></F>
-            <F label="Nomor Rekening"><input className="rm-input" value={bForm.account_number} onChange={e => setBForm({ ...bForm, account_number: e.target.value })} data-testid="bank-number" /></F>
-            <F label="Atas Nama"><input className="rm-input" value={bForm.account_holder_name} onChange={e => setBForm({ ...bForm, account_holder_name: e.target.value })} data-testid="bank-holder" /></F>
-            <div className="md:col-span-2 flex justify-end">
-              <button className="rm-btn-primary" disabled={saving} onClick={saveBank} data-testid="bank-save">{saving ? "Menyimpan…" : "Submit Rekening"}</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <BankAccountPanel />
     </div>
   );
 }
 function F({ label, children }) { return <div><label className="rm-label">{label}</label>{children}</div>; }
-function Row({ k, v }) { return <div className="flex justify-between text-sm py-1"><span className="text-zinc-500">{k}</span><span className="font-semibold capitalize">{v || "—"}</span></div>; }

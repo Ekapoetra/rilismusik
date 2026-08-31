@@ -10,6 +10,9 @@
 3. Call `GET /api/auth/me` with the saved cookies and verify the same user.
 4. Confirm invalid passwords increment lockout attempts and successful login clears them.
 5. Confirm authenticated API calls also accept the existing Bearer-token fallback.
+6. Log in with two independent cookie jars and confirm both `/auth/me` calls remain 200.
+7. For a user with `token_version > 0`, refresh device A and confirm device A and B both remain 200.
+8. Increment `token_version` and confirm access + refresh tokens on every device become invalid.
 
 ## CORS checks
 - Public preview/production requests are same-origin (`/api`). Kubernetes/Cloudflare may answer public OPTIONS before FastAPI.

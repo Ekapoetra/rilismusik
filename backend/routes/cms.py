@@ -87,6 +87,24 @@ async def upload_landing_image(file: UploadFile = File(...), user: dict = Depend
     return {"url": f"/api/files/{key}"}
 
 
+@cms_r.post("/documents/upload-signature")
+async def upload_document_signature(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_content"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Content/CMS atau Super Admin")
+    ext = (file.filename or "").lower().rsplit(".", 1)[-1]
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        raise HTTPException(status_code=400, detail="Tanda tangan/stempel harus JPG, PNG, atau WEBP")
+    image_bytes = await file.read()
+    if not image_bytes or len(image_bytes) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Ukuran gambar maksimal 2 MB")
+    import storage_service
+    key = f"cms/signatures/{new_id()}.{ext}"
+    content_type = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
+    await storage_service.upload_bytes(key=key, data=image_bytes, content_type=content_type)
+    await log_activity(user["id"], "upload_document_signature", "cms", key)
+    return {"url": f"/api/files/{key}", "key": key}
+
+
 @cms_r.get("/mda/preview")
 async def mda_preview():
     """Public endpoint — generates and streams a sample MDA PDF with placeholder

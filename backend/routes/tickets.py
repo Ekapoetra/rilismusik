@@ -7,6 +7,7 @@ import csv
 import io
 import shutil
 import secrets
+from urllib.parse import urlparse
 
 from .deps import (
     db, logger, UPLOAD_DIR,
@@ -151,6 +152,9 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
     elif body.category == "content_id_claim":
         if not body.originality_declared:
             raise HTTPException(status_code=400, detail="Pernyataan originalitas wajib disetujui")
+        parsed_youtube = urlparse(body.youtube_url or "")
+        if parsed_youtube.scheme != "https" or parsed_youtube.netloc.lower().removeprefix("www.") not in {"youtube.com", "youtu.be", "music.youtube.com"}:
+            raise HTTPException(status_code=400, detail="Link YouTube valid wajib diisi untuk pengajuan Content ID")
 
     ticket_id = new_id()
     # short ticket number for display: RM-YYMMDD-XXXXX
@@ -173,6 +177,7 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         "new_cover_url": body.new_cover_url,
         "reason": body.reason,
         "originality_declared": body.originality_declared,
+        "youtube_url": body.youtube_url,
         "attachments": body.attachments,
         "status": "open",
         "assigned_admin_id": None,

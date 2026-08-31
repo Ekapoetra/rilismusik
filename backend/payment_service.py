@@ -6,11 +6,12 @@ navigation only and are never trusted as proof of payment.
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import HTTPException
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from models import new_id, now_iso
 from routes.deps import db, logger, notify_many
@@ -58,6 +59,12 @@ class PaymentCreateData:
     tier: Optional[str] = None
     product_id: Optional[str] = None
     service_order_id: Optional[str] = None
+    reference_id: Optional[str] = None
+    line_items: Optional[List[Dict[str, Any]]] = None
+    base_amount: Optional[int] = None
+    addon_amount: Optional[int] = None
+    addon_product_ids: Optional[List[str]] = None
+    approval_required_before_payment: bool = False
 
 
 def _required_env(name: str) -> str:
@@ -102,7 +109,7 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
         "status": "pending",
         "provider": "xendit",
         "provider_status": None,
-        "reference_id": f"rm-{payment_id}",
+        "reference_id": data.reference_id or f"rm-{payment_id}",
         "xendit_invoice_url": None,
         "payment_request_id": None,
         "payment_id_provider": None,
@@ -113,8 +120,19 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
         "last_provider_poll_at": None,
         "created_at": now_iso(),
         "updated_at": now_iso(),
+        "line_items": data.line_items or [],
+        "base_amount": data.base_amount,
+        "addon_amount": data.addon_amount,
+        "addon_product_ids": data.addon_product_ids or [],
+        "approval_required_before_payment": data.approval_required_before_payment,
     }
-    await db.payments.insert_one(document)
+    try:
+        await db.payments.insert_one(document)
+    except DuplicateKeyError:
+        existing = await db.payments.find_one({"reference_id": document["reference_id"]}, {"_id": 0})
+        if existing:
+            return existing
+        raise
     document.pop("_id", None)
     return document
 
@@ -126,6 +144,28 @@ def build_session_payload(payment: Dict[str, Any]) -> Dict[str, Any]:
     return_url = f"{frontend_url}{payment.get('return_path') or '/label/invoices'}?payment_id={payment['id']}"
     amount = int(payment["amount"])
     description = str(payment.get("description") or payment.get("type") or "Pembayaran RILIS MUSIK")[:255]
+    configured_items = payment.get("line_items") or []
+    items = [{
+        "reference_id": str(item.get("reference_id") or payment["id"])[:255],
+        "name": str(item.get("name") or description)[:255],
+        "description": str(item.get("description") or item.get("name") or description)[:255],
+        "type": "DIGITAL_SERVICE",
+        "category": "MUSIC_DISTRIBUTION",
+        "net_unit_amount": int(item.get("amount") or 0),
+        "quantity": int(item.get("quantity") or 1),
+    } for item in configured_items if int(item.get("amount") or 0) > 0]
+    if not items:
+        items = [{
+            "reference_id": (payment.get("product_id") or payment.get("release_id") or payment["id"])[:255],
+            "name": description,
+            "description": description,
+            "type": "DIGITAL_SERVICE",
+            "category": "MUSIC_DISTRIBUTION",
+            "net_unit_amount": amount,
+            "quantity": 1,
+        }]
+    if sum(item["net_unit_amount"] * item["quantity"] for item in items) != amount:
+        raise HTTPException(status_code=500, detail="Rincian invoice tidak sesuai dengan total pembayaran")
     return {
         "reference_id": payment["reference_id"][:64],
         "session_type": "PAY",
@@ -143,15 +183,7 @@ def build_session_payload(payment: Dict[str, Any]) -> Dict[str, Any]:
             "local_payment_id": payment["id"],
             "payment_type": payment["type"],
         },
-        "items": [{
-            "reference_id": (payment.get("product_id") or payment.get("release_id") or payment["id"])[:255],
-            "name": description,
-            "description": description,
-            "type": "DIGITAL_SERVICE",
-            "category": "MUSIC_DISTRIBUTION",
-            "net_unit_amount": amount,
-            "quantity": 1,
-        }],
+        "items": items,
     }
 
 
@@ -269,9 +301,10 @@ async def _claim_fulfillment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]
 
 
 async def _fulfill_release(payment: Dict[str, Any]) -> None:
+    fulfilled_status = "approved" if payment.get("approval_required_before_payment") else "under_review"
     await db.releases.update_one(
         {"id": payment["release_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
-        {"$set": {"payment_status": "paid", "status": "under_review", "updated_at": now_iso()},
+        {"$set": {"payment_status": "paid", "status": fulfilled_status, "updated_at": now_iso()},
          "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
     )
 

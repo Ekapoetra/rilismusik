@@ -181,6 +181,21 @@ async def admin_update_product(product_id: str, body: PaymentProductUpdateIn, us
     return await db.payment_products.find_one({"id": product_id}, {"_id": 0})
 
 
+@pay_r.delete("/admin/products/{product_id}")
+async def admin_delete_product(product_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    product = await db.payment_products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Layanan tidak ditemukan")
+    used = await db.payments.count_documents({"addon_product_ids": product_id})
+    if used:
+        await db.payment_products.update_one({"id": product_id}, {"$set": {"active": False, "archived_at": now_iso(), "updated_at": now_iso()}})
+        return {"ok": True, "archived": True}
+    await db.payment_products.delete_one({"id": product_id})
+    return {"ok": True, "deleted": True}
+
+
 @pay_r.post("/{payment_id}/checkout")
 async def start_checkout(payment_id: str, user: dict = Depends(get_current_user)):
     payment = await _owned_payment(payment_id, user)

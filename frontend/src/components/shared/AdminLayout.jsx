@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: ADMIN_NAV.dashboard, roles: ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"] },
+  { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: ADMIN_NAV.dashboard, roles: ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"] },
   { to: "/admin/analytics", label: "Analytics Royalti", icon: BarChart3, tid: "admin-nav-analytics", roles: ["super_admin", "admin_finance"] },
   { to: "/admin/labels", label: "Label Management", icon: Building2, tid: ADMIN_NAV.labels, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
   { to: "/admin/artists", label: "Artist Management", icon: UserSquare, tid: ADMIN_NAV.artists, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
@@ -33,6 +33,7 @@ const ROLE_LABELS = {
   admin_finance: "Admin Finance",
   admin_support: "Admin Support",
   admin_content: "Admin Content/CMS",
+  admin_marketing: "Admin Marketing",
 };
 
 export default function AdminLayout() {

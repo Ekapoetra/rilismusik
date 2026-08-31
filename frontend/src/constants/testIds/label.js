@@ -60,9 +60,22 @@ export const SUPPORT = {
   coverUpload: 'support-cover-upload',
   trackSelect: 'support-track-select',
   originalityCheckbox: 'support-originality-checkbox',
+  youtubeUrlInput: 'support-youtube-url-input',
   submitButton: 'support-submit-button',
   cancelTicketButton: 'support-cancel-ticket-button',
   commentInput: 'support-comment-input',
   commentSubmit: 'support-comment-submit',
   commentAttachment: 'support-comment-attachment',
+};
+
+export const BANK_ACCOUNT = {
+  panel: 'bank-account-panel',
+  changeButton: 'bank-account-change-button',
+  bankNameInput: 'bank-account-bank-name-input',
+  accountNumberInput: 'bank-account-number-input',
+  holderInput: 'bank-account-holder-input',
+  reasonInput: 'bank-account-change-reason-input',
+  submitButton: 'bank-account-submit-button',
+  approveButton: 'bank-account-approve-button',
+  rejectButton: 'bank-account-reject-button',
 };

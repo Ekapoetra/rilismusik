@@ -17,7 +17,7 @@ from .deps import (
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
-    LabelProfileUpdate, BankAccountIn,
+    LabelProfileUpdate, BankAccountIn, BankAccountChangeRequestIn, BankAccountChangeActionIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
@@ -47,6 +47,7 @@ from .admin_label_service import (
 )
 from .admin_reset_service import run_full_reset
 from .dashboard_cache import recompute as recompute_dashboard_revenue, snapshot as dashboard_revenue_snapshot
+from .bank_change_service import create_bank_change_request, review_bank_change_request
 
 # =============================================================================
 #                                ADMIN
@@ -240,15 +241,30 @@ async def admin_list_payments(user: dict = Depends(require_admin), status: Optio
 
 @admin_r.get("/admin-users")
 async def admin_list_admin_users(user: dict = Depends(require_super_admin)):
-    items = await db.users.find({"role": {"$in": list(ADMIN_ROLES)}}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    items = await db.users.find(
+        {"role": {"$in": list(ADMIN_ROLES)}, "status": {"$ne": "disabled"}},
+        {"_id": 0, "password_hash": 0},
+    ).sort("created_at", -1).to_list(500)
     return items
 
 
 @admin_r.post("/admin-users")
 async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(require_super_admin)):
     email = body.email.lower().strip()
-    if await db.users.find_one({"email": email}):
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing and not (existing.get("role") in ADMIN_ROLES and existing.get("status") == "disabled"):
         raise HTTPException(status_code=409, detail="Email sudah terdaftar")
+    if existing:
+        await db.users.update_one({"id": existing["id"]}, {
+            "$set": {
+                "name": body.name, "email": email, "password_hash": hash_password(body.password),
+                "role": body.role, "status": "active", "updated_at": now_iso(),
+            },
+            "$inc": {"token_version": 1},
+            "$unset": {"deleted_at": "", "deleted_by": ""},
+        })
+        await log_activity(user["id"], "restore_admin_user", "admin_user", existing["id"], after={"email": email, "role": body.role})
+        return await db.users.find_one({"id": existing["id"]}, {"_id": 0, "password_hash": 0})
     user_id = new_id()
     doc = {
         "id": user_id,
@@ -258,6 +274,7 @@ async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(
         "role": body.role,
         "email_verified_at": now_iso(),  # admins are auto-verified
         "status": "active",
+        "token_version": 0,
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
@@ -273,6 +290,12 @@ async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict
     if not target or target.get("role") not in ADMIN_ROLES:
         raise HTTPException(status_code=404, detail="Admin user tidak ditemukan")
     upd = {}
+    if user_id == user["id"] and body.get("status") == "suspended":
+        raise HTTPException(status_code=400, detail="Anda tidak dapat menangguhkan akun sendiri")
+    if target.get("role") == SUPER_ADMIN and body.get("role") not in (None, SUPER_ADMIN):
+        active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
+        if active_supers <= 1:
+            raise HTTPException(status_code=400, detail="Minimal satu Super Admin aktif harus dipertahankan")
     if "role" in body and body["role"] in ADMIN_ROLES:
         upd["role"] = body["role"]
     if "status" in body and body["status"] in ("active", "suspended"):
@@ -283,8 +306,81 @@ async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict
         upd["password_hash"] = hash_password(body["password"])
     if upd:
         upd["updated_at"] = now_iso()
-        await db.users.update_one({"id": user_id}, {"$set": upd})
+        update_doc: Dict[str, Any] = {"$set": upd}
+        if "password_hash" in upd or upd.get("status") == "suspended":
+            update_doc["$inc"] = {"token_version": 1}
+        await db.users.update_one({"id": user_id}, update_doc)
     return await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+
+
+@admin_r.delete("/admin-users/{user_id}")
+async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_super_admin)):
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Anda tidak dapat menghapus akun sendiri")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target or target.get("role") not in ADMIN_ROLES or target.get("status") == "disabled":
+        raise HTTPException(status_code=404, detail="Admin user tidak ditemukan")
+    if target.get("role") == SUPER_ADMIN:
+        active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
+        if active_supers <= 1:
+            raise HTTPException(status_code=400, detail="Super Admin terakhir tidak dapat dihapus")
+    await db.users.update_one({"id": user_id}, {
+        "$set": {"status": "disabled", "deleted_at": now_iso(), "deleted_by": user["id"], "updated_at": now_iso()},
+        "$inc": {"token_version": 1},
+    })
+    await log_activity(user["id"], "delete_admin_user", "admin_user", user_id, before={"email": target.get("email"), "role": target.get("role")})
+    return {"ok": True, "user_id": user_id}
+
+
+@admin_r.get("/labels/{label_id}/bank-change-requests")
+async def admin_list_bank_change_requests(label_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    return await db.bank_account_change_requests.find(
+        {"label_id": label_id}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+
+
+@admin_r.post("/labels/{label_id}/bank-change-request")
+async def admin_request_bank_change(
+    label_id: str, body: BankAccountChangeRequestIn, user: dict = Depends(require_admin),
+):
+    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0})
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    document = await create_bank_change_request(
+        label=label, payload=body.model_dump(), requester=user, approval_target="label",
+    )
+    await notify_many(
+        await label_user_ids(label_id), "bank_change_requested",
+        "Konfirmasi perubahan rekening",
+        "Admin mengajukan perubahan data rekening. Tinjau dan setujui dari halaman Profil.",
+        "/label/profile", {"request_id": document["id"], "label_id": label_id},
+    )
+    await log_activity(user["id"], "admin_request_bank_change", "bank_account", document["id"], after={"status": document["status"]})
+    return document
+
+
+@admin_r.post("/bank-account-change-requests/{request_id}/action")
+async def admin_review_bank_change(
+    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_admin),
+):
+    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    document = await review_bank_change_request(
+        request_id=request_id, action=body.action, note=body.note, reviewer=user,
+        expected_status="pending_admin_approval",
+    )
+    await notify_many(
+        await label_user_ids(document["label_id"]), "bank_change_reviewed",
+        "Perubahan rekening diproses",
+        f"Permintaan perubahan rekening Anda telah {body.action} oleh admin.",
+        "/label/profile", {"request_id": request_id},
+    )
+    await log_activity(user["id"], f"admin_{body.action}_bank_change", "bank_account", request_id)
+    return document
 
 
 @admin_r.get("/activity-logs")

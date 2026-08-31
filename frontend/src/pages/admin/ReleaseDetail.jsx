@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { ADMIN_RELEASE } from "@/constants/testIds";
-import { Disc3, Music, AlertCircle } from "lucide-react";
+import { Disc3, Music, AlertCircle, Download } from "lucide-react";
 
 export default function AdminReleaseDetail() {
   const { id } = useParams();
@@ -34,6 +34,17 @@ export default function AdminReleaseDetail() {
     finally { setBusy(false); }
   };
 
+  const downloadCopyright = async () => {
+    setErr("");
+    try {
+      const response = await api.get(`/releases/${id}/copyright-letter`, { responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `Surat-Hak-Cipta-${data.release_title}.pdf`; anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
+  };
+
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
 
   const blockedByPayment = data.payment_status === "pending";
@@ -54,6 +65,7 @@ export default function AdminReleaseDetail() {
             {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/100/15 text-amber-300">Invoice Pending</span>}
             {data.payment_status === "free_subscription" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">Subscription</span>}
           </div>
+          {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost mt-3 flex items-center gap-2" onClick={downloadCopyright} data-testid="admin-release-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
         </div>
       </div>
 
@@ -62,6 +74,7 @@ export default function AdminReleaseDetail() {
       {blockedByPayment && (
         <div className="rounded-2xl bg-amber-500/100/15 text-amber-300 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
       )}
+      {data.payment_status === "not_generated" && <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200" data-testid="admin-release-ppr-review-note">Approve akan membuat satu invoice gabungan biaya dasar dan add-on untuk label.</div>}
 
       {/* Tracks with audio */}
       <div className="rm-card p-5">
@@ -73,7 +86,9 @@ export default function AdminReleaseDetail() {
                 <div className="w-9 h-9 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center text-sm font-bold">{t.track_number}</div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm truncate">{t.track_title}</div>
-                  <div className="text-xs text-zinc-500 truncate">{t.artist_name} • Composer: {t.composer || "—"} {t.isrc && <> • ISRC {t.isrc}</>}</div>
+                  <div className="text-xs text-zinc-500">{t.artist_name} • Composer: {t.composer || "—"} {t.isrc && <> • ISRC {t.isrc}</>}</div>
+                  <div className="text-[11px] text-zinc-600 mt-1">{t.track_type || "original"} • Producer: {t.producer || "—"} • Arranger: {t.arranger || "—"} • Preview: {t.preview_start_seconds || 0}s</div>
+                  {(t.featuring_artist_name || t.spotify_artist_id || t.youtube_artist_id) && <div className="text-[11px] text-zinc-600">Feat: {t.featuring_artist_name || "—"} • Spotify: {t.spotify_artist_id || "—"} • YouTube: {t.youtube_artist_id || "—"}</div>}
                 </div>
               </div>
               {t.audio_url ? <audio controls src={fileUrl(t.audio_url)} className="h-9 max-w-[260px]" /> : <span className="text-xs text-zinc-600 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Belum ada audio</span>}
@@ -100,7 +115,7 @@ export default function AdminReleaseDetail() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="rm-btn-primary text-sm" disabled={busy || blockedByPayment} onClick={() => act("approve")} data-testid={ADMIN_RELEASE.approveButton}>Approve</button>
+          <button className="rm-btn-primary text-sm" disabled={busy || blockedByPayment} onClick={() => act("approve")} data-testid={ADMIN_RELEASE.approveButton}>{data.payment_status === "not_generated" ? "Approve & Buat Invoice" : "Approve"}</button>
           <button className="rm-btn-ghost text-sm" disabled={busy} onClick={() => act("need_revision")} data-testid={ADMIN_RELEASE.needRevisionButton}>Need Revision</button>
           <button className="rm-btn-ghost text-sm" disabled={busy} onClick={() => act("reject")} data-testid={ADMIN_RELEASE.rejectButton}>Reject</button>
           <button className="rm-btn-ghost text-sm" disabled={busy || blockedByPayment} onClick={() => act("deliver")} data-testid={ADMIN_RELEASE.deliverButton}>Deliver to Believe</button>

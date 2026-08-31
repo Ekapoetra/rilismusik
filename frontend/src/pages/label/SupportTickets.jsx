@@ -27,6 +27,7 @@ function initialForm() {
       p_line: "",
     },
     originality_declared: false,
+    youtube_url: "",
     attachments: [],
   };
 }
@@ -162,6 +163,7 @@ export default function LabelSupportTickets() {
       }
       if (form.category === "content_id_claim") {
         payload.originality_declared = form.originality_declared;
+        payload.youtube_url = form.youtube_url;
       }
       await api.post("/tickets/label/create", payload);
       setMsg("Tiket berhasil dibuat.");

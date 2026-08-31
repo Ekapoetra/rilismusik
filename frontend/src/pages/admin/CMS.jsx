@@ -6,7 +6,7 @@ import { CMSPanel } from "@/components/admin/CMSPanels";
 const TABS = [
   ["general", "General"], ["hero", "Hero"], ["benefits", "Benefits"],
   ["pricing", "Pricing"], ["faq", "FAQ"], ["seo", "SEO"],
-  ["footer", "Footer"], ["legal_entity", "Legal Entity"],
+  ["footer", "Footer"], ["legal_entity", "Legal Entity"], ["documents", "Dokumen"],
 ].map(([id, label]) => ({ id, label }));
 
 function withEditorIds(settings) {

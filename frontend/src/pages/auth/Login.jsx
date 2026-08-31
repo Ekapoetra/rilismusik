@@ -3,11 +3,12 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, formatApiError } from "@/api/AuthContext";
 import { LOGIN } from "@/constants/testIds";
 import { LogoFull } from "@/components/shared/Brand";
+import { Eye, EyeOff } from "lucide-react";
 
 function roleHome(role) {
   if (role === "label") return "/label/dashboard";
   if (role === "artist") return "/artist/dashboard";
-  if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"].includes(role)) return "/admin/dashboard";
+  if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"].includes(role)) return "/admin/dashboard";
   return "/";
 }
 
@@ -17,6 +18,7 @@ export default function Login() {
   const loc = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
@@ -59,16 +61,29 @@ export default function Login() {
           </div>
           <div>
             <label className="rm-label">Password</label>
-            <input
-              data-testid={LOGIN.passwordInput}
-              type="password"
-              className="rm-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <input
+                data-testid={LOGIN.passwordInput}
+                type={showPassword ? "text" : "password"}
+                className="rm-input pr-12"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute inset-y-0 right-0 grid w-12 place-items-center text-zinc-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:text-white"
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                data-testid={LOGIN.passwordVisibilityButton}
+              >
+                {showPassword ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
+              </button>
+            </div>
           </div>
-          {err && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
+          {err && <div role="alert" data-testid={LOGIN.errorAlert} className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
           <button data-testid={LOGIN.submitButton} type="submit" className="rm-btn-primary w-full" disabled={loading}>
             {loading ? "Memproses…" : "Masuk"}
           </button>

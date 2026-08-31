@@ -10,8 +10,8 @@ import {
 
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard },
-  { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
   { to: "/label/releases/upload", label: "Upload Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
+  { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
   { to: "/label/artists", label: "Artist", icon: Users, tid: LABEL_NAV.artists },
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
   { to: "/label/withdraw", label: "Withdraw", icon: Wallet, tid: LABEL_NAV.withdraw },

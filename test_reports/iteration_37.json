@@ -1,0 +1,41 @@
+{
+  "summary": "Backend-only auth regression suite for P0 multi-device session persistence passed on public preview URL, including requested Phase41 and Iter34 tests plus an added suspended-user check.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase41_multidevice_auth.py",
+    "/app/backend/tests/test_iter34_auth_playbook_public.py",
+    "/app/backend/tests/test_iter37_auth_suspended_regression.py",
+    "/app/test_reports/pytest/iter37_auth_multidevice.xml"
+  ],
+  "action_items": [
+    "No backend auth blocking defects found in requested scope.",
+    "Run separate frontend test pass for P1 login password visibility toggle (not executed in this backend-only cycle).",
+    "Optional maintenance: migrate FastAPI deprecated on_event handlers to lifespan handlers."
+  ],
+  "critical_code_review_comments": [
+    "auth.refresh now preserves token_version and sid from refresh token payload; this prevents unintended cross-device logout and keeps same-device session continuity.",
+    "auth + auth_utils correctly enforce token_version checks for both access and refresh paths, enabling global revocation behavior.",
+    "FastAPI startup/shutdown uses deprecated on_event API (warning observed during tests); migrate to lifespan to avoid future framework breakage."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter37_auth_suspended_regression.py",
+    "/app/test_reports/iteration_37.json"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 passed)",
+    "frontend": "N/A (not requested)"
+  },
+  "seed_data_creation": "Temporary auth users were created in tests (phase41 + iter37) and cleaned up in finally blocks; test_seed_admin_updates_existing_admin_when_password_changes restores original hash in cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed requested backend scope only. Phase41 multi-device behavior, tv revocation, disabled and suspended status handling, secure HttpOnly cookie issuance, bearer fallback, brute-force lockout, bcrypt seed hash format, and seed-admin password repair are green on preview endpoint.",
+  "rca of the issue": "Previously reproduced issue was refresh issuing tv=0, causing device A invalidation after refresh when user token_version>0. Current behavior validates payload tv against user token_version and reissues access/refresh with current token_version + preserved sid; regression no longer reproduces. No API flow is MOCKED."
+}

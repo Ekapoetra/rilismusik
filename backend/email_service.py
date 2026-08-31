@@ -195,3 +195,38 @@ async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int,
         "Lihat Riwayat", f"{FRONTEND_URL}/label/withdraw",
     )
     return await send_email(to=to, subject=f"Penarikan {amt} ditransfer", html=html)
+
+
+async def send_release_submission_email(*, to: str, label_name: str, release_title: str, release_id: str) -> Optional[str]:
+    body = f"""
+    <p>Rilisan baru dari <strong>{h(label_name)}</strong> telah masuk untuk ditinjau.</p>
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Judul</td><td style="text-align:right;color:#fff;font-weight:700;">{h(release_title)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Release ID</td><td style="text-align:right;color:#fff;font-family:monospace;font-size:12px;">{h(release_id)}</td></tr>
+    </table>
+    """
+    html = _wrap("Rilisan baru menunggu review", body, "Buka Release Management", f"{FRONTEND_URL}/admin/releases/{release_id}")
+    return await send_email(to=to, subject=f"Rilisan baru — {h(release_title)}", html=html)
+
+
+async def send_monthly_royalty_summary_email(
+    *, to: str, label_name: str, period: str, total_idr: int, streams: int, top_tracks: list[dict],
+) -> Optional[str]:
+    amount = f"Rp {int(total_idr):,}".replace(",", ".")
+    stream_text = f"{int(streams):,}".replace(",", ".")
+    track_rows = "".join(
+        f'<tr><td style="padding:7px 0;color:#d4d4d8;">{h(item.get("title") or "Unknown")}</td>'
+        f'<td style="padding:7px 0;text-align:right;color:#a1a1aa;">{int(item.get("streams") or 0):,} stream</td></tr>'
+        for item in top_tracks
+    ) or '<tr><td style="padding:7px 0;color:#a1a1aa;">Belum ada data track.</td></tr>'
+    body = f"""
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
+    <p>Berikut ringkasan royalti untuk periode <strong>{h(period)}</strong>.</p>
+    <table style="margin:16px 0;width:100%;border-collapse:collapse;">
+      <tr><td style="padding:10px;background:#0a0a0a;color:#a1a1aa;">Pendapatan</td><td style="padding:10px;background:#0a0a0a;text-align:right;color:#10b981;font-weight:800;">{amount}</td></tr>
+      <tr><td style="padding:10px;background:#0a0a0a;color:#a1a1aa;">Total Stream</td><td style="padding:10px;background:#0a0a0a;text-align:right;color:#fff;font-weight:800;">{stream_text}</td></tr>
+    </table>
+    <p style="font-weight:700;color:#fff;">Top Track</p><table style="width:100%;border-collapse:collapse;">{track_rows}</table>
+    """
+    html = _wrap("Ringkasan Royalti Bulanan", body, "Buka Analytics", f"{FRONTEND_URL}/label/royalty")
+    return await send_email(to=to, subject=f"Ringkasan royalti {period} — {h(label_name)}", html=html)

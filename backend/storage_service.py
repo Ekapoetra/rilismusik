@@ -140,6 +140,11 @@ def _head_object_sync(*, key: str) -> Optional[dict]:
         raise
 
 
+def _download_bytes_sync(*, key: str) -> bytes:
+    response = _client().get_object(Bucket=R2_BUCKET, Key=key)
+    return response["Body"].read()
+
+
 # ---------- Async wrappers ----------
 async def upload_bytes(*, key: str, data: bytes, content_type: str) -> str:
     """Upload raw bytes to R2. Returns the object key on success.
@@ -194,6 +199,11 @@ async def ensure_cors(allowed_origins: list) -> Optional[dict]:
 async def download_to_file(*, key: str, local_path: str) -> int:
     """Download an R2 object to a local file path. Returns bytes written."""
     return await asyncio.to_thread(_download_to_file_sync, key=key, local_path=local_path)
+
+
+async def download_bytes(*, key: str) -> bytes:
+    """Download a small object fully in memory (CMS assets and generated documents)."""
+    return await asyncio.to_thread(_download_bytes_sync, key=key)
 
 
 async def delete_object(*, key: str) -> None:

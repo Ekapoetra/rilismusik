@@ -28,7 +28,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, email: str, role: str, token_version: int = 0) -> str:
+def create_access_token(
+    user_id: str,
+    email: str,
+    role: str,
+    token_version: int = 0,
+    session_id: Optional[str] = None,
+) -> str:
     payload = {
         "sub": user_id,
         "email": email,
@@ -38,10 +44,16 @@ def create_access_token(user_id: str, email: str, role: str, token_version: int 
         "iat": datetime.now(timezone.utc),
         "type": "access",
     }
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str, token_version: int = 0) -> str:
+def create_refresh_token(
+    user_id: str,
+    token_version: int = 0,
+    session_id: Optional[str] = None,
+) -> str:
     payload = {
         "sub": user_id,
         "tv": int(token_version),  # SEC-003: bumped on password reset to invalidate sessions
@@ -49,6 +61,8 @@ def create_refresh_token(user_id: str, token_version: int = 0) -> str:
         "iat": datetime.now(timezone.utc),
         "type": "refresh",
     }
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
@@ -108,8 +122,8 @@ def make_get_current_user(db):
         user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User tidak ditemukan")
-        if user.get("status") == "suspended":
-            raise HTTPException(status_code=403, detail="Akun ditangguhkan")
+        if user.get("status") in {"suspended", "disabled"}:
+            raise HTTPException(status_code=403, detail="Akun tidak aktif")
         # SEC-003: enforce token_version — bumped on password reset to invalidate
         # all previously-issued access/refresh tokens.
         current_tv = int(user.get("token_version") or 0)

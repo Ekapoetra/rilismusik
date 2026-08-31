@@ -1,13 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
+import { useAuth } from "@/api/AuthContext";
 import { UPLOAD_RELEASE } from "@/constants/testIds";
 import { Trash2, Plus, UploadCloud, Music, ImageIcon } from "lucide-react";
 
 const RELEASE_TYPES = ["single", "ep", "album", "compilation"];
 const newTrack = (artistName = "") => ({
   client_id: crypto.randomUUID(), track_title: "", artist_name: artistName,
-  composer: "", lyricist: "", producer: "", explicit: false, track_number: 1,
+  composer: "", lyricist: "", producer: "", arranger: "", explicit: false, track_number: 1,
+  preview_start_seconds: 0, title_language: "Indonesian", lyric_language: "Indonesian",
+  track_type: "original", featuring_artist_id: "", featuring_artist_name: "",
+  spotify_artist_id: "", youtube_artist_id: "", lyrics: "",
 });
 
 function todayPlus(days) {
@@ -18,6 +22,7 @@ function todayPlus(days) {
 
 export default function UploadRelease() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [step, setStep] = useState(1); // 1: metadata, 2: tracks, 3: assets+submit
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -41,6 +46,21 @@ export default function UploadRelease() {
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
   const [trackFiles, setTrackFiles] = useState({}); // {trackId: File}
+  const [artists, setArtists] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [selectedAddons, setSelectedAddons] = useState([]);
+
+  useEffect(() => {
+    Promise.all([api.get("/artists/"), api.get("/payments/products")])
+      .then(([artistResponse, productResponse]) => {
+        setArtists(artistResponse.data || []);
+        setProducts(productResponse.data || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isPpr = profile?.payment_type !== "annual_subscription" || profile?.subscription_status !== "active";
+  const addonTotal = useMemo(() => products.filter((item) => selectedAddons.includes(item.id)).reduce((sum, item) => sum + Number(item.amount || 0), 0), [products, selectedAddons]);
 
   const onCh = (k) => (e) => setForm({ ...form, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
@@ -126,7 +146,7 @@ export default function UploadRelease() {
     if (!declaration) { setErr("Wajib menyetujui deklarasi hak cipta"); return; }
     setSaving(true);
     try {
-      const { data } = await api.post(`/releases/${release.id}/submit`, { contract_declaration_checked: true });
+      const { data } = await api.post(`/releases/${release.id}/submit`, { contract_declaration_checked: true, addon_product_ids: isPpr ? selectedAddons : [] });
       // success — navigate to detail
       navigate(`/label/releases/${data.id}`);
     } catch (e) {
@@ -144,7 +164,7 @@ export default function UploadRelease() {
 
       <Stepper step={step} />
 
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
+      {err && <div role="alert" data-testid="upload-release-error-alert" className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
 
       {step === 1 && (
         <div className="rm-card p-6 space-y-5">
@@ -208,7 +228,17 @@ export default function UploadRelease() {
                   <Field label="Composer / Pencipta"><input data-testid={`${UPLOAD_RELEASE.trackComposer}-${i}`} className="rm-input" value={t.composer} onChange={onTrackCh(i, "composer")} /></Field>
                   <Field label="Lyricist / Penulis Lirik"><input className="rm-input" value={t.lyricist} onChange={onTrackCh(i, "lyricist")} /></Field>
                   <Field label="Producer"><input className="rm-input" value={t.producer} onChange={onTrackCh(i, "producer")} /></Field>
+                  <Field label="Arranger"><input className="rm-input" value={t.arranger} onChange={onTrackCh(i, "arranger")} data-testid={`upload-release-track-arranger-${i}`} /></Field>
+                  <Field label="Preview mulai (detik)"><input type="number" min="0" max="3600" className="rm-input" value={t.preview_start_seconds} onChange={onTrackCh(i, "preview_start_seconds")} data-testid={`upload-release-track-preview-${i}`} /></Field>
+                  <Field label="Bahasa Judul"><input className="rm-input" value={t.title_language} onChange={onTrackCh(i, "title_language")} data-testid={`upload-release-track-title-language-${i}`} /></Field>
+                  <Field label="Bahasa Lirik"><input className="rm-input" value={t.lyric_language} onChange={onTrackCh(i, "lyric_language")} data-testid={`upload-release-track-lyric-language-${i}`} /></Field>
+                  <Field label="Tipe Track"><select className="rm-input" value={t.track_type} onChange={onTrackCh(i, "track_type")} data-testid={`upload-release-track-type-${i}`}><option value="original">Original</option><option value="cover">Cover</option><option value="live">Live</option></select></Field>
+                  <Field label="Featuring dari Artist"><select className="rm-input" value={t.featuring_artist_id} onChange={(event) => { const artist = artists.find((item) => item.id === event.target.value); const next = [...form.tracks]; next[i] = { ...next[i], featuring_artist_id: event.target.value, featuring_artist_name: artist?.artist_name || "" }; setForm({ ...form, tracks: next }); }} data-testid={`upload-release-track-featuring-select-${i}`}><option value="">— Tidak ada / input baru —</option>{artists.map((artist) => <option key={artist.id} value={artist.id}>{artist.artist_name}</option>)}</select></Field>
+                  <Field label="Featuring baru"><input className="rm-input" value={t.featuring_artist_name} onChange={(event) => { const next = [...form.tracks]; next[i] = { ...next[i], featuring_artist_id: "", featuring_artist_name: event.target.value }; setForm({ ...form, tracks: next }); }} placeholder="Nama artis featuring" data-testid={`upload-release-track-featuring-new-${i}`} /></Field>
+                  <Field label="Spotify Artist ID"><input className="rm-input" value={t.spotify_artist_id} onChange={onTrackCh(i, "spotify_artist_id")} data-testid={`upload-release-track-spotify-id-${i}`} /></Field>
+                  <Field label="YouTube Artist ID"><input className="rm-input" value={t.youtube_artist_id} onChange={onTrackCh(i, "youtube_artist_id")} data-testid={`upload-release-track-youtube-id-${i}`} /></Field>
                   <Field label="Explicit"><label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={t.explicit} onChange={onTrackCh(i, "explicit")} /> Eksplisit</label></Field>
+                  <div className="md:col-span-2"><Field label="Lirik"><textarea className="rm-input min-h-[140px]" value={t.lyrics} onChange={onTrackCh(i, "lyrics")} placeholder="Tulis lirik lengkap atau kosongkan untuk instrumental" data-testid={`upload-release-track-lyrics-${i}`} /></Field></div>
                 </div>
               </div>
             ))}
@@ -277,6 +307,8 @@ export default function UploadRelease() {
             </div>
           </div>
 
+          {isPpr && products.length > 0 && <div className="rm-card p-6 space-y-4" data-testid="upload-release-addons-section"><div><h3 className="font-display font-bold text-xl">Layanan Tambahan</h3><p className="text-sm text-zinc-400 mt-1">Pilihan ini digabung dengan biaya dasar dalam satu invoice setelah rilisan disetujui admin.</p></div><div className="grid md:grid-cols-2 gap-3">{products.map((product) => <label key={product.id} className="flex items-start gap-3 rounded-lg border border-white/10 p-4 cursor-pointer hover:bg-white/[0.03]" data-testid={`upload-release-addon-${product.id}`}><input type="checkbox" className="mt-1" checked={selectedAddons.includes(product.id)} onChange={() => setSelectedAddons((items) => items.includes(product.id) ? items.filter((id) => id !== product.id) : [...items, product.id])} data-testid={`upload-release-addon-checkbox-${product.id}`} /><span className="flex-1"><span className="block font-bold text-sm">{product.name}</span><span className="block text-xs text-zinc-500 mt-1">{product.description}</span></span><span className="text-sm font-bold">Rp {Number(product.amount || 0).toLocaleString("id-ID")}</span></label>)}</div><div className="flex justify-between border-t border-white/10 pt-4 text-sm"><span className="text-zinc-400">Estimasi invoice setelah approval</span><strong data-testid="upload-release-invoice-estimate">Rp {(35000 + addonTotal).toLocaleString("id-ID")}</strong></div></div>}
+
           {/* Declaration & Submit */}
           <div className="rm-card p-6 space-y-4">
             <h3 className="font-display font-bold text-xl tracking-tight">Deklarasi Hak Cipta</h3>
@@ -290,7 +322,7 @@ export default function UploadRelease() {
             <div className="flex justify-between gap-2 pt-2">
               <button className="rm-btn-ghost" onClick={() => setStep(2)}>← Edit Metadata</button>
               <button className="rm-btn-primary" disabled={saving || !declaration} onClick={submitRelease} data-testid={UPLOAD_RELEASE.submitButton}>
-                {saving ? "Memproses…" : "Submit Rilisan"}
+                {saving ? "Memproses…" : isPpr ? "Kirim untuk Review" : "Submit Rilisan"}
               </button>
             </div>
           </div>

@@ -7,6 +7,7 @@ import csv
 import io
 import shutil
 import secrets
+import asyncio
 
 from .deps import (
     db, logger, UPLOAD_DIR,
@@ -42,6 +43,7 @@ from royalty_utils import (
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 from payment_service import PaymentCreateData, create_payment_document, payment_price
+from email_service import send_release_submission_email
 
 # =============================================================================
 #                              RELEASES
@@ -100,6 +102,55 @@ async def get_release(release_id: str, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
     return {**rel, "tracks": tracks}
+
+
+@release_r.get("/{release_id}/copyright-letter")
+async def download_copyright_letter(release_id: str, user: dict = Depends(get_current_user)):
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        if rel.get("label_id") != label["id"]:
+            raise HTTPException(status_code=403, detail="Tidak diizinkan")
+    elif user["role"] not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Tidak diizinkan")
+    if rel.get("status") not in {"approved", "delivered", "live"}:
+        raise HTTPException(status_code=409, detail="Surat hak cipta tersedia setelah rilisan disetujui")
+    document_setting = await db.landing_settings.find_one({"key": "documents"}, {"_id": 0, "value": 1})
+    legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
+    documents = (document_setting or {}).get("value") or {}
+    signature_url = documents.get("signature_url")
+    if not signature_url or "/api/files/" not in signature_url:
+        raise HTTPException(status_code=400, detail="Tanda tangan penanggung jawab belum diunggah di CMS")
+    import storage_service
+    signature_key = signature_url.split("/api/files/", 1)[1]
+    signature_bytes = await storage_service.download_bytes(key=signature_key)
+    stamp_bytes = None
+    stamp_url = documents.get("stamp_url")
+    if stamp_url and "/api/files/" in stamp_url:
+        stamp_bytes = await storage_service.download_bytes(key=stamp_url.split("/api/files/", 1)[1])
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(500)
+    label_doc = await db.labels.find_one({"id": rel.get("label_id")}, {"_id": 0, "label_name": 1})
+    enriched_release = {**rel, "label_name": (label_doc or {}).get("label_name")}
+    from .copyright_generator import generate_copyright_pdf_bytes
+    pdf_bytes = generate_copyright_pdf_bytes(
+        release=enriched_release, tracks=tracks,
+        legal_entity=(legal_setting or {}).get("value") or {}, document_settings=documents,
+        signature_bytes=signature_bytes, stamp_bytes=stamp_bytes,
+    )
+    pdf_key = f"copyright/{release_id}.pdf"
+    try:
+        await storage_service.delete_object(key=pdf_key)
+        await storage_service.upload_bytes(key=pdf_key, data=pdf_bytes, content_type="application/pdf")
+        await db.releases.update_one({"id": release_id}, {"$set": {"copyright_pdf_url": f"/api/files/{pdf_key}", "copyright_pdf_generated_at": now_iso()}})
+    except Exception as exc:
+        logger.warning("Copyright PDF persistence failed release=%s: %s", release_id, exc)
+    safe_title = "".join(char for char in (rel.get("release_title") or release_id) if char.isalnum() or char in "-_ ").strip().replace(" ", "-")
+    return Response(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="Surat-Hak-Cipta-{safe_title}.pdf"'},
+    )
 
 
 @release_r.post("/draft")
@@ -167,6 +218,15 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
             "explicit": t.explicit,
             "audio_url": t.audio_url,
             "isrc": t.isrc,
+            "preview_start_seconds": t.preview_start_seconds,
+            "title_language": t.title_language,
+            "lyric_language": t.lyric_language,
+            "track_type": t.track_type,
+            "featuring_artist_id": t.featuring_artist_id,
+            "featuring_artist_name": t.featuring_artist_name,
+            "spotify_artist_id": t.spotify_artist_id,
+            "youtube_artist_id": t.youtube_artist_id,
+            "lyrics": t.lyrics,
             "status": "draft",
             "created_at": now_iso(),
             "updated_at": now_iso(),
@@ -233,6 +293,15 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
             "explicit": t.explicit,
             "audio_url": t.audio_url,
             "isrc": t.isrc,
+            "preview_start_seconds": t.preview_start_seconds,
+            "title_language": t.title_language,
+            "lyric_language": t.lyric_language,
+            "track_type": t.track_type,
+            "featuring_artist_id": t.featuring_artist_id,
+            "featuring_artist_name": t.featuring_artist_name,
+            "spotify_artist_id": t.spotify_artist_id,
+            "youtube_artist_id": t.youtube_artist_id,
+            "lyrics": t.lyrics,
             "status": "draft",
             "created_at": now_iso(),
             "updated_at": now_iso(),
@@ -348,21 +417,27 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         except Exception:
             is_subscribed = False
 
+    selected_addons = []
+    addon_ids = list(dict.fromkeys(body.addon_product_ids))
+    if addon_ids:
+        selected_addons = await db.payment_products.find(
+            {"id": {"$in": addon_ids}, "active": True}, {"_id": 0, "id": 1, "name": 1, "description": 1, "amount": 1},
+        ).to_list(200)
+        if len(selected_addons) != len(addon_ids):
+            raise HTTPException(status_code=400, detail="Salah satu layanan tambahan tidak tersedia")
+
     if is_subscribed:
+        if selected_addons:
+            raise HTTPException(status_code=400, detail="Layanan tambahan gabungan saat submit hanya tersedia untuk Pay Per Release")
         new_status = "under_review"
         payment_status = "free_subscription"
         payment_id = None
+        base_amount = 0
     else:
-        new_status = "awaiting_payment"
-        amount = await payment_price("pay_per_release")
-        invoice_doc = await create_payment_document(PaymentCreateData(
-            label_id=label["id"], payment_type="pay_per_release", amount=amount,
-            release_id=release_id,
-            description=f"Distribusi rilisan — {rel.get('release_title')}",
-            return_path=f"/label/releases/{release_id}",
-        ))
-        payment_status = "pending"
-        payment_id = invoice_doc["id"]
+        new_status = "submitted"
+        base_amount = await payment_price("pay_per_release")
+        payment_status = "not_generated"
+        payment_id = None
 
     await db.releases.update_one(
         {"id": release_id},
@@ -370,11 +445,30 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             "status": new_status,
             "payment_status": payment_status,
             "payment_id": payment_id,
+            "ppr_base_amount": base_amount,
+            "selected_addons": selected_addons,
+            "selected_addon_product_ids": addon_ids,
             "contract_declaration_checked": True,
             "updated_at": now_iso(),
         }},
     )
     await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
+    admin_ids = await admin_user_ids(("super_admin", "admin_release"))
+    await notify_many(
+        admin_ids, "release_submitted", "Rilisan baru menunggu review",
+        f"{label.get('label_name')} mengirim '{rel.get('release_title')}'.",
+        f"/admin/releases/{release_id}", {"release_id": release_id},
+    )
+    admin_emails = await db.users.find(
+        {"id": {"$in": admin_ids}, "status": {"$nin": ["disabled", "suspended"]}},
+        {"_id": 0, "email": 1},
+    ).to_list(100)
+    for admin_doc in admin_emails:
+        if admin_doc.get("email"):
+            asyncio.create_task(send_release_submission_email(
+                to=admin_doc["email"], label_name=label.get("label_name") or "Label",
+                release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
+            ))
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -388,8 +482,47 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     if user["role"] not in ("super_admin", "admin_release"):
         raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
 
-    if rel["payment_status"] == "pending" and body.action in ("approve", "deliver", "mark_live"):
+    if rel.get("payment_status") == "pending" and body.action in ("deliver", "mark_live"):
         raise HTTPException(status_code=400, detail="Invoice belum dibayar, rilisan tidak bisa diproses")
+
+    if body.action == "approve" and rel.get("payment_status") == "pending" and rel.get("payment_id"):
+        return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+    if body.action == "approve" and rel.get("payment_status") == "not_generated":
+        base_amount = int(await payment_price("pay_per_release"))
+        selected_addons = rel.get("selected_addons") or []
+        addon_amount = sum(int(item.get("amount") or 0) for item in selected_addons)
+        total_amount = base_amount + addon_amount
+        line_items = [{
+            "reference_id": f"release-base-{release_id}",
+            "name": "Biaya Distribusi Pay Per Release",
+            "description": rel.get("release_title"),
+            "amount": base_amount, "quantity": 1,
+        }] + [{
+            "reference_id": f"addon-{item['id']}",
+            "name": item.get("name") or "Layanan Tambahan",
+            "description": item.get("description"),
+            "amount": int(item.get("amount") or 0), "quantity": 1,
+        } for item in selected_addons]
+        invoice_doc = await create_payment_document(PaymentCreateData(
+            label_id=rel["label_id"], payment_type="pay_per_release", amount=total_amount,
+            release_id=release_id, description=f"Distribusi rilisan — {rel.get('release_title')}",
+            return_path=f"/label/releases/{release_id}", reference_id=f"ppr-release-{release_id}",
+            line_items=line_items, base_amount=base_amount, addon_amount=addon_amount,
+            addon_product_ids=[item["id"] for item in selected_addons],
+            approval_required_before_payment=True,
+        ))
+        await db.releases.update_one({"id": release_id}, {"$set": {
+            "status": "awaiting_payment", "payment_status": "pending", "payment_id": invoice_doc["id"],
+            "admin_approved_at": now_iso(), "admin_approved_by": user["id"], "updated_at": now_iso(),
+        }})
+        await log_activity(user["id"], "admin_approve_create_ppr_invoice", "release", release_id, before={"status": rel.get("status")}, after={"status": "awaiting_payment", "payment_id": invoice_doc["id"], "amount": total_amount})
+        await notify_many(
+            await label_user_ids(rel["label_id"]), "release_invoice_ready", "Rilisan disetujui — invoice tersedia",
+            f"'{rel.get('release_title')}' disetujui. Selesaikan pembayaran invoice gabungan Rp {total_amount:,.0f}.",
+            f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
+        )
+        return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
     action_to_status = {
         "approve": "approved",
