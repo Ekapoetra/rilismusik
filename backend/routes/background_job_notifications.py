@@ -20,7 +20,7 @@ def _job_label(job: dict) -> str:
 
 
 async def _recipients(document: dict) -> list[str]:
-    actor = document.get("created_by") or document.get("requested_by") or document.get("uploaded_by") or document.get("user_id")
+    actor = document.get("created_by") or document.get("requested_by") or document.get("uploaded_by") or document.get("submitted_by") or document.get("user_id")
     if actor:
         exists = await db.users.find_one({"id": actor, "status": {"$nin": ["disabled", "suspended"]}}, {"_id": 0, "id": 1})
         if exists:

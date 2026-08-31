@@ -250,6 +250,15 @@ class WithdrawAdminAction(BaseModel):
     note: Optional[str] = None
 
 
+class ManualLegacyWithdrawIn(BaseModel):
+    label_id: str = Field(min_length=1, max_length=100)
+    period_from: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    period_to: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    request_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    paid_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
 # ============ SUPPORT TICKETING ============
 TicketCategory = Literal[
     "takedown",

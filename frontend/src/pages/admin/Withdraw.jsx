@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale } from "lucide-react";
+import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale, PenLine } from "lucide-react";
 import WithdrawImportPanel from "./WithdrawImportPanel";
 import BalanceAuditPanel from "./BalanceAuditPanel";
+import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
@@ -20,6 +21,7 @@ export default function AdminWithdraw() {
   const [items, setItems] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [window, setWindow] = useState(null);
   const [open, setOpen] = useState(null); // selected wd for action
@@ -76,11 +78,12 @@ export default function AdminWithdraw() {
             <option value="rejected">Rejected</option>
           </select>
         </div>
-        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
+        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); setManualOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
+        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2" onClick={() => { setManualOpen((value) => !value); setAuditOpen(false); setImportOpen(false); }} data-testid="admin-manual-legacy-withdraw-toggle"><PenLine className="w-4 h-4" /> {manualOpen ? "Tutup Input Manual" : "Tambah Riwayat Manual"}</button>}
         {me?.role === "super_admin" && (
           <button
             className="rm-btn-ghost text-sm flex items-center gap-2"
-            onClick={() => { setImportOpen((s) => !s); setAuditOpen(false); }}
+            onClick={() => { setImportOpen((s) => !s); setAuditOpen(false); setManualOpen(false); }}
             data-testid="admin-withdraw-import-toggle"
           >
             <History className="w-4 h-4" /> {importOpen ? "Tutup Import Riwayat" : "Import Riwayat Penarikan (CSV)"}
@@ -97,6 +100,10 @@ export default function AdminWithdraw() {
 
       {auditOpen && ["super_admin", "admin_finance"].includes(me?.role) && (
         <div className="rm-card p-5"><BalanceAuditPanel /></div>
+      )}
+
+      {manualOpen && ["super_admin", "admin_finance"].includes(me?.role) && (
+        <div className="rm-card p-5"><h3 className="font-display font-bold text-lg tracking-tight mb-4">Tambah Riwayat Withdraw Legacy</h3><ManualLegacyWithdrawPanel onComplete={load} /></div>
       )}
 
       <div className="rm-card overflow-hidden">
@@ -118,7 +125,7 @@ export default function AdminWithdraw() {
             </div>
             <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight">{fmtAmount(w)}{w.legacy_import && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/15 text-violet-300 align-middle">LEGACY</span>}</div>
             <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-zinc-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
-            <div className="col-span-6 md:col-span-2 text-xs">{w.request_date?.slice(0, 10)}</div>
+            <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1">{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
             <div className="col-span-6 md:col-span-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
             <div className="col-span-12 md:col-span-1 text-right">
               {w.status === "requested" && (

@@ -2,6 +2,7 @@
 
 ## P0 — Production rollout
 - Redeploy current preview code so production mendapat perbaikan login apex/`www` dan konfigurasi official Hostinger mailbox.
+- Redeploy juga membawa fitur Admin Withdraw → Tambah Riwayat Manual Legacy.
 - Setelah redeploy, smoke test login/me/refresh pada `https://rilismusik.com` dan `https://www.rilismusik.com` dari Windows dan macOS.
 - Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
 - Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
@@ -19,6 +20,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Manual legacy withdraw dengan amount otomatis, background settlement, rekonsiliasi saldo, dan label visibility guard.
 - Multi-device JWT sessions and global revocation.
 - Login password visibility.
 - Safe admin deletion/restoration and `admin_marketing` access.

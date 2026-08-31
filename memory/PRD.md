@@ -52,6 +52,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Import publish, mark dana received, rate sync, audit/reconciliation, dan legacy withdrawals bersifat background + resumable.
 - Label rate mass update mendukung XLSX/CSV.
 - Legacy-settled/withdrawn data tidak tampil sebagai saldo label aktif.
+- Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
 
 ### 3.7 Support, Contracts & Documents
 - Tiket Content ID claim memerlukan URL YouTube valid dan deklarasi originalitas.

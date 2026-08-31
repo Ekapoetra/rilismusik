@@ -1,0 +1,56 @@
+{
+  "summary": "Executed requested backend/manual-legacy regressions and frontend withdraw UI checks on preview. Backend flows pass including role-gates, validations, background-job path, idempotency, and label hiding; frontend works for role visibility and layout but misses searchable label picker requirement.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ManualLegacyWithdrawPanel",
+        "issue": "Label selector is plain <select> (non-searchable); requirement requested searchable/select label flow.",
+        "selector": "[data-testid='admin-manual-legacy-label-select']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Admin Withdraw > Tambah Riwayat Withdraw Legacy",
+        "issues": [
+          "Month/date inputs use native browser pickers, producing inconsistent cross-browser UI compared to app-styled form controls."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase47_manual_legacy_withdraw.py",
+    "/app/backend/tests/test_phase32_label_visibility_endpoints.py",
+    "/app/backend/tests/test_iter40_manual_legacy_roles_validations.py",
+    "/app/backend/tests/test_iter34_auth_playbook_public.py",
+    "/app/test_reports/pytest/iter40_phase47_phase32.xml",
+    "/app/test_reports/pytest/iter40_roles_validations_auth.xml"
+  ],
+  "action_items": [
+    "Upgrade manual legacy label picker to searchable combobox/autocomplete to match requested admin UX.",
+    "Optional UI consistency: replace native month/date controls with shared calendar/month picker components if product requires uniform styling across browsers."
+  ],
+  "critical_code_review_comments": [
+    "Backend manual legacy flow is consistent with requested logic: preview sums draft/pending/available, queue+poll completes, worker flips targeted range to withdrawn+legacy_settled, keeps post-cutoff lines untouched, updates cutoff/balances, and enforces idempotency.",
+    "Role enforcement is correct: only super_admin/admin_finance can access manual preview/commit APIs; admin_support receives 403.",
+    "Auth playbook checks pass in this run: bcrypt $2b$ hash, HttpOnly+Secure login cookies, credentialed explicit-origin CORS, brute-force lockout after 5 failures, and seed_admin password update behavior."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter40_manual_legacy_roles_validations.py",
+    "/app/test_reports/iteration_40.json"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 passed)",
+    "frontend": "90% (core role/toggle/layout checks passed; searchable picker requirement missing)"
+  },
+  "seed_data_creation": "Temporary Mongo test documents created inside backend pytest and cleaned up in finally blocks.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "UI checks used preview URL from frontend/.env and credentials from /app/memory/test_credentials.md. Finance role can open manual panel; support role cannot see manual toggle. Desktop/mobile no horizontal overflow observed on Admin Withdraw. Preview can return business message 'Tidak ada royalti aktif...' depending selected label/range on live data.",
+  "rca of the issue": "Searchable-label requirement gap: current component /app/frontend/src/components/admin/ManualLegacyWithdrawPanel.jsx renders native <select> for label input. This satisfies selection but not searchable UX requested by user. Mitigation: replace with searchable combobox (with label_name filter + selected label_id payload preserved). No API flow is MOCKED."
+}

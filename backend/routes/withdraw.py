@@ -24,7 +24,7 @@ from models import (
     CreateReleasePaymentIn,
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
-    WithdrawRequestIn, WithdrawAdminAction,
+    WithdrawRequestIn, WithdrawAdminAction, ManualLegacyWithdrawIn,
     TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
@@ -47,6 +47,11 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 #                              WITHDRAW
 # =============================================================================
 withdraw_r = APIRouter(prefix="/withdraw", tags=["withdraw"])
+
+
+def _require_finance_admin(user: dict) -> None:
+    if user.get("role") not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +223,24 @@ async def admin_list_withdraws(user: dict = Depends(require_admin), status: Opti
     for it in items:
         it["label_name"] = name_map.get(it["label_id"])
     return items
+
+
+@withdraw_r.post("/admin/legacy-manual/preview")
+async def admin_preview_manual_legacy_withdraw(
+    body: ManualLegacyWithdrawIn, user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .manual_legacy_withdrawal import preview_manual_legacy_withdrawal
+    return await preview_manual_legacy_withdrawal(body)
+
+
+@withdraw_r.post("/admin/legacy-manual")
+async def admin_create_manual_legacy_withdraw(
+    body: ManualLegacyWithdrawIn, user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .manual_legacy_withdrawal import queue_manual_legacy_withdrawal
+    return await queue_manual_legacy_withdrawal(body, user)
 
 
 @withdraw_r.post("/admin/{wd_id}/action")
