@@ -31,6 +31,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Dashboard, artist, release, analytics, royalty, withdraw, WAMI, support, contracts, invoices, profile, notifications.
 - Saldo selalu diturunkan dari `royalty_lines` pending/available non-legacy, bukan lifetime rollup.
 - Rekening awal diverifikasi admin; perubahan rekening berjalan melalui approval dua arah.
+- Admin Label Management menampilkan saldo available per label dalam Rupiah, tidak termasuk dana withdrawn/legacy-settled atau dana yang sedang direservasi untuk withdraw aktif.
 
 ### 3.4 Release Management
 - Draft release + multi-track audio/cover upload ke R2.

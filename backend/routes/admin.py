@@ -93,6 +93,8 @@ async def admin_list_labels(user: dict = Depends(require_admin), q: Optional[str
         filt["label_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
     result_limit = 200 if q else 1000
     items = await db.labels.find(filt, {"_id": 0}).sort("created_at", -1).to_list(result_limit)
+    for item in items:
+        item["balance_available_idr"] = max(int(item.get("balance_available_idr") or 0), 0)
     return items
 
 

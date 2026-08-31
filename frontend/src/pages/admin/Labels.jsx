@@ -4,6 +4,10 @@ import { api } from "@/api/client";
 import { UserPlus, Copy, FileSpreadsheet, X } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 
+const fmtIDR = (value) => new Intl.NumberFormat("id-ID", {
+  style: "currency", currency: "IDR", maximumFractionDigits: 0,
+}).format(Number(value || 0));
+
 export default function AdminLabels() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -52,17 +56,18 @@ export default function AdminLabels() {
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
-          <div className="col-span-4">Label</div>
-          <div className="col-span-3">Email</div>
+          <div className="col-span-3">Label</div>
+          <div className="col-span-2">Email</div>
           <div className="col-span-2">Tipe</div>
-          <div className="col-span-2">Status</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-3 text-right" data-testid="admin-labels-available-balance-header">Saldo Available</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
         {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Belum ada label.</div> : items.map((l) => {
           const unclaimed = !l.user_id || l.account_status === "legacy_unclaimed";
           return (
             <div key={l.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`admin-label-row-${l.id}`}>
-              <div className="col-span-12 md:col-span-4">
+              <div className="col-span-12 md:col-span-3">
                 <div className="font-semibold flex items-center gap-2">
                   {l.label_name}
                   {unclaimed && (
@@ -74,9 +79,9 @@ export default function AdminLabels() {
                 </div>
                 <div className="text-xs text-zinc-500">{l.pic_name || "—"}</div>
               </div>
-              <div className="col-span-6 md:col-span-3 text-sm truncate">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
+              <div className="col-span-6 md:col-span-2 text-sm truncate">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
               <div className="col-span-6 md:col-span-2 text-sm capitalize">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
-              <div className="col-span-6 md:col-span-2">
+              <div className="col-span-4 md:col-span-1">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${
                   l.account_status === "active" ? "bg-emerald-500/15 text-emerald-300"
                   : l.account_status === "legacy_unclaimed" ? "bg-amber-500/15 text-amber-300"
@@ -84,7 +89,12 @@ export default function AdminLabels() {
                   : "bg-red-500/15 text-red-300"
                 }`}>{(l.account_status || "—").replace(/_/g, " ")}</span>
               </div>
-              <div className="col-span-6 md:col-span-1 text-right space-y-1">
+              <div className="col-span-6 md:col-span-3 text-right" data-testid={`admin-label-available-balance-${l.id}`}>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500 md:hidden">Saldo Available</div>
+                <div className="font-display font-bold tabular-nums text-emerald-300">{fmtIDR(l.balance_available_idr)}</div>
+                <div className="text-[10px] text-zinc-600">belum withdrawn</div>
+              </div>
+              <div className="col-span-2 md:col-span-1 text-right space-y-1">
                 <Link to={`/admin/labels/${l.id}`} className="block text-sm font-semibold rm-gradient-text" data-testid={`admin-label-detail-${l.id}`}>Detail →</Link>
                 {unclaimed && (
                   <button

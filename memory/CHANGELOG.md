@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-08-31 — Phase 49: Available Balance in Label Management
+- Added `Saldo Available` column to Admin → Label Management for every label.
+- Values are formatted in Indonesian Rupiah and use the reconciled `balance_available_idr`, representing funds not withdrawn/legacy-settled and net of active withdrawal reservations.
+- API normalizes missing/negative stored values to zero for safe display.
+- Regression API 2/2 passed, frontend production build passed, and desktop/mobile overflow checks passed.
+
 ## 2026-08-31 — Phase 48: Complete Label Search in Manual Withdraw
 - Klarifikasi: picker manual legacy withdraw menampilkan semua dokumen label, tidak memfilter berdasarkan pernah/belum withdraw.
 - Fixed initial-list limitation: input sekarang menjalankan server-side search ke `/api/admin/labels?q=...`, sehingga label lama di luar 1.000 hasil awal tetap dapat ditemukan.
