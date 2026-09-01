@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
-import { UserPlus, Copy, FileSpreadsheet, X } from "lucide-react";
+import { UserPlus, Copy, FileSpreadsheet, X, RefreshCw, AlertCircle } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 
 const fmtIDR = (value) => new Intl.NumberFormat("id-ID", {
@@ -20,13 +20,39 @@ export default function AdminLabels() {
   const [sort, setSort] = useState("balance_desc");
   const [creating, setCreating] = useState(null);  // label being processed
   const [created, setCreated] = useState(null);   // success result with plaintext password
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [balanceSync, setBalanceSync] = useState(null);
+  const loadRef = useRef(null);
 
   const load = useCallback(async () => {
-    const [sortBy, sortDir] = sort.split("_");
-    const { data } = await api.get("/admin/labels", { params: { q: q || undefined, status: status || undefined, sort_by: sortBy, sort_dir: sortDir } });
-    setItems(data);
+    setLoading(true); setError("");
+    try {
+      const [sortBy, sortDir] = sort.split("_");
+      const { data } = await api.get("/admin/labels", { params: { q: q || undefined, status: status || undefined, sort_by: sortBy, sort_dir: sortDir } });
+      setItems(data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Daftar label gagal dimuat. Silakan coba lagi.");
+    } finally { setLoading(false); }
   }, [q, status, sort]);
+  loadRef.current = load;
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let timer;
+    const check = async () => {
+      try {
+        const { data } = await api.get("/admin/labels/balance-refresh/status");
+        setBalanceSync(data);
+        if (data.status === "running") timer = setTimeout(check, 3000);
+        else if (data.status === "done") loadRef.current?.();
+      } catch { setBalanceSync(null); }
+    };
+    api.post("/admin/labels/balance-refresh").then(({ data }) => {
+      setBalanceSync(data);
+      if (data.status === "running" || data.queued) timer = setTimeout(check, 1500);
+    }).catch(() => {});
+    return () => { if (timer) clearTimeout(timer); };
+  }, []);
 
   const onCreated = () => {
     setCreating(null);
@@ -70,6 +96,9 @@ export default function AdminLabels() {
         </div>
         <button className="rm-btn-ghost" onClick={load} data-testid="admin-labels-filter">Filter</button>
       </div>
+      {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300" data-testid="admin-labels-error"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>}
+      {balanceSync?.status === "running" && <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200" data-testid="admin-labels-balance-sync"><RefreshCw className="mr-2 inline h-4 w-4 animate-spin" />Menyelaraskan saldo label di background. Daftar tetap dapat digunakan.</div>}
+      {balanceSync?.status === "error" && <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" data-testid="admin-labels-balance-sync-error"><AlertCircle className="mr-2 inline h-4 w-4" />Sinkronisasi saldo gagal. Daftar tetap tersedia; coba buka ulang halaman atau jalankan Audit Saldo.</div>}
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
@@ -81,7 +110,7 @@ export default function AdminLabels() {
           <div className="col-span-2 text-right" data-testid="admin-labels-last-withdraw-header">Withdraw Terakhir</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
-        {items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm">Belum ada label.</div> : items.map((l) => {
+        {loading ? <div className="p-8 text-center text-zinc-500 text-sm" data-testid="admin-labels-loading">Memuat label…</div> : items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm" data-testid="admin-labels-empty">Belum ada label yang sesuai filter.</div> : items.map((l) => {
           const unclaimed = !l.user_id || l.account_status === "legacy_unclaimed";
           return (
             <div key={l.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`admin-label-row-${l.id}`}>

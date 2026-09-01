@@ -8,6 +8,7 @@ import io
 import shutil
 import secrets
 import re
+from pymongo.collation import Collation
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -96,22 +97,33 @@ async def admin_list_labels(
     if q:
         filt["label_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
     result_limit = 200 if q else 1000
-    candidate_limit = 1000 if q else 5000
-    items = await db.labels.find(filt, {"_id": 0}).to_list(candidate_limit)
-    from .balance_utils import compute_labels_available_balances
-    computed_balances = await compute_labels_available_balances(items)
+    sort_field = {"balance": "balance_available_idr", "label": "label_name", "email": "email"}[sort_by]
+    direction = 1 if sort_dir == "asc" else -1
+    sort_spec = [(sort_field, direction)]
+    if sort_field != "label_name":
+        sort_spec.append(("label_name", 1))
+    cursor = db.labels.find(filt, {"_id": 0}).sort(sort_spec)
+    if sort_by in {"label", "email"}:
+        cursor = cursor.collation(Collation(locale="en", strength=2, numericOrdering=True))
+    items = await cursor.to_list(result_limit)
     for item in items:
         item["stored_balance_available_idr"] = max(int(item.get("balance_available_idr") or 0), 0)
-        item["balance_available_idr"] = computed_balances.get(str(item.get("id")), 0)
-    if sort_by == "balance":
-        if sort_dir == "desc":
-            items.sort(key=lambda item: (-item["balance_available_idr"], str(item.get("label_name") or "").casefold()))
-        else:
-            items.sort(key=lambda item: (item["balance_available_idr"], str(item.get("label_name") or "").casefold()))
-    else:
-        field = "label_name" if sort_by == "label" else "email"
-        items.sort(key=lambda item: str(item.get(field) or "").casefold(), reverse=sort_dir == "desc")
-    return items[:result_limit]
+        item["balance_available_idr"] = item["stored_balance_available_idr"]
+    return items
+
+
+@admin_r.post("/labels/balance-refresh")
+async def admin_start_label_balance_refresh(
+    force: bool = False, user: dict = Depends(require_admin),
+):
+    from .label_balance_snapshot import start_label_balance_snapshot_refresh
+    return await start_label_balance_snapshot_refresh(force=force, reason=f"admin_labels:{user['id']}")
+
+
+@admin_r.get("/labels/balance-refresh/status")
+async def admin_label_balance_refresh_status(user: dict = Depends(require_admin)):
+    from .label_balance_snapshot import snapshot_status
+    return await snapshot_status()
 
 
 @admin_r.get("/labels/{label_id}")

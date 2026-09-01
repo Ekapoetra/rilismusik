@@ -14,6 +14,7 @@ from email_service import send_contract_expiry_email, send_subscription_expiry_e
 from payment_service import poll_payment, xendit_configured
 from .monthly_royalty_email import send_monthly_summaries
 from .background_job_notifications import notify_completed_background_jobs
+from .label_balance_snapshot import start_label_balance_snapshot_refresh
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -311,6 +312,12 @@ def start_scheduler():
         notify_completed_background_jobs, "interval", minutes=5,
         id="background_job_completion_notifications", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=120),
+    )
+    scheduler.add_job(
+        start_label_balance_snapshot_refresh, "interval", hours=1,
+        kwargs={"reason": "hourly_scheduler"},
+        id="label_balance_snapshot_refresh", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
     )
     scheduler.start()
 

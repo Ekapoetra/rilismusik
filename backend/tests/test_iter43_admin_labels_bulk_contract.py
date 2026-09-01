@@ -47,6 +47,14 @@ def test_admin_labels_default_balance_sort_uses_computed_values_and_no_objectid_
         login = requests.post(f"{API}/auth/login", json=FINANCE, timeout=30)
         assert login.status_code == 200, login.text
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        assert requests.post(f"{API}/admin/labels/balance-refresh", params={"force": "true"}, headers=headers, timeout=10).status_code == 200
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            refresh = requests.get(f"{API}/admin/labels/balance-refresh/status", headers=headers, timeout=10).json()
+            if refresh.get("status") in {"done", "error"}:
+                break
+            time.sleep(0.3)
+        assert refresh["status"] == "done", refresh
 
         start = time.perf_counter()
         response = requests.get(
@@ -61,7 +69,7 @@ def test_admin_labels_default_balance_sort_uses_computed_values_and_no_objectid_
 
         items = response.json()
         by_id = {item["id"]: item for item in items}
-        assert by_id[label_low_computed["id"]]["stored_balance_available_idr"] == 99_000_000
+        assert by_id[label_low_computed["id"]]["stored_balance_available_idr"] == 0
         assert by_id[label_low_computed["id"]]["balance_available_idr"] == 0
         assert by_id[label_high_computed["id"]]["balance_available_idr"] == 5_000_000
         ordered_ids = [item["id"] for item in items if item["id"] in {label_low_computed["id"], label_high_computed["id"]}]

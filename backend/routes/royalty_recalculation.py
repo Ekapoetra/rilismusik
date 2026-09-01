@@ -277,3 +277,8 @@ async def trigger_royalty_caches() -> None:
         asyncio.create_task(schedule_monthly_analytics_recompute(reason="royalty_recalculation"))
     except Exception as exc:
         logger.warning("[ROYALTY RECALC] analytics cache trigger failed: %s", exc)
+    try:
+        from routes.label_balance_snapshot import start_label_balance_snapshot_refresh
+        asyncio.create_task(start_label_balance_snapshot_refresh(force=True, reason="royalty_recalculation"))
+    except Exception as exc:
+        logger.warning("[ROYALTY RECALC] label balance snapshot trigger failed: %s", exc)

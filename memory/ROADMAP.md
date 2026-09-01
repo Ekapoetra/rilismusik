@@ -1,6 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 54 immediately to remove the `/api/admin/labels` 524 timeout and restore visible Label Management rows.
+- After deploy, wait for the background balance snapshot to finish, then verify KSO list/detail parity.
 - Redeploy the Label Management balance parity fix; production currently still displays the stale stored balance until redeploy.
 - Post-deploy, verify KSO Music Distribution list balance equals its detail withdrawable balance.
 - Redeploy preview auth frontend/backend so production receives Google Login, improved password reset, and merge-safe R2 CORS startup behavior.

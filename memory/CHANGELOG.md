@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-01 — Phase 54: Nonblocking Label Balance Snapshot
+- Production RCA: `/api/admin/labels` returned Cloudflare 524 after ~1 minute because live royalty aggregation ran inside the list request; frontend then misleadingly showed an empty list.
+- Label list endpoint is fast again and reads `balance_available_idr` materialized on label documents.
+- Source-of-truth reconciliation moved to a nonblocking background snapshot worker with status endpoint, hourly scheduler, startup trigger, and royalty-recalculation trigger.
+- Label Management immediately renders rows, shows loading/API errors explicitly, shows background sync status, and reloads when reconciliation completes.
+- Deterministic stale `59,557,995 → 13,149,228` materialization and list/detail parity remain covered.
+- Independent iteration 44: 5/5 backend passed, build passed, normal list/error UI passed; no application API MOCKED.
+
 ## 2026-09-01 — Phase 53: Label List/Detail Balance Parity
 - RCA: Label Management displayed stale `labels.balance_available_idr`, while Label Detail computed the live withdrawable amount from `royalty_lines`.
 - Admin label list now performs one bulk royalty aggregation and one active-withdraw aggregation for all candidate labels—no per-label N+1 queries.

@@ -1,6 +1,7 @@
 """Phase 49 — Label Management available-balance column contract."""
 import os
 import uuid
+import time
 
 import pymongo
 import requests
@@ -34,10 +35,18 @@ def test_admin_label_list_exposes_nonnegative_reconciled_available_balance():
         login = requests.post(f"{API}/auth/login", json=FINANCE, timeout=30)
         assert login.status_code == 200, login.text
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        assert requests.post(f"{API}/admin/labels/balance-refresh", params={"force": "true"}, headers=headers, timeout=10).status_code == 200
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            refresh = requests.get(f"{API}/admin/labels/balance-refresh/status", headers=headers, timeout=10).json()
+            if refresh.get("status") in {"done", "error"}:
+                break
+            time.sleep(0.3)
+        assert refresh["status"] == "done", refresh
         response = requests.get(f"{API}/admin/labels", params={"q": f"Phase49"}, headers=headers, timeout=30)
         assert response.status_code == 200, response.text
         by_id = {item["id"]: item for item in response.json()}
-        assert by_id[positive_id]["stored_balance_available_idr"] == 59_557_995
+        assert by_id[positive_id]["stored_balance_available_idr"] == 13_149_228
         assert by_id[positive_id]["balance_available_idr"] == 13_149_228
         assert by_id[negative_id]["balance_available_idr"] == 0
         detail = requests.get(f"{API}/admin/labels/{positive_id}", headers=headers, timeout=30)
@@ -47,6 +56,14 @@ def test_admin_label_list_exposes_nonnegative_reconciled_available_balance():
             "id": f"phase49-active-withdraw-{suffix}", "label_id": positive_id,
             "status": "requested", "legacy_import": False, "amount_idr": 1_000_000,
         })
+        assert requests.post(f"{API}/admin/labels/balance-refresh", params={"force": "true"}, headers=headers, timeout=10).status_code == 200
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            refresh = requests.get(f"{API}/admin/labels/balance-refresh/status", headers=headers, timeout=10).json()
+            if refresh.get("status") in {"done", "error"}:
+                break
+            time.sleep(0.3)
+        assert refresh["status"] == "done", refresh
         reserved_list = requests.get(f"{API}/admin/labels", params={"q": f"Phase49 Positive {suffix}"}, headers=headers, timeout=30)
         reserved_detail = requests.get(f"{API}/admin/labels/{positive_id}", headers=headers, timeout=30)
         assert reserved_list.status_code == reserved_detail.status_code == 200
