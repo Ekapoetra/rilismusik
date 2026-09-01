@@ -7,6 +7,10 @@ import csv
 import io
 import shutil
 import secrets
+import hashlib
+import httpx
+from urllib.parse import urlsplit
+from pymongo.errors import DuplicateKeyError
 
 from .deps import (
     db, logger, UPLOAD_DIR,
@@ -16,7 +20,7 @@ from .deps import (
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
 )
 from models import (
-    RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
+    RegisterLabelIn, LoginIn, GoogleSessionIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
     LabelProfileUpdate, BankAccountIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
     ArtistIn, ArtistUpdateIn,
@@ -52,8 +56,31 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 auth = APIRouter(prefix="/auth", tags=["auth"])
 
 
+async def fetch_google_session_data(session_id: str) -> dict:
+    session_url = os.environ["EMERGENT_AUTH_SESSION_URL"]
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(session_url, headers={"X-Session-ID": session_id})
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Google session exchange failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Sesi Google tidak valid atau sudah kedaluwarsa") from exc
+
+
+def _trusted_request_origin(request: Request) -> Optional[str]:
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if not origin:
+        return None
+    parsed = urlsplit(origin)
+    forwarded_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip().lower()
+    if parsed.scheme == "https" and parsed.netloc.lower() == forwarded_host:
+        return origin
+    return None
+
+
 @auth.post("/register")
-async def register(body: RegisterLabelIn, response: Response):
+async def register(body: RegisterLabelIn, response: Response, request: Request):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Email sudah terdaftar")
@@ -133,7 +160,7 @@ async def register(body: RegisterLabelIn, response: Response):
             "created_at": now_iso(),
         })
         # Send verification email (best-effort, won't block registration)
-        await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
+        await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token, base_url=_trusted_request_origin(request))
         session_id = secrets.token_urlsafe(18)
         access = create_access_token(user_id, email, LABEL_ROLE, 0, session_id)
         refresh = create_refresh_token(user_id, 0, session_id)
@@ -226,7 +253,7 @@ async def register(body: RegisterLabelIn, response: Response):
         "created_at": now_iso(),
     })
     logger.debug("Verification token issued for user_id=%s", user_id)
-    await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token)
+    await send_verification_email(to=email, pic_name=body.pic_name, token=verify_token, base_url=_trusted_request_origin(request))
 
     session_id = secrets.token_urlsafe(18)
     access = create_access_token(user_id, email, LABEL_ROLE, 0, session_id)
@@ -306,6 +333,64 @@ async def login(body: LoginIn, response: Response, request: Request):
     return payload
 
 
+@auth.post("/google/session")
+async def google_session_login(body: GoogleSessionIn, response: Response, request: Request):
+    session_id_hash = hashlib.sha256(body.session_id.encode("utf-8")).hexdigest()
+    if await db.google_auth_sessions.find_one({"session_id_hash": session_id_hash}, {"_id": 0, "id": 1}):
+        raise HTTPException(status_code=409, detail="Sesi Google sudah digunakan")
+    provider_data = await fetch_google_session_data(body.session_id)
+    email = str(provider_data.get("email") or "").lower().strip()
+    provider_user_id = str(provider_data.get("id") or "").strip()
+    provider_session_token = str(provider_data.get("session_token") or "").strip()
+    if not email or not provider_user_id or not provider_session_token:
+        raise HTTPException(status_code=401, detail="Data akun Google tidak lengkap")
+    if provider_data.get("email_verified") is False:
+        raise HTTPException(status_code=401, detail="Email Google belum terverifikasi")
+    user = await db.users.find_one({"email": email})
+    if not user or user.get("role") != LABEL_ROLE:
+        raise HTTPException(status_code=403, detail="Google Login hanya tersedia untuk akun label yang sudah terdaftar dengan email yang sama")
+    if user.get("status") in {"suspended", "disabled"}:
+        raise HTTPException(status_code=403, detail="Akun tidak aktif")
+    label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
+    if label and label.get("account_status") == "blacklisted":
+        raise HTTPException(status_code=403, detail=f"Akun di-blacklist. Alasan: {label.get('blacklist_reason') or 'Hubungi admin'}")
+
+    now = now_iso()
+    update_fields = {
+        "google_provider_id": provider_user_id,
+        "google_picture": provider_data.get("picture"),
+        "google_last_login_at": now,
+        "updated_at": now,
+    }
+    if not user.get("email_verified_at"):
+        update_fields["email_verified_at"] = now
+        user["email_verified_at"] = now
+    await db.users.update_one({"id": user["id"]}, {"$set": update_fields})
+    app_session_id = secrets.token_urlsafe(18)
+    provider_token_hash = hashlib.sha256(provider_session_token.encode("utf-8")).hexdigest()
+    try:
+        await db.google_auth_sessions.insert_one({
+            "id": new_id(), "user_id": user["id"], "email": email,
+            "provider_user_id": provider_user_id, "session_id_hash": session_id_hash,
+            "provider_session_token_hash": provider_token_hash,
+            "app_session_id": app_session_id,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+            "created_at": now, "last_seen_at": now,
+            "request_origin": _trusted_request_origin(request),
+        })
+    except DuplicateKeyError as exc:
+        raise HTTPException(status_code=409, detail="Sesi Google sudah digunakan") from exc
+    token_version = int(user.get("token_version") or 0)
+    access = create_access_token(user["id"], email, LABEL_ROLE, token_version, app_session_id)
+    refresh = create_refresh_token(user["id"], token_version, app_session_id)
+    set_auth_cookies(response, access, refresh)
+    await log_activity(user["id"], "google_login", "user", user["id"], after={"provider": "google"})
+    return {
+        "user": public_user(user), "label": redact_label_for_self(label) if label else None,
+        "access_token": access, "refresh_token": refresh,
+    }
+
+
 @auth.post("/logout")
 async def logout(response: Response):
     clear_auth_cookies(response)
@@ -362,7 +447,7 @@ async def verify_email(body: VerifyEmailIn):
 
 
 @auth.post("/resend-verification")
-async def resend_verification(user: dict = Depends(get_current_user)):
+async def resend_verification(request: Request, user: dict = Depends(get_current_user)):
     if user.get("email_verified_at"):
         return {"ok": True, "already_verified": True}
     token = secrets.token_urlsafe(32)
@@ -378,12 +463,12 @@ async def resend_verification(user: dict = Depends(get_current_user)):
     # Look up label.pic_name (fall back to email local part for sub-admins/artists)
     label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "pic_name": 1})
     pic_name = (label or {}).get("pic_name") or user["email"].split("@")[0]
-    await send_verification_email(to=user["email"], pic_name=pic_name, token=token)
+    await send_verification_email(to=user["email"], pic_name=pic_name, token=token, base_url=_trusted_request_origin(request))
     return {"ok": True}
 
 
 @auth.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordIn):
+async def forgot_password(body: ForgotPasswordIn, request: Request):
     user = await db.users.find_one({"email": body.email.lower().strip()})
     # Always return ok to prevent email enumeration
     if not user:
@@ -400,7 +485,7 @@ async def forgot_password(body: ForgotPasswordIn):
     # SECURITY: Never include the token in the HTTP response — it must only be
     # delivered to the user's inbox via email. Logging at DEBUG level only.
     logger.debug("Password reset token issued for user_id=%s", user["id"])
-    await send_password_reset_email(to=user["email"], token=token)
+    await send_password_reset_email(to=user["email"], token=token, base_url=_trusted_request_origin(request))
     return {"ok": True}
 
 

@@ -26,6 +26,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Setiap sesi memiliki `sid`; `token_version` hanya digunakan untuk global revocation.
 - Password reset, perubahan email, disable/suspend, dan penghapusan akses admin mengakhiri semua sesi lama.
 - Brute-force protection dan email verification tetap aktif.
+- Forgot-password mengirim link email berbasis trusted active origin; reset bersifat single-use dan mencabut seluruh sesi lama.
+- Google Login tersedia pada Login/Register hanya untuk akun label existing dengan email Google yang sama; Google tidak membuat akun baru otomatis.
 
 ### 3.3 Label Dashboard
 - Dashboard, artist, release, analytics, royalty, withdraw, WAMI, support, contracts, invoices, profile, notifications.
@@ -50,6 +52,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 
 ### 3.6 Royalty & Large Data
 - Massive Believe CSV (80MB+) memakai direct upload R2 dan background workers.
+- R2 bucket CORS merge-safe mengizinkan origin production apex/`www` dan preview secara bersamaan untuk direct PUT upload.
 - Periode hanya berasal dari kolom `Bulan laporan`; baris tanpa periode valid ditolak.
 - Import publish, mark dana received, rate sync, audit/reconciliation, dan legacy withdrawals bersifat background + resumable.
 - Label rate mass update mendukung XLSX/CSV.

@@ -1,0 +1,60 @@
+{
+  "summary": "Executed requested auth+R2 regressions, added forgot/reset password regression, built frontend, and ran Playwright smoke on preview and production domains.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Production Login/Register/Auth Routes (www)",
+        "issue": "Production www domain does not show Google buttons and does not expose new callback/reset behavior testids seen in preview.",
+        "selector": "[data-testid='login-google-auth-button'], [data-testid='register-google-auth-button'], [data-testid='google-auth-callback'], [data-testid='reset-token-input']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Preview-to-production rollout parity",
+        "issue": "Preview domain has new auth implementation, but production www appears to still serve older auth pages/routes.",
+        "affected_selectors": [
+          "[data-testid='login-google-auth-button']",
+          "[data-testid='register-google-auth-button']",
+          "[data-testid='google-auth-callback-error']",
+          "[data-testid='reset-password-error']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase52_google_auth_and_r2_cors.py",
+    "/app/backend/tests/test_iter34_auth_playbook_public.py",
+    "/app/backend/tests/test_phase41_multidevice_auth.py",
+    "/app/backend/tests/test_iter42_forgot_reset_flow.py",
+    "/app/test_reports/pytest/iter42_auth_google_r2.xml",
+    "/app/test_reports/pytest/iter42_forgot_reset.xml"
+  ],
+  "action_items": [
+    "Deploy/sync preview auth frontend bundle to production www/apex so Google buttons and callback/reset flows match tested implementation.",
+    "Post-deploy, rerun production smoke for /login, /register, /reset-password?token=..., and /#session_id=invalid-session-id.",
+    "Optional hardening: remove default fallback FRONTEND_URL in backend/email_service.py to enforce fail-fast env config in all environments."
+  ],
+  "critical_code_review_comments": [
+    "Backend auth + R2 logic is aligned with requested behavior: single-use Google session exchange (409 replay), trusted same-origin link origin checks, credentialed explicit CORS, and merge-safe R2 CORS preservation.",
+    "email_service.py still contains a hardcoded FRONTEND_URL default preview domain fallback; this can generate wrong links when env is missing and weakens fail-fast config policy."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter42_forgot_reset_flow.py",
+    "/app/test_reports/iteration_42.json"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 passed)",
+    "frontend": "Preview 100% for requested auth smoke; Production www failed parity checks"
+  },
+  "seed_data_creation": "Temporary users/labels/reset tokens created in pytest and cleaned up in finally blocks.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Pytest command run: test_phase52_google_auth_and_r2_cors + test_iter34_auth_playbook_public + test_phase41_multidevice_auth + iter42 forgot/reset regression. Frontend build succeeded. Preview URL validates new auth UI behavior; production www still appears on old auth build/routing.",
+  "rca of the issue": "RCA (current evidence): implementation is present and working on preview but not reflected on production www frontend bundle/routes. Reproduction: open https://www.rilismusik.com/login and /register; Google buttons testids absent. Open /reset-password?token=abc: token input still visible; open /#session_id=invalid-session-id: callback component absent. Mitigation: ensure production frontend deployment targets www/apex, then rerun smoke against production domain."
+}

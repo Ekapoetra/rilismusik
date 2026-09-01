@@ -106,9 +106,17 @@ def _ensure_cors_sync(allowed_origins: list) -> dict:
     """Idempotently configure CORS rules on the R2 bucket so browsers can do
     PUT requests against presigned URLs from the frontend origins.
     """
+    merged_origins = {origin.rstrip("/") for origin in allowed_origins if origin and origin != "*"}
+    try:
+        current = _client().get_bucket_cors(Bucket=R2_BUCKET)
+        for rule in current.get("CORSRules", []):
+            merged_origins.update(origin.rstrip("/") for origin in rule.get("AllowedOrigins", []) if origin and origin != "*")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") not in ("NoSuchCORSConfiguration", "NoSuchCORS", "404"):
+            raise
     cors_config = {
         "CORSRules": [{
-            "AllowedOrigins": allowed_origins,
+            "AllowedOrigins": sorted(merged_origins),
             "AllowedMethods": ["GET", "PUT", "HEAD"],
             "AllowedHeaders": ["*"],
             "ExposeHeaders": ["ETag"],
@@ -117,6 +125,10 @@ def _ensure_cors_sync(allowed_origins: list) -> dict:
     }
     _client().put_bucket_cors(Bucket=R2_BUCKET, CORSConfiguration=cors_config)
     return cors_config
+
+
+def _get_cors_sync() -> dict:
+    return _client().get_bucket_cors(Bucket=R2_BUCKET)
 
 
 def _download_to_file_sync(*, key: str, local_path: str) -> int:
@@ -193,6 +205,16 @@ async def ensure_cors(allowed_origins: list) -> Optional[dict]:
         return await asyncio.to_thread(_ensure_cors_sync, allowed_origins)
     except (BotoCoreError, ClientError) as e:
         logger.warning("[R2] ensure_cors failed: %s", e)
+        return None
+
+
+async def get_cors_config() -> Optional[dict]:
+    if not is_configured():
+        return None
+    try:
+        return await asyncio.to_thread(_get_cors_sync)
+    except (BotoCoreError, ClientError) as e:
+        logger.warning("[R2] get_cors failed: %s", e)
         return None
 
 

@@ -41,6 +41,8 @@ async def seed_indexes_and_admins():
     await db_bg.service_orders.create_index("id", unique=True)
     await db_bg.service_orders.create_index("label_id")
     await db_bg.password_reset_tokens.create_index("token")
+    await db_bg.google_auth_sessions.create_index("session_id_hash", unique=True)
+    await db_bg.google_auth_sessions.create_index([("user_id", 1), ("created_at", -1)])
     await db_bg.email_verification_tokens.create_index("token")
     await db_bg.login_attempts.create_index("identifier")
     await db_bg.activity_logs.create_index("created_at")

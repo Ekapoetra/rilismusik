@@ -200,18 +200,10 @@ async def _bootstrap_async():
         logger.exception("start_scheduler failed: %s", e)
 
     try:
-        # R2 CORS allow-list comes from the same source as backend CORS
-        # (CORS_ORIGINS env). Falls back to FRONTEND_URL when CORS_ORIGINS
-        # is empty. Wildcard "*" is passed straight through.
-        cors_env = os.environ.get("CORS_ORIGINS", "").strip()
-        if cors_env == "*":
-            frontend_origins = ["*"]
-        elif cors_env:
-            frontend_origins = [o.strip().rstrip("/") for o in cors_env.split(",") if o.strip()]
-        else:
-            fallback = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
-            frontend_origins = [fallback] if fallback else []
-        frontend_origins = expand_origin_variants(frontend_origins)
+        # Reuse the credential-safe explicit backend origins. storage_service
+        # merges them with existing bucket rules so preview/production cannot
+        # overwrite each other's R2 CORS aliases.
+        frontend_origins = cors_origins
         if frontend_origins:
             await storage_service.ensure_cors(frontend_origins)
             logger.info("R2 ensure_cors finished with origins=%s", frontend_origins)

@@ -8,6 +8,12 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null); // label or artist record
   const [loading, setLoading] = useState(true);
 
+  const acceptAuthPayload = useCallback((data) => {
+    setUser(data.user);
+    setProfile(data.label || data.artist || null);
+    return data;
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get("/auth/me");
@@ -22,22 +28,27 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (window.location.hash?.includes("session_id=")) {
+      setLoading(false);
+      return;
+    }
     refresh();
   }, [refresh]);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    setUser(data.user);
-    setProfile(data.label || data.artist || null);
-    return data;
+    return acceptAuthPayload(data);
   };
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    setUser(data.user);
-    setProfile(data.label || null);
-    return data;
+    return acceptAuthPayload(data);
   };
+
+  const exchangeGoogleSession = useCallback(async (sessionId) => {
+    const { data } = await api.post("/auth/google/session", { session_id: sessionId });
+    return acceptAuthPayload(data);
+  }, [acceptAuthPayload]);
 
   const logout = async () => {
     try {
@@ -48,7 +59,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, exchangeGoogleSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

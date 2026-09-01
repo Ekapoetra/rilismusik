@@ -41,7 +41,7 @@ export default function ForgotPassword() {
               <label className="rm-label">Email</label>
               <input type="email" className="rm-input" value={email} onChange={(e) => setEmail(e.target.value)} required data-testid="forgot-password-email-input" />
             </div>
-            {err && <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{err}</div>}
+            {err && <div role="alert" className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2" data-testid="forgot-password-error">{err}</div>}
             <button className="rm-btn-primary w-full" disabled={loading} data-testid="forgot-password-submit-button">
               {loading ? "Memproses…" : "Kirim Link Reset"}
             </button>

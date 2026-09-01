@@ -4,6 +4,7 @@ import { useAuth, formatApiError } from "@/api/AuthContext";
 import { LOGIN } from "@/constants/testIds";
 import { LogoFull } from "@/components/shared/Brand";
 import { Eye, EyeOff } from "lucide-react";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 function roleHome(role) {
   if (role === "label") return "/label/dashboard";
@@ -88,6 +89,8 @@ export default function Login() {
             {loading ? "Memproses…" : "Masuk"}
           </button>
         </form>
+        <div className="my-5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600"><span className="h-px flex-1 bg-white/10" />atau<span className="h-px flex-1 bg-white/10" /></div>
+        <GoogleAuthButton source="login" />
         <div className="mt-5 flex justify-between text-sm">
           <Link to="/forgot-password" data-testid={LOGIN.forgotPasswordLink} className="text-zinc-400 hover:text-white">Lupa password?</Link>
           <Link to="/register" data-testid={LOGIN.registerLink} className="font-semibold rm-gradient-text">Daftar →</Link>

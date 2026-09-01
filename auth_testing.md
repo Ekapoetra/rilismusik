@@ -13,6 +13,26 @@
 6. Log in with two independent cookie jars and confirm both `/auth/me` calls remain 200.
 7. For a user with `token_version > 0`, refresh device A and confirm device A and B both remain 200.
 8. Increment `token_version` and confirm access + refresh tokens on every device become invalid.
+9. Google callback detection must use `useLocation().hash` synchronously before protected routes.
+10. Exchange `session_id` only from backend; only an existing active `role=label` with the same verified Google email may login.
+11. Unknown/admin/artist Google emails must not auto-register and must receive 403.
+12. Google Login must issue the same app JWT cookie pair and independent `sid` used by password login.
+
+## Google Auth implementation playbook
+- Frontend provider URL comes only from `REACT_APP_GOOGLE_AUTH_URL`.
+- Redirect is computed exactly as `window.location.origin + "/label/dashboard"`.
+- `AppRoutes` checks `useLocation().hash` for `session_id` before any protected route renders.
+- `AuthContext` skips initial `/auth/me` while the callback hash is present.
+- Backend exchanges the temporary ID through `EMERGENT_AUTH_SESSION_URL` using `X-Session-ID`.
+- Only an existing active `role=label` with a matching Google email is accepted; no Google auto-registration.
+- Provider session tokens are never returned or stored raw. Only SHA-256 hashes and audit metadata are persisted.
+- Each provider `session_id` is single-use. App access/refresh cookies still use token-version revocation and an independent `sid`.
+
+## Forgot/reset password implementation playbook
+- Forgot password always returns the same 200 response for known and unknown emails.
+- Tokens are random, expire, are single-use, and are never returned in the public response.
+- Transactional links use the same trusted HTTPS request origin when Host/Origin match; foreign origins are ignored.
+- Successful reset hashes the new password, marks all reset tokens used, increments `token_version`, and invalidates every prior device session.
 
 ## CORS checks
 - Public preview/production requests are same-origin (`/api`). Kubernetes/Cloudflare may answer public OPTIONS before FastAPI.

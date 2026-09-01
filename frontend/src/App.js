@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/api/AuthContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import LabelLayout from "@/components/shared/LabelLayout";
@@ -9,6 +9,7 @@ import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
+import GoogleAuthCallback from "@/pages/auth/GoogleAuthCallback";
 
 import LabelDashboard from "@/pages/label/Dashboard";
 import LabelReleases from "@/pages/label/Releases";
@@ -51,11 +52,11 @@ const LABEL_ROLES = ["label"];
 const ARTIST_ROLES = ["artist"];
 const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"];
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
+  if (location.hash?.includes("session_id=")) return <GoogleAuthCallback />;
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+    <Routes>
           {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
@@ -123,10 +124,12 @@ function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    </Routes>
   );
+}
+
+function App() {
+  return <BrowserRouter><AuthProvider><AppRoutes /></AuthProvider></BrowserRouter>;
 }
 
 export default App;

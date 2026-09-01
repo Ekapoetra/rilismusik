@@ -1,6 +1,9 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy preview auth frontend/backend so production receives Google Login, improved password reset, and merge-safe R2 CORS startup behavior.
+- After redeploy, perform one real Google login using an already-registered label email and verify both apex/`www` callback paths.
+- Retry the latest royalty CSV upload from production `www`; the shared bucket preflight is already repaired.
 - Redeploy current preview code so production mendapat perbaikan login apex/`www` dan konfigurasi official Hostinger mailbox.
 - Redeploy juga membawa fitur Admin Withdraw → Tambah Riwayat Manual Legacy.
 - Redeploy juga membawa kolom Rupiah `Saldo Available` pada daftar Label Management.
@@ -24,6 +27,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Password reset email hardening, existing-label Google Login, and production R2 apex/`www` CORS repair.
 - Manual legacy withdraw dengan amount otomatis, background settlement, rekonsiliasi saldo, dan label visibility guard.
 - Multi-device JWT sessions and global revocation.
 - Login password visibility.

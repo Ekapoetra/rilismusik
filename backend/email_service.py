@@ -5,8 +5,7 @@ are routed through `send_email()`. Uses standard library `smtplib.SMTP_SSL`
 on port 465, wrapped with `asyncio.to_thread` to keep FastAPI's event loop
 non-blocking.
 
-Sender is `support@rilismusik.com` (authenticated via Hostinger SMTP).
-Switching providers later only requires changing the env vars below.
+Sender mailbox and provider settings come exclusively from backend environment variables.
 """
 import os
 import ssl
@@ -28,13 +27,13 @@ def h(s) -> str:
     return _html_escape("" if s is None else str(s), quote=True)
 
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.hostinger.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
-SMTP_USER = os.environ.get("SMTP_USER")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", SMTP_USER or "")
-SENDER_NAME = os.environ.get("SENDER_NAME", "RILIS MUSIK")
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
+SMTP_HOST = os.environ["SMTP_HOST"]
+SMTP_PORT = int(os.environ["SMTP_PORT"])
+SMTP_USER = os.environ["SMTP_USER"]
+SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
+SENDER_EMAIL = os.environ["SENDER_EMAIL"]
+SENDER_NAME = os.environ["SENDER_NAME"]
+FRONTEND_URL = os.environ["FRONTEND_URL"].rstrip("/")
 
 
 def _from_header() -> str:
@@ -117,8 +116,8 @@ async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
 
 
 # ---------- Domain-specific helpers ----------
-async def send_verification_email(*, to: str, pic_name: str, token: str) -> Optional[str]:
-    verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+async def send_verification_email(*, to: str, pic_name: str, token: str, base_url: Optional[str] = None) -> Optional[str]:
+    verify_url = f"{(base_url or FRONTEND_URL).rstrip('/')}/verify-email?token={token}"
     body = f"""
     <p>Halo <strong>{h(pic_name)}</strong>,</p>
     <p>Terima kasih sudah mendaftar di RILIS MUSIK. Untuk mengaktifkan akun Anda, klik tombol di bawah:</p>
@@ -128,8 +127,8 @@ async def send_verification_email(*, to: str, pic_name: str, token: str) -> Opti
     return await send_email(to=to, subject="Verifikasi email RILIS MUSIK", html=html)
 
 
-async def send_password_reset_email(*, to: str, token: str) -> Optional[str]:
-    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+async def send_password_reset_email(*, to: str, token: str, base_url: Optional[str] = None) -> Optional[str]:
+    reset_url = f"{(base_url or FRONTEND_URL).rstrip('/')}/reset-password?token={token}"
     body = (
         "<p>Halo,</p>"
         "<p>Kami menerima permintaan reset password untuk akun ini. Klik tombol berikut untuk mengatur password baru:</p>"

@@ -32,6 +32,10 @@ class LoginIn(BaseModel):
     password: str
 
 
+class GoogleSessionIn(BaseModel):
+    session_id: str = Field(min_length=10, max_length=500)
+
+
 class ForgotPasswordIn(BaseModel):
     email: EmailStr
 

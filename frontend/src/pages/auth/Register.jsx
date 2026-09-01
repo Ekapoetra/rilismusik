@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth, formatApiError } from "@/api/AuthContext";
 import { REGISTER } from "@/constants/testIds";
 import { LogoFull } from "@/components/shared/Brand";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 export default function Register() {
   const { register } = useAuth();
@@ -103,8 +104,10 @@ export default function Register() {
         </Link>
         <h1 className="font-display text-3xl font-extrabold tracking-tighter">Daftar Akun Label</h1>
         <p className="text-sm text-zinc-400 mt-2">Daftar sebagai label musik atau artis independen.</p>
+        <div className="mt-5"><GoogleAuthButton source="register" /><p className="mt-2 text-center text-[11px] text-zinc-500">Google Login hanya untuk akun label yang sudah terdaftar. Pengguna baru tetap melengkapi formulir di bawah.</p></div>
+        <div className="my-5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600"><span className="h-px flex-1 bg-white/10" />atau daftar manual<span className="h-px flex-1 bg-white/10" /></div>
 
-        <form onSubmit={submit} className="mt-6 grid gap-4">
+        <form onSubmit={submit} className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setForm({ ...form, account_type: "label" })}
               className={`p-3 rounded-2xl border text-sm font-semibold transition ${form.account_type === "label" ? "border-[#FF1F8E] bg-[rgba(255,31,142,0.10)] text-white" : "border-white/10 bg-white/[0.03] text-zinc-300 hover:border-white/20"}`}

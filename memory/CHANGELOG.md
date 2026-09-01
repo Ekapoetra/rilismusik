@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-01 — Phase 52: Password Reset, Google Label Login & R2 Production CORS
+- Confirmed and hardened forgot-password email flow: non-enumerating response, trusted-origin link, hidden query token UI, single-use reset, password update, and global session revocation.
+- Added Emergent-managed Google Auth buttons on Login and Register for existing label accounts only; no Google auto-registration.
+- Added backend Google session exchange, active-label checks, hashed provider-session audit, single-use replay guard, and issuance of the existing JWT cookie pair.
+- Fixed production royalty-upload Network Error by merging R2 bucket CORS origins instead of overwriting them; apex, `www`, and preview origins now coexist.
+- Shared R2 bucket was repaired immediately; actual OPTIONS preflight from production apex/`www` returns 204 with matching allow-origin.
+- Hostinger password-reset email was sent successfully in a live self-test; reset and token-version revocation completed.
+- Independent iteration 42: backend 12/12 passed and preview auth UI passed. Full external Google human-session success remains **MOCKED in tests only** because no human Google session was provided.
+- Production still serves the older auth frontend until redeploy.
+
 ## 2026-08-31 — Phase 51: Admin Dashboard Withdraw Breakdown
 - Admin Dashboard now keeps Total Bagian Label and shows `Sudah Withdraw` plus `Belum Withdraw` directly below it.
 - Withdrawn includes modern `status=withdrawn` and `legacy_settled=true` through one condition, preventing double-counting.
