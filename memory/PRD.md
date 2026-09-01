@@ -34,6 +34,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Saldo selalu diturunkan dari `royalty_lines` pending/available non-legacy, bukan lifetime rollup.
 - Rekening awal diverifikasi admin; perubahan rekening berjalan melalui approval dua arah.
 - Admin Label Management menampilkan saldo available per label dalam Rupiah, tidak termasuk dana withdrawn/legacy-settled atau dana yang sedang direservasi untuk withdraw aktif.
+- Saldo pada daftar label dihitung bulk dari `royalty_lines` dengan aturan identik ke detail/withdrawable; nilai tersimpan lama hanya menjadi audit metadata dan tidak ditampilkan.
 - Daftar label default diurutkan berdasarkan saldo available terbesar, mendukung urutan label/email dua arah, serta menampilkan bulan laporan withdraw terakhir atau `Belum pernah WD`.
 
 ### 3.4 Release Management

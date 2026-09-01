@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-01 — Phase 53: Label List/Detail Balance Parity
+- RCA: Label Management displayed stale `labels.balance_available_idr`, while Label Detail computed the live withdrawable amount from `royalty_lines`.
+- Admin label list now performs one bulk royalty aggregation and one active-withdraw aggregation for all candidate labels—no per-label N+1 queries.
+- Displayed `balance_available_idr` now follows the exact detail rules: status available, non-legacy, after cutoff, minus requested/approved withdrawal reservations, floored at zero.
+- Stale stored balance remains only as `stored_balance_available_idr` for admin audit and is no longer shown as the available amount.
+- Default balance sorting now uses the computed source-of-truth value.
+- Deterministic reproduction `stored 59,557,995 → computed 13,149,228` passed and list/detail equality passed.
+- Independent iteration 43: backend 5/5, frontend build and Playwright parity checks passed; no MOCKED flows.
+
 ## 2026-09-01 — Phase 52: Password Reset, Google Label Login & R2 Production CORS
 - Confirmed and hardened forgot-password email flow: non-enumerating response, trusted-origin link, hidden query token UI, single-use reset, password update, and global session revocation.
 - Added Emergent-managed Google Auth buttons on Login and Register for existing label accounts only; no Google auto-registration.

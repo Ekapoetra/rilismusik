@@ -1,6 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy the Label Management balance parity fix; production currently still displays the stale stored balance until redeploy.
+- Post-deploy, verify KSO Music Distribution list balance equals its detail withdrawable balance.
 - Redeploy preview auth frontend/backend so production receives Google Login, improved password reset, and merge-safe R2 CORS startup behavior.
 - After redeploy, perform one real Google login using an already-registered label email and verify both apex/`www` callback paths.
 - Retry the latest royalty CSV upload from production `www`; the shared bucket preflight is already repaired.
@@ -27,6 +29,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Label Management available balance now uses the same live source-of-truth computation as Label Detail.
 - Password reset email hardening, existing-label Google Login, and production R2 apex/`www` CORS repair.
 - Manual legacy withdraw dengan amount otomatis, background settlement, rekonsiliasi saldo, dan label visibility guard.
 - Multi-device JWT sessions and global revocation.

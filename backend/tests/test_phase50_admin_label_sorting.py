@@ -24,6 +24,11 @@ def test_label_list_defaults_to_balance_desc_and_supports_alpha_sorting():
         {"id": f"phase50-zulu-{suffix}", "label_name": f"Phase50 Zulu {suffix}", "email": f"zulu-{suffix}@example.com", "balance_available_idr": 1000, "last_withdrawn_period": "2026-02", "created_at": "2026-09-01T00:00:00+00:00"},
     ]
     db.labels.insert_many(docs)
+    db.royalty_lines.insert_many([
+        {"id": f"phase50-line-alpha-{suffix}", "label_id": docs[0]["id"], "period": "2026-08", "status": "available", "legacy_settled": False, "label_idr": 5000},
+        {"id": f"phase50-line-beta-{suffix}", "label_id": docs[1]["id"], "period": "2026-08", "status": "available", "legacy_settled": False, "label_idr": 5000},
+        {"id": f"phase50-line-zulu-{suffix}", "label_id": docs[2]["id"], "period": "2026-08", "status": "available", "legacy_settled": False, "label_idr": 1000},
+    ])
     ids = {doc["id"] for doc in docs}
     try:
         login = requests.post(f"{API}/auth/login", json=FINANCE, timeout=30)
@@ -49,4 +54,5 @@ def test_label_list_defaults_to_balance_desc_and_supports_alpha_sorting():
         assert balance_asc.status_code == 200, balance_asc.text
         assert [item["id"] for item in balance_asc.json() if item["id"] in ids] == [docs[2]["id"], docs[0]["id"], docs[1]["id"]]
     finally:
+        db.royalty_lines.delete_many({"label_id": {"$in": list(ids)}})
         db.labels.delete_many({"id": {"$in": list(ids)}})

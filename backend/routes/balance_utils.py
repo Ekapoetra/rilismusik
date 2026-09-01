@@ -4,6 +4,49 @@ from typing import Any, Dict, Optional
 from .deps import db_bg
 
 
+async def compute_labels_available_balances(labels: list[Dict[str, Any]]) -> Dict[str, int]:
+    """Bulk equivalent of snapshot.balance_available_idr for admin label lists."""
+    label_ids = [str(label.get("id")) for label in labels if label.get("id")]
+    if not label_ids:
+        return {}
+    cutoffs = {str(label["id"]): label.get("last_withdrawn_period") for label in labels if label.get("id")}
+    source_available = {label_id: 0 for label_id in label_ids}
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": {
+            "label_id": {"$in": label_ids},
+            "status": "available",
+            "legacy_settled": {"$ne": True},
+            "period": {"$type": "string"},
+        }},
+        {"$group": {
+            "_id": {"label_id": "$label_id", "period": "$period"},
+            "amount_idr": {"$sum": {"$ifNull": ["$label_idr", 0]}},
+        }},
+    ], allowDiskUse=True):
+        label_id = str((row.get("_id") or {}).get("label_id") or "")
+        period = (row.get("_id") or {}).get("period")
+        cutoff = cutoffs.get(label_id)
+        if label_id in source_available and period and (not cutoff or period > cutoff):
+            source_available[label_id] += int(row.get("amount_idr") or 0)
+
+    reserved = {label_id: 0 for label_id in label_ids}
+    async for row in db_bg.withdraw_requests.aggregate([
+        {"$match": {
+            "label_id": {"$in": label_ids},
+            "status": {"$in": ["requested", "approved"]},
+            "legacy_import": {"$ne": True},
+        }},
+        {"$group": {"_id": "$label_id", "amount_idr": {"$sum": {"$ifNull": ["$amount_idr", 0]}}}},
+    ], allowDiskUse=True):
+        label_id = str(row.get("_id") or "")
+        if label_id in reserved:
+            reserved[label_id] = int(row.get("amount_idr") or 0)
+    return {
+        label_id: max(source_available[label_id] - reserved[label_id], 0)
+        for label_id in label_ids
+    }
+
+
 async def compute_label_balance_snapshot(
     *, label_id: str, label: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
