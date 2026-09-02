@@ -1,0 +1,34 @@
+import React from "react";
+import { AlertTriangle, FileUp, Loader2, RefreshCw, X } from "lucide-react";
+import { useRoyaltyImportReplacement } from "@/hooks/useRoyaltyImportReplacement";
+
+const idr = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
+const eur = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "EUR", maximumFractionDigits: 4 }).format(value || 0);
+
+export const RoyaltyImportReplacementPanel = ({ oldImport, onClose, onCompleted, canCommit }) => {
+  const flow = useRoyaltyImportReplacement(oldImport, onCompleted);
+  const summary = flow.previewJob?.summary || {};
+  const close = async () => { if (flow.stage !== "committing") { if (flow.replacementId && flow.stage !== "done") await flow.cancel(); onClose(); } };
+  return <section className="border border-amber-500/25 bg-amber-500/[0.04] p-5 space-y-5" data-testid="royalty-replacement-panel">
+    <div className="flex justify-between gap-4"><div><h2 className="font-display text-xl font-extrabold flex items-center gap-2"><RefreshCw className="w-5 h-5 text-amber-300" /> Ganti File Import</h2><p className="text-xs text-zinc-400 mt-1">File lama baru dihapus setelah preview disetujui dan commit selesai.</p></div><button onClick={close} disabled={flow.stage === "committing"} className="rm-btn-ghost p-2" aria-label="Tutup penggantian" data-testid="royalty-replacement-close"><X className="w-4 h-4" /></button></div>
+    {flow.error && <div className="border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300" data-testid="royalty-replacement-error">{flow.error}</div>}
+    {flow.stage === "form" && <form onSubmit={flow.submit} className="grid md:grid-cols-2 gap-4" data-testid="royalty-replacement-form">
+      <label className="md:col-span-2"><span className="rm-label">File CSV pengganti</span><input type="file" accept=".csv,.csv.gz" onChange={(event) => flow.setFile(event.target.files?.[0] || null)} className="rm-input" data-testid="royalty-replacement-file" /></label>
+      <label><span className="rm-label">Kurs EUR ke IDR</span><input type="number" min="1" value={flow.rate} onChange={(event) => flow.setRate(event.target.value)} className="rm-input" data-testid="royalty-replacement-rate" /></label>
+      <label><span className="rm-label">Catatan</span><input value={flow.note} onChange={(event) => flow.setNote(event.target.value)} className="rm-input" data-testid="royalty-replacement-note" /></label>
+      <button disabled={flow.busy} className="rm-btn-primary md:col-span-2 flex items-center justify-center gap-2" data-testid="royalty-replacement-upload"><FileUp className="w-4 h-4" /> Upload dan Buat Preview</button>
+    </form>}
+    {["uploading", "processing", "previewing", "committing"].includes(flow.stage) && <div className="space-y-2" data-testid="royalty-replacement-progress"><div className="flex items-center gap-2 text-sm text-sky-200"><Loader2 className="w-4 h-4 animate-spin" /> {stageText[flow.stage]}</div><div className="h-2 bg-white/5 overflow-hidden"><div className="h-full bg-amber-400 transition-[width]" style={{ width: `${flow.stage === "uploading" || flow.stage === "processing" ? flow.progress : 100}%` }} /></div></div>}
+    {flow.stage === "preview" && <>
+      <div className="flex gap-2 items-start border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-100"><AlertTriangle className="w-4 h-4 shrink-0" /> Preview wajib diperiksa. Pembayaran yang sudah selesai tetap, selisihnya menjadi penyesuaian saldo. Pengajuan aktif dihitung ulang.</div>
+      {summary.blocked_active_withdraws > 0 && <div className="border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300" data-testid="royalty-replacement-blocked-withdraw">Ada pengajuan penarikan tanpa rentang bulan. Lengkapi datanya sebelum penggantian diterapkan.</div>}
+      <div className="grid grid-cols-2 lg:grid-cols-4 border border-white/10" data-testid="royalty-replacement-summary"><Metric label="Baris lama → baru" value={`${(summary.old_lines || 0).toLocaleString("id-ID")} → ${(summary.new_lines || 0).toLocaleString("id-ID")}`} /><Metric label="EUR lama → baru" value={`${eur(summary.old_revenue_eur)} → ${eur(summary.new_revenue_eur)}`} /><Metric label="Perubahan saldo aktif" value={idr(summary.active_balance_delta_idr)} /><Metric label="Penyesuaian pembayaran lama" value={idr(summary.historical_adjustment_idr)} /></div>
+      <div className="overflow-auto max-h-72 border border-white/10"><table className="w-full min-w-[920px] text-xs"><thead className="sticky top-0 bg-[#111318]"><tr><th className="text-left p-3">Label</th><th className="text-right p-3">Aktif lama</th><th className="text-right p-3">Aktif baru</th><th className="text-right p-3">Selisih pembayaran lama</th><th className="text-right p-3">Pengajuan aktif</th></tr></thead><tbody>{flow.rows.map((row) => <tr key={row.id} className="border-t border-white/5" data-testid={`royalty-replacement-row-${row.label_id}`}><td className="p-3 font-semibold">{row.label_name}</td><td className="p-3 text-right font-mono">{idr(row.old_active_idr)}</td><td className="p-3 text-right font-mono">{idr(row.new_active_idr)}</td><td className="p-3 text-right font-mono">{idr(row.historical_adjustment_idr)}</td><td className="p-3 text-right font-mono">{row.active_withdraw ? `${idr(row.active_withdraw.old_amount_idr)} → ${idr(row.active_withdraw.new_amount_idr)}` : "—"}</td></tr>)}</tbody></table></div>
+      {canCommit ? <><label><span className="rm-label">Ketik GANTI DATA</span><input value={flow.confirmation} onChange={(event) => flow.setConfirmation(event.target.value)} className="rm-input" data-testid="royalty-replacement-confirmation" /></label><button onClick={flow.commit} disabled={flow.busy || summary.blocked_active_withdraws > 0 || flow.confirmation.trim().toUpperCase() !== "GANTI DATA"} className="rm-btn-primary w-full" data-testid="royalty-replacement-commit">Hapus File Lama dan Terapkan Pengganti</button></> : <div className="text-xs text-amber-200" data-testid="royalty-replacement-superadmin-note">Preview selesai. Hanya Super Admin yang dapat menerapkan penggantian.</div>}
+    </>}
+    {flow.stage === "done" && <div className="text-sm text-emerald-300" data-testid="royalty-replacement-complete">Penggantian selesai. Saldo dan pengajuan penarikan sudah dihitung ulang.</div>}
+  </section>;
+};
+
+const stageText = { uploading: "Mengunggah file pengganti", processing: "Membaca dan mencocokkan data", previewing: "Menghitung perubahan", committing: "Menerapkan penggantian" };
+const Metric = ({ label, value }) => <div className="p-4 border-r border-b border-white/10"><div className="text-[10px] uppercase text-zinc-500">{label}</div><div className="font-mono font-bold mt-1">{value}</div></div>;

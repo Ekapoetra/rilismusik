@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { Loader2, RefreshCw, Upload, XCircle, Trash2 } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
+import { RoyaltyImportReplacementPanel } from "@/components/admin/RoyaltyImportReplacementPanel";
+import { Loader2, RefreshCw, Upload, XCircle, Trash2, Replace } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
+const STABLE_REPLACEMENT_STATUSES = ["published", "dana_received"];
 
 export default function AdminRoyaltyDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
@@ -16,12 +20,18 @@ export default function AdminRoyaltyDetail() {
   const [repairFile, setRepairFile] = useState(null);
   const [repairUploadBusy, setRepairUploadBusy] = useState(false);
   const [repairUploadPct, setRepairUploadPct] = useState(0);
+  const [replacementOpen, setReplacementOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get(`/royalty/admin/imports/${id}`); setData(data); }
     catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
   }, [id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setData(null);
+    setErr("");
+    setReplacementOpen(false);
+    load();
+  }, [load]);
 
   // Auto-poll every 3s while a background transition is running.
   const pollRef = useRef(null);
@@ -175,6 +185,7 @@ export default function AdminRoyaltyDetail() {
           )}
           {(imp.status === "published" || imp.status === "receive_error") && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">{imp.status === "receive_error" ? "Coba Tandai Dana Lagi" : "Tandai Dana Diterima"}</button>}
           {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300" data-testid="royalty-detail-status-received">✓ Dana sudah diterima</span>}
+          {STABLE_REPLACEMENT_STATUSES.includes(imp.status) && (user?.role === "super_admin" || user?.role === "admin_finance") && <button className="rm-btn-ghost flex items-center gap-2 text-amber-300" onClick={() => setReplacementOpen((value) => !value)} data-testid="admin-royalty-replacement-open"><Replace className="w-4 h-4" /> Ganti File Import</button>}
           {!['awaiting_upload', 'processing', 'publishing', 'receiving', 'deleting'].includes(imp.status) && imp.period_repair_status !== "processing" && (
             <button className="rm-btn-ghost flex items-center gap-2 text-cyan-300" disabled={busy} onClick={repairPeriod} data-testid="admin-royalty-repair-period">
               <RefreshCw className="w-4 h-4" /> Perbaiki Bulan Laporan
@@ -193,6 +204,8 @@ export default function AdminRoyaltyDetail() {
           )}
         </div>
       </div>
+
+      {replacementOpen && <RoyaltyImportReplacementPanel oldImport={imp} canCommit={user?.role === "super_admin"} onClose={() => setReplacementOpen(false)} onCompleted={(replacementId) => nav(`/admin/royalty/${replacementId}`)} />}
 
       {imp.status === "processing" && (
         <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-progress">

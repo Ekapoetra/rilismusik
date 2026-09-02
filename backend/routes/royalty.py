@@ -480,7 +480,7 @@ def _trigger_dashboard_recompute():
 
 async def _process_csv_import_inline(
     *, import_id: str, file_path: str, period: Optional[str],
-    rate_eur_idr: float, fee_percent: float,
+    rate_eur_idr: float, fee_percent: float, staged_replacement: bool = False,
 ) -> Dict[str, Any]:
     """Process the CSV file at `file_path` row-by-row in batches.
 
@@ -759,6 +759,7 @@ async def _process_csv_import_inline(
 
         legacy_cutoff = (labels.get(label_id, {}) if label_id else {}).get("last_withdrawn_period")
         legacy_settled = bool(legacy_cutoff and line_period and line_period <= legacy_cutoff)
+        stored_match_status = "replacement_staged" if staged_replacement else match_status
         line_batch.append({
             "id": new_id(), "import_id": import_id, "period": line_period,
             "isrc": raw["isrc"], "upc": raw["upc"],
@@ -782,11 +783,13 @@ async def _process_csv_import_inline(
             "fee_percent_applied": 0.0,
             "exchange_rate": rate_eur_idr,
             **calc,
-            "match_status": match_status,
-            "status": "withdrawn" if legacy_settled else "draft",
-            "legacy_settled": legacy_settled,
-            "legacy_settled_period_end": legacy_cutoff if legacy_settled else None,
-            "legacy_settled_at": now_iso() if legacy_settled else None,
+            "match_status": stored_match_status,
+            "replacement_original_match_status": match_status if staged_replacement else None,
+            "replacement_stage": staged_replacement,
+            "status": "draft" if staged_replacement else ("withdrawn" if legacy_settled else "draft"),
+            "legacy_settled": False if staged_replacement else legacy_settled,
+            "legacy_settled_period_end": None if staged_replacement else (legacy_cutoff if legacy_settled else None),
+            "legacy_settled_at": None if staged_replacement else (now_iso() if legacy_settled else None),
             "created_at": now_iso(),
         })
 
@@ -817,7 +820,7 @@ async def _process_csv_import_inline(
             "period_end": sorted_periods[-1] if sorted_periods else None,
             "is_multi_period": is_multi_period,
             "progress_pct": 100,
-            "status": "pending_review" if sorted_periods else "error",
+            "status": ("replacement_preview" if staged_replacement else "pending_review") if sorted_periods else "error",
             "error_message": None if sorted_periods else "Semua baris ditolak karena kolom 'Bulan laporan' kosong atau tidak valid.",
             "finished_at": now_iso(),
             "updated_at": now_iso(),
@@ -827,7 +830,8 @@ async def _process_csv_import_inline(
     # Phase 29 — auto-sync: rebuild dashboard + analytics caches immediately
     # so Artis / Katalog / Label / Analytics pages show the new data without
     # waiting for publish or any manual tool.
-    _trigger_dashboard_recompute()
+    if not staged_replacement:
+        _trigger_dashboard_recompute()
 
     final = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     return final
@@ -836,6 +840,7 @@ async def _process_csv_import_inline(
 async def _process_csv_import_bg(
     *, import_id: str, file_path: str, period: Optional[str],
     rate_eur_idr: float, fee_percent: float, user_id: str,
+    staged_replacement: bool = False,
 ):
     """Background variant — catches and logs exceptions instead of letting them
     crash the event loop. Marks the import as 'error' on failure.
@@ -844,6 +849,7 @@ async def _process_csv_import_bg(
         await _process_csv_import_inline(
             import_id=import_id, file_path=file_path, period=period,
             rate_eur_idr=rate_eur_idr, fee_percent=fee_percent,
+            staged_replacement=staged_replacement,
         )
         await log_activity(
             user_id, "upload_royalty_csv_async_finished", "royalty", import_id,
@@ -871,7 +877,7 @@ async def _process_csv_import_bg(
 
 @royalty_r.get("/admin/imports")
 async def admin_list_imports(user: dict = Depends(require_admin)):
-    items = await db.royalty_imports.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    items = await db.royalty_imports.find({"replacement_stage": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(500)
     # Compute live progress_pct on the fly for in-flight imports.
     for it in items:
         if it.get("status") == "processing" and it.get("total_lines"):
@@ -2578,7 +2584,7 @@ async def resume_interrupted_imports():
             {"status": "processing"},
             {"_id": 0, "id": 1, "filename": 1, "exchange_rate_eur_idr": 1,
              "fee_percent": 1, "period": 1, "period_start": 1, "is_multi_period": 1,
-             "uploaded_by": 1, "r2_key": 1},
+             "uploaded_by": 1, "r2_key": 1, "replacement_stage": 1},
         ).to_list(100)
     except Exception as e:
         logger.exception("resume_interrupted_imports: cannot query imports: %s", e)
@@ -2614,6 +2620,7 @@ async def resume_interrupted_imports():
             rate_eur_idr=imp["exchange_rate_eur_idr"],
             fee_percent=imp["fee_percent"],
             user_id=imp.get("uploaded_by") or "system",
+            staged_replacement=bool(imp.get("replacement_stage")),
         ))
         logger.info("resume_interrupted_imports: %s resumed from %s", import_id, file_path)
 

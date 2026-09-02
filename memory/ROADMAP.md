@@ -1,6 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 60, lalu uji satu file kecil terlebih dahulu melalui Royalty Detail → Ganti File Import. Periksa preview per label sebelum mengetik `GANTI DATA`.
+- Gunakan Audit File Ganda sebelum mengganti file yang dicurigai duplikat; commit penggantian menghapus import lama permanen dan hanya Super Admin yang dapat menjalankannya.
 - Redeploy Phase 59 lalu buka Royalty Import → Audit File Ganda → Mulai Audit. Kirim hasil pasangan `MEI 2026.csv` vs `Mei 2022.csv` sebelum tindakan data apa pun.
 - Jangan menghapus atau mengarsipkan duplikat sebelum dampak saldo aktif dan riwayat pembayaran selesai direview.
 - Redeploy Phase 58 diagnostic-only, lalu jangan menjalankan audit/commit. Main agent akan membaca endpoint diagnosis F - Audio secara read-only dan menentukan akar masalah berdasarkan status/periode nyata.
@@ -44,6 +46,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 60 menambahkan selected-file replacement: upload R2 staging, mandatory preview, hard-delete lama setelah commit, adjustment paid history, recalculation active withdrawal, resume/idempotency, dan refresh saldo/analytics.
 - Phase 59 menambahkan audit file ganda background yang hanya membaca data, membandingkan periode, menghitung dampak label/saldo/riwayat, dan memperjelas total file multi-periode pada UI.
 - Phase 57 menyelaraskan draft/pending berdasarkan status induk laporan, memperbaiki alur Dana Diterima agar selalu memproses keduanya, dan menjaga draft pada laporan yang belum diterbitkan.
 - Phase 56 memulihkan penanda `legacy_settled=true` yang salah pada status draft/pending/available setelah batas tarik, mempertahankan status asli, dan menghitung ulang bagian label.

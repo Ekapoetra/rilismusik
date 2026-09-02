@@ -1,5 +1,16 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-02 — Phase 60: Guarded royalty import replacement
+- Menambahkan tombol `Ganti File Import` untuk import published/dana_received pada Royalty Detail.
+- File pengganti diunggah ke R2 path terpisah, divalidasi ukuran/header, diproses background, dan disembunyikan dari Analytics/saldo sampai commit.
+- Preview wajib menampilkan baris/EUR lama→baru, perubahan saldo aktif, penyesuaian pembayaran lama, dampak per label, dan nominal pengajuan aktif sebelum→sesudah.
+- Commit hanya Super Admin dengan frasa `GANTI DATA`; data import/lines lama dihapus permanen setelah pengganti siap.
+- Nominal paid/legacy withdrawal dipertahankan; selisih historis dibuat sebagai adjustment current balance yang idempotent.
+- Pengajuan requested/approved tetap pada dokumen/status yang sama tetapi amount, line count, transaction, dan revision history dihitung ulang.
+- Menambahkan guard perubahan setelah preview, guard active withdrawal tanpa period range, cancel staging, startup resume, R2 cleanup, dan audit record replacement permanen.
+- Mark Dana Received tetap memproses draft+pending untuk mencegah line tertinggal.
+- Terverifikasi 24/24 backend, frontend build, panel screenshot, serta browser E2E nyata upload R2→preview→commit→database verification; tidak ada API yang di-MOCKED.
+
 ## 2026-09-02 — Phase 59: Read-only duplicate import audit
 - Menemukan pasangan duplikat production yang pasti: `MEI 2026.csv` dan `Mei 2022.csv`, masing-masing 162.836 baris, €8.296,7551, periode Apr 2025–Mei 2026, dan jumlah baris per bulan identik; kursnya berbeda Rp18.000 vs Rp15.500.
 - Menambahkan audit background hanya-baca yang membandingkan isi per periode serta menghitung dampak EUR/IDR, saldo aktif, riwayat, label terdampak, dan kebutuhan review pembayaran.

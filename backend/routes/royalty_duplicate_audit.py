@@ -185,7 +185,7 @@ async def _run_duplicate_audit(job_id: str) -> None:
             {"$set": {"status": "processing", "phase": "mencari_duplikat", "started_at": started_at, "updated_at": started_at}},
         )
         imports = await db_bg.royalty_imports.find(
-            {"total_lines": {"$gt": 0}, "status": {"$nin": ["awaiting_upload", "error", "deleting"]}},
+            {"total_lines": {"$gt": 0}, "replacement_stage": {"$ne": True}, "status": {"$nin": ["awaiting_upload", "error", "deleting"]}},
             {"_id": 0},
         ).to_list(100000)
         by_fingerprint: Dict[str, List[dict]] = defaultdict(list)

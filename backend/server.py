@@ -35,6 +35,7 @@ from routes.admin import admin_r
 from routes.label_rate_import import rate_import_r, resume_label_rate_jobs
 from routes.balance_audit import balance_audit_r, resume_balance_audit_jobs
 from routes.royalty_duplicate_audit import duplicate_audit_r, resume_duplicate_audit_jobs
+from routes.royalty_import_replacement import replacement_r, resume_replacement_jobs
 from routes.label_analytics import label_analytics_r
 from routes.admin_analytics import analytics_r, recompute_monthly_analytics
 from routes.royalty import royalty_r, resume_interrupted_imports
@@ -111,6 +112,7 @@ api.include_router(admin_r)
 api.include_router(rate_import_r)
 api.include_router(balance_audit_r)
 api.include_router(duplicate_audit_r)
+api.include_router(replacement_r)
 api.include_router(label_analytics_r)
 api.include_router(analytics_r)
 api.include_router(royalty_r)
@@ -221,6 +223,7 @@ async def _bootstrap_async():
     asyncio.create_task(resume_label_rate_jobs())
     asyncio.create_task(resume_balance_audit_jobs())
     asyncio.create_task(resume_duplicate_audit_jobs())
+    asyncio.create_task(resume_replacement_jobs())
     logger.info("RILIS MUSIK API bootstrap finished")
 
 

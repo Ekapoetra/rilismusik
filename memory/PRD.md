@@ -64,6 +64,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Status induk laporan menjadi sumber kebenaran: baris draft/pending pada laporan `dana_received` harus available, sedangkan baris draft pada laporan `published` harus pending. Audit mendeteksi dan commit menyelaraskan status secara bertahap.
 - Admin Finance memiliki endpoint diagnosis read-only per label yang mengelompokkan seluruh royalty lines berdasarkan status, jenis/nilai periode, penanda pembayaran, status pencocokan, dan status induk import tanpa mengubah saldo.
 - Admin Finance memiliki audit file ganda read-only di Royalty Import; audit membandingkan fingerprint file, jumlah/nilai per periode, dampak per label, saldo aktif, dan risiko riwayat pembayaran tanpa fungsi hapus.
+- Import royalti berstatus published/dana_received dapat diganti berdasarkan file yang dipilih melalui staging R2 terpisah, parsing background, dan preview wajib sebelum commit.
+- Commit penggantian hanya untuk Super Admin: data lama dihapus permanen setelah file baru siap, pembayaran paid/legacy tidak diubah, selisih historis menjadi penyesuaian saldo, dan pengajuan requested/approved dihitung ulang pada dokumen yang sama.
+- File pengganti tidak masuk analytics/saldo selama staging; commit menjaga cutoff per label, memulihkan match status, memperbarui transaksi, snapshot, cache, serta menyimpan audit replacement permanen.
 - Label dengan withdraw aktif atau riwayat paid tanpa `period_to` diblokir dari pemulihan otomatis agar tidak terjadi pembayaran ganda.
 - Pekerjaan hitung ulang persentase yang tidak memperbarui perkembangan selama lebih dari empat jam ditutup otomatis agar tidak memblokir koreksi saldo selamanya; proses yang masih aktif tetap dilindungi.
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
@@ -128,6 +131,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Verifikasi production pasca-Phase 56 tetap menunjukkan nol koreksi. RCA Phase 57 menemukan blind spot lanjutan: baris biasa berstatus draft/pending pada laporan yang induknya sudah `published`/`dana_received` dilewati audit dan seluruh kartu saldo.
 - Setelah verifikasi Phase 57 production tetap nol, pendekatan koreksi dihentikan. Phase 58 menambahkan diagnosis read-only agar kategori aktual Rp338.795 dapat dibaca langsung sebelum perubahan saldo berikutnya.
 - Production memiliki satu pasangan duplikat pasti: `MEI 2026.csv` dan `Mei 2022.csv`, masing-masing 162.836 baris dan €8.296,7551 dengan breakdown periode identik tetapi kurs Rp18.000 vs Rp15.500. Phase 59 menyediakan audit dampak lengkap sebelum keputusan arsip.
+- Phase 60 menyediakan penggantian import selected-file end-to-end sesuai keputusan pengguna: hard delete lama, paid tetap, adjustment saldo, active withdrawal dihitung ulang, dan mandatory preview.
 - RCA production menemukan pekerjaan hitung ulang global lama `3a8a7130-7646-46ef-a1eb-444f89bc8565` masih berstatus processing sejak 23 Agustus 2026 meski tidak ada perkembangan. Watchdog dan commit guard yang baru menutup pekerjaan kedaluwarsa otomatis.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
@@ -146,3 +150,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Stale-job watchdog regression: `backend/tests/test_iter46_stale_recalculation_watchdog.py`; independent report `/app/test_reports/iteration_46.json`.
 - Legacy marker recovery regression: `backend/tests/test_iter47_balance_audit_draft_legacy_marker.py`; independent report `/app/test_reports/iteration_47.json`.
 - Import-line status recovery regression: `backend/tests/test_phase57_import_line_status_recovery.py`; independent report `/app/test_reports/iteration_48.json`.
+- Import replacement regressions: `backend/tests/test_phase60_royalty_import_replacement.py`, `backend/tests/test_iter50_royalty_import_replacement_guards.py`; full browser R2 upload→preview→commit verified in preview.
