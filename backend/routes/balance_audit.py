@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from models import new_id, now_iso
 from .balance_utils import compute_label_balance_snapshot
 from .deps import db, db_bg, log_activity, logger, require_admin
-from .royalty_recalculation import trigger_royalty_caches
+from .royalty_recalculation import recalculate_label_unwithdrawn, trigger_royalty_caches
 
 
 balance_audit_r = APIRouter(prefix="/admin/balance-audit", tags=["balance-audit"])
@@ -29,11 +29,29 @@ def _require_finance(user: dict) -> None:
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
 
 
-def _empty_row(label: dict, active_amount: int, active_ids: List[str]) -> Dict[str, Any]:
+def _max_period(*values: Optional[str]) -> Optional[str]:
+    valid = [value for value in values if value]
+    return max(valid) if valid else None
+
+
+def _empty_row(
+    label: dict,
+    active_amount: int,
+    active_ids: List[str],
+    paid_period_to: Optional[str],
+    paid_missing_period_count: int,
+) -> Dict[str, Any]:
+    label_cutoff = label.get("last_withdrawn_period")
+    effective_cutoff = _max_period(label_cutoff, paid_period_to)
     return {
         "label_id": label["id"],
         "label_name": label.get("label_name") or "—",
-        "last_withdrawn_period": label.get("last_withdrawn_period"),
+        "last_withdrawn_period": label_cutoff,
+        "paid_withdraw_period_to": paid_period_to,
+        "effective_withdraw_cutoff": effective_cutoff,
+        "cutoff_needs_sync": bool(effective_cutoff and effective_cutoff != label_cutoff),
+        "paid_withdraw_missing_period_count": paid_missing_period_count,
+        "restore_blocked": paid_missing_period_count > 0,
         "latest_report_period": None,
         "eligible_period_from": None,
         "eligible_period_to": None,
@@ -41,6 +59,12 @@ def _empty_row(label: dict, active_amount: int, active_ids: List[str]) -> Dict[s
         "eligible_available_lines": 0,
         "stale_cutoff_lines": 0,
         "stale_cutoff_idr": 0,
+        "orphan_withdrawn_lines": 0,
+        "orphan_withdrawn_idr": 0,
+        "orphan_period_from": None,
+        "orphan_period_to": None,
+        "unverified_withdrawn_lines": 0,
+        "unverified_withdrawn_idr": 0,
         "current_pending_idr": int(label.get("balance_pending_idr") or 0),
         "current_available_idr": int(label.get("balance_available_idr") or 0),
         "current_requested_idr": int(label.get("balance_withdraw_requested_idr") or 0),
@@ -64,10 +88,11 @@ def _finalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     row["requested_delta_idr"] = row["expected_requested_idr"] - row["current_requested_idr"]
     row["has_drift"] = any((
         row["pending_delta_idr"], row["available_delta_idr"], row["requested_delta_idr"],
-        row["stale_cutoff_lines"],
+        row["stale_cutoff_lines"], row["orphan_withdrawn_lines"], row["cutoff_needs_sync"],
     ))
     row["audit_status"] = (
         "blocked_active_withdraw" if row["has_active_withdraw"]
+        else "blocked_withdraw_history" if row["restore_blocked"]
         else "drift" if row["has_drift"]
         else "clean"
     )
@@ -179,6 +204,7 @@ async def commit_balance_reconciliation(body: BalanceAuditCommitIn, user: dict =
         "job_id": body.preview_job_id,
         "has_drift": True,
         "has_active_withdraw": False,
+        "restore_blocked": {"$ne": True},
     })
     await db_bg.migrate_jobs.insert_one({
         "id": job_id,
@@ -207,20 +233,35 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
         labels = await db_bg.labels.find(label_query, {
             "_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1,
             "balance_pending_idr": 1, "balance_available_idr": 1,
-            "balance_withdraw_requested_idr": 1,
+            "balance_withdraw_requested_idr": 1, "royalty_percentage_default": 1,
         }).to_list(20000)
+        scope_filter = {"label_id": {"$in": label_ids}} if label_ids is not None else {}
         active_by_label: Dict[str, Dict[str, Any]] = {}
         async for withdraw in db_bg.withdraw_requests.find({
+            **scope_filter,
             "status": {"$in": ["requested", "approved"]}, "legacy_import": {"$ne": True},
         }, {"_id": 0, "id": 1, "label_id": 1, "amount_idr": 1}):
             bucket = active_by_label.setdefault(withdraw["label_id"], {"amount": 0, "ids": []})
             bucket["amount"] += int(withdraw.get("amount_idr") or 0)
             bucket["ids"].append(withdraw["id"])
+        paid_by_label: Dict[str, Dict[str, Any]] = {}
+        async for withdraw in db_bg.withdraw_requests.find(
+            {**scope_filter, "status": "paid"},
+            {"_id": 0, "label_id": 1, "period_to": 1},
+        ):
+            bucket = paid_by_label.setdefault(withdraw["label_id"], {"period_to": None, "missing": 0})
+            period_to = withdraw.get("period_to")
+            if period_to:
+                bucket["period_to"] = _max_period(bucket["period_to"], period_to)
+            else:
+                bucket["missing"] += 1
         rows_by_label = {
             label["id"]: _empty_row(
                 label,
                 active_by_label.get(label["id"], {}).get("amount", 0),
                 active_by_label.get(label["id"], {}).get("ids", []),
+                paid_by_label.get(label["id"], {}).get("period_to"),
+                paid_by_label.get(label["id"], {}).get("missing", 0),
             ) for label in labels
         }
         await db_bg.balance_audit_rows.delete_many({"job_id": job_id})
@@ -256,9 +297,25 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             count = int(grouped.get("lines_count") or 0)
             if not row["latest_report_period"] or period > row["latest_report_period"]:
                 row["latest_report_period"] = period
+            cutoff = row["effective_withdraw_cutoff"]
+            if status == "withdrawn":
+                if not cutoff:
+                    row["unverified_withdrawn_lines"] += count
+                    row["unverified_withdrawn_idr"] += amount
+                    row["restore_blocked"] = True
+                elif period > cutoff:
+                    row["orphan_withdrawn_lines"] += count
+                    row["orphan_withdrawn_idr"] += amount
+                    row["orphan_period_from"] = min(filter(None, [row["orphan_period_from"], period]))
+                    row["orphan_period_to"] = max(filter(None, [row["orphan_period_to"], period]))
+                    if not row["restore_blocked"]:
+                        row["expected_available_source_idr"] += amount
+                        row["eligible_available_lines"] += count
+                        row["eligible_period_from"] = min(filter(None, [row["eligible_period_from"], period]))
+                        row["eligible_period_to"] = max(filter(None, [row["eligible_period_to"], period]))
+                continue
             if key["legacy_settled"]:
                 continue
-            cutoff = row["last_withdrawn_period"]
             if cutoff and period <= cutoff and status in ("draft", "pending", "available"):
                 row["stale_cutoff_lines"] += count
                 row["stale_cutoff_idr"] += amount
@@ -279,13 +336,19 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
         rows = [_finalize_row(row) for row in rows_by_label.values()]
         summary = {
             "total_labels": len(rows),
-            "drift_labels": sum(1 for row in rows if row["has_drift"] and not row["has_active_withdraw"]),
-            "clean_labels": sum(1 for row in rows if not row["has_drift"]),
+            "drift_labels": sum(1 for row in rows if row["audit_status"] == "drift"),
+            "clean_labels": sum(1 for row in rows if row["audit_status"] == "clean"),
             "blocked_active_withdraw": sum(1 for row in rows if row["has_active_withdraw"]),
+            "blocked_withdraw_history": sum(1 for row in rows if row["audit_status"] == "blocked_withdraw_history"),
             "negative_balance_labels": sum(1 for row in rows if row["current_pending_idr"] < 0 or row["current_available_idr"] < 0),
             "stale_cutoff_lines": sum(row["stale_cutoff_lines"] for row in rows),
-            "pending_delta_idr": sum(row["pending_delta_idr"] for row in rows if not row["has_active_withdraw"]),
-            "available_delta_idr": sum(row["available_delta_idr"] for row in rows if not row["has_active_withdraw"]),
+            "orphan_withdrawn_labels": sum(1 for row in rows if row["orphan_withdrawn_lines"]),
+            "orphan_withdrawn_lines": sum(row["orphan_withdrawn_lines"] for row in rows),
+            "orphan_withdrawn_idr": sum(row["orphan_withdrawn_idr"] for row in rows),
+            "unverified_withdrawn_lines": sum(row["unverified_withdrawn_lines"] for row in rows),
+            "cutoff_sync_labels": sum(1 for row in rows if row["cutoff_needs_sync"]),
+            "pending_delta_idr": sum(row["pending_delta_idr"] for row in rows if row["audit_status"] == "drift"),
+            "available_delta_idr": sum(row["available_delta_idr"] for row in rows if row["audit_status"] == "drift"),
         }
         for start in range(0, len(rows), 500):
             docs = [{"id": new_id(), "job_id": job_id, **row} for row in rows[start:start + 500]]
@@ -335,13 +398,86 @@ async def _flip_stale_cutoff_lines(*, label_id: str, cutoff: Optional[str]) -> i
     return total
 
 
+async def _paid_withdraw_guard(*, label_id: str, label_cutoff: Optional[str]) -> Dict[str, Any]:
+    paid_period_to = None
+    missing_period_count = 0
+    async for withdraw in db_bg.withdraw_requests.find(
+        {"label_id": label_id, "status": "paid"},
+        {"_id": 0, "period_to": 1},
+    ):
+        period_to = withdraw.get("period_to")
+        if period_to:
+            paid_period_to = _max_period(paid_period_to, period_to)
+        else:
+            missing_period_count += 1
+    return {
+        "paid_period_to": paid_period_to,
+        "effective_cutoff": _max_period(label_cutoff, paid_period_to),
+        "missing_period_count": missing_period_count,
+    }
+
+
+async def _restore_orphan_withdrawn_lines(
+    *, label_id: str, cutoff: Optional[str], job_id: str,
+) -> Dict[str, int]:
+    if not cutoff:
+        return {"lines": 0, "amount_before_idr": 0}
+    total = 0
+    amount = 0
+    last_oid = None
+    while True:
+        query: Dict[str, Any] = {
+            "label_id": label_id,
+            "status": "withdrawn",
+            "period": {"$gt": cutoff},
+        }
+        if last_oid is not None:
+            query["_id"] = {"$gt": last_oid}
+        batch = await db_bg.royalty_lines.find(
+            query, {"_id": 1, "label_idr": 1},
+        ).sort("_id", 1).limit(5000).to_list(5000)
+        if not batch:
+            break
+        object_ids = [item["_id"] for item in batch]
+        last_oid = object_ids[-1]
+        amount += sum(int(item.get("label_idr") or 0) for item in batch)
+        result = await db_bg.royalty_lines.update_many(
+            {"_id": {"$in": object_ids}, "status": "withdrawn", "period": {"$gt": cutoff}},
+            {
+                "$set": {
+                    "status": "available",
+                    "legacy_settled": False,
+                    "restored_by_balance_reconciliation": True,
+                    "restored_by_balance_reconciliation_job_id": job_id,
+                    "restored_at": now_iso(),
+                },
+                "$unset": {
+                    "legacy_settled_period_end": "",
+                    "legacy_settled_at": "",
+                    "legacy_manual_job_id": "",
+                    "settled_by_period_cutoff": "",
+                    "settled_by_period_cutoff_at": "",
+                    "settled_by_balance_reconciliation": "",
+                    "settled_at": "",
+                },
+            },
+        )
+        total += result.modified_count
+    return {"lines": total, "amount_before_idr": amount}
+
+
 async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_id: str) -> None:
     totals = {
         "labels_reconciled": 0,
         "labels_clean_after_recheck": 0,
         "labels_skipped_active_withdraw": 0,
+        "labels_skipped_withdraw_history": 0,
         "labels_failed": 0,
         "stale_lines_settled": 0,
+        "orphan_lines_restored": 0,
+        "orphan_amount_before_idr": 0,
+        "orphan_lines_recalculated": 0,
+        "cutoffs_synchronized": 0,
         "pending_adjustment_idr": 0,
         "available_adjustment_idr": 0,
         "requested_adjustment_idr": 0,
@@ -354,6 +490,7 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
             "job_id": preview_job_id,
             "has_drift": True,
             "has_active_withdraw": False,
+            "restore_blocked": {"$ne": True},
             "apply_status": {"$ne": "done"},
         }, {"_id": 0}).sort("label_name", 1).to_list(20000)
         for index, audit_row in enumerate(rows, start=1):
@@ -370,9 +507,46 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                         {"$set": {"apply_status": "blocked_active_withdraw", "apply_message": "Withdraw aktif muncul setelah preview"}},
                     )
                     continue
-                settled = await _flip_stale_cutoff_lines(
-                    label_id=label_id, cutoff=label.get("last_withdrawn_period"),
+                guard = await _paid_withdraw_guard(
+                    label_id=label_id, label_cutoff=label.get("last_withdrawn_period"),
                 )
+                if guard["missing_period_count"]:
+                    totals["labels_skipped_withdraw_history"] += 1
+                    await db_bg.balance_audit_rows.update_one(
+                        {"job_id": preview_job_id, "label_id": label_id},
+                        {"$set": {
+                            "apply_status": "blocked_withdraw_history",
+                            "apply_message": "Riwayat withdraw paid tanpa period_to muncul setelah preview",
+                        }},
+                    )
+                    continue
+                effective_cutoff = guard["effective_cutoff"]
+                cutoff_synchronized = bool(
+                    effective_cutoff and effective_cutoff != label.get("last_withdrawn_period")
+                )
+                if cutoff_synchronized:
+                    await db_bg.labels.update_one(
+                        {"id": label_id},
+                        {"$set": {
+                            "last_withdrawn_period": effective_cutoff,
+                            "updated_at": now_iso(),
+                        }},
+                    )
+                    label["last_withdrawn_period"] = effective_cutoff
+                    totals["cutoffs_synchronized"] += 1
+                settled = await _flip_stale_cutoff_lines(
+                    label_id=label_id, cutoff=effective_cutoff,
+                )
+                restored = await _restore_orphan_withdrawn_lines(
+                    label_id=label_id, cutoff=effective_cutoff, job_id=job_id,
+                )
+                recalc = {"lines_recalculated": 0}
+                if restored["lines"]:
+                    recalc = await recalculate_label_unwithdrawn(
+                        label_id=label_id,
+                        percentage=float(label.get("royalty_percentage_default", 60) or 60),
+                        job_id=job_id,
+                    )
                 snapshot = await compute_label_balance_snapshot(label_id=label_id, label=label)
                 expected = {
                     "balance_pending_idr": max(snapshot["balance_pending_idr"], 0),
@@ -385,7 +559,7 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                     "balance_withdraw_requested_idr": int(label.get("balance_withdraw_requested_idr") or 0),
                 }
                 deltas = {field: expected[field] - current[field] for field in expected}
-                if not any(deltas.values()) and not settled:
+                if not any(deltas.values()) and not settled and not restored["lines"] and not cutoff_synchronized:
                     totals["labels_clean_after_recheck"] += 1
                 else:
                     reconciled_at = now_iso()
@@ -401,6 +575,9 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                     )
                     totals["labels_reconciled"] += 1
                     totals["stale_lines_settled"] += settled
+                    totals["orphan_lines_restored"] += restored["lines"]
+                    totals["orphan_amount_before_idr"] += restored["amount_before_idr"]
+                    totals["orphan_lines_recalculated"] += int(recalc.get("lines_recalculated") or 0)
                     totals["pending_adjustment_idr"] += deltas["balance_pending_idr"]
                     totals["available_adjustment_idr"] += deltas["balance_available_idr"]
                     totals["requested_adjustment_idr"] += deltas["balance_withdraw_requested_idr"]
@@ -425,7 +602,15 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                         )
                 await db_bg.balance_audit_rows.update_one(
                     {"job_id": preview_job_id, "label_id": label_id},
-                    {"$set": {"apply_status": "done", "applied_job_id": job_id, "applied_at": now_iso(), "applied_balances": expected}},
+                    {"$set": {
+                        "apply_status": "done",
+                        "applied_job_id": job_id,
+                        "applied_at": now_iso(),
+                        "applied_balances": expected,
+                        "applied_effective_cutoff": effective_cutoff,
+                        "applied_orphan_lines_restored": restored["lines"],
+                        "applied_orphan_amount_before_idr": restored["amount_before_idr"],
+                    }},
                 )
             except Exception as exc:
                 totals["labels_failed"] += 1

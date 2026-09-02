@@ -67,7 +67,7 @@ export default function AdminRoyaltyImport() {
         {imports.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada import. Klik &quot;Upload CSV&quot; untuk mulai.</div> : imports.map((i) => (
           <Link key={i.id} to={`/admin/royalty/${i.id}`} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
             <div className="col-span-12 md:col-span-2 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/100/15 text-amber-300 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
               <div>
                 <div className="font-display font-bold">{i.period}</div>
                 {i.is_multi_period && <div className="text-[10px] text-zinc-500">multi-period</div>}

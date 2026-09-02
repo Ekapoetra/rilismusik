@@ -1,5 +1,16 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-02 — Phase 55: Global orphan-withdrawn recovery
+- Audit read-only production F - Audio mencocokkan enam import Feb–Jul sebesar €137,54048766, bagian label 50%, dan kurs per import; hasil normal sekitar Rp1.253.461 sementara saldo aktif production Rp914.491.
+- Riwayat paid F - Audio berakhir Januari 2026, tetapi data aktif Feb–Jul tidak mencakup seluruh source dan stored pending tercatat negatif Rp1.083.323.
+- Balance audit kini memakai cutoff efektif maksimum dari cutoff label dan seluruh `paid.period_to`.
+- Preview global mendeteksi withdrawn orphan setelah cutoff, nominalnya, range bulan, cutoff mismatch, dan riwayat paid tanpa periode.
+- Commit guarded memulihkan hanya withdrawn orphan setelah cutoff, menjaga withdrawn historis, menghitung ulang persentase label terkini, merekonsiliasi pending/available, dan menyegarkan cache/snapshot.
+- Label dengan withdraw aktif atau paid withdrawal tanpa `period_to` dilewati untuk mencegah double payment.
+- Admin UI menampilkan summary orphan, nominal, cutoff efektif, status riwayat belum lengkap, dan hasil pemulihan.
+- Terverifikasi 6/6 regresi backend, frontend build, smoke test Playwright, dan independent testing iteration 45. Tidak ada API yang di-MOCKED.
+- Memperbaiki typo class Tailwind amber pada Withdraw, Label Dashboard, Release Detail, dan Royalty Import.
+
 ## 2026-09-01 — Phase 54: Nonblocking Label Balance Snapshot
 - Production RCA: `/api/admin/labels` returned Cloudflare 524 after ~1 minute because live royalty aggregation ran inside the list request; frontend then misleadingly showed an empty list.
 - Label list endpoint is fast again and reads `balance_available_idr` materialized on label documents.

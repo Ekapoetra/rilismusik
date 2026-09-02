@@ -129,7 +129,7 @@ function StatCard({ label, value, sub, icon: Icon, accent, mini, testId }) {
 function StatusPill({ icon: Icon, label, active, warn }) {
   let cls = "bg-white/[0.06] text-zinc-400";
   if (active) cls = "bg-emerald-500/15 text-emerald-300";
-  if (warn) cls = "bg-amber-500/100/15 text-amber-300";
+  if (warn) cls = "bg-amber-500/15 text-amber-300";
   return (
     <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cls}`}>
       <Icon className="w-3.5 h-3.5" />

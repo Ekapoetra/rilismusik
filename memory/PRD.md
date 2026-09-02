@@ -58,6 +58,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Import publish, mark dana received, rate sync, audit/reconciliation, dan legacy withdrawals bersifat background + resumable.
 - Label rate mass update mendukung XLSX/CSV.
 - Legacy-settled/withdrawn data tidak tampil sebagai saldo label aktif.
+- Audit saldo global memakai cutoff efektif paling akhir antara `labels.last_withdrawn_period` dan seluruh riwayat withdraw `paid.period_to`.
+- Baris `withdrawn` setelah cutoff efektif dideteksi sebagai orphan; commit eksplisit memulihkannya ke available, menghitung ulang persentase label terkini, dan menyegarkan snapshot.
+- Label dengan withdraw aktif atau riwayat paid tanpa `period_to` diblokir dari pemulihan otomatis agar tidak terjadi pembayaran ganda.
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
@@ -114,6 +117,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - P0 multi-device authentication is implemented and independently verified.
 - P1 account, release/PPR, support/add-on, and copyright PDF scope is implemented.
 - P2 monthly summary scheduling and background completion notifications are implemented.
+- Audit production read-only F - Audio menemukan enam import Feb–Jul 2026 sebesar €137,54048766; saldo aktif Rp914.491 tidak berasal dari kesalahan formula 50%, melainkan royalty lines pasca-cutoff yang tidak aktif serta saldo pending tersimpan negatif.
+- Phase 55 global orphan-withdrawn audit/recovery sudah diimplementasikan dan terverifikasi di preview; production masih memerlukan redeploy, preview audit global, review admin, lalu commit eksplisit.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
@@ -125,4 +130,6 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Bank approval: `backend/routes/bank_change_service.py`, `backend/routes/labels.py`, `backend/routes/admin.py`.
 - Documents: `backend/routes/cms.py`, `backend/routes/copyright_generator.py`.
 - Automation: `backend/routes/monthly_royalty_email.py`, `backend/routes/background_job_notifications.py`, `backend/routes/cron_jobs.py`.
+- Balance integrity: `backend/routes/balance_audit.py`, `frontend/src/pages/admin/BalanceAuditPanel.jsx`.
 - New regression suites: `backend/tests/test_phase41_multidevice_auth.py` through `test_phase45_scheduled_notifications.py`.
+- Orphan recovery regression: `backend/tests/test_phase55_orphan_withdrawn_recovery.py`; independent report `/app/test_reports/iteration_45.json`.

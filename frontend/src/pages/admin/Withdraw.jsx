@@ -10,7 +10,7 @@ function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", 
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
 
 const STATUS_PILL = {
-  requested: "bg-amber-500/100/15 text-amber-300",
+  requested: "bg-amber-500/15 text-amber-300",
   approved: "bg-sky-500/15 text-sky-300",
   rejected: "bg-red-500/15 text-red-300",
   paid: "bg-emerald-500/15 text-emerald-300",
@@ -118,7 +118,7 @@ export default function AdminWithdraw() {
         {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada withdraw.</div> : items.map((w) => (
           <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0">
             <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/100/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>
+              <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>
               <div className="min-w-0">
                 <div className="font-semibold text-sm truncate">{w.label_name || w.label_id}</div>
               </div>

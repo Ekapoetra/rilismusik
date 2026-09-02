@@ -62,7 +62,7 @@ export default function AdminReleaseDetail() {
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">{data.release_title}</h1>
           <div className="text-zinc-400">{data.artist_name} • Rilis {data.release_date}</div>
           <div className="mt-2 flex gap-2"><StatusBadge status={data.status} />
-            {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/100/15 text-amber-300">Invoice Pending</span>}
+            {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300">Invoice Pending</span>}
             {data.payment_status === "free_subscription" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">Subscription</span>}
           </div>
           {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost mt-3 flex items-center gap-2" onClick={downloadCopyright} data-testid="admin-release-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
@@ -72,7 +72,7 @@ export default function AdminReleaseDetail() {
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
       {blockedByPayment && (
-        <div className="rounded-2xl bg-amber-500/100/15 text-amber-300 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
+        <div className="rounded-2xl bg-amber-500/15 text-amber-300 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
       )}
       {data.payment_status === "not_generated" && <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200" data-testid="admin-release-ppr-review-note">Approve akan membuat satu invoice gabungan biaya dasar dan add-on untuk label.</div>}
 
