@@ -115,6 +115,19 @@ def test_received_import_draft_and_pending_lines_become_available():
         assert row["expected_available_idr"] == 180_000
         assert row["expected_pending_idr"] == 24_000
 
+        diagnostic_response = requests.get(
+            f"{API}/admin/balance-audit/labels/{label_id}/diagnostic",
+            headers=_headers(token), timeout=30,
+        )
+        assert diagnostic_response.status_code == 200, diagnostic_response.text
+        diagnostic = diagnostic_response.json()
+        assert diagnostic["read_only"] is True
+        assert diagnostic["totals"]["lines"] == 4
+        assert diagnostic["categories"]["belum_mengikuti_laporan_diterima"]["lines"] == 2
+        assert diagnostic["categories"]["belum_mengikuti_laporan_diterima"]["label_idr"] == 180_000
+        assert diagnostic["categories"]["belum_mengikuti_laporan_terbit"]["lines"] == 1
+        assert diagnostic["categories"]["draft_laporan_belum_terbit"]["lines"] == 1
+
         committed = requests.post(
             f"{API}/admin/balance-audit/commit", headers=_headers(token),
             json={"preview_job_id": preview_id}, timeout=20,

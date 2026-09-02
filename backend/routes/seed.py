@@ -70,6 +70,7 @@ async def seed_indexes_and_admins():
     await db_bg.migrate_jobs.create_index("id", unique=True)
     await db_bg.migrate_jobs.create_index([("status", 1), ("submitted_at", -1)])
     await db_bg.migrate_jobs.create_index("kind")
+    await db_bg.royalty_duplicate_audit_rows.create_index([("job_id", 1), ("impact.revenue_eur", -1)])
     await db_bg.withdraw_requests.create_index("label_id")
     await db_bg.withdraw_requests.create_index("status")
     await db_bg.balance_transactions.create_index("label_id")

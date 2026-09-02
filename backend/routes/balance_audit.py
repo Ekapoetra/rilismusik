@@ -1,5 +1,6 @@
 """Global label-balance audit and source-of-truth reconciliation."""
 import asyncio
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,6 +19,7 @@ from .royalty_recalculation import (
 balance_audit_r = APIRouter(prefix="/admin/balance-audit", tags=["balance-audit"])
 FINANCE_ROLES = ("super_admin", "admin_finance")
 ACTIVE_JOB_STATUSES = ["queued", "processing"]
+KNOWN_LINE_STATUSES = {"draft", "pending", "available", "withdrawn"}
 
 
 class BalanceAuditCommitIn(BaseModel):
@@ -26,6 +28,30 @@ class BalanceAuditCommitIn(BaseModel):
 
 class BalanceAuditPreviewIn(BaseModel):
     label_ids: Optional[List[str]] = Field(default=None, max_length=1000)
+
+
+def _diagnostic_classification(
+    *, status: str, legacy_settled: bool, period: str, period_type: str,
+    cutoff: Optional[str], import_status: Optional[str],
+) -> str:
+    if period_type != "string" or not re.fullmatch(r"\d{4}-\d{2}", period or ""):
+        return "periode_tidak_valid"
+    after_cutoff = not cutoff or period > cutoff
+    if after_cutoff and (status == "withdrawn" or legacy_settled):
+        return "keliru_dianggap_sudah_dibayar"
+    if cutoff and period <= cutoff:
+        return "riwayat_sebelum_batas_tarik"
+    if status not in KNOWN_LINE_STATUSES:
+        return "status_tidak_dikenal"
+    if import_status == "dana_received" and status in ("draft", "pending"):
+        return "belum_mengikuti_laporan_diterima"
+    if import_status == "published" and status == "draft":
+        return "belum_mengikuti_laporan_terbit"
+    if status in ("pending", "available"):
+        return "aktif_dalam_saldo"
+    if status == "draft":
+        return "draft_laporan_belum_terbit"
+    return "lainnya"
 
 
 def _require_finance(user: dict) -> None:
@@ -179,6 +205,106 @@ async def get_balance_audit_rows(
         ("has_drift", -1), ("label_name", 1),
     ]).skip((page - 1) * limit).limit(limit).to_list(limit)
     return {"items": rows, "total": total, "page": page, "limit": limit}
+
+
+@balance_audit_r.get("/labels/{label_id}/diagnostic")
+async def get_label_balance_diagnostic(label_id: str, user: dict = Depends(require_admin)):
+    """Read-only grouped evidence for one label; never mutates balance or line state."""
+    _require_finance(user)
+    label = await db.labels.find_one(
+        {"id": label_id},
+        {"_id": 0, "id": 1, "label_name": 1, "last_withdrawn_period": 1,
+         "royalty_percentage_default": 1, "balance_pending_idr": 1,
+         "balance_available_idr": 1, "balance_withdraw_requested_idr": 1},
+    )
+    if not label:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    guard = await _paid_withdraw_guard(
+        label_id=label_id, label_cutoff=label.get("last_withdrawn_period"),
+    )
+    grouped = []
+    async for item in db_bg.royalty_lines.aggregate([
+        {"$match": {"label_id": label_id}},
+        {"$group": {
+            "_id": {
+                "import_id": "$import_id",
+                "status": {"$ifNull": ["$status", "(kosong)"]},
+                "match_status": {"$ifNull": ["$match_status", "(kosong)"]},
+                "legacy_settled": {"$eq": ["$legacy_settled", True]},
+                "period_type": {"$type": "$period"},
+                "period": {"$convert": {
+                    "input": "$period", "to": "string",
+                    "onError": "(tidak valid)", "onNull": "(kosong)",
+                }},
+            },
+            "lines": {"$sum": 1},
+            "revenue_eur": {"$sum": {"$ifNull": ["$revenue_eur", 0]}},
+            "label_idr": {"$sum": {"$ifNull": ["$label_idr", 0]}},
+        }},
+    ], allowDiskUse=True):
+        grouped.append(item)
+    import_ids = list({
+        (item.get("_id") or {}).get("import_id") for item in grouped
+        if (item.get("_id") or {}).get("import_id")
+    })
+    imports = await db_bg.royalty_imports.find(
+        {"id": {"$in": import_ids}},
+        {"_id": 0, "id": 1, "filename": 1, "status": 1, "exchange_rate_eur_idr": 1},
+    ).to_list(len(import_ids) or 1)
+    import_by_id = {item["id"]: item for item in imports}
+    categories: Dict[str, Dict[str, Any]] = {}
+    groups = []
+    cutoff = guard["effective_cutoff"]
+    for item in grouped:
+        key = item.get("_id") or {}
+        import_doc = import_by_id.get(key.get("import_id"), {})
+        category = _diagnostic_classification(
+            status=key.get("status") or "(kosong)",
+            legacy_settled=bool(key.get("legacy_settled")),
+            period=key.get("period") or "(kosong)",
+            period_type=key.get("period_type") or "missing",
+            cutoff=cutoff,
+            import_status=import_doc.get("status"),
+        )
+        bucket = categories.setdefault(category, {"lines": 0, "revenue_eur": 0.0, "label_idr": 0})
+        bucket["lines"] += int(item.get("lines") or 0)
+        bucket["revenue_eur"] += float(item.get("revenue_eur") or 0)
+        bucket["label_idr"] += int(item.get("label_idr") or 0)
+        groups.append({
+            "category": category,
+            "import_id": key.get("import_id"),
+            "import_filename": import_doc.get("filename"),
+            "import_status": import_doc.get("status") or "(tidak ditemukan)",
+            "exchange_rate": import_doc.get("exchange_rate_eur_idr"),
+            "period": key.get("period"),
+            "period_type": key.get("period_type"),
+            "status": key.get("status"),
+            "match_status": key.get("match_status"),
+            "legacy_settled": bool(key.get("legacy_settled")),
+            "lines": int(item.get("lines") or 0),
+            "revenue_eur": round(float(item.get("revenue_eur") or 0), 12),
+            "label_idr": int(item.get("label_idr") or 0),
+        })
+    for bucket in categories.values():
+        bucket["revenue_eur"] = round(bucket["revenue_eur"], 12)
+    groups.sort(key=lambda item: (
+        item.get("category") or "", item.get("period") or "",
+        item.get("import_filename") or "", item.get("status") or "",
+    ))
+    return {
+        "label": label,
+        "effective_withdraw_cutoff": cutoff,
+        "paid_withdraw_period_to": guard["paid_period_to"],
+        "paid_withdraw_missing_period_count": guard["missing_period_count"],
+        "categories": categories,
+        "totals": {
+            "lines": sum(item["lines"] for item in groups),
+            "revenue_eur": round(sum(item["revenue_eur"] for item in groups), 12),
+            "label_idr": sum(item["label_idr"] for item in groups),
+        },
+        "groups": groups,
+        "read_only": True,
+    }
 
 
 @balance_audit_r.post("/commit")

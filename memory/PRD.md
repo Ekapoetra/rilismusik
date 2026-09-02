@@ -62,6 +62,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Baris `withdrawn` setelah cutoff efektif dideteksi sebagai orphan; commit eksplisit memulihkannya ke available, menghitung ulang persentase label terkini, dan menyegarkan snapshot.
 - Baris pasca-cutoff yang statusnya masih draft/pending/available tetapi keliru bertanda `legacy_settled=true` juga dideteksi dan dipulihkan tanpa mengubah status aslinya.
 - Status induk laporan menjadi sumber kebenaran: baris draft/pending pada laporan `dana_received` harus available, sedangkan baris draft pada laporan `published` harus pending. Audit mendeteksi dan commit menyelaraskan status secara bertahap.
+- Admin Finance memiliki endpoint diagnosis read-only per label yang mengelompokkan seluruh royalty lines berdasarkan status, jenis/nilai periode, penanda pembayaran, status pencocokan, dan status induk import tanpa mengubah saldo.
+- Admin Finance memiliki audit file ganda read-only di Royalty Import; audit membandingkan fingerprint file, jumlah/nilai per periode, dampak per label, saldo aktif, dan risiko riwayat pembayaran tanpa fungsi hapus.
 - Label dengan withdraw aktif atau riwayat paid tanpa `period_to` diblokir dari pemulihan otomatis agar tidak terjadi pembayaran ganda.
 - Pekerjaan hitung ulang persentase yang tidak memperbarui perkembangan selama lebih dari empat jam ditutup otomatis agar tidak memblokir koreksi saldo selamanya; proses yang masih aktif tetap dilindungi.
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
@@ -124,6 +126,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 55 global orphan-withdrawn audit/recovery sudah diimplementasikan dan terverifikasi di preview; production masih memerlukan redeploy, preview audit global, review admin, lalu commit eksplisit.
 - Phase 56 menutup blind spot Phase 55: audit sebelumnya melewati baris pasca-cutoff yang bukan `withdrawn` tetapi masih bertanda sudah dibayar. Dua CSV F - Audio membuktikan nilai tepat Rp1.253.286, sedangkan production tetap Rp914.491 setelah rekonsiliasi lama.
 - Verifikasi production pasca-Phase 56 tetap menunjukkan nol koreksi. RCA Phase 57 menemukan blind spot lanjutan: baris biasa berstatus draft/pending pada laporan yang induknya sudah `published`/`dana_received` dilewati audit dan seluruh kartu saldo.
+- Setelah verifikasi Phase 57 production tetap nol, pendekatan koreksi dihentikan. Phase 58 menambahkan diagnosis read-only agar kategori aktual Rp338.795 dapat dibaca langsung sebelum perubahan saldo berikutnya.
+- Production memiliki satu pasangan duplikat pasti: `MEI 2026.csv` dan `Mei 2022.csv`, masing-masing 162.836 baris dan €8.296,7551 dengan breakdown periode identik tetapi kurs Rp18.000 vs Rp15.500. Phase 59 menyediakan audit dampak lengkap sebelum keputusan arsip.
 - RCA production menemukan pekerjaan hitung ulang global lama `3a8a7130-7646-46ef-a1eb-444f89bc8565` masih berstatus processing sejak 23 Agustus 2026 meski tidak ada perkembangan. Watchdog dan commit guard yang baru menutup pekerjaan kedaluwarsa otomatis.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Full implementation history: `/app/memory/CHANGELOG.md`.

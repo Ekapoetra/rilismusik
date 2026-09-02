@@ -1,5 +1,19 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-02 — Phase 59: Read-only duplicate import audit
+- Menemukan pasangan duplikat production yang pasti: `MEI 2026.csv` dan `Mei 2022.csv`, masing-masing 162.836 baris, €8.296,7551, periode Apr 2025–Mei 2026, dan jumlah baris per bulan identik; kursnya berbeda Rp18.000 vs Rp15.500.
+- Menambahkan audit background hanya-baca yang membandingkan isi per periode serta menghitung dampak EUR/IDR, saldo aktif, riwayat, label terdampak, dan kebutuhan review pembayaran.
+- Menambahkan panel Audit File Ganda pada Royalty Import tanpa tombol hapus/arsip.
+- Riwayat import kini menampilkan nama file, rentang periode, dan label `Total File EUR (Semua Bulan)` agar tidak tertukar dengan Analytics bulanan.
+- Polling UI langsung menampilkan status, bertahan dari gangguan koneksi sementara, dan memberi batas tunggu 15 menit.
+- Terverifikasi 8/8 backend, build frontend, dan Playwright progres audit; tidak ada API yang di-MOCKED.
+
+## 2026-09-02 — Phase 58: Read-only production balance diagnostics
+- Setelah Phase 57 production tetap menunjukkan nol koreksi, seluruh perubahan saldo tambahan dihentikan sampai bukti data tersedia.
+- Menambahkan `GET /api/admin/balance-audit/labels/{label_id}/diagnostic` untuk mengelompokkan seluruh baris label berdasarkan status, periode dan jenis datanya, penanda pembayaran, status pencocokan, serta status induk laporan.
+- Endpoint hanya baca, tidak menjalankan audit, tidak mengubah status baris, dan tidak mengubah saldo.
+- Terverifikasi dengan simulasi received/published/draft dan 10/10 regresi backend.
+
 ## 2026-09-02 — Phase 57: Parent-import status recovery
 - Verifikasi production setelah Phase 56 tetap menunjukkan F - Audio Rp914.491, nol koreksi, dan nol penanda pembayaran salah.
 - RCA menemukan baris draft/pending dapat tertinggal ketika proses publish/Dana Diterima terputus, walaupun induk laporan sudah berstatus `published` atau `dana_received`.
