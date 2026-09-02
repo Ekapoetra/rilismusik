@@ -65,6 +65,10 @@ def _empty_row(
         "stale_cutoff_idr": 0,
         "orphan_withdrawn_lines": 0,
         "orphan_withdrawn_idr": 0,
+        "orphan_legacy_settled_lines": 0,
+        "orphan_legacy_settled_idr": 0,
+        "wrongly_settled_lines": 0,
+        "wrongly_settled_idr": 0,
         "orphan_period_from": None,
         "orphan_period_to": None,
         "unverified_withdrawn_lines": 0,
@@ -92,7 +96,7 @@ def _finalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     row["requested_delta_idr"] = row["expected_requested_idr"] - row["current_requested_idr"]
     row["has_drift"] = any((
         row["pending_delta_idr"], row["available_delta_idr"], row["requested_delta_idr"],
-        row["stale_cutoff_lines"], row["orphan_withdrawn_lines"], row["cutoff_needs_sync"],
+        row["stale_cutoff_lines"], row["wrongly_settled_lines"], row["cutoff_needs_sync"],
     ))
     row["audit_status"] = (
         "blocked_active_withdraw" if row["has_active_withdraw"]
@@ -304,23 +308,32 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             if not row["latest_report_period"] or period > row["latest_report_period"]:
                 row["latest_report_period"] = period
             cutoff = row["effective_withdraw_cutoff"]
-            if status == "withdrawn":
+            is_marked_settled = status == "withdrawn" or key["legacy_settled"]
+            if is_marked_settled:
                 if not cutoff:
                     row["unverified_withdrawn_lines"] += count
                     row["unverified_withdrawn_idr"] += amount
                     row["restore_blocked"] = True
                 elif period > cutoff:
-                    row["orphan_withdrawn_lines"] += count
-                    row["orphan_withdrawn_idr"] += amount
+                    row["wrongly_settled_lines"] += count
+                    row["wrongly_settled_idr"] += amount
+                    if status == "withdrawn":
+                        row["orphan_withdrawn_lines"] += count
+                        row["orphan_withdrawn_idr"] += amount
+                    else:
+                        row["orphan_legacy_settled_lines"] += count
+                        row["orphan_legacy_settled_idr"] += amount
                     row["orphan_period_from"] = min(filter(None, [row["orphan_period_from"], period]))
                     row["orphan_period_to"] = max(filter(None, [row["orphan_period_to"], period]))
                     if not row["restore_blocked"]:
-                        row["expected_available_source_idr"] += amount
-                        row["eligible_available_lines"] += count
+                        if status in ("draft", "pending"):
+                            row["expected_pending_idr"] += amount
+                            row["eligible_pending_lines"] += count
+                        else:
+                            row["expected_available_source_idr"] += amount
+                            row["eligible_available_lines"] += count
                         row["eligible_period_from"] = min(filter(None, [row["eligible_period_from"], period]))
                         row["eligible_period_to"] = max(filter(None, [row["eligible_period_to"], period]))
-                continue
-            if key["legacy_settled"]:
                 continue
             if cutoff and period <= cutoff and status in ("draft", "pending", "available"):
                 row["stale_cutoff_lines"] += count
@@ -351,6 +364,12 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             "orphan_withdrawn_labels": sum(1 for row in rows if row["orphan_withdrawn_lines"]),
             "orphan_withdrawn_lines": sum(row["orphan_withdrawn_lines"] for row in rows),
             "orphan_withdrawn_idr": sum(row["orphan_withdrawn_idr"] for row in rows),
+            "orphan_legacy_settled_labels": sum(1 for row in rows if row["orphan_legacy_settled_lines"]),
+            "orphan_legacy_settled_lines": sum(row["orphan_legacy_settled_lines"] for row in rows),
+            "orphan_legacy_settled_idr": sum(row["orphan_legacy_settled_idr"] for row in rows),
+            "wrongly_settled_labels": sum(1 for row in rows if row["wrongly_settled_lines"]),
+            "wrongly_settled_lines": sum(row["wrongly_settled_lines"] for row in rows),
+            "wrongly_settled_idr": sum(row["wrongly_settled_idr"] for row in rows),
             "unverified_withdrawn_lines": sum(row["unverified_withdrawn_lines"] for row in rows),
             "cutoff_sync_labels": sum(1 for row in rows if row["cutoff_needs_sync"]),
             "pending_delta_idr": sum(row["pending_delta_idr"] for row in rows if row["audit_status"] == "drift"),
@@ -434,24 +453,31 @@ async def _restore_orphan_withdrawn_lines(
     while True:
         query: Dict[str, Any] = {
             "label_id": label_id,
-            "status": "withdrawn",
             "period": {"$gt": cutoff},
+            "$or": [
+                {"status": "withdrawn"},
+                {"legacy_settled": True},
+            ],
         }
         if last_oid is not None:
             query["_id"] = {"$gt": last_oid}
         batch = await db_bg.royalty_lines.find(
-            query, {"_id": 1, "label_idr": 1},
+            query, {"_id": 1, "label_idr": 1, "status": 1},
         ).sort("_id", 1).limit(5000).to_list(5000)
         if not batch:
             break
         object_ids = [item["_id"] for item in batch]
+        withdrawn_ids = [item["_id"] for item in batch if item.get("status") == "withdrawn"]
         last_oid = object_ids[-1]
         amount += sum(int(item.get("label_idr") or 0) for item in batch)
         result = await db_bg.royalty_lines.update_many(
-            {"_id": {"$in": object_ids}, "status": "withdrawn", "period": {"$gt": cutoff}},
+            {
+                "_id": {"$in": object_ids},
+                "period": {"$gt": cutoff},
+                "$or": [{"status": "withdrawn"}, {"legacy_settled": True}],
+            },
             {
                 "$set": {
-                    "status": "available",
                     "legacy_settled": False,
                     "restored_by_balance_reconciliation": True,
                     "restored_by_balance_reconciliation_job_id": job_id,
@@ -468,6 +494,16 @@ async def _restore_orphan_withdrawn_lines(
                 },
             },
         )
+        if withdrawn_ids:
+            await db_bg.royalty_lines.update_many(
+                {
+                    "_id": {"$in": withdrawn_ids},
+                    "status": "withdrawn",
+                    "period": {"$gt": cutoff},
+                    "restored_by_balance_reconciliation_job_id": job_id,
+                },
+                {"$set": {"status": "available"}},
+            )
         total += result.modified_count
     return {"lines": total, "amount_before_idr": amount}
 

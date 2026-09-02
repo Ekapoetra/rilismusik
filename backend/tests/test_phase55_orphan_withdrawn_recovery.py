@@ -125,6 +125,34 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
             "label_idr": 100_000,
         },
         {
+            "id": f"ph55-safe-legacy-marker-{suffix}",
+            "label_id": safe_id,
+            "period": "2026-05",
+            "status": "available",
+            "legacy_settled": True,
+            "legacy_settled_period_end": "2026-05",
+            "revenue_eur": 30,
+            "exchange_rate": 10_000,
+            "label_eur": 18,
+            "label_idr": 180_000,
+            "distributor_idr": 120_000,
+            "label_percentage_applied": 60,
+        },
+        {
+            "id": f"ph55-safe-pending-marker-{suffix}",
+            "label_id": safe_id,
+            "period": "2026-07",
+            "status": "pending",
+            "legacy_settled": True,
+            "legacy_settled_period_end": "2026-07",
+            "revenue_eur": 4,
+            "exchange_rate": 10_000,
+            "label_eur": 2.4,
+            "label_idr": 24_000,
+            "distributor_idr": 16_000,
+            "label_percentage_applied": 60,
+        },
+        {
             "id": f"ph55-blocked-orphan-{suffix}",
             "label_id": blocked_id,
             "period": "2026-06",
@@ -148,6 +176,8 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         preview = _wait_job(token, preview_id)
         assert preview["status"] == "done", preview.get("error_message")
         assert preview["summary"]["orphan_withdrawn_lines"] == 2
+        assert preview["summary"]["orphan_legacy_settled_lines"] == 2
+        assert preview["summary"]["wrongly_settled_lines"] == 4
         assert preview["summary"]["blocked_withdraw_history"] == 1
 
         rows_response = requests.get(
@@ -160,7 +190,11 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         assert rows[safe_id]["effective_withdraw_cutoff"] == "2026-01"
         assert rows[safe_id]["orphan_withdrawn_lines"] == 1
         assert rows[safe_id]["orphan_withdrawn_idr"] == 120_000
-        assert rows[safe_id]["expected_available_idr"] == 170_000
+        assert rows[safe_id]["orphan_legacy_settled_lines"] == 2
+        assert rows[safe_id]["orphan_legacy_settled_idr"] == 204_000
+        assert rows[safe_id]["wrongly_settled_lines"] == 3
+        assert rows[safe_id]["expected_pending_idr"] == 24_000
+        assert rows[safe_id]["expected_available_idr"] == 350_000
         assert rows[safe_id]["audit_status"] == "drift"
         assert rows[blocked_id]["audit_status"] == "blocked_withdraw_history"
 
@@ -174,7 +208,7 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         commit_id = committed.json()["job_id"]
         commit = _wait_job(token, commit_id)
         assert commit["status"] == "done", commit.get("error_message")
-        assert commit["result"]["orphan_lines_restored"] == 1
+        assert commit["result"]["orphan_lines_restored"] == 3
         assert commit["result"]["labels_skipped_withdraw_history"] == 0
 
         restored = db.royalty_lines.find_one({"id": f"ph55-safe-orphan-{suffix}"})
@@ -183,12 +217,22 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         assert restored["label_percentage_applied"] == 50
         assert restored["label_idr"] == 100_000
         assert restored["restored_by_balance_reconciliation"] is True
+        restored_marker = db.royalty_lines.find_one({"id": f"ph55-safe-legacy-marker-{suffix}"})
+        assert restored_marker["status"] == "available"
+        assert restored_marker["legacy_settled"] is False
+        assert restored_marker["label_percentage_applied"] == 50
+        assert restored_marker["label_idr"] == 150_000
+        restored_pending = db.royalty_lines.find_one({"id": f"ph55-safe-pending-marker-{suffix}"})
+        assert restored_pending["status"] == "pending"
+        assert restored_pending["legacy_settled"] is False
+        assert restored_pending["label_percentage_applied"] == 50
+        assert restored_pending["label_idr"] == 20_000
         assert db.royalty_lines.find_one({"id": f"ph55-safe-historical-{suffix}"})["status"] == "withdrawn"
         assert db.royalty_lines.find_one({"id": f"ph55-blocked-orphan-{suffix}"})["status"] == "withdrawn"
 
         safe = db.labels.find_one({"id": safe_id})
-        assert safe["balance_pending_idr"] == 0
-        assert safe["balance_available_idr"] == 150_000
+        assert safe["balance_pending_idr"] == 20_000
+        assert safe["balance_available_idr"] == 300_000
 
         verified = requests.post(
             f"{API}/admin/balance-audit/preview",
@@ -199,6 +243,8 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         verify_id = verified.json()["job_id"]
         verify = _wait_job(token, verify_id)
         assert verify["summary"]["orphan_withdrawn_lines"] == 0
+        assert verify["summary"]["orphan_legacy_settled_lines"] == 0
+        assert verify["summary"]["wrongly_settled_lines"] == 0
         assert verify["summary"]["drift_labels"] == 0
     finally:
         job_ids = [item for item in (preview_id, commit_id, verify_id) if item]

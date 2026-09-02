@@ -1,0 +1,42 @@
+{
+  "summary": "Executed backend+frontend regression for balance-audit reconciliation scope, including new draft legacy-settled coverage, and verified admin audit UI wording/integration on preview environment.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter47_balance_audit_draft_legacy_marker.py",
+    "/app/backend/tests/test_phase55_orphan_withdrawn_recovery.py",
+    "/app/backend/tests/test_phase38_balance_reconciliation.py",
+    "/app/backend/tests/test_iter33_balance_audit_api.py",
+    "/app/backend/tests/test_iter46_stale_recalculation_watchdog.py",
+    "/app/test_reports/pytest/iter47_targeted_backend.xml"
+  ],
+  "action_items": [
+    "No blocking defects found in requested audit/reconciliation scope.",
+    "Keep running the new draft-legacy regression in future CI for this module."
+  ],
+  "critical_code_review_comments": [
+    "Preview aggregator now correctly treats post-cutoff `legacy_settled=true` lines (including draft/pending/available) as wrongly-settled and includes them in expected balances.",
+    "Commit flow correctly clears legacy settlement markers for post-cutoff anomalies and preserves non-withdrawn statuses while only converting withdrawn->available.",
+    "Recalculation path continues to reuse current label percentage and import exchange rate, with stale watchdog and paid-cutoff guards still functioning in regression runs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter47_balance_audit_draft_legacy_marker.py",
+    "/app/test_reports/iteration_47.json"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 passed)",
+    "frontend": "100% (targeted admin balance-audit preview flow passed)"
+  },
+  "seed_data_creation": "No standalone seed scripts executed. Tests used temporary labels/royalty/withdraw/job documents and cleaned all created data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New regression file covers the missing draft-status legacy marker path end-to-end (preview counts, commit behavior, status preservation, recalculation values, and zero-anomaly re-preview). UI check confirmed Indonesian wording and combined wrong-status summary card renders correctly from live API preview.",
+  "rca of the issue": "Original bug class is reproducible when post-cutoff lines are legacy-marked but not withdrawn. Added regression now proves these lines are audited as anomalies, restored correctly on commit, and re-audited to zero markers. No API flow was MOCKED."
+}

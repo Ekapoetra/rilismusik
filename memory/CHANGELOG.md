@@ -1,12 +1,19 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-02 — Phase 56: Post-cutoff paid-marker recovery
+- Dua CSV F - Audio diverifikasi dengan parser produksi: 7.611 baris, €137,540487659793, dan hasil tepat **Rp1.253.286** setelah bagian label 50% serta kurs per bulan.
+- Menemukan penyebab saldo tetap Rp914.491 setelah Phase 55: audit hanya mendeteksi status `withdrawn`, sementara baris draft/pending/available yang keliru bertanda `legacy_settled=true` dilewati.
+- Preview kini menghitung seluruh data pasca-batas tarik yang salah bertanda sudah dibayar dan memasukkannya ke pending atau available sesuai status aslinya.
+- Commit menghapus penanda pembayaran lama, hanya mengubah `withdrawn` menjadi available, mempertahankan draft/pending/available, lalu menghitung ulang persentase label dan saldo.
+- Terverifikasi 11/11 backend, frontend build, dan alur audit UI melalui independent testing iteration 47; tidak ada API yang di-MOCKED.
+
 ## 2026-09-02 — Phase 55: Global orphan-withdrawn recovery
 - Memperbaiki kebuntuan production akibat pekerjaan `recalculate_all_unwithdrawn` lama yang tetap `processing` pada 70/1.720 label sejak 23 Agustus tanpa perkembangan.
 - Commit audit kini menutup otomatis pekerjaan hitung ulang yang tidak bergerak lebih dari empat jam, tetapi tetap memblokir bila proses baru masih benar-benar aktif.
 - Menambahkan pemeriksaan otomatis setiap 15 menit dan endpoint manual Admin Finance/Super Admin untuk menutup pekerjaan hitung ulang kedaluwarsa.
 - Seluruh istilah teknis audit pada UI diganti bahasa Indonesia sederhana: `Royalti salah status`, `Nilai belum masuk saldo`, dan `Batas tarik`.
 - Perbaikan kebuntuan terverifikasi 10/10 backend serta frontend build/UI melalui independent testing iteration 46.
-- Audit read-only production F - Audio mencocokkan enam import Feb–Jul sebesar €137,54048766, bagian label 50%, dan kurs per import; hasil normal sekitar Rp1.253.461 sementara saldo aktif production Rp914.491.
+- Audit read-only production F - Audio mencocokkan enam import Feb–Jul sebesar €137,54048766, bagian label 50%, dan kurs per import; estimasi awal kemudian dikoreksi dengan perhitungan per baris menjadi Rp1.253.286 sementara saldo aktif production Rp914.491.
 - Riwayat paid F - Audio berakhir Januari 2026, tetapi data aktif Feb–Jul tidak mencakup seluruh source dan stored pending tercatat negatif Rp1.083.323.
 - Balance audit kini memakai cutoff efektif maksimum dari cutoff label dan seluruh `paid.period_to`.
 - Preview global mendeteksi withdrawn orphan setelah cutoff, nominalnya, range bulan, cutoff mismatch, dan riwayat paid tanpa periode.

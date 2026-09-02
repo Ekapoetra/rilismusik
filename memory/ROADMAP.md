@@ -1,6 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 56. Audit ulang harus mendeteksi F - Audio yang pasca-Januari masih bertanda sudah dibayar walau statusnya bukan withdrawn.
+- Setelah deploy, jalankan Audit Ulang → cari `F - Audio` → pastikan kolom Royalti Salah Status tidak nol → jalankan koreksi → Audit Ulang lagi hingga nol dan verifikasi saldo terhadap Rp1.253.286.
 - Redeploy perbaikan stale-job terbaru. Pekerjaan global lama yang berhenti di 70/1.720 sejak 23 Agustus akan ditutup otomatis saat commit audit berikutnya.
 - Setelah deploy, klik Audit Ulang sebelum koreksi agar hasil sementara memakai data terbaru; tidak perlu menunggu pekerjaan lama tersebut.
 - Redeploy Phase 55 global orphan-withdrawn audit/recovery. Perubahan tidak menyentuh saldo production sebelum Admin Finance/Super Admin menjalankan commit eksplisit.
@@ -37,6 +39,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 56 memulihkan penanda `legacy_settled=true` yang salah pada status draft/pending/available setelah batas tarik, mempertahankan status asli, dan menghitung ulang bagian label.
 - Phase 55 mendeteksi withdrawn orphan setelah cutoff paid untuk seluruh label, memblokir riwayat ambigu, memulihkan baris secara guarded, menghitung ulang rate terkini, dan memperbarui snapshot saldo.
 - RCA production F - Audio membuktikan formula 50% benar; sumber selisih adalah komposisi royalty lines aktif/withdrawn dan stored pending negatif, bukan potongan tambahan.
 - Label Management available balance now uses the same live source-of-truth computation as Label Detail.
