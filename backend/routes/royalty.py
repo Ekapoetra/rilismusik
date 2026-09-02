@@ -1292,7 +1292,7 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
     # rejecting the action based on the stale timestamp.
     if imp.get("dana_received_at"):
         pending_lines = await db_bg.royalty_lines.count_documents({
-            "import_id": import_id, "status": "pending",
+            "import_id": import_id, "status": {"$in": ["draft", "pending"]},
         })
         if pending_lines == 0:
             reconciled_at = now_iso()
@@ -1307,7 +1307,7 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
             )
             await log_activity(
                 user["id"], "reconcile_dana_received_status", "royalty", import_id,
-                after={"reason": "timestamp_present_no_pending_lines"},
+                after={"reason": "timestamp_present_no_draft_or_pending_lines"},
             )
             return await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
         await db_bg.royalty_imports.update_one(
@@ -1354,7 +1354,7 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
         pipeline = [
             {"$match": {
                 "import_id": import_id,
-                "status": "pending",
+                "status": {"$in": ["draft", "pending"]},
                 "legacy_settled": {"$ne": True},
             }},
             {"$group": {
@@ -1402,7 +1402,7 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
                 {
                     "import_id": import_id,
                     "label_id": label_id,
-                    "status": "pending",
+                    "status": {"$in": ["draft", "pending"]},
                     "legacy_settled": {"$ne": True},
                     "period": {"$lte": cutoff},
                 },
@@ -1469,7 +1469,7 @@ async def _mark_dana_received_bg(*, import_id: str, user_id: str):
 
         pending_filter = {
             "import_id": import_id,
-            "status": "pending",
+            "status": {"$in": ["draft", "pending"]},
             "legacy_settled": {"$ne": True},
         }
         total_pending = await db_bg.royalty_lines.count_documents(pending_filter)
@@ -2667,7 +2667,7 @@ async def resume_interrupted_imports():
         stale_received = []
     for imp in stale_received:
         pending_lines = await db_bg.royalty_lines.count_documents({
-            "import_id": imp["id"], "status": "pending",
+            "import_id": imp["id"], "status": {"$in": ["draft", "pending"]},
         })
         if pending_lines == 0:
             await db_bg.royalty_imports.update_one(

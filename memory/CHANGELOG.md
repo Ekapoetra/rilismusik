@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-02 — Phase 57: Parent-import status recovery
+- Verifikasi production setelah Phase 56 tetap menunjukkan F - Audio Rp914.491, nol koreksi, dan nol penanda pembayaran salah.
+- RCA menemukan baris draft/pending dapat tertinggal ketika proses publish/Dana Diterima terputus, walaupun induk laporan sudah berstatus `published` atau `dana_received`.
+- Audit kini mengelompokkan per import dan membandingkan status baris dengan status induk laporan; selisih ikut dihitung pada Royalti Salah Status dan perkiraan saldo.
+- Commit mengubah draft/pending menjadi available untuk laporan yang sudah diterima dan draft menjadi pending untuk laporan yang sudah diterbitkan; draft pada laporan belum terbit tetap tidak diubah.
+- Alur Dana Diterima dan pemulihan saat startup kini memeriksa draft serta pending agar masalah tidak berulang.
+- Terverifikasi 22/22 backend setelah satu retry timeout jaringan, frontend build/UI lulus, dan tidak ada API yang di-MOCKED (iteration 48).
+
 ## 2026-09-02 — Phase 56: Post-cutoff paid-marker recovery
 - Dua CSV F - Audio diverifikasi dengan parser produksi: 7.611 baris, €137,540487659793, dan hasil tepat **Rp1.253.286** setelah bagian label 50% serta kurs per bulan.
 - Menemukan penyebab saldo tetap Rp914.491 setelah Phase 55: audit hanya mendeteksi status `withdrawn`, sementara baris draft/pending/available yang keliru bertanda `legacy_settled=true` dilewati.

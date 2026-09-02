@@ -69,6 +69,11 @@ def _empty_row(
         "orphan_legacy_settled_idr": 0,
         "wrongly_settled_lines": 0,
         "wrongly_settled_idr": 0,
+        "import_status_mismatch_lines": 0,
+        "import_status_mismatch_idr": 0,
+        "draft_under_received_import_lines": 0,
+        "pending_under_received_import_lines": 0,
+        "draft_under_published_import_lines": 0,
         "orphan_period_from": None,
         "orphan_period_to": None,
         "unverified_withdrawn_lines": 0,
@@ -279,6 +284,12 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             {"id": job_id},
             {"$set": {"phase": "aggregating_royalty_lines", "progress_labels_total": len(labels), "updated_at": now_iso()}},
         )
+        import_docs = await db_bg.royalty_imports.find(
+            {}, {"_id": 0, "id": 1, "status": 1},
+        ).to_list(100000)
+        import_status_by_id = {
+            item["id"]: item.get("status") for item in import_docs if item.get("id")
+        }
         pipeline = [
             {"$match": {
                 "label_id": {"$in": label_ids} if label_ids is not None else {"$ne": None},
@@ -291,6 +302,7 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
                     "period": "$period",
                     "status": "$status",
                     "legacy_settled": {"$eq": ["$legacy_settled", True]},
+                    "import_id": "$import_id",
                 },
                 "amount_idr": {"$sum": "$label_idr"},
                 "lines_count": {"$sum": 1},
@@ -303,6 +315,12 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
                 continue
             period = key["period"]
             status = key["status"]
+            import_status = import_status_by_id.get(key.get("import_id"))
+            target_status = None
+            if import_status == "dana_received" and status in ("draft", "pending"):
+                target_status = "available"
+            elif import_status == "published" and status == "draft":
+                target_status = "pending"
             amount = int(grouped.get("amount_idr") or 0)
             count = int(grouped.get("lines_count") or 0)
             if not row["latest_report_period"] or period > row["latest_report_period"]:
@@ -326,7 +344,8 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
                     row["orphan_period_from"] = min(filter(None, [row["orphan_period_from"], period]))
                     row["orphan_period_to"] = max(filter(None, [row["orphan_period_to"], period]))
                     if not row["restore_blocked"]:
-                        if status in ("draft", "pending"):
+                        destination = "available" if status == "withdrawn" else (target_status or status)
+                        if destination in ("draft", "pending"):
                             row["expected_pending_idr"] += amount
                             row["eligible_pending_lines"] += count
                         else:
@@ -338,6 +357,28 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             if cutoff and period <= cutoff and status in ("draft", "pending", "available"):
                 row["stale_cutoff_lines"] += count
                 row["stale_cutoff_idr"] += amount
+                continue
+            if target_status:
+                row["wrongly_settled_lines"] += count
+                row["wrongly_settled_idr"] += amount
+                row["import_status_mismatch_lines"] += count
+                row["import_status_mismatch_idr"] += amount
+                if import_status == "dana_received" and status == "draft":
+                    row["draft_under_received_import_lines"] += count
+                elif import_status == "dana_received" and status == "pending":
+                    row["pending_under_received_import_lines"] += count
+                elif import_status == "published" and status == "draft":
+                    row["draft_under_published_import_lines"] += count
+                row["orphan_period_from"] = min(filter(None, [row["orphan_period_from"], period]))
+                row["orphan_period_to"] = max(filter(None, [row["orphan_period_to"], period]))
+                row["eligible_period_from"] = min(filter(None, [row["eligible_period_from"], period]))
+                row["eligible_period_to"] = max(filter(None, [row["eligible_period_to"], period]))
+                if target_status == "available":
+                    row["expected_available_source_idr"] += amount
+                    row["eligible_available_lines"] += count
+                else:
+                    row["expected_pending_idr"] += amount
+                    row["eligible_pending_lines"] += count
                 continue
             if status not in ("pending", "available"):
                 continue
@@ -370,6 +411,9 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             "wrongly_settled_labels": sum(1 for row in rows if row["wrongly_settled_lines"]),
             "wrongly_settled_lines": sum(row["wrongly_settled_lines"] for row in rows),
             "wrongly_settled_idr": sum(row["wrongly_settled_idr"] for row in rows),
+            "import_status_mismatch_labels": sum(1 for row in rows if row["import_status_mismatch_lines"]),
+            "import_status_mismatch_lines": sum(row["import_status_mismatch_lines"] for row in rows),
+            "import_status_mismatch_idr": sum(row["import_status_mismatch_idr"] for row in rows),
             "unverified_withdrawn_lines": sum(row["unverified_withdrawn_lines"] for row in rows),
             "cutoff_sync_labels": sum(1 for row in rows if row["cutoff_needs_sync"]),
             "pending_delta_idr": sum(row["pending_delta_idr"] for row in rows if row["audit_status"] == "drift"),
@@ -508,6 +552,61 @@ async def _restore_orphan_withdrawn_lines(
     return {"lines": total, "amount_before_idr": amount}
 
 
+async def _sync_lines_with_import_status(
+    *, label_id: str, cutoff: Optional[str], job_id: str,
+) -> Dict[str, int]:
+    period_filter: Dict[str, Any] = {"$type": "string"}
+    if cutoff:
+        period_filter["$gt"] = cutoff
+    import_ids = await db_bg.royalty_lines.distinct("import_id", {
+        "label_id": label_id,
+        "status": {"$in": ["draft", "pending"]},
+        "legacy_settled": {"$ne": True},
+        "period": period_filter,
+    })
+    if not import_ids:
+        return {"lines": 0, "amount_before_idr": 0, "to_pending": 0, "to_available": 0}
+    imports = await db_bg.royalty_imports.find(
+        {"id": {"$in": import_ids}, "status": {"$in": ["published", "dana_received"]}},
+        {"_id": 0, "id": 1, "status": 1},
+    ).to_list(len(import_ids))
+    totals = {"lines": 0, "amount_before_idr": 0, "to_pending": 0, "to_available": 0}
+    for item in imports:
+        target_status = "available" if item.get("status") == "dana_received" else "pending"
+        source_statuses = ["draft", "pending"] if target_status == "available" else ["draft"]
+        last_oid = None
+        while True:
+            query: Dict[str, Any] = {
+                "label_id": label_id,
+                "import_id": item["id"],
+                "status": {"$in": source_statuses},
+                "legacy_settled": {"$ne": True},
+                "period": period_filter,
+            }
+            if last_oid is not None:
+                query["_id"] = {"$gt": last_oid}
+            batch = await db_bg.royalty_lines.find(
+                query, {"_id": 1, "label_idr": 1},
+            ).sort("_id", 1).limit(5000).to_list(5000)
+            if not batch:
+                break
+            object_ids = [line["_id"] for line in batch]
+            last_oid = object_ids[-1]
+            result = await db_bg.royalty_lines.update_many(
+                {"_id": {"$in": object_ids}, "status": {"$in": source_statuses}},
+                {"$set": {
+                    "status": target_status,
+                    "status_reconciled_from_import": True,
+                    "status_reconciled_from_import_job_id": job_id,
+                    "status_reconciled_at": now_iso(),
+                }},
+            )
+            totals["lines"] += result.modified_count
+            totals["amount_before_idr"] += sum(int(line.get("label_idr") or 0) for line in batch)
+            totals["to_available" if target_status == "available" else "to_pending"] += result.modified_count
+    return totals
+
+
 async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_id: str) -> None:
     totals = {
         "labels_reconciled": 0,
@@ -518,6 +617,10 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
         "stale_lines_settled": 0,
         "orphan_lines_restored": 0,
         "orphan_amount_before_idr": 0,
+        "import_status_lines_synchronized": 0,
+        "import_status_amount_before_idr": 0,
+        "import_status_lines_to_pending": 0,
+        "import_status_lines_to_available": 0,
         "orphan_lines_recalculated": 0,
         "cutoffs_synchronized": 0,
         "pending_adjustment_idr": 0,
@@ -582,8 +685,11 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                 restored = await _restore_orphan_withdrawn_lines(
                     label_id=label_id, cutoff=effective_cutoff, job_id=job_id,
                 )
+                synchronized = await _sync_lines_with_import_status(
+                    label_id=label_id, cutoff=effective_cutoff, job_id=job_id,
+                )
                 recalc = {"lines_recalculated": 0}
-                if restored["lines"]:
+                if restored["lines"] or synchronized["lines"]:
                     recalc = await recalculate_label_unwithdrawn(
                         label_id=label_id,
                         percentage=float(label.get("royalty_percentage_default", 60) or 60),
@@ -601,7 +707,7 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                     "balance_withdraw_requested_idr": int(label.get("balance_withdraw_requested_idr") or 0),
                 }
                 deltas = {field: expected[field] - current[field] for field in expected}
-                if not any(deltas.values()) and not settled and not restored["lines"] and not cutoff_synchronized:
+                if not any(deltas.values()) and not settled and not restored["lines"] and not synchronized["lines"] and not cutoff_synchronized:
                     totals["labels_clean_after_recheck"] += 1
                 else:
                     reconciled_at = now_iso()
@@ -619,6 +725,10 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                     totals["stale_lines_settled"] += settled
                     totals["orphan_lines_restored"] += restored["lines"]
                     totals["orphan_amount_before_idr"] += restored["amount_before_idr"]
+                    totals["import_status_lines_synchronized"] += synchronized["lines"]
+                    totals["import_status_amount_before_idr"] += synchronized["amount_before_idr"]
+                    totals["import_status_lines_to_pending"] += synchronized["to_pending"]
+                    totals["import_status_lines_to_available"] += synchronized["to_available"]
                     totals["orphan_lines_recalculated"] += int(recalc.get("lines_recalculated") or 0)
                     totals["pending_adjustment_idr"] += deltas["balance_pending_idr"]
                     totals["available_adjustment_idr"] += deltas["balance_available_idr"]
@@ -652,6 +762,8 @@ async def _run_balance_reconciliation(*, job_id: str, preview_job_id: str, user_
                         "applied_effective_cutoff": effective_cutoff,
                         "applied_orphan_lines_restored": restored["lines"],
                         "applied_orphan_amount_before_idr": restored["amount_before_idr"],
+                        "applied_import_status_lines_synchronized": synchronized["lines"],
+                        "applied_import_status_amount_before_idr": synchronized["amount_before_idr"],
                     }},
                 )
             except Exception as exc:

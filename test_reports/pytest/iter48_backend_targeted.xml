@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="22" time="84.809" timestamp="2026-09-02T10:31:28.030660+00:00" hostname="agent-env-b995bc2d-d561-43fa-a86c-997bb4cc2248"><testcase classname="backend.tests.test_phase57_import_line_status_recovery" name="test_received_import_draft_and_pending_lines_become_available" time="1.301" /><testcase classname="backend.tests.test_phase55_orphan_withdrawn_recovery" name="test_global_audit_restores_only_guarded_post_cutoff_orphans" time="1.253" /><testcase classname="backend.tests.test_phase55_orphan_withdrawn_recovery" name="test_stale_recalculation_is_closed_but_recent_job_still_blocks_commit" time="1.046" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_period_column_is_strictly_bulan_laporan" time="0.002" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_upload_uses_bulan_laporan_and_rejects_invalid_rows" time="1.107" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_upload_rejects_bulan_penjualan_without_bulan_laporan" time="0.180" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_mark_dana_received_runs_background_and_is_idempotent" time="0.252" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_mark_dana_reconciles_stale_timestamp_with_published_status" time="0.151" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_analytics_rebuild_is_background_streaming_and_exposes_source_months" time="0.937" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_legacy_withdraw_preview_and_commit_are_background_jobs" time="0.552" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_existing_import_period_can_be_repaired_from_retained_csv" time="0.294" /><testcase classname="backend.tests.test_phase35_production_bugfixes" name="test_missing_source_can_be_reuploaded_directly_to_r2_and_repaired" time="2.598" /><testcase classname="backend.tests.test_phase32_dynamic_royalty_legacy" name="test_dynamic_percentage_and_legacy_cutoff_end_to_end" time="3.304" /><testcase classname="backend.tests.test_phase38_balance_reconciliation" name="test_global_preview_and_commit_reconcile_cutoff_balances" time="1.505" /><testcase classname="backend.tests.test_phase38_balance_reconciliation" name="test_mark_dana_never_recredits_period_at_or_before_withdraw_cutoff" time="0.137" /><testcase classname="backend.tests.test_phase38_balance_reconciliation" name="test_rate_recalculation_ignores_lines_at_or_before_cutoff" time="40.314"><failure message="requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='lanjut-core.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/labels/rate-import/jobs/4db37c58-9bc8-4677-9fbe-5214627c786c (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='lanjut-core.preview.emergentagent.com', port=443) at 0xfb5365053690&gt;, 'Connection to lanjut-core.preview.emergentagent.com timed out. (connect timeout=20)'))">/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:204: in _new_conn
+    sock = connection.create_connection(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:85: in create_connection
+    raise err
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:73: in create_connection
+    sock.connect(sa)
+E   TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:788: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:488: in _make_request
+    raise new_e
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:464: in _make_request
+    self._validate_conn(conn)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1106: in _validate_conn
+    conn.connect()
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:759: in connect
+    self.sock = sock = self._new_conn()
+                       ^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:213: in _new_conn
+    raise ConnectTimeoutError(
+E   urllib3.exceptions.ConnectTimeoutError: (&lt;HTTPSConnection(host='lanjut-core.preview.emergentagent.com', port=443) at 0xfb5365053690&gt;, 'Connection to lanjut-core.preview.emergentagent.com timed out. (connect timeout=20)')
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:696: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:842: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:543: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='lanjut-core.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/labels/rate-import/jobs/4db37c58-9bc8-4677-9fbe-5214627c786c (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='lanjut-core.preview.emergentagent.com', port=443) at 0xfb5365053690&gt;, 'Connection to lanjut-core.preview.emergentagent.com timed out. (connect timeout=20)'))
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_phase38_balance_reconciliation.py:267: in test_rate_recalculation_ignores_lines_at_or_before_cutoff
+    job = _wait_job(super_token, job_id, path="labels/rate-import")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/tests/test_phase38_balance_reconciliation.py:37: in _wait_job
+    response = requests.get(f"{API}/admin/{path}/jobs/{job_id}", headers=_headers(token), timeout=20)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:87: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:71: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:651: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:784: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:717: in send
+    raise ConnectTimeout(e, request=request)
+E   requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='lanjut-core.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/labels/rate-import/jobs/4db37c58-9bc8-4677-9fbe-5214627c786c (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='lanjut-core.preview.emergentagent.com', port=443) at 0xfb5365053690&gt;, 'Connection to lanjut-core.preview.emergentagent.com timed out. (connect timeout=20)'))</failure></testcase><testcase classname="backend.tests.test_iter47_balance_audit_draft_legacy_marker" name="test_balance_audit_handles_post_cutoff_draft_legacy_markers_end_to_end" time="14.734" /><testcase classname="backend.tests.test_iter33_balance_audit_api" name="test_balance_audit_preview_rbac_enforced" time="12.374" /><testcase classname="backend.tests.test_iter33_balance_audit_api" name="test_balance_audit_preview_poetra_cutoff_payload_invariants" time="0.717" /><testcase classname="backend.tests.test_iter46_stale_recalculation_watchdog" name="test_manual_stuck_recalculation_endpoint_closes_only_stale_jobs_and_enforces_roles" time="0.970" /><testcase classname="backend.tests.test_iter46_stale_recalculation_watchdog" name="test_global_recalculate_endpoint_closes_stale_old_job_before_already_running_check" time="0.464" /><testcase classname="backend.tests.test_iter46_stale_recalculation_watchdog" name="test_scheduler_registers_stale_recalculation_watchdog_every_15_minutes" time="0.000" /></testsuite></testsuites>
