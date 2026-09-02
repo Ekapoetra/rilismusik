@@ -1,6 +1,8 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy perbaikan stale-job terbaru. Pekerjaan global lama yang berhenti di 70/1.720 sejak 23 Agustus akan ditutup otomatis saat commit audit berikutnya.
+- Setelah deploy, klik Audit Ulang sebelum koreksi agar hasil sementara memakai data terbaru; tidak perlu menunggu pekerjaan lama tersebut.
 - Redeploy Phase 55 global orphan-withdrawn audit/recovery. Perubahan tidak menyentuh saldo production sebelum Admin Finance/Super Admin menjalankan commit eksplisit.
 - Setelah deploy, buka Withdraw → Audit Saldo Label, jalankan preview global, cari `F - Audio`, lalu pastikan orphan `withdrawn` setelah cutoff efektif Januari 2026 muncul sebelum commit.
 - Review semua label berstatus `Riwayat belum lengkap`; label dengan paid withdrawal tanpa `period_to` sengaja diblokir dan harus diperbaiki manual sebelum pemulihan.

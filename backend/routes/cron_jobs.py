@@ -15,6 +15,7 @@ from payment_service import poll_payment, xendit_configured
 from .monthly_royalty_email import send_monthly_summaries
 from .background_job_notifications import notify_completed_background_jobs
 from .label_balance_snapshot import start_label_balance_snapshot_refresh
+from .royalty_recalculation import close_stale_recalculation_jobs
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -201,6 +202,18 @@ async def watchdog_stuck_royalty_imports():
         logger.exception("watchdog_stuck_royalty_imports job failed: %s", e)
 
 
+async def watchdog_stuck_recalculation_jobs():
+    """Close abandoned rate/royalty recalculation jobs after four hours without progress."""
+    try:
+        result = await close_stale_recalculation_jobs()
+        if result["closed"]:
+            logger.warning("watchdog closed %d stale recalculation job(s)", result["closed"])
+        return result
+    except Exception as exc:
+        logger.exception("watchdog_stuck_recalculation_jobs failed: %s", exc)
+        return {"closed": 0, "job_ids": [], "error": type(exc).__name__}
+
+
 async def reconcile_pending_xendit_payments():
     """Polling fallback for customers who close the Xendit checkout tab."""
     if not xendit_configured():
@@ -251,6 +264,13 @@ async def trigger_stuck_imports_check(user: dict = Depends(require_admin)):
     return {"ok": True, "job": "watchdog_stuck_royalty_imports"}
 
 
+@cron_r.post("/stuck-recalculations-check")
+async def trigger_stuck_recalculations_check(user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    return {"ok": True, **(await watchdog_stuck_recalculation_jobs())}
+
+
 @cron_r.post("/xendit-payments-check")
 async def trigger_xendit_payments_check(user: dict = Depends(require_admin)):
     if user["role"] not in ("super_admin", "admin_finance"):
@@ -298,6 +318,11 @@ def start_scheduler():
         watchdog_stuck_royalty_imports, "interval", minutes=15,
         id="stuck_royalty_imports_watchdog", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=60),
+    )
+    scheduler.add_job(
+        watchdog_stuck_recalculation_jobs, "interval", minutes=15,
+        id="stuck_recalculation_jobs_watchdog", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=45),
     )
     scheduler.add_job(
         reconcile_pending_xendit_payments, "interval", minutes=2,

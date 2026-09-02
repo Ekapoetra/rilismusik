@@ -44,7 +44,7 @@ from royalty_utils import (
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
-from .royalty_recalculation import run_global_recalculation_job
+from .royalty_recalculation import close_stale_recalculation_jobs, run_global_recalculation_job
 from .dashboard_cache import reset as reset_dashboard_revenue, schedule_recompute as schedule_dashboard_recompute
 
 # =============================================================================
@@ -991,6 +991,7 @@ async def admin_recalculate_all_unwithdrawn(user: dict = Depends(require_admin))
     """
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    await close_stale_recalculation_jobs()
     running = await db.migrate_jobs.find_one({
         "kind": "recalculate_all_unwithdrawn",
         "status": {"$in": ["queued", "processing"]},

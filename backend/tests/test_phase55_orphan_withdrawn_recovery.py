@@ -2,6 +2,7 @@
 import os
 import time
 import uuid
+from datetime import datetime, timezone
 
 import pymongo
 import requests
@@ -207,3 +208,74 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         db.withdraw_requests.delete_many({"label_id": {"$in": [safe_id, blocked_id]}})
         db.royalty_lines.delete_many({"label_id": {"$in": [safe_id, blocked_id]}})
         db.labels.delete_many({"id": {"$in": [safe_id, blocked_id]}})
+
+
+def test_stale_recalculation_is_closed_but_recent_job_still_blocks_commit():
+    db = _db()
+    token = _login()
+    suffix = uuid.uuid4().hex[:8]
+    label_id = f"ph55-stale-{suffix}"
+    stale_id = f"ph55-stale-job-{suffix}"
+    recent_id = f"ph55-recent-job-{suffix}"
+    preview_id = commit_id = None
+    db.labels.insert_one({
+        "id": label_id,
+        "label_name": f"PH55 Stale Guard {suffix}",
+        "balance_pending_idr": -1,
+        "balance_available_idr": 0,
+        "balance_withdraw_requested_idr": 0,
+    })
+    db.migrate_jobs.insert_one({
+        "id": stale_id,
+        "kind": "recalculate_all_unwithdrawn",
+        "status": "processing",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+    })
+    try:
+        started = requests.post(
+            f"{API}/admin/balance-audit/preview",
+            headers=_headers(token),
+            json={"label_ids": [label_id]},
+            timeout=20,
+        )
+        preview_id = started.json()["job_id"]
+        assert _wait_job(token, preview_id)["status"] == "done"
+
+        committed = requests.post(
+            f"{API}/admin/balance-audit/commit",
+            headers=_headers(token),
+            json={"preview_job_id": preview_id},
+            timeout=20,
+        )
+        assert committed.status_code == 200, committed.text
+        commit_id = committed.json()["job_id"]
+        assert _wait_job(token, commit_id)["status"] == "done"
+        stale = db.migrate_jobs.find_one({"id": stale_id})
+        assert stale["status"] == "error"
+        assert stale["stale_job_closed"] is True
+
+        db.migrate_jobs.insert_one({
+            "id": recent_id,
+            "kind": "recalculate_all_unwithdrawn",
+            "status": "processing",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.migrate_jobs.update_one(
+            {"id": preview_id},
+            {"$unset": {"commit_job_id": ""}},
+        )
+        blocked = requests.post(
+            f"{API}/admin/balance-audit/commit",
+            headers=_headers(token),
+            json={"preview_job_id": preview_id},
+            timeout=20,
+        )
+        assert blocked.status_code == 409, blocked.text
+        assert "hitung ulang persentase" in blocked.json()["detail"]
+        assert db.migrate_jobs.find_one({"id": recent_id})["status"] == "processing"
+    finally:
+        job_ids = [item for item in (preview_id, commit_id, stale_id, recent_id) if item]
+        db.balance_audit_rows.delete_many({"job_id": {"$in": job_ids}})
+        db.migrate_jobs.delete_many({"id": {"$in": job_ids}})
+        db.balance_transactions.delete_many({"reference_id": {"$in": job_ids}})
+        db.labels.delete_one({"id": label_id})

@@ -61,6 +61,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Audit saldo global memakai cutoff efektif paling akhir antara `labels.last_withdrawn_period` dan seluruh riwayat withdraw `paid.period_to`.
 - Baris `withdrawn` setelah cutoff efektif dideteksi sebagai orphan; commit eksplisit memulihkannya ke available, menghitung ulang persentase label terkini, dan menyegarkan snapshot.
 - Label dengan withdraw aktif atau riwayat paid tanpa `period_to` diblokir dari pemulihan otomatis agar tidak terjadi pembayaran ganda.
+- Pekerjaan hitung ulang persentase yang tidak memperbarui perkembangan selama lebih dari empat jam ditutup otomatis agar tidak memblokir koreksi saldo selamanya; proses yang masih aktif tetap dilindungi.
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
@@ -119,6 +120,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - P2 monthly summary scheduling and background completion notifications are implemented.
 - Audit production read-only F - Audio menemukan enam import Feb–Jul 2026 sebesar €137,54048766; saldo aktif Rp914.491 tidak berasal dari kesalahan formula 50%, melainkan royalty lines pasca-cutoff yang tidak aktif serta saldo pending tersimpan negatif.
 - Phase 55 global orphan-withdrawn audit/recovery sudah diimplementasikan dan terverifikasi di preview; production masih memerlukan redeploy, preview audit global, review admin, lalu commit eksplisit.
+- RCA production menemukan pekerjaan hitung ulang global lama `3a8a7130-7646-46ef-a1eb-444f89bc8565` masih berstatus processing sejak 23 Agustus 2026 meski tidak ada perkembangan. Watchdog dan commit guard yang baru menutup pekerjaan kedaluwarsa otomatis.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
@@ -133,3 +135,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Balance integrity: `backend/routes/balance_audit.py`, `frontend/src/pages/admin/BalanceAuditPanel.jsx`.
 - New regression suites: `backend/tests/test_phase41_multidevice_auth.py` through `test_phase45_scheduled_notifications.py`.
 - Orphan recovery regression: `backend/tests/test_phase55_orphan_withdrawn_recovery.py`; independent report `/app/test_reports/iteration_45.json`.
+- Stale-job watchdog regression: `backend/tests/test_iter46_stale_recalculation_watchdog.py`; independent report `/app/test_reports/iteration_46.json`.

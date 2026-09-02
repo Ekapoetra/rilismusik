@@ -3,6 +3,7 @@
 The source revenue and import exchange rate stay immutable. Only royalty lines
 that are not settled/withdrawn are recalculated with the label's CURRENT share.
 """
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List
 
 from .deps import db_bg, logger
@@ -11,6 +12,72 @@ from models import new_id, now_iso
 
 
 RECALCULABLE_STATUSES = ["draft", "pending", "available"]
+RECALCULATION_JOB_KINDS = ["recalculate_label_unwithdrawn", "recalculate_all_unwithdrawn", "label_rate_sync"]
+RECALCULATION_STALE_AFTER_HOURS = 4
+
+
+async def close_stale_recalculation_jobs() -> Dict[str, Any]:
+    """Close abandoned recalculation jobs so finance operations cannot deadlock forever."""
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=RECALCULATION_STALE_AFTER_HOURS)
+    ).isoformat()
+    stale_jobs = await db_bg.migrate_jobs.find({
+        "kind": {"$in": RECALCULATION_JOB_KINDS},
+        "status": {"$in": ["queued", "processing"]},
+        "$or": [
+            {"updated_at": {"$lt": cutoff}},
+            {"updated_at": {"$exists": False}},
+            {"updated_at": None},
+        ],
+    }, {
+        "_id": 0, "id": 1, "kind": 1, "label_id": 1, "batch_id": 1,
+        "updated_at": 1,
+    }).limit(100).to_list(100)
+    closed_ids: List[str] = []
+    for job in stale_jobs:
+        closed_at = now_iso()
+        message = (
+            f"Proses ditutup otomatis karena tidak ada perkembangan lebih dari "
+            f"{RECALCULATION_STALE_AFTER_HOURS} jam. Jalankan ulang bila masih diperlukan."
+        )
+        result = await db_bg.migrate_jobs.update_one(
+            {
+                "id": job["id"],
+                "status": {"$in": ["queued", "processing"]},
+                "$or": [
+                    {"updated_at": {"$lt": cutoff}},
+                    {"updated_at": {"$exists": False}},
+                    {"updated_at": None},
+                ],
+            },
+            {"$set": {
+                "status": "error",
+                "phase": "error",
+                "error_message": message,
+                "stale_job_closed": True,
+                "finished_at": closed_at,
+                "updated_at": closed_at,
+            }},
+        )
+        if result.modified_count != 1:
+            continue
+        closed_ids.append(job["id"])
+        if job.get("label_id"):
+            await db_bg.labels.update_one(
+                {
+                    "id": job["label_id"],
+                    "royalty_recalculation_job_id": job["id"],
+                    "royalty_recalculation_status": {"$in": ["queued", "processing"]},
+                },
+                {"$set": {"royalty_recalculation_status": "error", "updated_at": closed_at}},
+            )
+        if job.get("batch_id"):
+            await db_bg.label_rate_imports.update_one(
+                {"id": job["batch_id"], "status": {"$in": ["queued", "processing"]}},
+                {"$set": {"status": "error", "error_message": message, "updated_at": closed_at}},
+            )
+        logger.warning("Closed stale recalculation job id=%s kind=%s", job["id"], job.get("kind"))
+    return {"closed": len(closed_ids), "job_ids": closed_ids}
 
 
 def _line_filter(label_id: str) -> Dict[str, Any]:

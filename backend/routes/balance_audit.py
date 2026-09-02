@@ -8,7 +8,11 @@ from pydantic import BaseModel, Field
 from models import new_id, now_iso
 from .balance_utils import compute_label_balance_snapshot
 from .deps import db, db_bg, log_activity, logger, require_admin
-from .royalty_recalculation import recalculate_label_unwithdrawn, trigger_royalty_caches
+from .royalty_recalculation import (
+    close_stale_recalculation_jobs,
+    recalculate_label_unwithdrawn,
+    trigger_royalty_caches,
+)
 
 
 balance_audit_r = APIRouter(prefix="/admin/balance-audit", tags=["balance-audit"])
@@ -184,12 +188,13 @@ async def commit_balance_reconciliation(body: BalanceAuditCommitIn, user: dict =
     }, {"_id": 0, "id": 1, "status": 1})
     if active_import:
         raise HTTPException(status_code=409, detail="Tunggu proses import/penerimaan royalti aktif selesai")
+    stale_recalc = await close_stale_recalculation_jobs()
     active_recalc = await db.migrate_jobs.find_one({
         "kind": {"$in": ["recalculate_label_unwithdrawn", "recalculate_all_unwithdrawn", "label_rate_sync"]},
         "status": {"$in": ACTIVE_JOB_STATUSES},
-    }, {"_id": 0, "id": 1})
+    }, {"_id": 0, "id": 1, "kind": 1, "updated_at": 1})
     if active_recalc:
-        raise HTTPException(status_code=409, detail="Tunggu recalculation rate aktif selesai")
+        raise HTTPException(status_code=409, detail="Tunggu proses hitung ulang persentase yang masih aktif selesai")
 
     job_id = new_id()
     queued_at = now_iso()
@@ -217,6 +222,7 @@ async def commit_balance_reconciliation(body: BalanceAuditCommitIn, user: dict =
         "progress_labels_done": 0,
         "progress_labels_total": total,
         "phase": "queued",
+        "stale_recalculation_jobs_closed": stale_recalc["closed"],
     })
     asyncio.create_task(_run_balance_reconciliation(
         job_id=job_id, preview_job_id=body.preview_job_id, user_id=user["id"],

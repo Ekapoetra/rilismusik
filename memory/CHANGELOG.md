@@ -1,6 +1,11 @@
 # RILIS MUSIK — Changelog
 
 ## 2026-09-02 — Phase 55: Global orphan-withdrawn recovery
+- Memperbaiki kebuntuan production akibat pekerjaan `recalculate_all_unwithdrawn` lama yang tetap `processing` pada 70/1.720 label sejak 23 Agustus tanpa perkembangan.
+- Commit audit kini menutup otomatis pekerjaan hitung ulang yang tidak bergerak lebih dari empat jam, tetapi tetap memblokir bila proses baru masih benar-benar aktif.
+- Menambahkan pemeriksaan otomatis setiap 15 menit dan endpoint manual Admin Finance/Super Admin untuk menutup pekerjaan hitung ulang kedaluwarsa.
+- Seluruh istilah teknis audit pada UI diganti bahasa Indonesia sederhana: `Royalti salah status`, `Nilai belum masuk saldo`, dan `Batas tarik`.
+- Perbaikan kebuntuan terverifikasi 10/10 backend serta frontend build/UI melalui independent testing iteration 46.
 - Audit read-only production F - Audio mencocokkan enam import Feb–Jul sebesar €137,54048766, bagian label 50%, dan kurs per import; hasil normal sekitar Rp1.253.461 sementara saldo aktif production Rp914.491.
 - Riwayat paid F - Audio berakhir Januari 2026, tetapi data aktif Feb–Jul tidak mencakup seluruh source dan stored pending tercatat negatif Rp1.083.323.
 - Balance audit kini memakai cutoff efektif maksimum dari cutoff label dan seluruh `paid.period_to`.

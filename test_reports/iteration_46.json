@@ -1,0 +1,41 @@
+{
+  "summary": "Executed targeted backend+frontend verification for stale recalculation watchdog, balance-audit commit guard, cron RBAC, global recalc stale pre-closure, scheduler registration, and admin withdraw audit-panel wording/runtime on preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter46_stale_recalculation_watchdog.py",
+    "/app/backend/tests/test_phase55_orphan_withdrawn_recovery.py",
+    "/app/backend/tests/test_phase38_balance_reconciliation.py",
+    "/app/backend/tests/test_iter33_balance_audit_api.py",
+    "/app/test_reports/pytest/iter46_targeted_backend.xml"
+  ],
+  "action_items": [
+    "No blocking defects found in requested scope; maintain current implementation.",
+    "Optional: keep/add UI data-testid hooks for login submit to reduce Playwright selector drift."
+  ],
+  "critical_code_review_comments": [
+    "Stale recalculation closure is guarded and atomic by update filter (still queued/processing and stale cutoff at write time), preventing accidental closure of recently updated jobs.",
+    "Balance audit commit path closes stale recalculation jobs first, then only blocks on genuinely active recent recalculation jobs with clear Indonesian messaging.",
+    "Manual cron endpoint and recalculate endpoint apply finance/super-admin role gates and return ObjectId-safe responses in tested paths."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter46_stale_recalculation_watchdog.py",
+    "/app/test_reports/iteration_46.json"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 passed)",
+    "frontend": "100% (build pass + /admin/withdraw audit panel wording/runtime checks passed)"
+  },
+  "seed_data_creation": "No seed script run. Tests created isolated temporary migrate_jobs/labels/royalty/withdraw data and cleaned up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New regression file test_iter46_stale_recalculation_watchdog.py validates: stale closure fields, cron RBAC, stale-vs-recent behavior, and scheduler registration at 15-minute interval. Frontend check confirms summary wording displays Indonesian terms (Royalti salah status, Nilai belum masuk saldo, Batas tarik) after preview is triggered on /admin/withdraw.",
+  "rca of the issue": "Original production block condition aligns with a long-running recalculation job left in processing without progress. Mitigation now works by auto-closing stale queued/processing recalculation jobs (>4h no update) to status=error with stale_job_closed=true and localized Indonesian error message, while preserving block behavior for recently active jobs."
+}

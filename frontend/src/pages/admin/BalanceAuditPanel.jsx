@@ -19,7 +19,7 @@ export default function BalanceAuditPanel() {
         <div>
           <div className="text-xs uppercase tracking-widest text-cyan-400 font-bold">Financial Integrity</div>
           <h3 className="font-display font-bold text-xl tracking-normal mt-1">Audit Saldo Semua Label</h3>
-          <p className="text-xs text-zinc-400 mt-1 max-w-3xl">Bandingkan saldo dengan royalty_lines, deteksi baris withdrawn setelah cutoff terakhir, dan blokir pemulihan bila riwayat withdraw belum lengkap.</p>
+          <p className="text-xs text-zinc-400 mt-1 max-w-3xl">Bandingkan saldo dengan laporan royalti, temukan data yang salah berstatus sudah ditarik, dan lindungi riwayat penarikan yang belum lengkap.</p>
         </div>
         <button onClick={audit.startPreview} disabled={audit.busy} className="rm-btn-primary flex items-center gap-2" data-testid="admin-balance-audit-start">
           {audit.busy && !previewDone ? <Loader2 className="w-4 h-4 animate-spin" /> : <Scale className="w-4 h-4" />}
@@ -42,13 +42,13 @@ export default function BalanceAuditPanel() {
           <Summary label="Total label" value={summary.total_labels} testId="total" />
           <Summary label="Perlu koreksi" value={summary.drift_labels} tone="text-amber-300" testId="drift" />
           <Summary label="Saldo negatif" value={summary.negative_balance_labels} tone="text-red-300" testId="negative" />
-          <Summary label="Orphan withdrawn" value={(summary.orphan_withdrawn_lines || 0).toLocaleString("id-ID")} tone="text-orange-300" testId="orphan-lines" />
-          <Summary label="Nominal orphan" value={fmtIDR(summary.orphan_withdrawn_idr)} tone="text-orange-200" testId="orphan-amount" />
-          <Summary label="Baris ≤ cutoff" value={(summary.stale_cutoff_lines || 0).toLocaleString("id-ID")} tone="text-rose-300" testId="stale" />
+          <Summary label="Royalti salah status" value={(summary.orphan_withdrawn_lines || 0).toLocaleString("id-ID")} tone="text-orange-300" testId="orphan-lines" />
+          <Summary label="Nilai belum masuk saldo" value={fmtIDR(summary.orphan_withdrawn_idr)} tone="text-orange-200" testId="orphan-amount" />
+          <Summary label="Data sebelum batas tarik" value={(summary.stale_cutoff_lines || 0).toLocaleString("id-ID")} tone="text-rose-300" testId="stale" />
           <Summary label="Withdraw aktif" value={summary.blocked_active_withdraw} tone="text-sky-300" testId="blocked" />
           <Summary label="Riwayat belum lengkap" value={summary.blocked_withdraw_history} tone="text-fuchsia-300" testId="blocked-history" />
           <Summary label="Sudah sesuai" value={summary.clean_labels} tone="text-emerald-300" testId="clean" />
-          <Summary label="Cutoff disinkronkan" value={summary.cutoff_sync_labels} tone="text-cyan-300" testId="cutoff-sync" />
+          <Summary label="Batas tarik diperbarui" value={summary.cutoff_sync_labels} tone="text-cyan-300" testId="cutoff-sync" />
         </div>
       )}
 
@@ -64,7 +64,7 @@ export default function BalanceAuditPanel() {
           <div className="border border-white/10 rounded-lg overflow-hidden" data-testid="admin-balance-audit-table">
             <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
               <table className="w-full min-w-[1460px] text-xs">
-                <thead className="sticky top-0 bg-[#111318] text-[10px] uppercase text-zinc-500"><tr><th className="text-left px-3 py-3">Label</th><th className="text-left px-3 py-3">Cutoff label</th><th className="text-left px-3 py-3">Cutoff efektif</th><th className="text-left px-3 py-3">Report terbaru</th><th className="text-left px-3 py-3">Range tersisa</th><th className="text-right px-3 py-3">Pending saat ini → benar</th><th className="text-right px-3 py-3">Tersedia saat ini → preview</th><th className="text-right px-3 py-3">Orphan &gt; cutoff</th><th className="text-right px-3 py-3">Baris ≤ cutoff</th><th className="text-left px-3 py-3">Status</th></tr></thead>
+                <thead className="sticky top-0 bg-[#111318] text-[10px] uppercase text-zinc-500"><tr><th className="text-left px-3 py-3">Label</th><th className="text-left px-3 py-3">Batas tarik label</th><th className="text-left px-3 py-3">Batas tarik terverifikasi</th><th className="text-left px-3 py-3">Laporan terbaru</th><th className="text-left px-3 py-3">Periode belum ditarik</th><th className="text-right px-3 py-3">Pending lama → benar</th><th className="text-right px-3 py-3">Tersedia lama → perkiraan</th><th className="text-right px-3 py-3">Royalti salah status</th><th className="text-right px-3 py-3">Data sebelum batas</th><th className="text-left px-3 py-3">Status</th></tr></thead>
                 <tbody>{audit.rows.map((row) => <AuditRow row={row} key={row.label_id} />)}</tbody>
               </table>
             </div>
@@ -73,14 +73,14 @@ export default function BalanceAuditPanel() {
 
           {!audit.commitJob && summary.drift_labels > 0 && (
             <div className="border-y border-white/10 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <label className="flex gap-3 items-start text-sm text-zinc-300 cursor-pointer" data-testid="admin-balance-audit-confirm-label"><input type="checkbox" checked={audit.confirmed} onChange={(event) => audit.setConfirmed(event.target.checked)} className="mt-1 accent-emerald-400" data-testid="admin-balance-audit-confirm" /><span>Saya sudah memeriksa preview. Sinkronkan cutoff dengan riwayat paid, selesaikan baris aktif ≤ cutoff, pulihkan orphan withdrawn &gt; cutoff, hitung ulang rate label, lalu perbarui saldo. Label dengan withdraw aktif atau riwayat tanpa periode akan dilewati.</span></label>
+              <label className="flex gap-3 items-start text-sm text-zinc-300 cursor-pointer" data-testid="admin-balance-audit-confirm-label"><input type="checkbox" checked={audit.confirmed} onChange={(event) => audit.setConfirmed(event.target.checked)} className="mt-1 accent-emerald-400" data-testid="admin-balance-audit-confirm" /><span>Saya sudah memeriksa hasil sementara. Perbarui batas penarikan, rapikan data lama, kembalikan royalti yang salah berstatus sudah ditarik, hitung ulang persentase label, lalu perbarui saldo. Label dengan penarikan aktif atau riwayat tanpa periode akan dilewati.</span></label>
               <button onClick={audit.commit} disabled={!audit.confirmed || audit.busy} className="rm-btn-primary flex items-center gap-2 justify-center min-w-52" data-testid="admin-balance-audit-commit"><CheckCircle2 className="w-4 h-4" /> Rekonsiliasi Semua</button>
             </div>
           )}
         </>
       )}
 
-      {commitDone && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-4" data-testid="admin-balance-audit-complete"><div className="font-bold text-emerald-300 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Rekonsiliasi selesai</div><div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-3 text-xs"><Result label="Label dikoreksi" value={audit.commitJob.result?.labels_reconciled} /><Result label="Orphan dipulihkan" value={(audit.commitJob.result?.orphan_lines_restored || 0).toLocaleString("id-ID")} /><Result label="Baris dihitung ulang" value={(audit.commitJob.result?.orphan_lines_recalculated || 0).toLocaleString("id-ID")} /><Result label="Baris lama diselesaikan" value={(audit.commitJob.result?.stale_lines_settled || 0).toLocaleString("id-ID")} /><Result label="Gagal" value={audit.commitJob.result?.labels_failed} /></div><button onClick={audit.startPreview} className="rm-btn-ghost mt-4 flex items-center gap-2" data-testid="admin-balance-audit-verify"><RefreshCw className="w-4 h-4" /> Audit ulang untuk verifikasi</button></div>}
+      {commitDone && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-4" data-testid="admin-balance-audit-complete"><div className="font-bold text-emerald-300 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Koreksi saldo selesai</div><div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-3 text-xs"><Result label="Label dikoreksi" value={audit.commitJob.result?.labels_reconciled} /><Result label="Data salah status dipulihkan" value={(audit.commitJob.result?.orphan_lines_restored || 0).toLocaleString("id-ID")} /><Result label="Data dihitung ulang" value={(audit.commitJob.result?.orphan_lines_recalculated || 0).toLocaleString("id-ID")} /><Result label="Data lama dirapikan" value={(audit.commitJob.result?.stale_lines_settled || 0).toLocaleString("id-ID")} /><Result label="Gagal" value={audit.commitJob.result?.labels_failed} /></div><button onClick={audit.startPreview} className="rm-btn-ghost mt-4 flex items-center gap-2" data-testid="admin-balance-audit-verify"><RefreshCw className="w-4 h-4" /> Audit ulang untuk verifikasi</button></div>}
     </div>
   );
 }
