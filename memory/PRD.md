@@ -95,6 +95,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Browser selalu memakai path API relatif agar alias domain apex/`www` tidak berubah menjadi credentialed cross-origin request.
 - UI primitives berada di `/app/frontend/src/components/ui/`.
 - Semua elemen interaktif/kritis menggunakan `data-testid`.
+- Dropdown native menggunakan `color-scheme: dark` serta warna `option` eksplisit agar teks tetap terbaca pada Windows dan macOS.
 
 ### Backend
 - FastAPI + Motor/PyMongo + APScheduler.
@@ -139,6 +140,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - RCA production menemukan pekerjaan hitung ulang global lama `3a8a7130-7646-46ef-a1eb-444f89bc8565` masih berstatus processing sejak 23 Agustus 2026 meski tidak ada perkembangan. Watchdog dan commit guard yang baru menutup pekerjaan kedaluwarsa otomatis.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Phase 61 Admin Payments localization, invoice detail modal, payment action workflow, provider payment-method lookup, idempotent Admin/Label notifications, and Admin Dashboard action badge are implemented and verified.
+- Native dropdown contrast pada Windows telah diperbaiki secara global; select, opsi aktif, dan opsi nonaktif terverifikasi berlatar gelap dengan teks putih.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

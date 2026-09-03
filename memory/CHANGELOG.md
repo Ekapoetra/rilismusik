@@ -1,5 +1,10 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Windows native dropdown contrast fix
+- Menambahkan `color-scheme: dark` pada root dan seluruh native select.
+- Menetapkan background gelap serta teks putih secara eksplisit untuk `option`/`optgroup`, termasuk opsi terpilih.
+- Frontend production build lulus dan computed browser styles memverifikasi select serta opsi aktif/nonaktif memiliki kontras gelap-terang yang benar.
+
 ## 2026-09-03 — Phase 61: Admin payment operations
 - Melokalkan Admin Payments dengan status `Dibayar`, `Menunggu Pembayaran`, `Kedaluwarsa`, `Gagal`, dan `Dibatalkan`.
 - Menambahkan modal detail invoice berisi label, email, jenis layanan, deskripsi, metode pembayaran Xendit, nominal, status tindakan, waktu, dan rincian line item.
