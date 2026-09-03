@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 63: Release priority and monthly finance overview
+- Release Management kini default pada urutan Submitted → Awaiting Payment → Paid → Under Review → Need Revision → Approved → Delivered → Draft → Live; status yang sama diurutkan dari pembaruan terbaru.
+- Admin Payments menampilkan total pemasukan invoice paid berdasarkan `paid_at` dan field `amount`, dengan kartu angka utama, pilihan bulan/tahun, total tahunan, dan jejak 12 bulan.
+- Admin Withdraw menampilkan Dana Keluar berdasarkan `paid_date` serta Dana Tertunda requested+approved berdasarkan `request_date`.
+- Filter bulan/tahun Withdraw mengubah kartu ringkasan dan daftar; paid difilter dari bulan pencairan, status lain dari bulan pengajuan.
+- Menambahkan indeks tanggal/status untuk payment dan withdrawal reporting serta validasi pasangan year/month.
+- Menambahkan loading cue deterministik pada daftar Withdraw saat filter periode/status berubah.
+- Verifikasi: targeted testing agent 4/4 dan regresi akhir gabungan 11/11 lulus, frontend production build lulus, desktop/mobile lulus, tanpa API mocked.
+
 ## 2026-09-03 — Phase 62: Guarded legacy withdrawal period edit
 - Menambahkan tombol edit hanya pada withdrawal `paid` dengan `legacy_import=true`; withdrawal yang berasal dari web tidak dapat diedit di UI maupun API.
 - Admin Finance/Super Admin dapat mengubah hanya bulan laporan terakhir setelah melihat preview cutoff, saldo pending/available, dan jumlah royalty lines terdampak.

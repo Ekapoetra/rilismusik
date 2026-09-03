@@ -212,10 +212,19 @@ async def label_list_withdraws(user: dict = Depends(require_label)):
 
 
 @withdraw_r.get("/admin")
-async def admin_list_withdraws(user: dict = Depends(require_admin), status: Optional[str] = None):
+async def admin_list_withdraws(
+    user: dict = Depends(require_admin), status: Optional[str] = None,
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+):
     _require_finance_admin(user)
     filt: Dict[str, Any] = {}
-    if status:
+    if (year is None) != (month is None):
+        raise HTTPException(status_code=400, detail="Tahun dan bulan harus dipilih bersama")
+    if year is not None and month is not None:
+        from .finance_reporting import withdrawal_period_filter
+        filt = withdrawal_period_filter(status=status, year=year, month=month)
+    elif status:
         filt["status"] = status
     items = await db.withdraw_requests.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
     # enrich with label_name
@@ -228,6 +237,16 @@ async def admin_list_withdraws(user: dict = Depends(require_admin), status: Opti
             it.get("legacy_import") is True and it.get("status") == "paid" and it.get("period_to")
         )
     return items
+
+
+@withdraw_r.get("/admin/summary")
+async def admin_withdraw_summary(
+    year: int = Query(..., ge=2000, le=2100), month: int = Query(..., ge=1, le=12),
+    user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .finance_reporting import withdrawal_cashflow_summary
+    return await withdrawal_cashflow_summary(year=year, month=month)
 
 
 @withdraw_r.post("/admin/legacy-manual/preview")

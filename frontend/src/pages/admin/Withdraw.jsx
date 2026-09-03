@@ -6,6 +6,7 @@ import WithdrawImportPanel from "./WithdrawImportPanel";
 import BalanceAuditPanel from "./BalanceAuditPanel";
 import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
 import { LegacyWithdrawEditDialog } from "@/components/admin/LegacyWithdrawEditDialog";
+import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components/admin/FinancialPeriodOverview";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
@@ -32,11 +33,21 @@ export default function AdminWithdraw() {
   const [legacyEdit, setLegacyEdit] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [reportPeriod, setReportPeriod] = useState(jakartaPeriod);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/withdraw/admin", { params: { status: status || undefined } });
-    setItems(data);
-  }, [status]);
+    setLoading(true);
+    try {
+      const [listResponse, summaryResponse] = await Promise.all([
+        api.get("/withdraw/admin", { params: { status: status || undefined, ...reportPeriod } }),
+        api.get("/withdraw/admin/summary", { params: reportPeriod }),
+      ]);
+      setItems(listResponse.data); setSummary(summaryResponse.data);
+    } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
+    finally { setLoading(false); }
+  }, [status, reportPeriod]);
   useEffect(() => { load(); api.get("/withdraw/window").then(r => setWindow(r.data)); }, [load]);
 
   const submitAction = async () => {
@@ -66,6 +77,20 @@ export default function AdminWithdraw() {
         {window && <p className="text-sm text-zinc-400 mt-1">Hari ke-{window.day} (Asia/Jakarta) — {window.message}</p>}
       </div>
 
+      {summary && <FinancialPeriodOverview
+        title="Arus Dana Withdrawal"
+        description={`Pengajuan dan pencairan pada ${monthLabel(reportPeriod.month, reportPeriod.year)}.`}
+        year={reportPeriod.year} month={reportPeriod.month} years={summary.available_years}
+        onYearChange={(year) => setReportPeriod((current) => ({ ...current, year }))}
+        onMonthChange={(month) => setReportPeriod((current) => ({ ...current, month }))}
+        metrics={[
+          { key: "outgoing", label: "Dana Keluar", amount: summary.outgoing.amount_idr, count: summary.outgoing.count, yearAmount: summary.year_total.outgoing_idr, colorClass: "text-rose-300", barClass: "bg-rose-400" },
+          { key: "pending", label: "Dana Tertunda", amount: summary.pending.amount_idr, count: summary.pending.count, yearAmount: summary.year_total.pending_idr, colorClass: "text-amber-300", barClass: "bg-amber-400" },
+        ]}
+        monthly={summary.monthly.map((row) => ({ ...row, outgoing: row.outgoing_idr, pending: row.pending_idr }))}
+        testIdPrefix="admin-withdraw-cashflow"
+      />}
+
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-withdraw-error">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-withdraw-message">{msg}</div>}
 
@@ -80,6 +105,7 @@ export default function AdminWithdraw() {
             <option value="rejected">Rejected</option>
           </select>
         </div>
+        {loading && <div className="text-xs text-zinc-400" role="status" data-testid="admin-withdraw-period-loading">Memuat periode…</div>}
         {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); setManualOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
         {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2" onClick={() => { setManualOpen((value) => !value); setAuditOpen(false); setImportOpen(false); }} data-testid="admin-manual-legacy-withdraw-toggle"><PenLine className="w-4 h-4" /> {manualOpen ? "Tutup Input Manual" : "Tambah Riwayat Manual"}</button>}
         {me?.role === "super_admin" && (
@@ -108,7 +134,7 @@ export default function AdminWithdraw() {
         <div className="rm-card p-5"><h3 className="font-display font-bold text-lg tracking-tight mb-4">Tambah Riwayat Withdraw Legacy</h3><ManualLegacyWithdrawPanel onComplete={load} /></div>
       )}
 
-      <div className="rm-card overflow-hidden">
+      <div className="rm-card overflow-hidden" aria-busy={loading}>
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-3">Label</div>
           <div className="col-span-2">Jumlah</div>
@@ -117,7 +143,7 @@ export default function AdminWithdraw() {
           <div className="col-span-1">Status</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
-        {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada withdraw.</div> : items.map((w) => (
+        {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm" data-testid="admin-withdraw-empty">{loading ? "Memuat withdrawal…" : "Belum ada withdraw."}</div> : items.map((w) => (
           <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0" data-testid={`admin-withdraw-row-${w.id}`}>
             <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>

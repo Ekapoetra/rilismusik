@@ -5,6 +5,7 @@ import { useAuth } from "@/api/AuthContext";
 import { CreditCard, Crown, Disc3, Eye, RefreshCw, Plus, ShoppingBag, Pencil, Trash2 } from "lucide-react";
 import PaymentDetailDialog from "./payments/PaymentDetailDialog";
 import { formatIDR, PAYMENT_STATUS, PAYMENT_TYPES } from "./payments/paymentPresentation";
+import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components/admin/FinancialPeriodOverview";
 
 const fmtIDR = formatIDR;
 
@@ -22,6 +23,8 @@ export default function AdminPayments() {
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [incomePeriod, setIncomePeriod] = useState(jakartaPeriod);
+  const [incomeSummary, setIncomeSummary] = useState(null);
   const needsAction = searchParams.get("needs_action") === "true";
   const requestedPaymentId = searchParams.get("payment_id");
   const canManage = user?.role === "super_admin" || user?.role === "admin_finance";
@@ -39,6 +42,11 @@ export default function AdminPayments() {
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
   }, [status, ptype, canManage, needsAction, requestedPaymentId]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    api.get("/admin/payments/summary", { params: incomePeriod })
+      .then(({ data }) => setIncomeSummary(data))
+      .catch((error) => setErr(formatApiError(error.response?.data?.detail)));
+  }, [incomePeriod]);
 
   const sync = async (id) => {
     setSyncing(id); setErr(""); setMsg("");
@@ -88,6 +96,21 @@ export default function AdminPayments() {
       </div>
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-payment-message">{msg}</div>}
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-payment-error">{err}</div>}
+
+      {incomeSummary && <FinancialPeriodOverview
+        title="Pemasukan Xendit"
+        description={`Semua invoice berstatus Dibayar pada ${monthLabel(incomePeriod.month, incomePeriod.year)}.`}
+        year={incomePeriod.year} month={incomePeriod.month} years={incomeSummary.available_years}
+        onYearChange={(year) => setIncomePeriod((current) => ({ ...current, year }))}
+        onMonthChange={(month) => setIncomePeriod((current) => ({ ...current, month }))}
+        metrics={[{
+          key: "income", label: `Pemasukan ${monthLabel(incomePeriod.month, incomePeriod.year)}`,
+          amount: incomeSummary.selected.amount_idr, count: incomeSummary.selected.count,
+          yearAmount: incomeSummary.year_total.amount_idr, colorClass: "text-emerald-300", barClass: "bg-emerald-400",
+        }]}
+        monthly={incomeSummary.monthly.map((row) => ({ ...row, income: row.amount_idr }))}
+        testIdPrefix="admin-payment-income"
+      />}
 
       {canManage && (
         <section className="space-y-3" data-testid="admin-payment-products">

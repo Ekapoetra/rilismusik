@@ -42,6 +42,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Metadata track: producer, arranger, preview timestamp, title language, lyric language, Original/Cover/Live, featuring existing/new, Spotify Artist ID, YouTube Artist ID, dan lyrics.
 - Submission membuat notifikasi in-app admin dan email best-effort.
 - Upload Rilisan tampil sebelum Rilisan pada navigasi label.
+- Release Management default diurutkan berdasarkan prioritas operasional: Submitted, Awaiting Payment, Paid, Under Review, Need Revision, Approved, Delivered, Draft, lalu Live; dalam status yang sama pembaruan terbaru tampil lebih dahulu.
 
 ### 3.5 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
@@ -54,6 +55,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Pembayaran sukses menghasilkan notifikasi in-app serta email idempoten untuk label dan admin terkait; kegagalan email tidak membatalkan fulfillment pembayaran.
 - PPR yang dibayar mengarahkan Admin Release ke rilisan untuk melanjutkan distribusi, layanan custom memiliki status `Sedang Dikerjakan`/`Selesai`, dan langganan aktif otomatis tanpa tindakan manual.
 - Admin Dashboard menampilkan jumlah pembayaran dibayar yang masih membutuhkan tindakan operasional dan mengarah ke daftar terfilter.
+- Admin Payments menampilkan pemasukan Xendit bulanan secara prominen berdasarkan seluruh invoice `paid.paid_at` dan nominal IDR, dengan pilihan bulan/tahun serta jejak 12 bulan.
 
 ### 3.6 Royalty & Large Data
 - Massive Believe CSV (80MB+) memakai direct upload R2 dan background workers.
@@ -76,6 +78,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
 - Admin Finance/Super Admin dapat mengedit hanya `period_to` pada riwayat withdrawal legacy paid, wajib melihat preview cutoff/saldo/baris sebelum commit background. Withdrawal web tidak dapat diedit dan tetap menjadi batas minimum agar dana yang sudah dibayar tidak terbuka kembali.
 - Penurunan cutoff legacy memulihkan status berdasarkan status induk import (`dana_received` → available, `published` → pending); kenaikan cutoff menandai rentang tambahan sebagai legacy settled. Saldo tersimpan, snapshot, cache, revision history, dan activity log diperbarui setelah commit.
+- Admin Withdraw menampilkan Dana Tertunda bulanan (`requested + approved` berdasarkan `request_date`) dan Dana Keluar bulanan (`paid` berdasarkan `paid_date`) secara prominen; pilihan bulan/tahun juga memfilter daftar withdrawal.
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
 
@@ -144,6 +147,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 61 Admin Payments localization, invoice detail modal, payment action workflow, provider payment-method lookup, idempotent Admin/Label notifications, and Admin Dashboard action badge are implemented and verified.
 - Native dropdown contrast pada Windows telah diperbaiki secara global; select, opsi aktif, dan opsi nonaktif terverifikasi berlatar gelap dengan teks putih.
 - Phase 62 guarded legacy withdrawal edit sudah diimplementasikan: preview sebelum/sesudah, commit background, direct-web immutability, Finance/Super RBAC, dan deterministic completion UI terverifikasi.
+- Phase 63 operational finance overview dan release queue ordering sudah diimplementasikan serta terverifikasi di desktop/mobile.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.
@@ -163,3 +167,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Import replacement regressions: `backend/tests/test_phase60_royalty_import_replacement.py`, `backend/tests/test_iter50_royalty_import_replacement_guards.py`; full browser R2 upload→preview→commit verified in preview.
 - Payment operations regressions: `backend/tests/test_phase61_admin_payments.py`; final targeted result 12/12 with frontend production build and desktop/mobile browser verification.
 - Legacy withdrawal edit regressions: `backend/tests/test_iter52_legacy_withdraw_edit.py`; final combined result 9/9 dengan frontend production build, desktop/mobile preview, route guard, dan completion-state browser verification.
+- Finance/release reporting regressions: `backend/tests/test_iter53_finance_release_reporting.py`; final combined result 11/11, frontend production build, dan desktop/mobile month-switch verification.

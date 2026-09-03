@@ -21,7 +21,7 @@ export default function AdminReleases() {
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy] = useState("revenue"); // revenue | date
+  const [sortBy, setSortBy] = useState("status"); // status | revenue | date
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,7 +32,13 @@ export default function AdminReleases() {
       if (periodFrom) params.period_from = periodFrom;
       if (periodTo) params.period_to = periodTo;
       const { data } = await api.get("/admin/releases", { params });
-      if (sortBy === "revenue") data.sort((a, b) => (b.revenue_idr || 0) - (a.revenue_idr || 0));
+      if (sortBy === "status") {
+        const order = ["submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "draft", "live"];
+        const rank = Object.fromEntries(order.map((value, index) => [value, index]));
+        data.sort((a, b) => String(b.submitted_at || b.updated_at || b.created_at || "").localeCompare(String(a.submitted_at || a.updated_at || a.created_at || "")));
+        data.sort((a, b) => (rank[a.status] ?? order.length) - (rank[b.status] ?? order.length));
+      } else if (sortBy === "revenue") data.sort((a, b) => (b.revenue_idr || 0) - (a.revenue_idr || 0));
+      else data.sort((a, b) => String(b.release_date || b.created_at || "").localeCompare(String(a.release_date || a.created_at || "")));
       setItems(data);
     } finally { setLoading(false); }
   }, [status, q, periodFrom, periodTo, sortBy]);
@@ -48,7 +54,6 @@ export default function AdminReleases() {
     })();
     load();
   }, [load]);
-  useEffect(() => { load(); }, [load]);
 
   const totalRev = items.reduce((s, r) => s + (r.revenue_idr || 0), 0);
 
@@ -89,6 +94,7 @@ export default function AdminReleases() {
         <div>
           <label className="rm-label">Sort</label>
           <select className="rm-input" value={sortBy} onChange={(e) => setSortBy(e.target.value)} data-testid="admin-releases-sort">
+            <option value="status">Prioritas status</option>
             <option value="revenue">Revenue tertinggi</option>
             <option value="date">Tanggal rilis</option>
           </select>

@@ -51,6 +51,7 @@ from .admin_reset_service import run_full_reset
 from .dashboard_cache import recompute as recompute_dashboard_revenue, snapshot as dashboard_revenue_snapshot
 from .bank_change_service import create_bank_change_request, review_bank_change_request
 from .payment_admin_service import list_admin_payments
+from .finance_reporting import payment_income_summary
 
 # =============================================================================
 #                                ADMIN
@@ -205,6 +206,13 @@ async def admin_list_releases(
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    status_order = [
+        "submitted", "awaiting_payment", "paid", "under_review", "need_revision",
+        "approved", "delivered", "draft", "live",
+    ]
+    status_rank = {value: index for index, value in enumerate(status_order)}
+    items.sort(key=lambda item: item.get("submitted_at") or item.get("updated_at") or item.get("created_at") or "", reverse=True)
+    items.sort(key=lambda item: status_rank.get(item.get("status"), len(status_order)))
     # enrich with label_name
     label_ids = list({i["label_id"] for i in items})
     labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
@@ -267,6 +275,14 @@ async def admin_list_payments(
     ptype: Optional[str] = None, needs_action: bool = False,
 ):
     return await list_admin_payments(status=status, payment_type=ptype, needs_action=needs_action)
+
+
+@admin_r.get("/payments/summary")
+async def admin_payment_income_summary(
+    year: int = Query(..., ge=2000, le=2100), month: int = Query(..., ge=1, le=12),
+    user: dict = Depends(require_admin),
+):
+    return await payment_income_summary(year=year, month=month)
 
 
 @admin_r.get("/admin-users")
