@@ -1,119 +1,133 @@
 {
-  "theme_context": {
-    "description": "Premium Dark Visual Language for a high-end music distribution platform (RILIS MUSIK). Matches the aesthetic of professional audio software (DAWs) and top-tier SaaS dashboards. High density, high contrast, and serious tone.",
-    "archetype": "The Performance Pro (Elite Precision & Focus)"
-  },
+  "theme": "dark_premium",
+  "archetype": "LUXURY_WITH_SWISS_HIGH_CONTRAST",
   "typography": {
     "headings": {
-      "family": "Outfit",
-      "style": "font-bold tracking-tight",
-      "usage": "Use for step titles, page headers, and major data points."
+      "family": "Cabinet Grotesk",
+      "fallback": "sans-serif",
+      "weights": ["light", "bold", "black"],
+      "usage": "Use for all main dashboard headings, KYC status banners, and section titles. Ensure tight letter spacing (tracking-tight)."
     },
     "body": {
       "family": "Manrope",
-      "style": "tracking-normal leading-relaxed",
-      "usage": "Use for all form labels, input text, and dashboard tabular data."
+      "fallback": "sans-serif",
+      "weights": ["regular", "medium", "semibold"],
+      "usage": "Use for forms, tables, rejection reasons, and general dashboard text. Opt for higher line-height (leading-relaxed) for readability."
     },
-    "mono": {
-      "family": "JetBrains Mono",
-      "usage": "Use for ISRC, UPC, C-Line, P-Line, and transaction IDs."
-    },
-    "forbidden": ["Inter", "Roboto", "Space Grotesk"]
-  },
-  "colors": {
-    "background": "#0A0A0A",
-    "surface": "#121212",
-    "surface_elevated": "#1A1A1A",
-    "primary": "#FFFFFF",
-    "accent": "#007AFF",
-    "text_primary": "#F3F4F6",
-    "text_secondary": "#9CA3AF",
-    "borders": "#27272A",
-    "status": {
-      "draft": "#6B7280",
-      "submitted": "#3B82F6",
-      "under_review": "#F59E0B",
-      "awaiting_payment": "#8B5CF6",
-      "paid": "#10B981",
-      "approved": "#059669",
-      "delivered": "#D97706",
-      "live": "#16A34A",
-      "need_revision": "#EF4444",
-      "reject": "#DC2626",
-      "takedown": "#991B1B"
+    "labels": {
+      "style": "uppercase, wide spacing (tracking-[0.2em]), text-xs",
+      "usage": "Use for KYC status tags, form field labels, and table column headers."
     }
   },
+  "colors": {
+    "backgrounds": {
+      "base": "#050505",
+      "surface": "#0F0F0F",
+      "surface_elevated": "#1A1A1A",
+      "overlay": "rgba(5, 5, 5, 0.85)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.1)",
+      "focus": "rgba(255, 255, 255, 0.3)"
+    },
+    "status": {
+      "verified": "#00C853",
+      "pending": "#F5A623",
+      "rejected": "#FF3B30",
+      "locked": "#71717A"
+    },
+    "primary": "#FFFFFF",
+    "primary_hover": "#E4E4E7"
+  },
   "visual_enhancers": {
-    "surfaces": "Grid Borders for Admin Dashboard (technical, high density). Flat solid surfaces with 1px border-border/40 for forms.",
-    "borders": "Cardless layout preferred. 1px solid strokes with 2px inner glow for active inputs.",
-    "shadows": "Minimal to none. Rely on borders and background contrast for depth."
+    "glassmorphism": {
+      "usage": "For the KYC locked overlay, sticky headers, and action modals.",
+      "classes": "backdrop-blur-xl bg-black/60 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+    },
+    "borders": {
+      "usage": "Use 1px subtle inner strokes to define surfaces rather than heavy drop shadows.",
+      "classes": "border border-white/5"
+    },
+    "textures": {
+      "usage": "Apply a very subtle SVG noise or grain texture over the main background to prevent it from looking like a flat, cheap void."
+    }
   },
   "layouts": {
-    "label_submission_flow": {
-      "pattern": "Vertical Stepper / Multi-step Form with Progressive Disclosure",
-      "steps": [
-        "1. Release Info (Title, Type, Artwork 3000x3000, Language)",
-        "2. Artists & Credits (Primary, Feat, C/P Line, Year)",
-        "3. Tracks & Audio (Repeater if EP/Album, WAV upload, Lyrics, ISRC, Writers)",
-        "4. Review & Submit"
-      ],
-      "spacing": "Generous (p-8 to p-12) for the form container to prevent cognitive overload."
+    "bento_grid": {
+      "description": "Use for the Admin Dashboard KYC queue and Label Profile Checklist.",
+      "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
     },
-    "admin_dashboard": {
-      "pattern": "High Density Grid (Bento Mode B)",
-      "spacing": "Tight (gap-4). Every pixel utilized.",
-      "components": "Data tables for submitted releases, detail slide-overs (sheets) for review, inline status toggles."
+    "kyc_blur_overlay": {
+      "description": "For unverified users clicking restricted tabs (e.g., Analytics, Payouts).",
+      "structure": "The background content must render but have a 'blur-md opacity-40 pointer-events-none' applied. Overlay a centered modal with 'backdrop-blur-xl bg-[#0F0F0F]/90 border border-white/10' that forces them to the KYC settings."
+    },
+    "spacing": {
+      "strategy": "Generous Spacing Philosophy. Use p-8 or p-12 for dashboard cards to maintain a premium feel. Do not cramp form inputs."
     }
   },
   "components": {
-    "forms": "Use React Hook Form with Zod for strict validation (3000x3000 image validation, WAV 44.1/48kHz audio validation).",
-    "repeaters": "Use useFieldArray for unlimited Primary Artists, Feat Artists, and Tracks. Each artist row must have an optional Spotify URL input.",
-    "inputs": "Shadcn UI customized for Dark Mode. Use clear red text and red border outlines for validation errors.",
-    "conditional_logic": "If 'Instrumental' == YA -> Hide Lyrics text area, auto-fill 'Instrumental'.",
-    "admin_actions": "Sticky bottom action bar on the Review page to Reject, Request Revision (Need Revision), Approve, or Send Xendit Payment Link."
-  },
-  "motion": {
-    "transitions": "Use Framer Motion for smooth accordion expansions (Track lists) and sliding between form steps.",
-    "micro_interactions": "Hover states on buttons (-translate-y-px), clear focus rings on form inputs (focus:ring-2 focus:ring-accent)."
-  },
-  "accessibility": {
-    "contrast": "Ensure all text meets APCA standards. Use gray-400 for hints, never darker.",
-    "keyboard": "Full keyboard navigability for the massive form. Enter to move to next input.",
-    "testing": "All interactive elements must have data-testid attributes (e.g., data-testid='submit-release-button', data-testid='add-feat-artist')."
-  },
-  "media": {
-    "uploads": "Implement drag-and-drop zones for Artwork and Audio. Must show clear validation states (e.g., 'Image must be exactly 3000x3000px')."
-  },
-  "image_urls": {
-    "dashboard_header": {
-      "url": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwxfHxtdXNpYyUyMHByb2R1Y3Rpb258ZW58MHx8fHwxNzg4NDM4ODg4fDA&ixlib=rb-4.1.0&q=85",
-      "description": "Music recording studio. Use as a very subtle, low-opacity (10-15%) background graphic in the hero/welcome area of the Label dashboard."
+    "file_upload": {
+      "name": "KTP & Logo Uploader",
+      "design": "A dashed border zone (border-white/20) with a subtle bg-white/5 background on hover. Must show clear file size limits (5MB for logo, 10MB for KTP) and allowed formats. Include a secure preview state once uploaded."
+    },
+    "status_banner": {
+      "name": "KYC Status Banner",
+      "design": "Placed at the top of the Profile/Settings page. If Rejected, must heavily feature the 'Rejected' red and distinctly display the Admin's rejection reason in a distinct blockquote style."
+    },
+    "rejection_modal": {
+      "name": "Admin Rejection Reason Dialog",
+      "design": "When Admin clicks 'Reject', open a Shadcn Dialog requiring a text input for the reason. Primary action is 'Confirm Rejection' in destructive red."
+    },
+    "locked_tab": {
+      "name": "Restricted Navigation Item",
+      "design": "Display a small lock icon next to restricted routes in the sidebar. The link remains clickable but triggers the kyc_blur_overlay on the destination route instead of a hard redirect."
     }
   },
+  "motion": {
+    "hover_states": "All buttons should use smooth 'transition-colors duration-200'. Upload zones should have a slight scale effect 'hover:scale-[1.02]'.",
+    "overlay_entrance": "The KYC restriction overlay must fade in 'animate-in fade-in duration-300' to emphasize the lock.",
+    "list_stagger": "Admin KYC queues should use staggered entrance animations for rows to make the review process feel dynamic."
+  },
+  "image_urls": {
+    "placeholders": [
+      {
+        "url": "https://images.unsplash.com/photo-1726065235203-4368c41c6f19?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwyfHxpZGVudGl0eSUyMGNhcmQlMjB2ZXJpZmljYXRpb258ZW58MHx8fHwxNzg4NDQyNjM4fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Hand holding a card - useful as a placeholder/illustration for the KTP verification empty state",
+        "category": "kyc_illustration"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwyfHxkaiUyMGluJTIwc3R1ZGlvJTIwZGFya3xlbnwwfHx8fDE3ODg0NDI2Mzh8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Dark music studio vibe for aesthetic background or dashboard greeting section",
+        "category": "dashboard_hero"
+      }
+    ]
+  },
   "instructions_to_main_agent": [
-    "Implement the UI using React, Tailwind CSS, and Shadcn UI (JavaScript versions).",
-    "Build a robust 4-step wizard for the Label submission flow to handle the massive amount of metadata.",
-    "Implement dynamic form fields using repeaters for Artists and Tracks. For EP/Album, tracks must be an array of objects containing Audio, Lyrics, ISRC, and explicit flags.",
-    "Ensure the 'Instrumental' toggle automatically sets Lyrics to 'Instrumental' and disables the text area.",
-    "Date picker for Digital Release Date must disable dates less than 7 days from today.",
-    "Build a separate Admin view that renders the submitted data in a highly dense, read-only grid layout.",
-    "Implement the complex status state machine: Annual/VIP skips the 'Awaiting Payment' state.",
-    "Provide a 'Need Revision' action that pushes the release back to the Label's Drafts.",
-    "In the 'Live' admin step, provide inputs to attach the final UPC and missing ISRCs."
+    "Implement the 'Unverified labels can click locked tabs' rule exactly as requested: do NOT redirect via React Router.",
+    "Instead, render the restricted page component, but wrap its main content in a blur overlay (blur-md) with pointer-events-none, and mount a fixed, centered KYC action modal on top of it.",
+    "Ensure 'Super Admin' and 'Admin Support' roles can access the KYC review queue, which includes the KTP viewer and the required rejection reason form.",
+    "Use Phosphor Icons (@phosphor-icons/react) for all icons, particularly the Lock icon for restricted tabs and identity icons.",
+    "Do not use generic HTML inputs for file uploads; create a premium dropzone component with Shadcn structure.",
+    "Strictly adhere to the dark mode palette: #050505 background with #0F0F0F cards. Avoid #7351B7 completely.",
+    "Do not use complete transparent backgrounds in dropdowns or modals. Always use a solid dark background or backdrop-blur with a dark tint.",
+    "For KTP preview, ensure the image scales to fit within the modal/container without breaking the layout (object-contain)."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy and 1px borders.",
-    "You MUST NOT apply universal transition (e.g., transition: all). Add transitions for specific interactive elements only.",
-    "You MUST NOT center align the app container. Do not add .App { text-align: center; }.",
-    "Always use modern button styles (sharp or slightly rounded with interaction animations).",
-    "NEVER use AI assistant Emoji characters.",
-    "Every interaction needs micro-animations - hover states, transitions. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, custom selection states, and loading animations separate good from extraordinary.",
-    "Use 'sonner' for toasts.",
-    "All interactive and key informational elements MUST include a `data-testid` attribute (kebab-case, role-based)."
+    "Avoid generic, 'on distribution' outputs. Do not make generic centered layouts or simplistic gradients.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where overlays are needed.",
+    "NEVER apply universal transition (transition: all). Use specific transitions (transition-colors, transition-opacity).",
+    "Do NOT center align the app container (.App { text-align: center; }).",
+    "Always use modern button styles (sharp or subtle rounded) with interaction animations & relevant colors.",
+    "NEVER use AI assistant Emoji characters (🤖🧠💭💡) for icons.",
+    "Every interaction needs micro-animations (hover states, transitions).",
+    "Use 2-3x more spacing than feels comfortable. Use Tailwind's generous scale (p-6, p-8, p-12).",
+    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='kyc-upload-button', data-testid='kyc-rejection-reason').",
+    "Use `sonner` for toast notifications."
   ]
 }

@@ -11,6 +11,7 @@ import secrets
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    require_kyc_for_label_user,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
@@ -147,7 +148,7 @@ async def create_artist(body: ArtistIn, user: dict = Depends(require_label)):
 
 
 @artist_r.get("/{artist_id}")
-async def get_artist(artist_id: str, user: dict = Depends(get_current_user)):
+async def get_artist(artist_id: str, user: dict = Depends(require_kyc_for_label_user)):
     artist = await db.artists.find_one({"id": artist_id}, {"_id": 0})
     if not artist:
         raise HTTPException(status_code=404, detail="Artist tidak ditemukan")

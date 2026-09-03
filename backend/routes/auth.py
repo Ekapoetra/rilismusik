@@ -191,6 +191,7 @@ async def register(body: RegisterLabelIn, response: Response, request: Request):
         "subscription_status": "inactive",
         "subscription_expires_at": None,
         "contract_status": "active",
+        "kyc_status": "incomplete",
         "account_status": "active",
         "bank_verified": False,
         "blacklisted": False,

@@ -13,6 +13,7 @@ from pathlib import Path
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    require_kyc_for_label_user,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
@@ -1687,7 +1688,7 @@ def _wipe_r2_prefix_sync(prefix: str) -> int:
 
 # -------- LABEL royalty endpoints --------
 @royalty_r.get("/months")
-async def label_royalty_months(user: dict = Depends(get_current_user)):
+async def label_royalty_months(user: dict = Depends(require_kyc_for_label_user)):
     """List periods that have published royalty data visible to the current user."""
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
@@ -1704,7 +1705,7 @@ async def label_royalty_months(user: dict = Depends(get_current_user)):
 
 
 @royalty_r.get("/summary")
-async def label_royalty_summary(user: dict = Depends(get_current_user), period: Optional[str] = None):
+async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user), period: Optional[str] = None):
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
         base = {"label_id": label["id"], "legacy_settled": {"$ne": True}}
@@ -1760,7 +1761,7 @@ async def label_royalty_summary(user: dict = Depends(get_current_user), period: 
 
 @royalty_r.get("/lines")
 async def label_royalty_lines(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_kyc_for_label_user),
     period: Optional[str] = None,
     platform: Optional[str] = None,
     country: Optional[str] = None,
@@ -1797,7 +1798,7 @@ async def label_royalty_lines(
 
 @royalty_r.get("/export.csv")
 async def label_royalty_export_csv(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_kyc_for_label_user),
     period: Optional[str] = None,
 ):
     """Stream CSV export of royalty lines for the current label/period."""

@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 66: Mandatory label KYC
+- Mewajibkan KYC untuk seluruh label termasuk legacy; hanya Dashboard, Profil/KYC, Kontrak, dan Notifikasi yang tetap terbuka sebelum verifikasi.
+- Menambahkan checklist identitas lengkap, upload logo JPG/PNG maksimal 5 MB, dan KTP JPG/PNG maksimal 10 MB.
+- KTP disimpan pada namespace R2 privat, diblokir dari endpoint file publik, dan hanya dilayani melalui endpoint terautentikasi untuk pemilik serta reviewer resmi.
+- Menambahkan antrean review KYC untuk Super Admin/Admin Support dengan preview privat, approve, reject beralasan wajib, notifikasi, activity log, dan counter Admin Dashboard.
+- Route inti memakai backend gate `KYC_REQUIRED`; frontend tetap merender halaman yang dipilih dalam keadaan blur dengan overlay tindakan ke Profil/KYC.
+- Perubahan data identitas setelah verified otomatis mengunci ulang akun sampai KTP baru direview.
+- Verifikasi akhir: targeted KYC 5/5, regresi release 6/6, Python compile, frontend production build, browser lockout/profile, serta browser admin preview/approve/reject lulus. Cloudflare R2 diuji nyata; tidak ada API **MOCKED**.
+
 ## 2026-09-03 — Phase 65: Complete release submission and Believe workflow
 - Mengganti form submit Label menjadi wizard 4 tahap dengan metadata rilisan, artist/featuring unlimited, metadata per-track, file, addons, deklarasi, dan review.
 - Menambahkan validasi client+server untuk cover JPG/PNG tepat 3000×3000 dan WAV valid dengan sample rate 44,1/48 kHz.

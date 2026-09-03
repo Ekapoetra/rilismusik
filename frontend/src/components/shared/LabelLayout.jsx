@@ -1,15 +1,17 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/api/AuthContext";
 import { LABEL_NAV } from "@/constants/testIds";
+import { api } from "@/api/client";
 import { LogoMark, BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
+import { KycGate } from "@/components/shared/KycGate";
 import {
-  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X
+  LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole
 } from "lucide-react";
 
 const NAV = [
-  { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard },
+  { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
   { to: "/label/releases/upload", label: "Upload Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
   { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
   { to: "/label/artists", label: "Artist", icon: Users, tid: LABEL_NAV.artists },
@@ -17,16 +19,36 @@ const NAV = [
   { to: "/label/withdraw", label: "Withdraw", icon: Wallet, tid: LABEL_NAV.withdraw },
   { to: "/label/wami", label: "WAMI", icon: Music, tid: "label-nav-wami" },
   { to: "/label/support", label: "Support", icon: LifeBuoy, tid: LABEL_NAV.support },
-  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract" },
+  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true },
   { to: "/label/invoices", label: "Invoice", icon: FileText, tid: LABEL_NAV.invoices },
-  { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile },
+  { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
 ];
+
+const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 
 export default function LabelLayout() {
   const { user, profile, logout } = useAuth();
   const loc = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [kyc, setKyc] = useState(profile?.kyc || null);
+  const [kycLoading, setKycLoading] = useState(true);
+
+  const loadKyc = useCallback(async () => {
+    setKycLoading(true);
+    try { const { data } = await api.get("/label/kyc"); setKyc(data); }
+    catch { setKyc({ status: "incomplete", is_verified: false }); }
+    finally { setKycLoading(false); }
+  }, []);
+
+  useEffect(() => { loadKyc(); }, [loadKyc, loc.pathname]);
+  useEffect(() => {
+    const update = (event) => setKyc(event.detail);
+    window.addEventListener("rilismusik:kyc-updated", update);
+    return () => window.removeEventListener("rilismusik:kyc-updated", update);
+  }, []);
+  const restricted = !isKycFreePath(loc.pathname);
+  const locked = restricted && (kycLoading || !kyc?.is_verified);
 
   const onLogout = async () => {
     await logout();
@@ -52,7 +74,7 @@ export default function LabelLayout() {
       {open && (
         <div className="md:hidden fixed inset-0 z-30 bg-black/70" onClick={() => setOpen(false)}>
           <div className="absolute top-14 right-0 w-72 h-[calc(100%-3.5rem)] bg-[#0E0C16] border-l border-white/5 p-4 shadow-2xl rm-fade-up" onClick={(e) => e.stopPropagation()}>
-            <NavList currentPath={loc.pathname} onPick={() => setOpen(false)} />
+            <NavList currentPath={loc.pathname} onPick={() => setOpen(false)} kycVerified={kyc?.is_verified} />
             <button onClick={onLogout} className="mt-4 w-full text-left flex items-center gap-2 text-sm text-zinc-300 hover:text-white p-3 rounded-xl hover:bg-white/5" data-testid="label-logout-button">
               <LogOut className="w-4 h-4" /> Logout
             </button>
@@ -67,7 +89,7 @@ export default function LabelLayout() {
             <BrandInline size={38} subtitle="Label Dashboard" />
           </Link>
           <div className="text-[11px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Menu</div>
-          <NavList currentPath={loc.pathname} onPick={() => {}} />
+          <NavList currentPath={loc.pathname} onPick={() => {}} kycVerified={kyc?.is_verified} />
           <div className="mt-auto pt-4 border-t border-white/5">
             <div className="text-xs text-zinc-500">Login as</div>
             <div className="font-semibold text-sm truncate text-white">{profile?.label_name || user?.name}</div>
@@ -83,7 +105,8 @@ export default function LabelLayout() {
           <div className="hidden md:flex absolute top-4 right-6 z-30">
             <NotificationBell instance="desktop" />
           </div>
-          <Outlet />
+          <div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Outlet /></div>
+          {locked && <KycGate status={kyc?.status} loading={kycLoading} />}
         </main>
       </div>
 
@@ -98,7 +121,7 @@ export default function LabelLayout() {
                 key={n.to}
                 to={n.to}
                 data-testid={n.tid}
-                className={`flex flex-col items-center gap-1 py-2 ${Active ? "text-white" : "text-zinc-500"}`}
+                className={`relative flex flex-col items-center gap-1 py-2 ${Active ? "text-white" : "text-zinc-500"}`}
               >
                 {Active ? (
                   <span className="w-9 h-9 rounded-xl grid place-items-center" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}>
@@ -108,6 +131,7 @@ export default function LabelLayout() {
                   <Icon className="w-5 h-5" />
                 )}
                 <span className="text-[10px] font-semibold">{n.label.split(" ")[0]}</span>
+                {!n.kycFree && !kyc?.is_verified && <LockKeyhole className="absolute right-2 top-2 h-3 w-3" data-testid={`${n.tid}-lock`} />}
               </Link>
             );
           })}
@@ -117,7 +141,7 @@ export default function LabelLayout() {
   );
 }
 
-function NavList({ currentPath, onPick }) {
+function NavList({ currentPath, onPick, kycVerified }) {
   return (
     <nav className="space-y-1">
       {NAV.map((n) => {
@@ -138,6 +162,7 @@ function NavList({ currentPath, onPick }) {
           >
             <Icon className="w-4 h-4" />
             <span className="text-sm font-semibold">{n.label}</span>
+            {!n.kycFree && !kycVerified && <LockKeyhole className="ml-auto h-3.5 w-3.5 text-zinc-500" data-testid={`${n.tid}-lock`} />}
           </Link>
         );
       })}

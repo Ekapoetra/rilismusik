@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
-import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3, AlertTriangle, ArrowRight, X } from "lucide-react";
+import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3, AlertTriangle, ArrowRight, X, ShieldCheck } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -34,6 +35,7 @@ function DismissibleBanner({ b, onDismiss }) {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [m, setM] = useState(null);
   const [dismissed, setDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("rm-admin-banners-dismissed") || "[]"); }
@@ -74,6 +76,8 @@ export default function AdminDashboard() {
           <Link to="/admin/payments?needs_action=true" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="admin-actionable-payments-link">Buka Pembayaran <ArrowRight className="h-4 w-4" /></Link>
         </div>
       )}
+
+      {["super_admin", "admin_support"].includes(user?.role) && m.pending_kyc > 0 && <div className="flex flex-col gap-4 rounded-lg border border-amber-400/30 bg-amber-400/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between" data-testid="admin-pending-kyc-alert"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-amber-400/10 text-amber-200"><ShieldCheck className="h-5 w-5" /></div><div><h2 className="font-display text-lg font-bold">KYC Label Menunggu Review</h2><p className="mt-1 text-sm text-zinc-300"><strong data-testid="admin-pending-kyc-count">{m.pending_kyc}</strong> identitas perlu diperiksa.</p></div></div><Link to="/admin/kyc" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="admin-pending-kyc-link">Buka Antrean <ArrowRight className="h-4 w-4" /></Link></div>}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <Stat testId={ADMIN_DASHBOARD.totalLabels} label="Total Label" value={m.total_labels} icon={Building2} accent="rose" />

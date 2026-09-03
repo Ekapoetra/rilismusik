@@ -42,6 +42,7 @@ from routes.royalty import royalty_r, resume_interrupted_imports
 from routes.withdraw import withdraw_r
 from routes.tickets import ticket_r
 from routes.notifications import notif_r
+from routes.kyc import kyc_r
 from routes.contracts import contract_r
 from routes.migrate import migrate_r
 from routes.cron_jobs import cron_r, start_scheduler, stop_scheduler
@@ -79,6 +80,8 @@ def expand_origin_variants(origins: list[str]) -> list[str]:
 @app.get("/api/files/{path:path}")
 async def serve_file(path: str):
     from fastapi import HTTPException
+    if path.lstrip("/").startswith("kyc-private/"):
+        raise HTTPException(status_code=404, detail="File not found")
     # 1) Try R2
     if storage_service.is_configured():
         try:
@@ -121,6 +124,7 @@ api.include_router(ticket_r)
 api.include_router(contract_r)
 api.include_router(migrate_r)
 api.include_router(notif_r)
+api.include_router(kyc_r)
 api.include_router(cron_r)
 
 

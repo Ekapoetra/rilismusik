@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .deps import (
     ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
+    require_kyc_for_label_user,
     require_admin, require_label, log_activity, admin_user_ids, notify_many,
 )
 from models import (
@@ -212,7 +213,7 @@ async def admin_payment_action(
 
 
 @pay_r.post("/{payment_id}/checkout")
-async def start_checkout(payment_id: str, user: dict = Depends(get_current_user)):
+async def start_checkout(payment_id: str, user: dict = Depends(require_kyc_for_label_user)):
     payment = await _owned_payment(payment_id, user)
     session = await create_xendit_session(payment)
     await log_activity(user["id"], "xendit_checkout", "payment", payment_id)
@@ -224,7 +225,7 @@ async def start_checkout(payment_id: str, user: dict = Depends(get_current_user)
 
 
 @pay_r.get("/{payment_id}/status")
-async def payment_status(payment_id: str, user: dict = Depends(get_current_user)):
+async def payment_status(payment_id: str, user: dict = Depends(require_kyc_for_label_user)):
     payment = await _owned_payment(payment_id, user)
     payment = await poll_payment(payment)
     return {
@@ -236,7 +237,7 @@ async def payment_status(payment_id: str, user: dict = Depends(get_current_user)
 
 
 @pay_r.post("/{payment_id}/mock-pay")
-async def mock_pay(payment_id: str, user: dict = Depends(get_current_user)):
+async def mock_pay(payment_id: str, user: dict = Depends(require_kyc_for_label_user)):
     if os.environ.get("XENDIT_ALLOW_MOCK_PAY", "false").lower() != "true":
         raise HTTPException(status_code=404, detail="Endpoint tidak tersedia")
     payment = await _owned_payment(payment_id, user)

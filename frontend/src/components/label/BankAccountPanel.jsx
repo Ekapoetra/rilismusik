@@ -12,7 +12,7 @@ const BankRow = ({ label, value }) => (
   </div>
 );
 
-export const BankAccountPanel = () => {
+export const BankAccountPanel = ({ onChanged }) => {
   const [bank, setBank] = useState(null);
   const [requests, setRequests] = useState([]);
   const [form, setForm] = useState(EMPTY);
@@ -52,7 +52,7 @@ export const BankAccountPanel = () => {
         await api.post("/label/bank-account", form);
         setMessage("Rekening disimpan dan menunggu verifikasi admin.");
       }
-      setEditing(false); await load();
+      setEditing(false); await load(); await onChanged?.();
     } catch (err) { setError(formatApiError(err.response?.data?.detail)); }
     finally { setBusy(false); }
   };
@@ -62,7 +62,7 @@ export const BankAccountPanel = () => {
     try {
       await api.post(`/label/bank-account/change-requests/${pending.id}/action`, { action });
       setMessage(action === "approve" ? "Perubahan rekening admin telah Anda setujui." : "Perubahan rekening admin telah ditolak.");
-      await load();
+      await load(); await onChanged?.();
     } catch (err) { setError(formatApiError(err.response?.data?.detail)); }
     finally { setBusy(false); }
   };

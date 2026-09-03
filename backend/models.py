@@ -74,6 +74,11 @@ class BankAccountChangeActionIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=500)
 
 
+class KycReviewActionIn(BaseModel):
+    action: Literal["approve", "reject"]
+    reason: Optional[str] = Field(default=None, max_length=1000)
+
+
 # ============ RELEASE ============
 ReleaseType = Literal["single", "ep", "album", "compilation"]
 ReleaseStatus = Literal[

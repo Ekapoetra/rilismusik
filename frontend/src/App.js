@@ -45,6 +45,8 @@ import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminContracts from "@/pages/admin/Contracts";
 import AdminWami from "@/pages/admin/Wami";
 import AdminMigrate from "@/pages/admin/Migrate";
+import AdminKycReviews from "@/pages/admin/KycReviews";
+import { Toaster } from "@/components/ui/sonner";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
@@ -99,6 +101,7 @@ function AppRoutes() {
             <Route path="/admin/labels" element={<AdminLabels />} />
             <Route path="/admin/labels/rate-import" element={<ProtectedRoute roles={["super_admin", "admin_finance"]}><LabelRateImport /></ProtectedRoute>} />
             <Route path="/admin/labels/:id" element={<AdminLabelDetail />} />
+            <Route path="/admin/kyc" element={<ProtectedRoute roles={["super_admin", "admin_support"]}><AdminKycReviews /></ProtectedRoute>} />
             <Route path="/admin/artists" element={<AdminArtists />} />
             <Route path="/admin/releases" element={<AdminReleases />} />
             <Route path="/admin/releases/:id" element={<AdminReleaseDetail />} />
@@ -129,7 +132,7 @@ function AppRoutes() {
 }
 
 function App() {
-  return <BrowserRouter><AuthProvider><AppRoutes /></AuthProvider></BrowserRouter>;
+  return <BrowserRouter><AuthProvider><AppRoutes /><Toaster /></AuthProvider></BrowserRouter>;
 }
 
 export default App;

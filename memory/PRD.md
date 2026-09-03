@@ -31,6 +31,11 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 
 ### 3.3 Label Dashboard
 - Dashboard, artist, release, analytics, royalty, withdraw, WAMI, support, contracts, invoices, profile, notifications.
+- Seluruh label, termasuk akun legacy, wajib menyelesaikan KYC sebelum memakai fitur inti. Dashboard, Profil/KYC, Kontrak, dan Notifikasi tetap dapat diakses selama proses aktivasi.
+- Checklist KYC mencakup PIC, nama/logo label, email aktif terverifikasi, WhatsApp, kontrak aktif, rekening lengkap, alamat, kota, dan foto KTP.
+- Halaman inti yang belum terbuka tetap dirender dalam keadaan blur dengan overlay tindakan menuju Profil/KYC; backend tetap menolak akses data memakai kode `KYC_REQUIRED`.
+- Logo menerima JPG/PNG maksimal 5 MB. KTP menerima JPG/PNG maksimal 10 MB, disimpan privat, dan hanya dapat dibaca pemilik label, Super Admin, atau Admin Support melalui endpoint terautentikasi.
+- Super Admin/Admin Support memiliki antrean KYC, preview KTP privat, approve, dan reject dengan alasan wajib. Perubahan identitas setelah verifikasi membatalkan aktivasi sampai review ulang.
 - Saldo selalu diturunkan dari `royalty_lines` pending/available non-legacy, bukan lifetime rollup.
 - Rekening awal diverifikasi admin; perubahan rekening berjalan melalui approval dua arah.
 - Admin Label Management menampilkan saldo available per label dalam Rupiah, tidak termasuk dana withdrawn/legacy-settled atau dana yang sedang direservasi untuk withdraw aktif.
@@ -126,7 +131,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 
 ## 5. Primary Data Models
 - `users`: id, email, password_hash, role, status, token_version.
-- `labels`: id, user_id, payment/subscription state, account status, balances.
+- `labels`: id, user_id, payment/subscription state, account status, balances, profile/logo, KYC status/review metadata.
+- `kyc_documents`: id, label_id, private storage key, checksum, content metadata, current/review status, reviewer, rejection reason.
 - `releases`: metadata, tracks, status, payment status, selected add-ons.
 - `tracks`: artist metadata, audio, ISRC, preview/language/type/lyrics fields.
 - `payments`: release_id, reference_id, amount, line_items, provider state.
@@ -160,6 +166,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 63 operational finance overview dan release queue ordering sudah diimplementasikan serta terverifikasi di desktop/mobile.
 - Phase 64 scoped label balance reconciliation sudah diimplementasikan. Simulasi deterministik 24migo memverifikasi Rp3.311.210 → Rp5.117.660 pada cutoff 2026-05, 35%, Juni–Juli, tanpa mengubah paid web withdrawal.
 - Phase 65 complete label release submission dan admin workflow sudah diimplementasikan serta terverifikasi, termasuk UI read-only untuk role admin non-release.
+- Phase 66 mandatory label KYC sudah diimplementasikan: checklist profil, logo/KTP R2 privat, reviewer RBAC, approve/reject, backend gating, serta blur overlay untuk route label terlarang. Targeted backend 5/5, release regression 6/6, build frontend, dan browser label/admin lulus.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

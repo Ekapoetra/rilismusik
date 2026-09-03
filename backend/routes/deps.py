@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException, Depends, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from auth_utils import (
@@ -51,9 +51,26 @@ get_current_user = make_get_current_user(db)
 
 
 # ---------- Role-based dependencies ----------
-async def require_label(user: dict = Depends(get_current_user)) -> dict:
+KYC_ALLOWED_LABEL_PREFIXES = (
+    "/api/label/me", "/api/label/dashboard", "/api/label/bank-account",
+    "/api/label/kyc", "/api/label/logo", "/api/contracts/label",
+)
+
+
+async def require_label(request: Request, user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != LABEL_ROLE:
         raise HTTPException(status_code=403, detail="Hanya untuk akun label")
+    if not any(request.url.path.startswith(prefix) for prefix in KYC_ALLOWED_LABEL_PREFIXES):
+        from .kyc_service import ensure_label_kyc
+        await ensure_label_kyc(user)
+    return user
+
+
+async def require_kyc_for_label_user(user: dict = Depends(get_current_user)) -> dict:
+    """Apply KYC only when a shared endpoint is accessed by a label account."""
+    if user.get("role") == LABEL_ROLE:
+        from .kyc_service import ensure_label_kyc
+        await ensure_label_kyc(user)
     return user
 
 

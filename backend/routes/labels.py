@@ -63,7 +63,8 @@ async def label_me(user: dict = Depends(require_label)):
             "email": user.get("email"),
         }
     label = await get_label_by_user(user)
-    return redact_label_for_self(label)
+    from .kyc_service import compute_kyc_state
+    return {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)}
 
 
 @label_r.patch("/me")
@@ -71,9 +72,20 @@ async def label_update(body: LabelProfileUpdate, user: dict = Depends(require_la
     label = await get_label_by_user(user)
     upd = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     upd["updated_at"] = now_iso()
-    await db.labels.update_one({"id": label["id"]}, {"$set": upd})
+    identity_fields = {"label_name", "pic_name", "whatsapp", "address", "city"}
+    identity_changed = any(
+        key in upd and str(upd.get(key) or "").strip() != str(label.get(key) or "").strip()
+        for key in identity_fields
+    )
+    update_doc: Dict[str, Any] = {"$set": upd}
+    if label.get("kyc_status") == "verified" and identity_changed:
+        upd["kyc_status"] = "incomplete"
+        upd["kyc_rejection_reason"] = None
+        update_doc["$unset"] = {"kyc_verified_at": "", "kyc_verified_by": ""}
+    await db.labels.update_one({"id": label["id"]}, update_doc)
     updated = await db.labels.find_one({"id": label["id"]}, {"_id": 0})
-    return redact_label_for_self(updated)
+    from .kyc_service import compute_kyc_state
+    return {**redact_label_for_self(updated), "kyc": await compute_kyc_state(user=user, label=updated)}
 
 
 @label_r.get("/dashboard")
@@ -109,8 +121,9 @@ async def label_dashboard(user: dict = Depends(require_label)):
         last_period = row.get("_id")
         break
 
+    from .kyc_service import compute_kyc_state
     return {
-        "label": redact_label_for_self(label),
+        "label": {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)},
         "stats": {
             "balance_available_idr": balance["balance_available_idr"],
             "balance_pending_idr": balance["balance_pending_idr"],

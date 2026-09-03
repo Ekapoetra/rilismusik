@@ -52,5 +52,12 @@
 - Admin lain dapat membaca metadata release, tetapi tidak melihat mutation controls dan menerima HTTP 403 dari `/api/releases/{id}/admin/action`.
 - Invoice/payment status changes tidak mengubah autentikasi atau sesi pengguna.
 
+## Mandatory Label KYC checks
+- Akun label tanpa KYC verified menerima HTTP 403 dengan `detail.code=KYC_REQUIRED` pada endpoint release, artist, royalty, withdraw, WAMI, support, dan payment inti.
+- Dashboard, Profil/KYC, rekening, Kontrak, dan Notifikasi tetap dapat diakses sebelum verified.
+- KTP tidak boleh dilayani dari `/api/files/kyc-private/*`; hanya endpoint owner atau Super Admin/Admin Support yang boleh mengembalikan bytes dengan cache privat/no-store.
+- Admin Finance dan role admin lain menerima 403 dari antrean/detail/file/action KYC.
+- Reject wajib alasan; re-upload membuat dokumen baru current dan approval membuka kembali endpoint inti.
+
 ## Test credentials
 Read `/app/memory/test_credentials.md`; never place passwords in screenshots or reports.

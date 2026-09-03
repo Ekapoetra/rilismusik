@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from .deps import (
     db, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    require_kyc_for_label_user,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
@@ -73,7 +74,7 @@ async def _ticket_visible_to(user: dict, ticket: dict) -> bool:
 
 
 @ticket_r.get("/categories")
-async def list_ticket_categories(user: dict = Depends(get_current_user)):
+async def list_ticket_categories(user: dict = Depends(require_kyc_for_label_user)):
     return [{"value": k, "label": v} for k, v in TICKET_CATEGORY_LABELS.items()]
 
 
@@ -81,7 +82,7 @@ async def list_ticket_categories(user: dict = Depends(get_current_user)):
 async def upload_ticket_attachment(
     file: UploadFile = File(...),
     purpose: str = Form("general"),  # general | audio | cover
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_kyc_for_label_user),
 ):
     """Upload attachment for ticket (audio WAV for edit_audio, cover for edit_cover, or generic attachment)."""
     import storage_service
@@ -254,7 +255,7 @@ async def admin_list_tickets(
 
 
 @ticket_r.get("/{ticket_id}")
-async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
+async def get_ticket(ticket_id: str, user: dict = Depends(require_kyc_for_label_user)):
     ticket = await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
     if not ticket:
         raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
@@ -267,7 +268,7 @@ async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
 
 
 @ticket_r.post("/{ticket_id}/comment")
-async def post_ticket_comment(ticket_id: str, body: TicketCommentIn, user: dict = Depends(get_current_user)):
+async def post_ticket_comment(ticket_id: str, body: TicketCommentIn, user: dict = Depends(require_kyc_for_label_user)):
     ticket = await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
     if not ticket:
         raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")

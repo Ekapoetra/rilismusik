@@ -2,6 +2,7 @@
 export const ADMIN_NAV = {
   dashboard: 'admin-nav-dashboard',
   labels: 'admin-nav-labels',
+  kyc: 'admin-nav-kyc',
   artists: 'admin-nav-artists',
   releases: 'admin-nav-releases',
   payments: 'admin-nav-payments',

@@ -13,6 +13,7 @@ import wave
 from .deps import (
     db, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    require_kyc_for_label_user,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
@@ -58,7 +59,7 @@ release_r = APIRouter(prefix="/releases", tags=["releases"])
 
 @release_r.get("/")
 async def list_releases(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_kyc_for_label_user),
     status: Optional[str] = None,
     q: Optional[str] = None,
     period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
@@ -97,7 +98,7 @@ async def list_releases(
 
 
 @release_r.get("/{release_id}")
-async def get_release(release_id: str, user: dict = Depends(get_current_user)):
+async def get_release(release_id: str, user: dict = Depends(require_kyc_for_label_user)):
     rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
     if not rel:
         raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
@@ -113,7 +114,7 @@ async def get_release(release_id: str, user: dict = Depends(get_current_user)):
 
 
 @release_r.get("/{release_id}/copyright-letter")
-async def download_copyright_letter(release_id: str, user: dict = Depends(get_current_user)):
+async def download_copyright_letter(release_id: str, user: dict = Depends(require_kyc_for_label_user)):
     rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
     if not rel:
         raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")

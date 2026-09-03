@@ -44,8 +44,27 @@ def _seed_ppr_label(db, suffix):
     })
     db.labels.insert_one({
         "id": label_id, "user_id": user_id, "label_name": "Phase 43 Label",
+        "pic_name": "Phase 43 PIC", "whatsapp": "081234567890",
+        "address": "Jl. Pengujian 43", "city": "Jakarta", "country": "Indonesia",
+        "logo_storage_key": f"label-logo/{label_id}/verified.png",
+        "kyc_document_id": f"phase43-kyc-{suffix}", "kyc_status": "verified",
+        "kyc_verified_at": now,
         "account_status": "active", "payment_type": "pay_per_release",
         "subscription_status": "none", "created_at": now, "updated_at": now,
+    })
+    db.kyc_documents.insert_one({
+        "id": f"phase43-kyc-{suffix}", "label_id": label_id,
+        "storage_key": f"kyc-private/{label_id}/verified.png", "content_type": "image/png",
+        "status": "verified", "is_current": True, "uploaded_at": now, "reviewed_at": now,
+    })
+    db.bank_accounts.insert_one({
+        "id": f"phase43-bank-{suffix}", "label_id": label_id, "bank_name": "BCA",
+        "account_number": "1234567890", "account_holder_name": "Phase 43 PIC",
+        "verified_status": "verified", "created_at": now,
+    })
+    db.contracts.insert_one({
+        "id": f"phase43-contract-{suffix}", "label_id": label_id, "status": "active",
+        "start_date": "2026-01-01", "end_date": "2030-12-31", "created_at": now,
     })
     return {"user_id": user_id, "label_id": label_id, "email": email, "password": password}
 
@@ -57,6 +76,9 @@ def _cleanup(db, seeded, release_id, product_id):
     db.tracks.delete_many({"release_id": release_id})
     db.releases.delete_many({"id": release_id})
     db.payment_products.delete_many({"id": product_id})
+    db.kyc_documents.delete_many({"label_id": seeded["label_id"]})
+    db.bank_accounts.delete_many({"label_id": seeded["label_id"]})
+    db.contracts.delete_many({"label_id": seeded["label_id"]})
     db.labels.delete_one({"id": seeded["label_id"]})
     db.users.delete_one({"id": seeded["user_id"]})
 
