@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Setelah redeploy Phase 64: buka Label Management → 24migo → Audit & Sesuaikan Saldo → Preview. Pastikan cutoff Mei 2026, periode Juni–Juli, persentase 35%, dan target sekitar Rp5.117.660 sebelum commit. Setelah commit, audit ulang harus `Sesuai` dan withdrawal web tidak berubah.
 - Redeploy Phase 63 lalu cocokkan satu bulan pemasukan Xendit dengan invoice paid, satu bulan Dana Keluar/Tertunda dengan histori Withdraw, dan verifikasi urutan default Release Management.
 - Redeploy Phase 62 lalu pilih satu withdrawal legacy yang cutoff-nya diketahui. Review preview saldo/baris sebelum commit, verifikasi saldo label sesudahnya, dan pastikan withdrawal web tidak menampilkan tombol edit.
 - Redeploy Phase 61, lalu verifikasi satu pembayaran nyata bernominal kecil: metode pembayaran terbaca, label menerima receipt, admin menerima notifikasi, dan kartu tindak lanjut muncul bila layanannya memerlukan aksi.
@@ -50,6 +51,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 64 menambahkan scoped per-label reconciliation dengan exact active-rate projection, mandatory preview, post-cutoff status recovery, web-withdraw protection, dan reusable Label Detail workflow.
 - Phase 63 menambahkan release operational-priority ordering, pemasukan Xendit bulanan/tahunan, serta ringkasan dan filter arus dana Withdraw.
 - Phase 62 menambahkan guarded edit bulan laporan terakhir untuk legacy withdrawal, mandatory preview, background commit, direct-web immutability, rekonsiliasi saldo/status line, dan audit revision.
 - Phase 60 menambahkan selected-file replacement: upload R2 staging, mandatory preview, hard-delete lama setelah commit, adjustment paid history, recalculation active withdrawal, resume/idempotency, dan refresh saldo/analytics.

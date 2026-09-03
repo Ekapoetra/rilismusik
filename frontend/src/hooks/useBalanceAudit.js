@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { formatApiError } from "@/api/AuthContext";
 
-export function useBalanceAudit() {
+export function useBalanceAudit({ labelIds = null } = {}) {
   const [previewJob, setPreviewJob] = useState(null);
   const [commitJob, setCommitJob] = useState(null);
   const [rows, setRows] = useState([]);
@@ -47,7 +47,7 @@ export function useBalanceAudit() {
   const startPreview = async () => {
     setBusy(true); setError(""); setRows([]); setCommitJob(null); setConfirmed(false);
     try {
-      const { data } = await api.post("/admin/balance-audit/preview");
+      const { data } = await api.post("/admin/balance-audit/preview", labelIds ? { label_ids: labelIds } : {});
       setPreviewJob({ id: data.job_id, status: data.status, phase: "queued" });
       poll(data.job_id, "preview");
     } catch (requestError) {

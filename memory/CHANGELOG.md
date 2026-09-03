@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 64: Scoped label balance reconciliation
+- Menambahkan `Audit & Sesuaikan Saldo` pada Detail Label untuk Super Admin/Admin Finance sehingga koreksi dapat dijalankan satu label dahulu, termasuk 24migo, lalu digunakan pada label lain.
+- Preview scoped menghitung setiap royalty line setelah cutoff dengan persentase aktif label dan kurs line; jika kurs line kosong, memakai kurs parent import.
+- Preview menampilkan saldo lama→benar, cutoff terverifikasi, periode terdampak, baris salah status, dan perhitungan lama→persentase aktif sebelum tombol commit tersedia.
+- Commit memulihkan baris post-cutoff yang salah withdrawn/legacy, mengarahkan import `dana_received` ke available, menghitung ulang nilai IDR, menyegarkan saldo/cache, dan menjaga withdrawal web serta baris historis tetap utuh.
+- Global audit tetap memakai pipeline ringan; proyeksi line-level yang lebih mahal hanya dijalankan untuk audit scoped.
+- Data legacy tanpa revenue/kurs dipertahankan agar alur lama tidak terblokir; data lengkap tetap direkonsiliasi presisi.
+- Simulasi exact 24migo: €452,044530864149 Juni + €326,12 Juli, rate 35%, kurs 19.000/18.500 menghasilkan Rp5.117.660 dari baseline Rp3.311.210; delta Rp1.806.450 dan paid web withdrawal tetap tidak berubah.
+- Verifikasi akhir: 14/14 targeted/regression tests dan frontend production build lulus, tanpa API mocked. Fixture phase64 telah dibersihkan.
+
 ## 2026-09-03 — Phase 63: Release priority and monthly finance overview
 - Release Management kini default pada urutan Submitted → Awaiting Payment → Paid → Under Review → Need Revision → Approved → Delivered → Draft → Live; status yang sama diurutkan dari pembaruan terbaru.
 - Admin Payments menampilkan total pemasukan invoice paid berdasarkan `paid_at` dan field `amount`, dengan kartu angka utama, pilihan bulan/tahun, total tahunan, dan jejak 12 bulan.

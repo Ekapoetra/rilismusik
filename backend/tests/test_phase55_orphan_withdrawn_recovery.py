@@ -193,8 +193,11 @@ def test_global_audit_restores_only_guarded_post_cutoff_orphans():
         assert rows[safe_id]["orphan_legacy_settled_lines"] == 2
         assert rows[safe_id]["orphan_legacy_settled_idr"] == 204_000
         assert rows[safe_id]["wrongly_settled_lines"] == 3
-        assert rows[safe_id]["expected_pending_idr"] == 24_000
-        assert rows[safe_id]["expected_available_idr"] == 350_000
+        assert rows[safe_id]["expected_pending_idr"] == 20_000
+        assert rows[safe_id]["expected_available_idr"] == 300_000
+        assert rows[safe_id]["calculation_mismatch_lines"] == 3
+        assert rows[safe_id]["calculation_mismatch_current_idr"] == 324_000
+        assert rows[safe_id]["calculation_mismatch_projected_idr"] == 270_000
         assert rows[safe_id]["audit_status"] == "drift"
         assert rows[blocked_id]["audit_status"] == "blocked_withdraw_history"
 

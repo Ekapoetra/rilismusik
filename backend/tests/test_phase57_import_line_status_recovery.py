@@ -112,8 +112,11 @@ def test_received_import_draft_and_pending_lines_become_available():
         assert row["draft_under_received_import_lines"] == 1
         assert row["pending_under_received_import_lines"] == 1
         assert row["draft_under_published_import_lines"] == 1
-        assert row["expected_available_idr"] == 180_000
-        assert row["expected_pending_idr"] == 24_000
+        assert row["expected_available_idr"] == 150_000
+        assert row["expected_pending_idr"] == 20_000
+        assert row["calculation_mismatch_lines"] == 3
+        assert row["calculation_mismatch_current_idr"] == 204_000
+        assert row["calculation_mismatch_projected_idr"] == 170_000
 
         diagnostic_response = requests.get(
             f"{API}/admin/balance-audit/labels/{label_id}/diagnostic",

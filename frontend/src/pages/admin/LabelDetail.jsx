@@ -4,6 +4,8 @@ import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { LabelDetailCards, LabelDetailModals } from "@/components/admin/LabelDetailView";
 import { BankChangePanel } from "@/components/admin/BankChangePanel";
+import BalanceAuditPanel from "./BalanceAuditPanel";
+import { Scale } from "lucide-react";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -28,6 +30,7 @@ export default function AdminLabelDetail() {
   const [recalcJob, setRecalcJob] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [balanceAuditOpen, setBalanceAuditOpen] = useState(false);
 
   const load = useCallback(async () => {
     const response = await api.get(`/admin/labels/${id}`);
@@ -127,6 +130,7 @@ export default function AdminLabelDetail() {
     {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}{msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
     {isBlacklisted && label.blacklist_reason && <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm"><div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1">Alasan Blacklist</div><div className="text-red-100">{label.blacklist_reason}</div></div>}
     <LabelDetailCards data={data} permissions={permissions} actions={actions} royaltyState={royaltyState} subscriptionState={subscriptionState} />
+    {canFinance && <section className="border-y border-white/10 py-5" data-testid="admin-label-balance-adjustment-section"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Kesesuaian Saldo Royalti</h2><p className="mt-1 text-sm text-zinc-400">Preview perhitungan ulang setelah cutoff tanpa menyentuh withdrawal web.</p></div><button type="button" className={balanceAuditOpen ? "rm-btn-primary inline-flex items-center gap-2" : "rm-btn-ghost inline-flex items-center gap-2"} onClick={() => setBalanceAuditOpen((value) => !value)} data-testid="admin-label-balance-audit-toggle"><Scale className="h-4 w-4" /> {balanceAuditOpen ? "Tutup Penyesuaian" : "Audit & Sesuaikan Saldo"}</button></div>{balanceAuditOpen && <div className="mt-5" data-testid="admin-label-balance-audit-content"><BalanceAuditPanel label={label} onComplete={load} /></div>}</section>}
     <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />
     <LabelDetailModals data={data} modals={modals} />
   </div>;
