@@ -461,11 +461,15 @@ async def _claim_fulfillment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]
 
 
 async def _fulfill_release(payment: Dict[str, Any]) -> None:
-    fulfilled_status = "approved" if payment.get("approval_required_before_payment") else "under_review"
+    fulfilled_status = "paid" if payment.get("approval_required_before_payment") else "under_review"
     await db.releases.update_one(
         {"id": payment["release_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
         {"$set": {"payment_status": "paid", "status": fulfilled_status, "updated_at": now_iso()},
-         "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+         "$addToSet": {"fulfilled_payment_ids": payment["id"]},
+         "$push": {"status_history": {
+             "from": "awaiting_payment", "to": fulfilled_status, "changed_by": "xendit",
+             "changed_at": now_iso(), "note": "Pembayaran dikonfirmasi Xendit",
+         }}},
     )
 
 

@@ -85,6 +85,10 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
         "explicit": False,
         "copyright_line": "2026 Phase 43",
         "p_line": "2026 Phase 43",
+        "year": 2026,
+        "artist_web_url": "https://youtube.com/channel/UCphase43original",
+        "primary_artists": [{"name": "Artist Phase 43", "spotify_url": "https://open.spotify.com/artist/phase43"}],
+        "featured_artists": [{"name": "Featured Artist", "spotify_url": None}],
         "platforms": ["Spotify", "YouTube Music"],
         "cover_url": "/api/files/phase43-cover.jpg",
         "tracks": [{
@@ -96,6 +100,7 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
             "lyric_language": "Indonesian", "track_type": "original",
             "featuring_artist_name": "Featured Artist", "spotify_artist_id": "spotify-artist-43",
             "youtube_artist_id": "youtube-artist-43", "lyrics": "Lirik pengujian lengkap",
+            "vocal_type": "vocal",
         }],
     }
     try:
@@ -107,8 +112,8 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
         assert track["track_type"] == "original"
         assert track["arranger"] == "Arranger"
         assert track["lyrics"] == "Lirik pengujian lengkap"
-        db.releases.update_one({"id": release_id}, {"$set": {"cover_url": "/api/files/phase43-cover.jpg"}})
-        db.tracks.update_one({"release_id": release_id}, {"$set": {"audio_url": "/api/files/phase43.wav", "audio_filename": "phase43.wav"}})
+        db.releases.update_one({"id": release_id}, {"$set": {"cover_url": "/api/files/phase43-cover.jpg", "cover_width": 3000, "cover_height": 3000}})
+        db.tracks.update_one({"release_id": release_id}, {"$set": {"audio_url": "/api/files/phase43.wav", "audio_filename": "phase43.wav", "audio_sample_rate": 44100}})
 
         submitted = requests.post(
             f"{API}/releases/{release_id}/submit",
@@ -121,14 +126,21 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
         assert db.payments.count_documents({"release_id": release_id}) == 0
         assert submitted.json()["selected_addons"][0]["amount"] == 12500
 
-        def approve():
+        review = requests.post(
+            f"{API}/releases/{release_id}/admin/action", json={"action": "start_review"},
+            headers=_headers(admin_token), timeout=30,
+        )
+        assert review.status_code == 200, review.text
+        assert review.json()["status"] == "under_review"
+
+        def send_payment():
             return requests.post(
-                f"{API}/releases/{release_id}/admin/action", json={"action": "approve"},
+                f"{API}/releases/{release_id}/admin/action", json={"action": "send_payment"},
                 headers=_headers(admin_token), timeout=30,
             )
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            responses = list(executor.map(lambda _: approve(), range(2)))
+            responses = list(executor.map(lambda _: send_payment(), range(2)))
         assert all(response.status_code == 200 for response in responses), [response.text for response in responses]
         payments = list(db.payments.find({"release_id": release_id}, {"_id": 0}))
         assert len(payments) == 1

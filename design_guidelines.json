@@ -1,115 +1,119 @@
 {
-  "project_name": "RILIS MUSIK Label Dashboard",
-  "theme": "dark",
-  "archetype": "THE PERFORMANCE PRO (Adapted for Music Data)",
-  "language": "id",
+  "theme_context": {
+    "description": "Premium Dark Visual Language for a high-end music distribution platform (RILIS MUSIK). Matches the aesthetic of professional audio software (DAWs) and top-tier SaaS dashboards. High density, high contrast, and serious tone.",
+    "archetype": "The Performance Pro (Elite Precision & Focus)"
+  },
   "typography": {
-    "headings": "Manrope",
-    "body": "IBM Plex Sans",
-    "weights": {
-      "light": 300,
-      "regular": 400,
-      "semibold": 600,
-      "black": 900
+    "headings": {
+      "family": "Outfit",
+      "style": "font-bold tracking-tight",
+      "usage": "Use for step titles, page headers, and major data points."
     },
-    "rules": [
-      "CRITICAL: Do NOT use Inter, Space Grotesk, Roboto, or Open Sans.",
-      "Headings > 24px must use tracking-tight.",
-      "Financial figures must use tabular-nums for vertical alignment.",
-      "Use text-zinc-50 for primary data points, text-zinc-400 for labels."
-    ]
+    "body": {
+      "family": "Manrope",
+      "style": "tracking-normal leading-relaxed",
+      "usage": "Use for all form labels, input text, and dashboard tabular data."
+    },
+    "mono": {
+      "family": "JetBrains Mono",
+      "usage": "Use for ISRC, UPC, C-Line, P-Line, and transaction IDs."
+    },
+    "forbidden": ["Inter", "Roboto", "Space Grotesk"]
   },
   "colors": {
-    "background": "#09090B",
-    "surface": "#18181B",
-    "surface_hover": "#27272A",
-    "border": "rgba(255, 255, 255, 0.1)",
-    "primary": "#2563EB",
-    "primary_hover": "#1D4ED8",
-    "success": "#10B981",
-    "warning": "#F59E0B",
-    "text_primary": "#FAFAFA",
-    "text_secondary": "#A1A1AA",
-    "forbidden": [
-      "#7351B7",
-      "#1B93A4",
-      "pure black",
-      "pure white"
-    ]
-  },
-  "visual_enhancers": {
-    "surfaces": "Flat solid backgrounds. Max 8px border-radius (rounded-lg). NEVER nest cards within cards.",
-    "borders": "1px subtle inner stroke (border-white/10) on all cards to separate from background.",
-    "shadows": "Minimal. Use ambient glow for active states, flat dark otherwise.",
-    "glassmorphism": "Used ONLY for sticky headers. bg-zinc-950/80 backdrop-blur-xl border-b border-white/10. NEVER use fully transparent headers."
-  },
-  "grids_and_layouts": {
-    "global_padding": "Generous. Use p-6 or p-8 inside containers.",
-    "dashboard_grid": "High Density Grid. grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-4 or gap-6.",
-    "alignment": "Left-align all text, data, and charts. Never center-align dashboard metrics.",
-    "mobile_first": "Always stack widgets vertically on mobile (grid-cols-1). Ensure charts have horizontal scrolling if they exceed width."
-  },
-  "component_strategy": {
-    "buttons": "Pill-shaped or slightly rounded (rounded-md). Subtle hover translation (-translate-y-[1px]).",
-    "dropdowns": "Shadcn Select. Solid bg-zinc-900. No transparent backgrounds.",
-    "tables": "Flat tables with border-b border-white/5. Hover state: bg-white/5.",
-    "charts": "Shadcn Charts (Recharts). Use monochrome blue tones for streams, green for revenue to avoid clutter. No grids on charts, minimalist axes.",
-    "empty_states": "Crucial. Display dashed border container (border-dashed border-zinc-700) with a subdued Lucide icon and text 'Belum ada data laporan'."
-  },
-  "page_structures": {
-    "dashboard_depan": {
-      "header": {
-        "title": "Dashboard Analitik Label",
-        "controls": "Select Dropdown for period (Bulan Terbaru, 6 Bulan, 12 Bulan)"
-      },
-      "financial_summary": {
-        "layout": "Bento Grid (grid-cols-2 lg:grid-cols-6)",
-        "metrics": [
-          {"label": "Total Pendapatan", "state": "neutral"},
-          {"label": "Sudah Ditarik", "state": "neutral"},
-          {"label": "Sedang Diproses", "state": "warning"},
-          {"label": "Bisa Ditarik", "state": "success"},
-          {"label": "Tertunda", "state": "warning"},
-          {"label": "Total Belum Ditarik", "state": "neutral"}
-        ]
-      },
-      "main_chart": {
-        "title": "Pertumbuhan Stream & Pendapatan",
-        "type": "Bar/Line Hybrid or Area Chart",
-        "layout": "col-span-full h-80"
-      },
-      "top_performers_row": {
-        "layout": "grid-cols-1 lg:grid-cols-3 gap-6",
-        "widgets": [
-          {"title": "Track Teratas", "metrics": "Stream & Pendapatan", "format": "List with rank numbers"},
-          {"title": "Platform Teratas", "metrics": "Stream & Pendapatan", "format": "List with platform icons"},
-          {"title": "Negara Teratas", "metrics": "Stream & Pendapatan", "format": "List with country codes"}
-        ]
-      }
+    "background": "#0A0A0A",
+    "surface": "#121212",
+    "surface_elevated": "#1A1A1A",
+    "primary": "#FFFFFF",
+    "accent": "#007AFF",
+    "text_primary": "#F3F4F6",
+    "text_secondary": "#9CA3AF",
+    "borders": "#27272A",
+    "status": {
+      "draft": "#6B7280",
+      "submitted": "#3B82F6",
+      "under_review": "#F59E0B",
+      "awaiting_payment": "#8B5CF6",
+      "paid": "#10B981",
+      "approved": "#059669",
+      "delivered": "#D97706",
+      "live": "#16A34A",
+      "need_revision": "#EF4444",
+      "reject": "#DC2626",
+      "takedown": "#991B1B"
     }
   },
-  "motion_and_interaction": {
-    "hover": "All interactive elements must explicitly state hover text color (e.g., hover:text-white).",
-    "transitions": "Use specific transitions like transition-colors, transition-transform duration-200. NO transition-all.",
-    "loading": "Use skeleton loaders (animate-pulse bg-zinc-800) matching exactly the widget sizes."
+  "visual_enhancers": {
+    "surfaces": "Grid Borders for Admin Dashboard (technical, high density). Flat solid surfaces with 1px border-border/40 for forms.",
+    "borders": "Cardless layout preferred. 1px solid strokes with 2px inner glow for active inputs.",
+    "shadows": "Minimal to none. Rely on borders and background contrast for depth."
   },
-  "accessibility_and_testing": {
-    "contrast": "Ensure minimum 4.5:1 for text. Hover states must have higher contrast.",
-    "data_testid": "CRITICAL: Add data-testid to every button, link, select, tab, and card. Example: data-testid='period-selector-dropdown', data-testid='metric-total-pendapatan'."
+  "layouts": {
+    "label_submission_flow": {
+      "pattern": "Vertical Stepper / Multi-step Form with Progressive Disclosure",
+      "steps": [
+        "1. Release Info (Title, Type, Artwork 3000x3000, Language)",
+        "2. Artists & Credits (Primary, Feat, C/P Line, Year)",
+        "3. Tracks & Audio (Repeater if EP/Album, WAV upload, Lyrics, ISRC, Writers)",
+        "4. Review & Submit"
+      ],
+      "spacing": "Generous (p-8 to p-12) for the form container to prevent cognitive overload."
+    },
+    "admin_dashboard": {
+      "pattern": "High Density Grid (Bento Mode B)",
+      "spacing": "Tight (gap-4). Every pixel utilized.",
+      "components": "Data tables for submitted releases, detail slide-overs (sheets) for review, inline status toggles."
+    }
+  },
+  "components": {
+    "forms": "Use React Hook Form with Zod for strict validation (3000x3000 image validation, WAV 44.1/48kHz audio validation).",
+    "repeaters": "Use useFieldArray for unlimited Primary Artists, Feat Artists, and Tracks. Each artist row must have an optional Spotify URL input.",
+    "inputs": "Shadcn UI customized for Dark Mode. Use clear red text and red border outlines for validation errors.",
+    "conditional_logic": "If 'Instrumental' == YA -> Hide Lyrics text area, auto-fill 'Instrumental'.",
+    "admin_actions": "Sticky bottom action bar on the Review page to Reject, Request Revision (Need Revision), Approve, or Send Xendit Payment Link."
+  },
+  "motion": {
+    "transitions": "Use Framer Motion for smooth accordion expansions (Track lists) and sliding between form steps.",
+    "micro_interactions": "Hover states on buttons (-translate-y-px), clear focus rings on form inputs (focus:ring-2 focus:ring-accent)."
+  },
+  "accessibility": {
+    "contrast": "Ensure all text meets APCA standards. Use gray-400 for hints, never darker.",
+    "keyboard": "Full keyboard navigability for the massive form. Enter to move to next input.",
+    "testing": "All interactive elements must have data-testid attributes (e.g., data-testid='submit-release-button', data-testid='add-feat-artist')."
+  },
+  "media": {
+    "uploads": "Implement drag-and-drop zones for Artwork and Audio. Must show clear validation states (e.g., 'Image must be exactly 3000x3000px')."
+  },
+  "image_urls": {
+    "dashboard_header": {
+      "url": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwxfHxtdXNpYyUyMHByb2R1Y3Rpb258ZW58MHx8fHwxNzg4NDM4ODg4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Music recording studio. Use as a very subtle, low-opacity (10-15%) background graphic in the hero/welcome area of the Label dashboard."
+    }
   },
   "instructions_to_main_agent": [
-    "Build the dashboard using React (.jsx/.js) and Tailwind CSS. Do NOT use .tsx.",
-    "Implement Shadcn UI for the charts, select, and cards, but strip heavy Vercel-look borders in favor of the flat dark design rules.",
-    "Ensure the dashboard handles 'no data' gracefully (since reports are uploaded via CSV by admin).",
-    "Avoid nested Shadcn <Card> components. Use plain <div className='p-6 bg-zinc-900 rounded-lg border border-white/10'> for better layout control.",
-    "Include lucide-react icons for visual anchors (e.g., Music, MapPin, Play, DollarSign).",
-    "Keep terminology in Indonesian as per user request."
+    "Implement the UI using React, Tailwind CSS, and Shadcn UI (JavaScript versions).",
+    "Build a robust 4-step wizard for the Label submission flow to handle the massive amount of metadata.",
+    "Implement dynamic form fields using repeaters for Artists and Tracks. For EP/Album, tracks must be an array of objects containing Audio, Lyrics, ISRC, and explicit flags.",
+    "Ensure the 'Instrumental' toggle automatically sets Lyrics to 'Instrumental' and disables the text area.",
+    "Date picker for Digital Release Date must disable dates less than 7 days from today.",
+    "Build a separate Admin view that renders the submitted data in a highly dense, read-only grid layout.",
+    "Implement the complex status state machine: Annual/VIP skips the 'Awaiting Payment' state.",
+    "Provide a 'Need Revision' action that pushes the release back to the Label's Drafts.",
+    "In the 'Live' admin step, provide inputs to attach the final UPC and missing ISRCs."
   ],
-  "universal_guidelines_for_main_agent": [
-    "Do not converge toward generic outputs. Break standard grid symmetries slightly if it aids hierarchy.",
-    "Never center align the main app container. Always maintain left alignment for data.",
-    "Use 2-3x more spacing (p-6, p-8) between discrete widgets.",
-    "Use 'sonner' for toast notifications, located in /app/src/components/ui/sonner.js",
-    "Do not use AI emoji characters. Rely strictly on lucide-react or Phosphor Icons."
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy and 1px borders.",
+    "You MUST NOT apply universal transition (e.g., transition: all). Add transitions for specific interactive elements only.",
+    "You MUST NOT center align the app container. Do not add .App { text-align: center; }.",
+    "Always use modern button styles (sharp or slightly rounded with interaction animations).",
+    "NEVER use AI assistant Emoji characters.",
+    "Every interaction needs micro-animations - hover states, transitions. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, custom selection states, and loading animations separate good from extraordinary.",
+    "Use 'sonner' for toasts.",
+    "All interactive and key informational elements MUST include a `data-testid` attribute (kebab-case, role-based)."
   ]
 }

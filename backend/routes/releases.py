@@ -8,6 +8,7 @@ import io
 import shutil
 import secrets
 import asyncio
+import wave
 
 from .deps import (
     db, logger, UPLOAD_DIR,
@@ -43,7 +44,11 @@ from royalty_utils import (
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 from payment_service import PaymentCreateData, create_payment_document, payment_price
-from email_service import send_release_submission_email
+from email_service import send_release_invoice_email, send_release_submission_email
+from .release_workflow_service import (
+    EDITABLE_STATUSES, normalize_artist_credits, require_status,
+    validate_artist_web_url, validate_release_date, validate_release_submission,
+)
 
 # =============================================================================
 #                              RELEASES
@@ -101,7 +106,10 @@ async def get_release(release_id: str, user: dict = Depends(get_current_user)):
         if rel["label_id"] != label["id"]:
             raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
-    return {**rel, "tracks": tracks}
+    payment = None
+    if rel.get("payment_id"):
+        payment = await db.payments.find_one({"id": rel["payment_id"]}, {"_id": 0})
+    return {**rel, "tracks": tracks, "payment": payment}
 
 
 @release_r.get("/{release_id}/copyright-letter")
@@ -162,12 +170,10 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
         raise HTTPException(status_code=403, detail="Kontrak expired - tidak bisa submit rilisan baru")
 
     # validate release date >= today+7
-    try:
-        rdate = date.fromisoformat(body.release_date)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Tanggal rilis tidak valid")
-    if rdate < (date.today() + timedelta(days=7)):
-        raise HTTPException(status_code=400, detail="Tanggal rilis minimal 7 hari setelah hari ini")
+    rdate = validate_release_date(body.release_date)
+    primary_artists = normalize_artist_credits(body.primary_artists, body.artist_name)
+    featured_artists = normalize_artist_credits(body.featured_artists)
+    validate_artist_web_url(body.artist_web_url)
 
     release_id = new_id()
     rel = {
@@ -175,7 +181,12 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
         "label_id": label["id"],
         "release_title": body.release_title,
         "release_type": body.release_type,
-        "artist_name": body.artist_name,
+        "artist_name": ", ".join(item["name"] for item in primary_artists),
+        "primary_artists": primary_artists,
+        "featured_artists": featured_artists,
+        "artist_web_url": str(body.artist_web_url or "").strip() or None,
+        "label_name_snapshot": label.get("label_name"),
+        "responsible_name": user.get("name") or label.get("pic_name"),
         "release_date": body.release_date,
         "year": body.year or rdate.year,
         "genre": body.genre,
@@ -227,6 +238,7 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
             "spotify_artist_id": t.spotify_artist_id,
             "youtube_artist_id": t.youtube_artist_id,
             "lyrics": t.lyrics,
+            "vocal_type": t.vocal_type,
             "status": "draft",
             "created_at": now_iso(),
             "updated_at": now_iso(),
@@ -244,20 +256,23 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
     label = await get_label_by_user(user)
     if rel["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
-    if rel["status"] not in ("draft", "need_revision"):
+    if rel["status"] not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Rilisan tidak dapat diedit pada status saat ini")
 
-    try:
-        rdate = date.fromisoformat(body.release_date)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Tanggal rilis tidak valid")
-    if rdate < (date.today() + timedelta(days=7)):
-        raise HTTPException(status_code=400, detail="Tanggal rilis minimal 7 hari setelah hari ini")
+    rdate = validate_release_date(body.release_date)
+    primary_artists = normalize_artist_credits(body.primary_artists, body.artist_name)
+    featured_artists = normalize_artist_credits(body.featured_artists)
+    validate_artist_web_url(body.artist_web_url)
 
     upd = {
         "release_title": body.release_title,
         "release_type": body.release_type,
-        "artist_name": body.artist_name,
+        "artist_name": ", ".join(item["name"] for item in primary_artists),
+        "primary_artists": primary_artists,
+        "featured_artists": featured_artists,
+        "artist_web_url": str(body.artist_web_url or "").strip() or None,
+        "label_name_snapshot": label.get("label_name"),
+        "responsible_name": user.get("name") or label.get("pic_name"),
         "release_date": body.release_date,
         "year": body.year or rdate.year,
         "genre": body.genre,
@@ -272,11 +287,18 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
     }
     await db.releases.update_one({"id": release_id}, {"$set": upd})
 
-    # replace tracks (simplest approach for MVP)
-    await db.tracks.delete_many({"release_id": release_id})
+    existing_tracks = {
+        item["id"]: item for item in await db.tracks.find(
+            {"release_id": release_id}, {"_id": 0},
+        ).to_list(500)
+    }
+    retained_ids = []
     for idx, t in enumerate(body.tracks, start=1):
+        existing = existing_tracks.get(t.id) if t.id else None
+        track_id = (existing or {}).get("id") or new_id()
+        retained_ids.append(track_id)
         t_doc = {
-            "id": new_id(),
+            "id": track_id,
             "release_id": release_id,
             "label_id": label["id"],
             "artist_id": t.artist_id,
@@ -291,8 +313,10 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
             "genre": t.genre,
             "language": t.language,
             "explicit": t.explicit,
-            "audio_url": t.audio_url,
-            "isrc": t.isrc,
+            "audio_url": t.audio_url or (existing or {}).get("audio_url"),
+            "audio_filename": (existing or {}).get("audio_filename"),
+            "audio_sample_rate": (existing or {}).get("audio_sample_rate"),
+            "isrc": t.isrc or (existing or {}).get("isrc"),
             "preview_start_seconds": t.preview_start_seconds,
             "title_language": t.title_language,
             "lyric_language": t.lyric_language,
@@ -302,11 +326,13 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
             "spotify_artist_id": t.spotify_artist_id,
             "youtube_artist_id": t.youtube_artist_id,
             "lyrics": t.lyrics,
+            "vocal_type": t.vocal_type,
             "status": "draft",
-            "created_at": now_iso(),
+            "created_at": (existing or {}).get("created_at") or now_iso(),
             "updated_at": now_iso(),
         }
-        await db.tracks.insert_one(t_doc)
+        await db.tracks.replace_one({"id": track_id, "release_id": release_id}, t_doc, upsert=True)
+    await db.tracks.delete_many({"release_id": release_id, "id": {"$nin": retained_ids}})
 
     await log_activity(user["id"], "update_release", "release", release_id)
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
@@ -320,7 +346,7 @@ async def upload_cover(release_id: str, file: UploadFile = File(...), user: dict
     label = await get_label_by_user(user)
     if rel["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
-    if rel["status"] not in ("draft", "need_revision"):
+    if rel["status"] not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Cover hanya bisa diubah pada status draft/need_revision")
     ext = (file.filename or "").lower().split(".")[-1]
     if ext not in ("jpg", "jpeg", "png"):
@@ -333,10 +359,8 @@ async def upload_cover(release_id: str, file: UploadFile = File(...), user: dict
         from io import BytesIO
         img = Image.open(BytesIO(file_bytes))
         w, h = img.size
-        if w != h:
-            raise HTTPException(status_code=400, detail="Cover harus square (rasio 1:1)")
-        if w < 3000 or h < 3000:
-            raise HTTPException(status_code=400, detail="Resolusi cover minimal 3000x3000 px")
+        if w != 3000 or h != 3000:
+            raise HTTPException(status_code=400, detail="Cover harus tepat 3000x3000 px")
     except ImportError:
         pass  # Pillow not installed; rely on size check by client
 
@@ -345,8 +369,11 @@ async def upload_cover(release_id: str, file: UploadFile = File(...), user: dict
     content_type = "image/png" if ext == "png" else "image/jpeg"
     await storage_service.upload_bytes(key=key, data=file_bytes, content_type=content_type)
     url = f"/api/files/{key}"
-    await db.releases.update_one({"id": release_id}, {"$set": {"cover_url": url, "updated_at": now_iso()}})
-    return {"cover_url": url}
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "cover_url": url, "cover_width": 3000, "cover_height": 3000,
+        "cover_content_type": content_type, "updated_at": now_iso(),
+    }})
+    return {"cover_url": url, "width": 3000, "height": 3000}
 
 
 @release_r.post("/{release_id}/upload-audio")
@@ -357,7 +384,7 @@ async def upload_audio(release_id: str, track_id: str = Form(...), file: UploadF
     label = await get_label_by_user(user)
     if rel["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
-    if rel["status"] not in ("draft", "need_revision"):
+    if rel["status"] not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Audio hanya bisa diupload pada status draft/need_revision")
     track = await db.tracks.find_one({"id": track_id, "release_id": release_id})
     if not track:
@@ -365,14 +392,29 @@ async def upload_audio(release_id: str, track_id: str = Form(...), file: UploadF
     name = (file.filename or "").lower()
     if not name.endswith(".wav"):
         raise HTTPException(status_code=400, detail="Audio harus berformat WAV")
+    try:
+        file.file.seek(0)
+        with wave.open(file.file, "rb") as wav:
+            sample_rate = int(wav.getframerate())
+            if sample_rate not in (44100, 48000):
+                raise HTTPException(status_code=400, detail="Sample rate audio harus 44,1 kHz atau 48 kHz")
+    except HTTPException:
+        raise
+    except (wave.Error, EOFError):
+        raise HTTPException(status_code=400, detail="File WAV tidak valid")
+    finally:
+        file.file.seek(0)
 
     import storage_service
     key = f"audio/{track_id}.wav"
     # Use multipart-aware upload for large WAV files (boto3 auto-chunks >8MB)
     await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type="audio/wav")
     url = f"/api/files/{key}"
-    await db.tracks.update_one({"id": track_id}, {"$set": {"audio_url": url, "updated_at": now_iso()}})
-    return {"audio_url": url}
+    await db.tracks.update_one({"id": track_id}, {"$set": {
+        "audio_url": url, "audio_filename": file.filename,
+        "audio_sample_rate": sample_rate, "updated_at": now_iso(),
+    }})
+    return {"audio_url": url, "sample_rate": sample_rate}
 
 
 @release_r.post("/{release_id}/submit")
@@ -383,28 +425,13 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     label = await get_label_by_user(user)
     if rel["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
-    if rel["status"] not in ("draft", "need_revision"):
+    if rel["status"] not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Status saat ini tidak dapat disubmit")
     if not body.contract_declaration_checked:
         raise HTTPException(status_code=400, detail="Deklarasi hak cipta harus disetujui")
 
-    # validate completeness
-    if not rel.get("cover_url"):
-        raise HTTPException(status_code=400, detail="Cover belum diupload")
-    tracks = await db.tracks.find({"release_id": release_id}).to_list(200)
-    if not tracks:
-        raise HTTPException(status_code=400, detail="Rilisan harus memiliki minimal 1 track")
-    for t in tracks:
-        if not t.get("audio_url"):
-            raise HTTPException(status_code=400, detail=f"Audio belum diupload untuk track '{t['track_title']}'")
-
-    # release date >= today+7 again (safety)
-    try:
-        rdate = date.fromisoformat(rel["release_date"])
-    except Exception:
-        raise HTTPException(status_code=400, detail="Tanggal rilis tidak valid")
-    if rdate < (date.today() + timedelta(days=7)):
-        raise HTTPException(status_code=400, detail="Tanggal rilis minimal 7 hari dari hari ini, mohon update")
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
+    validate_release_submission(rel, tracks)
 
     # Determine payment flow
     now = datetime.now(timezone.utc)
@@ -429,14 +456,16 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     if is_subscribed:
         if selected_addons:
             raise HTTPException(status_code=400, detail="Layanan tambahan gabungan saat submit hanya tersedia untuk Pay Per Release")
-        new_status = "under_review"
+        new_status = "submitted"
         payment_status = "free_subscription"
+        billing_flow = "subscription"
         payment_id = None
         base_amount = 0
     else:
         new_status = "submitted"
         base_amount = await payment_price("pay_per_release")
         payment_status = "not_generated"
+        billing_flow = "pay_per_release"
         payment_id = None
 
     await db.releases.update_one(
@@ -448,9 +477,15 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             "ppr_base_amount": base_amount,
             "selected_addons": selected_addons,
             "selected_addon_product_ids": addon_ids,
+            "billing_flow": billing_flow,
+            "submitted_at": now_iso(),
             "contract_declaration_checked": True,
+            "admin_note": None,
             "updated_at": now_iso(),
-        }},
+        }, "$push": {"status_history": {
+            "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
+            "changed_at": now_iso(), "note": "Submit ulang setelah revisi" if rel.get("status") == "need_revision" else "Submit pertama",
+        }}},
     )
     await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
     admin_ids = await admin_user_ids(("super_admin", "admin_release"))
@@ -482,13 +517,18 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     if user["role"] not in ("super_admin", "admin_release"):
         raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
 
-    if rel.get("payment_status") == "pending" and body.action in ("deliver", "mark_live"):
-        raise HTTPException(status_code=400, detail="Invoice belum dibayar, rilisan tidak bisa diproses")
-
-    if body.action == "approve" and rel.get("payment_status") == "pending" and rel.get("payment_id"):
-        return await db.releases.find_one({"id": release_id}, {"_id": 0})
-
-    if body.action == "approve" and rel.get("payment_status") == "not_generated":
+    billing_flow = rel.get("billing_flow") or (
+        "pay_per_release" if rel.get("payment_status") in ("not_generated", "pending", "paid") else "subscription"
+    )
+    if body.action == "start_review":
+        require_status(rel, ("submitted",), "Mulai review")
+        new_status = "under_review"
+    elif body.action == "send_payment":
+        if rel.get("status") == "awaiting_payment" and rel.get("payment_id"):
+            return await db.releases.find_one({"id": release_id}, {"_id": 0})
+        require_status(rel, ("under_review",), "Kirim link pembayaran")
+        if billing_flow != "pay_per_release" or rel.get("payment_status") != "not_generated":
+            raise HTTPException(status_code=409, detail="Rilisan ini tidak memerlukan invoice Pay Per Release")
         base_amount = int(await payment_price("pay_per_release"))
         selected_addons = rel.get("selected_addons") or []
         addon_amount = sum(int(item.get("amount") or 0) for item in selected_addons)
@@ -514,39 +554,92 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         ))
         await db.releases.update_one({"id": release_id}, {"$set": {
             "status": "awaiting_payment", "payment_status": "pending", "payment_id": invoice_doc["id"],
-            "admin_approved_at": now_iso(), "admin_approved_by": user["id"], "updated_at": now_iso(),
-        }})
-        await log_activity(user["id"], "admin_approve_create_ppr_invoice", "release", release_id, before={"status": rel.get("status")}, after={"status": "awaiting_payment", "payment_id": invoice_doc["id"], "amount": total_amount})
+            "metadata_validated_at": now_iso(), "metadata_validated_by": user["id"], "updated_at": now_iso(),
+        }, "$push": {"status_history": {
+            "from": rel.get("status"), "to": "awaiting_payment", "changed_by": user["id"],
+            "changed_at": now_iso(), "note": "Metadata valid; invoice dikirim",
+        }}})
+        await log_activity(user["id"], "admin_send_ppr_invoice", "release", release_id, before={"status": rel.get("status")}, after={"status": "awaiting_payment", "payment_id": invoice_doc["id"], "amount": total_amount})
         await notify_many(
-            await label_user_ids(rel["label_id"]), "release_invoice_ready", "Rilisan disetujui — invoice tersedia",
-            f"'{rel.get('release_title')}' disetujui. Selesaikan pembayaran invoice gabungan Rp {total_amount:,.0f}.",
+            await label_user_ids(rel["label_id"]), "release_invoice_ready", "Metadata valid — invoice tersedia",
+            f"Metadata '{rel.get('release_title')}' telah valid. Selesaikan pembayaran invoice gabungan Rp {total_amount:,.0f}.",
             f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
         )
+        label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
+        label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
+        if label_user and label_user.get("email"):
+            asyncio.create_task(send_release_invoice_email(
+                to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
+                release_title=rel.get("release_title") or "Rilisan", amount_idr=total_amount,
+                payment_id=invoice_doc["id"], release_id=release_id,
+            ))
         return await db.releases.find_one({"id": release_id}, {"_id": 0})
-
-    action_to_status = {
-        "approve": "approved",
-        "need_revision": "need_revision",
-        "reject": "rejected",
-        "deliver": "delivered",
-        "mark_live": "live",
-        "takedown": "taken_down",
-    }
-    new_status = action_to_status[body.action]
+    elif body.action == "approve":
+        if billing_flow == "pay_per_release":
+            require_status(rel, ("paid",), "Approve")
+            if rel.get("payment_status") != "paid":
+                raise HTTPException(status_code=409, detail="Pembayaran belum dikonfirmasi Xendit")
+        else:
+            require_status(rel, ("under_review",), "Approve")
+        new_status = "approved"
+    elif body.action == "need_revision":
+        require_status(rel, ("submitted", "under_review"), "Need Revision")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Catatan revisi wajib diisi")
+        new_status = "need_revision"
+    elif body.action == "reject":
+        require_status(rel, ("submitted", "under_review", "need_revision"), "Reject")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan reject wajib diisi")
+        new_status = "rejected"
+    elif body.action == "deliver":
+        require_status(rel, ("approved",), "Deliver to Believe")
+        new_status = "delivered"
+    elif body.action == "mark_live":
+        require_status(rel, ("delivered",), "Mark Live")
+        if not (body.upc or rel.get("upc") or "").strip():
+            raise HTTPException(status_code=400, detail="UPC wajib diisi sebelum status Live")
+        tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "id": 1, "isrc": 1}).to_list(500)
+        missing_isrc = []
+        resolved_isrcs = {}
+        for track in tracks:
+            candidate = (body.track_isrcs.get(track["id"]) or track.get("isrc") or "").strip()
+            if not candidate:
+                missing_isrc.append(track["id"])
+            else:
+                resolved_isrcs[track["id"]] = candidate
+        if missing_isrc:
+            raise HTTPException(status_code=400, detail="ISRC wajib diisi untuk setiap track sebelum status Live")
+        for track_id, candidate in resolved_isrcs.items():
+            await db.tracks.update_one({"id": track_id}, {"$set": {"isrc": candidate, "updated_at": now_iso()}})
+        new_status = "live"
+    else:
+        require_status(rel, ("live",), "Takedown")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan takedown wajib diisi")
+        new_status = "taken_down"
     upd = {"status": new_status, "updated_at": now_iso()}
     if body.action in ("need_revision", "reject") and body.note:
         upd["admin_note"] = body.note
     if body.upc:
         upd["upc"] = body.upc
-    await db.releases.update_one({"id": release_id}, {"$set": upd})
-    if body.isrc:
-        # apply to first track if only one provided
-        await db.tracks.update_many({"release_id": release_id}, {"$set": {"isrc": body.isrc}})
+    if body.action == "start_review":
+        upd["review_started_at"] = now_iso()
+        upd["review_started_by"] = user["id"]
+    if body.action == "deliver":
+        upd["delivered_to_believe_at"] = now_iso()
+    if body.action == "mark_live":
+        upd["live_at"] = now_iso()
+    await db.releases.update_one({"id": release_id}, {"$set": upd, "$push": {"status_history": {
+        "from": rel.get("status"), "to": new_status, "changed_by": user["id"],
+        "changed_at": now_iso(), "note": body.note,
+    }}})
     await log_activity(user["id"], f"admin_{body.action}", "release", release_id, before={"status": rel["status"]}, after={"status": new_status})
     # Notify label
     label_uids = await label_user_ids(rel["label_id"])
     titles = {
         "approve": ("Rilisan disetujui ✓", f"'{rel.get('release_title')}' telah disetujui."),
+        "start_review": ("Rilisan sedang direview", f"'{rel.get('release_title')}' sedang diperiksa admin."),
         "need_revision": ("Rilisan perlu revisi", f"'{rel.get('release_title')}' perlu revisi. {body.note or ''}"),
         "reject": ("Rilisan ditolak", f"'{rel.get('release_title')}' ditolak. {body.note or ''}"),
         "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),

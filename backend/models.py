@@ -92,7 +92,13 @@ ReleaseStatus = Literal[
 ]
 
 
+class ArtistCreditIn(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    spotify_url: Optional[str] = Field(default=None, max_length=500)
+
+
 class TrackIn(BaseModel):
+    id: Optional[str] = None
     track_title: str
     artist_name: str
     composer: Optional[str] = None
@@ -116,6 +122,7 @@ class TrackIn(BaseModel):
     spotify_artist_id: Optional[str] = None
     youtube_artist_id: Optional[str] = None
     lyrics: Optional[str] = Field(default=None, max_length=20000)
+    vocal_type: Literal["vocal", "instrumental"] = "vocal"
 
 
 class ReleaseDraftIn(BaseModel):
@@ -133,6 +140,9 @@ class ReleaseDraftIn(BaseModel):
     platforms: List[str] = Field(default_factory=list)
     notes: Optional[str] = None
     tracks: List[TrackIn] = Field(default_factory=list)
+    primary_artists: List[ArtistCreditIn] = Field(default_factory=list)
+    featured_artists: List[ArtistCreditIn] = Field(default_factory=list)
+    artist_web_url: Optional[str] = Field(default=None, max_length=500)
 
 
 class ReleaseSubmitConfirmation(BaseModel):
@@ -141,8 +151,9 @@ class ReleaseSubmitConfirmation(BaseModel):
 
 
 class AdminReleaseAction(BaseModel):
-    action: Literal["approve", "need_revision", "reject", "deliver", "mark_live", "takedown"]
+    action: Literal["start_review", "send_payment", "approve", "need_revision", "reject", "deliver", "mark_live", "takedown"]
     isrc: Optional[str] = None
+    track_isrcs: Dict[str, str] = Field(default_factory=dict)
     upc: Optional[str] = None
     note: Optional[str] = None
 

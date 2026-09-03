@@ -1,364 +1,85 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { UPLOAD_RELEASE } from "@/constants/testIds";
-import { Trash2, Plus, UploadCloud, Music, ImageIcon } from "lucide-react";
-
-const RELEASE_TYPES = ["single", "ep", "album", "compilation"];
-const newTrack = (artistName = "") => ({
-  client_id: crypto.randomUUID(), track_title: "", artist_name: artistName,
-  composer: "", lyricist: "", producer: "", arranger: "", explicit: false, track_number: 1,
-  preview_start_seconds: 0, title_language: "Indonesian", lyric_language: "Indonesian",
-  track_type: "original", featuring_artist_id: "", featuring_artist_name: "",
-  spotify_artist_id: "", youtube_artist_id: "", lyrics: "",
-});
-
-function todayPlus(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+import { ReleaseFormStepper } from "./release-form/ReleaseFormStepper";
+import { ReleaseInfoStep } from "./release-form/ReleaseInfoStep";
+import { ArtistCreditsStep } from "./release-form/ArtistCreditsStep";
+import { TracksStep } from "./release-form/TracksStep";
+import { AssetsReviewStep } from "./release-form/AssetsReviewStep";
+import { defaultReleaseForm, mapReleaseToForm, serializeReleaseForm, validateStep } from "./release-form/releaseFormState";
 
 export default function UploadRelease() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const [step, setStep] = useState(1); // 1: metadata, 2: tracks, 3: assets+submit
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-  const [release, setRelease] = useState(null); // after create-draft
-  const [form, setForm] = useState({
-    release_title: "",
-    release_type: "single",
-    artist_name: "",
-    release_date: todayPlus(10),
-    genre: "Pop",
-    subgenre: "",
-    language: "Indonesian",
-    explicit: false,
-    copyright_line: "",
-    p_line: "",
-    platforms: ["Spotify", "Apple Music", "YouTube Music", "TikTok"],
-    notes: "",
-    tracks: [newTrack()],
-  });
-  const [declaration, setDeclaration] = useState(false);
-  const [coverFile, setCoverFile] = useState(null);
-  const [coverPreview, setCoverPreview] = useState(null);
-  const [trackFiles, setTrackFiles] = useState({}); // {trackId: File}
-  const [artists, setArtists] = useState([]);
+  const { profile, user } = useAuth();
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState(defaultReleaseForm());
+  const [release, setRelease] = useState(null);
   const [products, setProducts] = useState([]);
   const [selectedAddons, setSelectedAddons] = useState([]);
-
-  useEffect(() => {
-    Promise.all([api.get("/artists/"), api.get("/payments/products")])
-      .then(([artistResponse, productResponse]) => {
-        setArtists(artistResponse.data || []);
-        setProducts(productResponse.data || []);
-      })
-      .catch(() => {});
-  }, []);
+  const [declaration, setDeclaration] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const isPpr = profile?.payment_type !== "annual_subscription" || profile?.subscription_status !== "active";
   const addonTotal = useMemo(() => products.filter((item) => selectedAddons.includes(item.id)).reduce((sum, item) => sum + Number(item.amount || 0), 0), [products, selectedAddons]);
 
-  const onCh = (k) => (e) => setForm({ ...form, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  useEffect(() => {
+    api.get("/payments/products").then(({ data }) => setProducts(data || [])).catch(() => {});
+    if (!id) return;
+    api.get(`/releases/${id}`).then(({ data }) => {
+      setRelease(data); setForm(mapReleaseToForm(data));
+      setSelectedAddons(data.selected_addon_product_ids || []);
+    }).catch((requestError) => setError(formatApiError(requestError.response?.data?.detail) || "Gagal memuat draft"));
+  }, [id]);
 
-  const onTrackCh = (i, k) => (e) => {
-    const next = [...form.tracks];
-    next[i] = { ...next[i], [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value };
-    setForm({ ...form, tracks: next });
+  const updateForm = (patch) => setForm((current) => ({ ...current, ...patch }));
+  const goNext = () => {
+    const message = validateStep(step, form);
+    if (message) { setError(message); return; }
+    setError(""); setStep((value) => Math.min(value + 1, 4));
   };
-
-  const addTrack = () => setForm({
-    ...form,
-    tracks: [...form.tracks, { ...newTrack(form.artist_name), track_number: form.tracks.length + 1 }]
-  });
-
-  const removeTrack = (i) => setForm({ ...form, tracks: form.tracks.filter((_, idx) => idx !== i) });
-
+  const reloadRelease = async (releaseId) => {
+    const { data } = await api.get(`/releases/${releaseId}`);
+    setRelease(data); setForm(mapReleaseToForm(data)); return data;
+  };
   const saveDraft = async () => {
-    setErr("");
-    if (!form.release_title || !form.artist_name) { setErr("Judul rilisan dan nama artis wajib"); return; }
-    if (!form.tracks.length || form.tracks.some(t => !t.track_title)) { setErr("Semua track wajib punya judul"); return; }
-    setSaving(true);
+    const message = validateStep(3, form);
+    if (message) { setError(message); return; }
+    setSaving(true); setError("");
     try {
-      const tracks = form.tracks.map(({ client_id, ...track }, i) => ({ ...track, track_number: i + 1, artist_name: track.artist_name || form.artist_name }));
-      const payload = { ...form, tracks };
-      let r;
-      if (release?.id) {
-        r = await api.patch(`/releases/${release.id}`, payload);
-      } else {
-        r = await api.post("/releases/draft", payload);
-      }
-      setRelease(r.data);
-      // also need to refetch tracks for IDs
-      const detail = await api.get(`/releases/${r.data.id}`);
-      setRelease(detail.data);
-      setStep(3);
-    } catch (e) {
-      setErr(formatApiError(e.response?.data?.detail) || "Gagal menyimpan draft");
+      const payload = serializeReleaseForm(form);
+      const { data } = release?.id
+        ? await api.patch(`/releases/${release.id}`, payload)
+        : await api.post("/releases/draft", payload);
+      await reloadRelease(data.id); setStep(4);
+    } catch (requestError) {
+      setError(formatApiError(requestError.response?.data?.detail) || "Gagal menyimpan draft");
     } finally { setSaving(false); }
   };
-
-  const uploadCover = async (file) => {
-    if (!release?.id) return;
-    const fd = new FormData();
-    fd.append("file", file);
+  const submit = async () => {
+    if (!declaration) { setError("Deklarasi hak cipta wajib disetujui"); return; }
+    setSaving(true); setError("");
     try {
-      const { data } = await api.post(`/releases/${release.id}/upload-cover`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setRelease({ ...release, cover_url: data.cover_url });
-    } catch (e) {
-      setErr(formatApiError(e.response?.data?.detail) || "Upload cover gagal");
-    }
-  };
-
-  const uploadAudio = async (trackId, file) => {
-    if (!release?.id) return;
-    const fd = new FormData();
-    fd.append("track_id", trackId);
-    fd.append("file", file);
-    try {
-      const { data } = await api.post(`/releases/${release.id}/upload-audio`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-      setRelease((r) => ({ ...r, tracks: r.tracks.map((t) => t.id === trackId ? { ...t, audio_url: data.audio_url } : t) }));
-    } catch (e) {
-      setErr(formatApiError(e.response?.data?.detail) || "Upload audio gagal");
-    }
-  };
-
-  const onCoverChange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setCoverFile(f);
-    setCoverPreview(URL.createObjectURL(f));
-    uploadCover(f);
-  };
-
-  const onAudioChange = (trackId) => (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setTrackFiles((p) => ({ ...p, [trackId]: f }));
-    uploadAudio(trackId, f);
-  };
-
-  const submitRelease = async () => {
-    setErr("");
-    if (!declaration) { setErr("Wajib menyetujui deklarasi hak cipta"); return; }
-    setSaving(true);
-    try {
-      const { data } = await api.post(`/releases/${release.id}/submit`, { contract_declaration_checked: true, addon_product_ids: isPpr ? selectedAddons : [] });
-      // success — navigate to detail
+      const { data } = await api.post(`/releases/${release.id}/submit`, {
+        contract_declaration_checked: true,
+        addon_product_ids: isPpr ? selectedAddons : [],
+      });
       navigate(`/label/releases/${data.id}`);
-    } catch (e) {
-      setErr(formatApiError(e.response?.data?.detail) || "Submit gagal");
+    } catch (requestError) {
+      setError(formatApiError(requestError.response?.data?.detail) || "Submit gagal");
     } finally { setSaving(false); }
   };
 
-  return (
-    <div className="space-y-5 max-w-4xl">
-      <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Submit Rilisan</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Upload Rilisan Baru</h1>
-        <p className="text-sm text-zinc-400 mt-2">Audio WAV, cover square 3000×3000, tanggal rilis minimal 7 hari setelah hari ini.</p>
-      </div>
-
-      <Stepper step={step} />
-
-      {err && <div role="alert" data-testid="upload-release-error-alert" className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
-
-      {step === 1 && (
-        <div className="rm-card p-6 space-y-5">
-          <h3 className="font-display font-bold text-xl tracking-tight">1. Metadata Rilisan</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Judul Rilisan">
-              <input data-testid={UPLOAD_RELEASE.releaseTitle} className="rm-input" value={form.release_title} onChange={onCh("release_title")} />
-            </Field>
-            <Field label="Tipe Rilisan">
-              <select data-testid={UPLOAD_RELEASE.releaseType} className="rm-input capitalize" value={form.release_type} onChange={onCh("release_type")}>
-                {RELEASE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Nama Artist Utama">
-              <input data-testid={UPLOAD_RELEASE.artistName} className="rm-input" value={form.artist_name} onChange={onCh("artist_name")} />
-            </Field>
-            <Field label="Tanggal Rilis (min. 7 hari)">
-              <input data-testid={UPLOAD_RELEASE.releaseDate} type="date" className="rm-input" value={form.release_date} onChange={onCh("release_date")} min={todayPlus(7)} />
-            </Field>
-            <Field label="Genre">
-              <input data-testid={UPLOAD_RELEASE.genre} className="rm-input" value={form.genre} onChange={onCh("genre")} />
-            </Field>
-            <Field label="Subgenre (opsional)">
-              <input className="rm-input" value={form.subgenre} onChange={onCh("subgenre")} />
-            </Field>
-            <Field label="Bahasa">
-              <input data-testid={UPLOAD_RELEASE.language} className="rm-input" value={form.language} onChange={onCh("language")} />
-            </Field>
-            <Field label="Explicit Content">
-              <label className="flex items-center gap-2 mt-2"><input type="checkbox" data-testid={UPLOAD_RELEASE.explicit} checked={form.explicit} onChange={onCh("explicit")} /> Ya, mengandung konten eksplisit</label>
-            </Field>
-            <Field label="© Copyright Line">
-              <input data-testid={UPLOAD_RELEASE.copyrightLine} className="rm-input" placeholder={`${new Date().getFullYear()} ${form.artist_name || "Label"}`} value={form.copyright_line} onChange={onCh("copyright_line")} />
-            </Field>
-            <Field label="℗ Phonographic Line">
-              <input data-testid={UPLOAD_RELEASE.pLine} className="rm-input" placeholder={`${new Date().getFullYear()} ${form.artist_name || "Label"}`} value={form.p_line} onChange={onCh("p_line")} />
-            </Field>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <button className="rm-btn-primary" onClick={() => setStep(2)} data-testid="upload-release-next-to-tracks">Lanjut: Tracks →</button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="rm-card p-6 space-y-5">
-          <div className="flex justify-between items-center">
-            <h3 className="font-display font-bold text-xl tracking-tight">2. Tracklist</h3>
-            <button className="rm-btn-ghost flex items-center gap-1.5 text-sm" onClick={addTrack} data-testid={UPLOAD_RELEASE.addTrackButton}><Plus className="w-4 h-4" /> Tambah Track</button>
-          </div>
-          <div className="space-y-4">
-            {form.tracks.map((t, i) => (
-              <div key={t.client_id} className="border border-white/5 rounded-2xl p-4 bg-white/[0.02]">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="text-sm font-bold text-zinc-200">Track #{i + 1}</div>
-                  {form.tracks.length > 1 && <button className="text-red-500 hover:text-red-700" onClick={() => removeTrack(i)} data-testid={`upload-release-remove-track-${i}`}><Trash2 className="w-4 h-4" /></button>}
-                </div>
-                <div className="grid md:grid-cols-2 gap-3">
-                  <Field label="Judul Track"><input data-testid={`${UPLOAD_RELEASE.trackTitle}-${i}`} className="rm-input" value={t.track_title} onChange={onTrackCh(i, "track_title")} /></Field>
-                  <Field label="Artist Track"><input data-testid={`${UPLOAD_RELEASE.trackArtist}-${i}`} className="rm-input" value={t.artist_name} onChange={onTrackCh(i, "artist_name")} placeholder={form.artist_name} /></Field>
-                  <Field label="Composer / Pencipta"><input data-testid={`${UPLOAD_RELEASE.trackComposer}-${i}`} className="rm-input" value={t.composer} onChange={onTrackCh(i, "composer")} /></Field>
-                  <Field label="Lyricist / Penulis Lirik"><input className="rm-input" value={t.lyricist} onChange={onTrackCh(i, "lyricist")} /></Field>
-                  <Field label="Producer"><input className="rm-input" value={t.producer} onChange={onTrackCh(i, "producer")} /></Field>
-                  <Field label="Arranger"><input className="rm-input" value={t.arranger} onChange={onTrackCh(i, "arranger")} data-testid={`upload-release-track-arranger-${i}`} /></Field>
-                  <Field label="Preview mulai (detik)"><input type="number" min="0" max="3600" className="rm-input" value={t.preview_start_seconds} onChange={onTrackCh(i, "preview_start_seconds")} data-testid={`upload-release-track-preview-${i}`} /></Field>
-                  <Field label="Bahasa Judul"><input className="rm-input" value={t.title_language} onChange={onTrackCh(i, "title_language")} data-testid={`upload-release-track-title-language-${i}`} /></Field>
-                  <Field label="Bahasa Lirik"><input className="rm-input" value={t.lyric_language} onChange={onTrackCh(i, "lyric_language")} data-testid={`upload-release-track-lyric-language-${i}`} /></Field>
-                  <Field label="Tipe Track"><select className="rm-input" value={t.track_type} onChange={onTrackCh(i, "track_type")} data-testid={`upload-release-track-type-${i}`}><option value="original">Original</option><option value="cover">Cover</option><option value="live">Live</option></select></Field>
-                  <Field label="Featuring dari Artist"><select className="rm-input" value={t.featuring_artist_id} onChange={(event) => { const artist = artists.find((item) => item.id === event.target.value); const next = [...form.tracks]; next[i] = { ...next[i], featuring_artist_id: event.target.value, featuring_artist_name: artist?.artist_name || "" }; setForm({ ...form, tracks: next }); }} data-testid={`upload-release-track-featuring-select-${i}`}><option value="">— Tidak ada / input baru —</option>{artists.map((artist) => <option key={artist.id} value={artist.id}>{artist.artist_name}</option>)}</select></Field>
-                  <Field label="Featuring baru"><input className="rm-input" value={t.featuring_artist_name} onChange={(event) => { const next = [...form.tracks]; next[i] = { ...next[i], featuring_artist_id: "", featuring_artist_name: event.target.value }; setForm({ ...form, tracks: next }); }} placeholder="Nama artis featuring" data-testid={`upload-release-track-featuring-new-${i}`} /></Field>
-                  <Field label="Spotify Artist ID"><input className="rm-input" value={t.spotify_artist_id} onChange={onTrackCh(i, "spotify_artist_id")} data-testid={`upload-release-track-spotify-id-${i}`} /></Field>
-                  <Field label="YouTube Artist ID"><input className="rm-input" value={t.youtube_artist_id} onChange={onTrackCh(i, "youtube_artist_id")} data-testid={`upload-release-track-youtube-id-${i}`} /></Field>
-                  <Field label="Explicit"><label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={t.explicit} onChange={onTrackCh(i, "explicit")} /> Eksplisit</label></Field>
-                  <div className="md:col-span-2"><Field label="Lirik"><textarea className="rm-input min-h-[140px]" value={t.lyrics} onChange={onTrackCh(i, "lyrics")} placeholder="Tulis lirik lengkap atau kosongkan untuk instrumental" data-testid={`upload-release-track-lyrics-${i}`} /></Field></div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between gap-2 pt-3">
-            <button className="rm-btn-ghost" onClick={() => setStep(1)}>← Kembali</button>
-            <button className="rm-btn-primary" onClick={saveDraft} disabled={saving} data-testid={UPLOAD_RELEASE.saveDraftButton}>
-              {saving ? "Menyimpan…" : "Lanjut: Upload Audio & Cover →"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && release && (
-        <div className="space-y-5">
-          <div className="rm-card p-6 space-y-5">
-            <h3 className="font-display font-bold text-xl tracking-tight">3. Cover & Audio</h3>
-
-            {/* Cover */}
-            <div>
-              <label className="rm-label flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Cover Art (square 3000×3000, JPG/PNG)</label>
-              <label htmlFor="cover-up" className={`flex items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition ${release.cover_url ? "border-emerald-300 bg-emerald-50/40" : "border-white/10 bg-white/[0.02] hover:bg-white/5"}`}>
-                {release.cover_url ? (
-                  <div className="flex items-center gap-4">
-                    <img src={`${process.env.REACT_APP_BACKEND_URL}${release.cover_url}`} alt="cover" className="w-24 h-24 rounded-xl object-cover" />
-                    <div>
-                      <div className="font-semibold text-sm text-emerald-300">Cover terupload</div>
-                      <div className="text-xs text-zinc-500">Klik untuk ganti</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-zinc-500">
-                    <UploadCloud className="w-7 h-7 mx-auto mb-2" />
-                    <div className="text-sm font-semibold">Klik untuk upload cover</div>
-                    <div className="text-xs">JPG / PNG, minimal 3000×3000 square</div>
-                  </div>
-                )}
-                <input id="cover-up" type="file" accept="image/*" hidden onChange={onCoverChange} data-testid={UPLOAD_RELEASE.coverUpload} />
-              </label>
-            </div>
-
-            {/* Audio per track */}
-            <div>
-              <label className="rm-label flex items-center gap-2"><Music className="w-4 h-4" /> Audio per Track (WAV)</label>
-              <div className="space-y-2">
-                {release.tracks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 border border-white/5 rounded-xl p-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-sm">#{t.track_number} — {t.track_title}</div>
-                      <div className="text-xs text-zinc-500">{t.artist_name}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {t.audio_url ? (
-                        <span className="text-xs font-semibold text-emerald-300">✓ Terupload</span>
-                      ) : (
-                        <span className="text-xs text-zinc-600">Belum ada audio</span>
-                      )}
-                      <label className="rm-btn-ghost cursor-pointer text-xs" data-testid={`${UPLOAD_RELEASE.audioUpload}-${t.id}`}>
-                        Upload WAV
-                        <input type="file" accept=".wav,audio/wav" hidden onChange={onAudioChange(t.id)} />
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {isPpr && products.length > 0 && <div className="rm-card p-6 space-y-4" data-testid="upload-release-addons-section"><div><h3 className="font-display font-bold text-xl">Layanan Tambahan</h3><p className="text-sm text-zinc-400 mt-1">Pilihan ini digabung dengan biaya dasar dalam satu invoice setelah rilisan disetujui admin.</p></div><div className="grid md:grid-cols-2 gap-3">{products.map((product) => <label key={product.id} className="flex items-start gap-3 rounded-lg border border-white/10 p-4 cursor-pointer hover:bg-white/[0.03]" data-testid={`upload-release-addon-${product.id}`}><input type="checkbox" className="mt-1" checked={selectedAddons.includes(product.id)} onChange={() => setSelectedAddons((items) => items.includes(product.id) ? items.filter((id) => id !== product.id) : [...items, product.id])} data-testid={`upload-release-addon-checkbox-${product.id}`} /><span className="flex-1"><span className="block font-bold text-sm">{product.name}</span><span className="block text-xs text-zinc-500 mt-1">{product.description}</span></span><span className="text-sm font-bold">Rp {Number(product.amount || 0).toLocaleString("id-ID")}</span></label>)}</div><div className="flex justify-between border-t border-white/10 pt-4 text-sm"><span className="text-zinc-400">Estimasi invoice setelah approval</span><strong data-testid="upload-release-invoice-estimate">Rp {(35000 + addonTotal).toLocaleString("id-ID")}</strong></div></div>}
-
-          {/* Declaration & Submit */}
-          <div className="rm-card p-6 space-y-4">
-            <h3 className="font-display font-bold text-xl tracking-tight">Deklarasi Hak Cipta</h3>
-            <label className="flex items-start gap-3 text-sm text-zinc-200 leading-relaxed cursor-pointer">
-              <input type="checkbox" checked={declaration} onChange={(e) => setDeclaration(e.target.checked)} className="mt-1" data-testid={UPLOAD_RELEASE.declarationCheckbox} />
-              <span>
-                Saya menyatakan memiliki <b>hak distribusi atas audio dan cover</b>, metadata yang saya isi benar,
-                tidak ada pelanggaran hak cipta, dan saya bertanggung jawab atas sengketa yang muncul dari rilisan ini.
-              </span>
-            </label>
-            <div className="flex justify-between gap-2 pt-2">
-              <button className="rm-btn-ghost" onClick={() => setStep(2)}>← Edit Metadata</button>
-              <button className="rm-btn-primary" disabled={saving || !declaration} onClick={submitRelease} data-testid={UPLOAD_RELEASE.submitButton}>
-                {saving ? "Memproses…" : isPpr ? "Kirim untuk Review" : "Submit Rilisan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stepper({ step }) {
-  const items = ["Metadata", "Tracks", "Cover & Audio"];
-  return (
-    <div className="flex items-center gap-2">
-      {items.map((label, i) => {
-        const idx = i + 1;
-        const active = step === idx;
-        const done = step > idx;
-        return (
-          <React.Fragment key={label}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${active ? "bg-[#FF1F8E] text-white" : done ? "bg-emerald-500/15 text-emerald-300" : "bg-white/[0.06] text-zinc-500"}`}>
-              <span className="w-5 h-5 rounded-full grid place-items-center bg-white/30">{done ? "✓" : idx}</span>
-              {label}
-            </div>
-            {i < items.length - 1 && <div className="w-6 h-px bg-slate-300" />}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <label className="rm-label">{label}</label>
-      {children}
-    </div>
-  );
+  return <div className="max-w-6xl space-y-7 pb-20">
+    <header><div className="text-xs font-bold uppercase text-zinc-500">Distribusi Musik</div><h1 className="mt-1 font-display text-4xl font-extrabold tracking-normal">{id ? "Edit Rilisan" : "Submit Rilisan Baru"}</h1><p className="mt-2 max-w-3xl text-sm text-zinc-400">Lengkapi metadata, kredit, track, cover 3000×3000, dan WAV 44,1/48 kHz sebelum dikirim ke admin.</p></header>
+    <ReleaseFormStepper step={step} onStep={(value) => value < step && setStep(value)} />
+    {error && <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200" data-testid="upload-release-error-alert">{error}</div>}
+    {release?.status === "need_revision" && release.admin_note && <div className="border-l-2 border-amber-400 bg-amber-500/10 px-4 py-3 text-sm text-amber-100" data-testid="upload-release-revision-note"><strong>Catatan revisi admin:</strong> {release.admin_note}</div>}
+    {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
+    {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} onBack={() => setStep(1)} onNext={goNext} />}
+    {step === 3 && <TracksStep form={form} updateForm={updateForm} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
+    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} declaration={declaration} setDeclaration={setDeclaration} saving={saving} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
+  </div>;
 }

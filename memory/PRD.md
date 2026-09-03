@@ -43,6 +43,14 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Submission membuat notifikasi in-app admin dan email best-effort.
 - Upload Rilisan tampil sebelum Rilisan pada navigasi label.
 - Release Management default diurutkan berdasarkan prioritas operasional: Submitted, Awaiting Payment, Paid, Under Review, Need Revision, Approved, Delivered, Draft, lalu Live; dalam status yang sama pembaruan terbaru tampil lebih dahulu.
+- Label submit memakai wizard empat tahap: informasi rilisan, unlimited artist/featuring dengan URL Spotify opsional, metadata/kredit per track, lalu validasi file dan review.
+- Release wajib memuat judul, genre/subgenre, label/PIC snapshot akun, SINGLE/EP/ALBUM, C Line/P Line, tahun produksi, tanggal rilis minimal 7 hari, URL web/original YouTube channel, cover JPG/PNG tepat 3000×3000, dan WAV per track pada 44,1/48 kHz.
+- Metadata per track memuat ISRC opsional sampai Live, vocal/instrumental, Writer, Composer, Arranger, Producer, explicit, preview seconds, bahasa judul/lirik, dan lirik. Instrumental otomatis memakai nilai `Instrumental` tanpa input lirik.
+- Need Revision tetap menjadi status backend dan membuka editor seperti Draft; track ID/audio yang sudah valid dipertahankan saat edit, lalu resubmit kembali ke Submitted dengan status history.
+- Annual/VIP workflow: Submitted → Under Review → Approved → Delivered to Believe → Live. PPR: Submitted → Under Review → Awaiting Payment → Paid → Approved → Delivered to Believe → Live.
+- Setelah metadata PPR valid, Admin Release mengirim satu invoice gabungan biaya dasar+addons. Label menerima notifikasi in-app/email; pembayaran Xendit mengubah status ke Paid dan tetap memerlukan approval Admin Release.
+- Status Live mensyaratkan UPC rilisan dan ISRC pada setiap track; Reject tersedia sebelum Live dan Takedown hanya dari Live dengan alasan wajib.
+- Detail release Admin dan Label menampilkan metadata penuh, seluruh artist/featuring, kredit/lyrics/audio per track, cover, addon, serta invoice sepanjang lifecycle.
 
 ### 3.5 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
@@ -151,6 +159,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 62 guarded legacy withdrawal edit sudah diimplementasikan: preview sebelum/sesudah, commit background, direct-web immutability, Finance/Super RBAC, dan deterministic completion UI terverifikasi.
 - Phase 63 operational finance overview dan release queue ordering sudah diimplementasikan serta terverifikasi di desktop/mobile.
 - Phase 64 scoped label balance reconciliation sudah diimplementasikan. Simulasi deterministik 24migo memverifikasi Rp3.311.210 → Rp5.117.660 pada cutoff 2026-05, 35%, Juni–Juli, tanpa mengubah paid web withdrawal.
+- Phase 65 complete label release submission dan admin workflow sudah diimplementasikan serta terverifikasi, termasuk UI read-only untuk role admin non-release.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.
@@ -172,3 +181,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Legacy withdrawal edit regressions: `backend/tests/test_iter52_legacy_withdraw_edit.py`; final combined result 9/9 dengan frontend production build, desktop/mobile preview, route guard, dan completion-state browser verification.
 - Finance/release reporting regressions: `backend/tests/test_iter53_finance_release_reporting.py`; final combined result 11/11, frontend production build, dan desktop/mobile month-switch verification.
 - Scoped 24migo reconciliation: `backend/tests/test_iter54_phase64_scoped_24migo.py`; final combined gate 14/14 dengan exact line-level rounding, commit, clean re-preview, global audit regressions, legacy withdrawal regressions, dan frontend production build.
+- Release submission/workflow: `backend/tests/test_phase65_release_submission_workflow.py`, `backend/tests/test_iter55_release_rbac_revision.py`, dan updated Phase43; final combined gate 16/16 dengan frontend production build serta desktop/mobile browser QA.

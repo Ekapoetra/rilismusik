@@ -8,7 +8,7 @@ export const STATUS_LABELS = {
   under_review: "Under Review",
   need_revision: "Need Revision",
   approved: "Approved",
-  delivered: "Delivered",
+  delivered: "Delivered to Believe",
   live: "Live",
   rejected: "Rejected",
   takedown_requested: "Takedown Requested",

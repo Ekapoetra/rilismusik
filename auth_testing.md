@@ -47,6 +47,10 @@
 - Auth requests use credentials.
 - Protected routes wait for auth initialization and redirect unauthenticated users.
 - Login/register validation errors render as text and do not crash the page.
+- Label users may create/edit only their own Draft atau Need Revision release.
+- `super_admin` dan `admin_release` dapat menjalankan release workflow actions.
+- Admin lain dapat membaca metadata release, tetapi tidak melihat mutation controls dan menerima HTTP 403 dari `/api/releases/{id}/admin/action`.
+- Invoice/payment status changes tidak mengubah autentikasi atau sesi pengguna.
 
 ## Test credentials
 Read `/app/memory/test_credentials.md`; never place passwords in screenshots or reports.

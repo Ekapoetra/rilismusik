@@ -1,0 +1,6 @@
+import React from "react";
+import { Check } from "lucide-react";
+
+const STEPS = ["Informasi Rilisan", "Artist", "Track & Kredit", "File & Review"];
+
+export const ReleaseFormStepper = ({ step, onStep }) => <nav className="overflow-x-auto border-y border-white/10 py-4" aria-label="Tahapan submit rilisan" data-testid="upload-release-stepper"><ol className="flex min-w-max items-center gap-2">{STEPS.map((label, index) => { const number = index + 1; const done = step > number; const active = step === number; return <li key={label}><button type="button" disabled={number > step} onClick={() => onStep(number)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-bold transition-colors ${active ? "bg-white text-black" : done ? "bg-emerald-500/15 text-emerald-300" : "bg-white/[0.04] text-zinc-500"}`} data-testid={`upload-release-step-${number}`}><span className="grid h-5 w-5 place-items-center rounded-sm border border-current">{done ? <Check className="h-3.5 w-3.5" /> : number}</span>{label}</button></li>; })}</ol></nav>;

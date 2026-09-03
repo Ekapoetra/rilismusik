@@ -1,128 +1,24 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { api, formatApiError, fileUrl } from "@/api/client";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, CreditCard } from "lucide-react";
+import { api, formatApiError } from "@/api/client";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { ADMIN_RELEASE } from "@/constants/testIds";
-import { Disc3, Music, AlertCircle, Download } from "lucide-react";
+import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
+import { AdminReleaseWorkflow } from "./releases/AdminReleaseWorkflow";
+import { useAuth } from "@/api/AuthContext";
 
 export default function AdminReleaseDetail() {
   const { id } = useParams();
-  const [data, setData] = useState(null);
-  const [isrc, setIsrc] = useState("");
-  const [upc, setUpc] = useState("");
-  const [note, setNote] = useState("");
-  const [err, setErr] = useState("");
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
-
+  const { user } = useAuth();
+  const [release, setRelease] = useState(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    const { data } = await api.get(`/releases/${id}`);
-    setData(data);
-    setUpc(data.upc || "");
-    setIsrc(data.tracks?.[0]?.isrc || "");
+    try { const { data } = await api.get(`/releases/${id}`); setRelease(data); }
+    catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
-
-  const act = async (action) => {
-    setErr(""); setMsg(""); setBusy(true);
-    try {
-      const { data } = await api.post(`/releases/${id}/admin/action`, { action, isrc: isrc || undefined, upc: upc || undefined, note: note || undefined });
-      setData((d) => ({ ...d, ...data }));
-      setMsg(`Aksi "${action}" berhasil.`);
-      await load();
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
-    finally { setBusy(false); }
-  };
-
-  const downloadCopyright = async () => {
-    setErr("");
-    try {
-      const response = await api.get(`/releases/${id}/copyright-letter`, { responseType: "blob" });
-      const url = URL.createObjectURL(response.data);
-      const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `Surat-Hak-Cipta-${data.release_title}.pdf`; anchor.click();
-      URL.revokeObjectURL(url);
-    } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
-  };
-
-  if (!data) return <div className="text-zinc-500">Memuat…</div>;
-
-  const blockedByPayment = data.payment_status === "pending";
-
-  return (
-    <div className="space-y-5 max-w-5xl">
-      <Link to="/admin/releases" className="text-sm text-zinc-400 hover:rm-gradient-text">← Release Management</Link>
-
-      <div className="flex items-start gap-4 flex-wrap">
-        {data.cover_url ? (
-          <img src={fileUrl(data.cover_url)} alt="cover" className="w-32 h-32 rounded-2xl object-cover" />
-        ) : <div className="w-32 h-32 rounded-2xl bg-white/[0.06] grid place-items-center text-zinc-600"><Disc3 className="w-10 h-10" /></div>}
-        <div className="flex-1 min-w-[260px]">
-          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{data.release_type}</div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tighter">{data.release_title}</h1>
-          <div className="text-zinc-400">{data.artist_name} • Rilis {data.release_date}</div>
-          <div className="mt-2 flex gap-2"><StatusBadge status={data.status} />
-            {data.payment_status === "pending" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300">Invoice Pending</span>}
-            {data.payment_status === "free_subscription" && <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300">Subscription</span>}
-          </div>
-          {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost mt-3 flex items-center gap-2" onClick={downloadCopyright} data-testid="admin-release-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
-        </div>
-      </div>
-
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
-      {blockedByPayment && (
-        <div className="rounded-2xl bg-amber-500/15 text-amber-300 px-4 py-3 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Invoice belum dibayar — aksi review terkunci.</div>
-      )}
-      {data.payment_status === "not_generated" && <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200" data-testid="admin-release-ppr-review-note">Approve akan membuat satu invoice gabungan biaya dasar dan add-on untuk label.</div>}
-
-      {/* Tracks with audio */}
-      <div className="rm-card p-5">
-        <h3 className="font-display font-bold text-lg tracking-tight mb-3">Tracklist</h3>
-        <div className="divide-y divide-white/5">
-          {data.tracks?.map((t) => (
-            <div key={t.id} className="py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center text-sm font-bold">{t.track_number}</div>
-                <div className="min-w-0">
-                  <div className="font-semibold text-sm truncate">{t.track_title}</div>
-                  <div className="text-xs text-zinc-500">{t.artist_name} • Composer: {t.composer || "—"} {t.isrc && <> • ISRC {t.isrc}</>}</div>
-                  <div className="text-[11px] text-zinc-600 mt-1">{t.track_type || "original"} • Producer: {t.producer || "—"} • Arranger: {t.arranger || "—"} • Preview: {t.preview_start_seconds || 0}s</div>
-                  {(t.featuring_artist_name || t.spotify_artist_id || t.youtube_artist_id) && <div className="text-[11px] text-zinc-600">Feat: {t.featuring_artist_name || "—"} • Spotify: {t.spotify_artist_id || "—"} • YouTube: {t.youtube_artist_id || "—"}</div>}
-                </div>
-              </div>
-              {t.audio_url ? <audio controls src={fileUrl(t.audio_url)} className="h-9 max-w-[260px]" /> : <span className="text-xs text-zinc-600 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Belum ada audio</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Admin action panel */}
-      <div className="rm-card p-5 space-y-4">
-        <h3 className="font-display font-bold text-lg tracking-tight">Aksi Review</h3>
-        <div className="grid md:grid-cols-3 gap-3">
-          <div>
-            <label className="rm-label">ISRC (opsional, applies all tracks)</label>
-            <input className="rm-input" value={isrc} onChange={(e) => setIsrc(e.target.value)} data-testid={ADMIN_RELEASE.isrcInput} />
-          </div>
-          <div>
-            <label className="rm-label">UPC</label>
-            <input className="rm-input" value={upc} onChange={(e) => setUpc(e.target.value)} data-testid={ADMIN_RELEASE.upcInput} />
-          </div>
-          <div>
-            <label className="rm-label">Note (untuk Need Revision/Reject)</label>
-            <input className="rm-input" value={note} onChange={(e) => setNote(e.target.value)} data-testid={ADMIN_RELEASE.noteInput} placeholder="Misal: cover blur" />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="rm-btn-primary text-sm" disabled={busy || blockedByPayment} onClick={() => act("approve")} data-testid={ADMIN_RELEASE.approveButton}>{data.payment_status === "not_generated" ? "Approve & Buat Invoice" : "Approve"}</button>
-          <button className="rm-btn-ghost text-sm" disabled={busy} onClick={() => act("need_revision")} data-testid={ADMIN_RELEASE.needRevisionButton}>Need Revision</button>
-          <button className="rm-btn-ghost text-sm" disabled={busy} onClick={() => act("reject")} data-testid={ADMIN_RELEASE.rejectButton}>Reject</button>
-          <button className="rm-btn-ghost text-sm" disabled={busy || blockedByPayment} onClick={() => act("deliver")} data-testid={ADMIN_RELEASE.deliverButton}>Deliver to Believe</button>
-          <button className="rm-btn-ghost text-sm" disabled={busy || blockedByPayment} onClick={() => act("mark_live")} data-testid={ADMIN_RELEASE.liveButton}>Mark Live</button>
-          <button className="rm-btn-ghost text-sm" disabled={busy} onClick={() => act("takedown")}>Takedown</button>
-        </div>
-      </div>
-    </div>
-  );
+  if (!release) return <div className="text-zinc-500" data-testid="admin-release-detail-loading">Memuat detail rilisan…</div>;
+  const canMutate = ["super_admin", "admin_release"].includes(user?.role);
+  return <div className="max-w-7xl space-y-8 pb-28"><Link to="/admin/releases" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white" data-testid="admin-release-back-link"><ArrowLeft className="h-4 w-4" /> Release Management</Link><header className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">{release.release_type} · {release.id}</div><h1 className="mt-1 font-display text-4xl font-extrabold tracking-normal" data-testid="admin-release-detail-title">{release.release_title}</h1><p className="mt-2 text-sm text-zinc-400">{release.artist_name} · {release.label_name_snapshot}</p></div><StatusBadge status={release.status} /></header>{message && <div className="rounded-md bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status" data-testid="admin-release-success">{message}</div>}{error && <div className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert" data-testid="admin-release-error">{error}</div>}{release.admin_note && <div className="border-l-2 border-amber-400 bg-amber-500/10 px-4 py-3 text-sm text-amber-100" data-testid="admin-release-current-note"><strong>Catatan terakhir:</strong> {release.admin_note}</div>}{release.selected_addons?.length > 0 && <section className="border-y border-white/10 py-5" data-testid="admin-release-addons"><h2 className="mb-3 font-display text-lg font-bold">Layanan Tambahan</h2>{release.selected_addons.map((item) => <div className="flex justify-between py-2 text-sm" key={item.id}><span>{item.name}</span><strong>Rp {Number(item.amount || 0).toLocaleString("id-ID")}</strong></div>)}</section>}{release.payment && <section className="flex flex-wrap items-center justify-between gap-4 border border-white/10 p-4" data-testid="admin-release-payment"><div className="flex items-center gap-3"><CreditCard className="h-5 w-5 text-zinc-500" /><div><div className="font-bold">Invoice {release.payment.id}</div><div className="text-xs text-zinc-500">{release.payment.status} · Rp {Number(release.payment.amount || 0).toLocaleString("id-ID")}</div></div></div></section>}<ReleaseMetadataView release={release} />{canMutate ? <AdminReleaseWorkflow release={release} onUpdated={load} setMessage={setMessage} setError={setError} /> : <div className="border border-white/10 px-4 py-3 text-sm text-zinc-400" data-testid="admin-release-readonly-notice">Akses baca-saja. Tindakan workflow hanya tersedia untuk Admin Release dan Super Admin.</div>}</div>;
 }

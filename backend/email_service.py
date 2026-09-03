@@ -247,6 +247,24 @@ async def send_release_submission_email(*, to: str, label_name: str, release_tit
     return await send_email(to=to, subject=f"Rilisan baru — {h(release_title)}", html=html)
 
 
+async def send_release_invoice_email(
+    *, to: str, label_name: str, release_title: str, amount_idr: int,
+    payment_id: str, release_id: str,
+) -> Optional[str]:
+    amount = f"Rp {int(amount_idr):,}".replace(",", ".")
+    body = f"""
+    <p>Halo <strong>{h(label_name)}</strong>,</p>
+    <p>Metadata rilisan <strong>{h(release_title)}</strong> telah valid. Invoice Pay Per Release sudah tersedia.</p>
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Invoice</td><td style="text-align:right;color:#fff;font-family:monospace;">{h(payment_id)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;border-top:1px solid #262626;">Total</td><td style="text-align:right;color:#10b981;font-size:18px;font-weight:800;border-top:1px solid #262626;">{amount}</td></tr>
+    </table>
+    <p style="color:#a1a1aa;font-size:13px;">Buka detail rilisan untuk melihat rincian layanan dan melanjutkan pembayaran melalui Xendit.</p>
+    """
+    html = _wrap("Invoice rilisan tersedia", body, "Buka Rilisan", f"{FRONTEND_URL}/label/releases/{release_id}")
+    return await send_email(to=to, subject=f"Invoice tersedia — {h(release_title)}", html=html)
+
+
 async def send_monthly_royalty_summary_email(
     *, to: str, label_name: str, period: str, total_idr: int, streams: int, top_tracks: list[dict],
 ) -> Optional[str]:

@@ -1,5 +1,18 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 65: Complete release submission and Believe workflow
+- Mengganti form submit Label menjadi wizard 4 tahap dengan metadata rilisan, artist/featuring unlimited, metadata per-track, file, addons, deklarasi, dan review.
+- Menambahkan validasi client+server untuk cover JPG/PNG tepat 3000×3000 dan WAV valid dengan sample rate 44,1/48 kHz.
+- Menambahkan URL Spotify per artist, validasi original YouTube `/channel/UC…`, snapshot Nama Label/PIC akun, C/P Line, tahun produksi, dan tanggal rilis minimal 7 hari.
+- Setiap track kini menyimpan vocal/instrumental, Writer, Composer, Arranger, Producer, explicit, preview seconds, bahasa, lirik, audio sample rate, dan ISRC. Instrumental otomatis `Instrumental`.
+- Need Revision mempertahankan track ID dan audio upload, menampilkan catatan admin di editor, serta resubmit kembali ke Submitted dengan revision/status history.
+- Workflow Annual/VIP dan PPR dipisahkan; invoice PPR baru dibuat setelah metadata valid, idempoten, mencakup addon, dan mengirim notifikasi in-app/email.
+- Konfirmasi payment mengubah release ke Paid, lalu Admin Release wajib Approve → Deliver to Believe → input UPC+ISRC semua track → Live.
+- Menambahkan Reject sebelum Live dan Takedown hanya dari Live dengan alasan wajib; input ISRC divalidasi atomik agar request gagal tidak menulis sebagian track.
+- Detail Admin/Label sekarang menampilkan seluruh metadata release dan track. Finance/Support mendapat tampilan read-only; hanya Super Admin/Admin Release melihat workflow controls.
+- QA independen awal 11/11 menemukan URL YouTube custom lolos draft dan action controls terlihat pada Finance; keduanya diperbaiki. Gate akhir 16/16 lulus, frontend build dan browser desktop/mobile lulus.
+- Cloudflare R2, SMTP, dan provider Xendit hanya **MOCKED pada tes transport terisolasi**; endpoint aplikasi dan state machine diuji nyata di preview.
+
 ## 2026-09-03 — Phase 64: Scoped label balance reconciliation
 - Menambahkan `Audit & Sesuaikan Saldo` pada Detail Label untuk Super Admin/Admin Finance sehingga koreksi dapat dijalankan satu label dahulu, termasuk 24migo, lalu digunakan pada label lain.
 - Preview scoped menghitung setiap royalty line setelah cutoff dengan persentase aktif label dan kurs line; jika kurs line kosong, memakai kurs parent import.

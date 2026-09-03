@@ -4,6 +4,7 @@ import { api, formatApiError, fileUrl } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { CreditCard, Disc3, Music, Download } from "lucide-react";
+import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -86,7 +87,7 @@ export default function ReleaseDetail() {
       {/* Awaiting payment block */}
       {data.payment_status === "not_generated" && (
         <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-5 text-sm text-sky-200" data-testid="release-detail-awaiting-admin-approval">
-          Rilisan sedang ditinjau admin. Invoice biaya dasar dan layanan tambahan baru dibuat setelah disetujui.
+          Rilisan menunggu review admin. Invoice biaya dasar dan layanan tambahan dibuat setelah metadata dinyatakan valid.
         </div>
       )}
       {data.payment_status === "pending" && invoice && (
@@ -106,6 +107,7 @@ export default function ReleaseDetail() {
           <div className="text-[11px] text-zinc-600 mt-2">Status pembayaran dikonfirmasi langsung ke Xendit setelah Anda kembali.</div>
         </div>
       )}
+      {data.status === "paid" && <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-5 text-sm text-emerald-200" data-testid="release-detail-payment-confirmed">Pembayaran sudah dikonfirmasi. Admin akan menyetujui dan melanjutkan distribusi ke Believe.</div>}
 
       {data.admin_note && (
         <div className="rounded-2xl bg-yellow-500/15 text-yellow-200 px-4 py-3 text-sm border border-yellow-100">
@@ -113,56 +115,8 @@ export default function ReleaseDetail() {
         </div>
       )}
 
-      {/* Tracks */}
-      <div className="rm-card p-5">
-        <h3 className="font-display font-bold text-lg tracking-tight mb-3">Tracklist</h3>
-        <div className="divide-y divide-white/5">
-          {data.tracks?.map((t) => (
-            <div key={t.id} className="py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center text-sm font-bold">{t.track_number}</div>
-                <div className="min-w-0">
-                  <div className="font-semibold text-sm truncate">{t.track_title}</div>
-                  <div className="text-xs text-zinc-500 truncate">{t.artist_name} {t.isrc && <span> • ISRC: {t.isrc}</span>}</div>
-                  <div className="text-[11px] text-zinc-600">{t.track_type || "original"} • Preview {t.preview_start_seconds || 0}s{t.featuring_artist_name ? ` • feat. ${t.featuring_artist_name}` : ""}</div>
-                </div>
-              </div>
-              {t.audio_url ? (
-                <audio controls src={fileUrl(t.audio_url)} className="h-9 max-w-[260px]" />
-              ) : (
-                <span className="text-xs text-zinc-600 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Belum ada audio</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <InfoCard title="Metadata">
-          <Row k="Genre" v={data.genre} />
-          <Row k="Subgenre" v={data.subgenre} />
-          <Row k="Bahasa" v={data.language} />
-          <Row k="Explicit" v={data.explicit ? "Ya" : "Tidak"} />
-          <Row k="© Copyright" v={data.copyright_line} />
-          <Row k="℗ Phonographic" v={data.p_line} />
-          <Row k="UPC" v={data.upc} />
-        </InfoCard>
-        <InfoCard title="Distribusi">
-          <Row k="Platforms" v={(data.platforms || []).join(", ")} />
-          <Row k="Submitted at" v={data.updated_at?.slice(0, 19).replace("T", " ")} />
-          <Row k="Status pembayaran" v={data.payment_status} />
-        </InfoCard>
-      </div>
+      <ReleaseMetadataView release={data} />
     </div>
   );
 }
 
-function InfoCard({ title, children }) {
-  return (
-    <div className="rm-card p-5">
-      <h3 className="font-display font-bold text-lg tracking-tight mb-2">{title}</h3>
-      <div className="divide-y divide-white/5">{children}</div>
-    </div>
-  );
-}
-function Row({ k, v }) { return <div className="py-2 flex justify-between gap-3 text-sm"><span className="text-zinc-500">{k}</span><span className="font-semibold text-right truncate max-w-[60%]">{v || "—"}</span></div>; }
