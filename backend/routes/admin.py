@@ -50,6 +50,7 @@ from .admin_label_service import (
 from .admin_reset_service import run_full_reset
 from .dashboard_cache import recompute as recompute_dashboard_revenue, snapshot as dashboard_revenue_snapshot
 from .bank_change_service import create_bank_change_request, review_bank_change_request
+from .payment_admin_service import list_admin_payments
 
 # =============================================================================
 #                                ADMIN
@@ -261,14 +262,11 @@ async def admin_list_artists(
 
 
 @admin_r.get("/payments")
-async def admin_list_payments(user: dict = Depends(require_admin), status: Optional[str] = None, ptype: Optional[str] = None):
-    filt: Dict[str, Any] = {}
-    if status:
-        filt["status"] = status
-    if ptype:
-        filt["type"] = ptype
-    items = await db.payments.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return items
+async def admin_list_payments(
+    user: dict = Depends(require_admin), status: Optional[str] = None,
+    ptype: Optional[str] = None, needs_action: bool = False,
+):
+    return await list_admin_payments(status=status, payment_type=ptype, needs_action=needs_action)
 
 
 @admin_r.get("/admin-users")

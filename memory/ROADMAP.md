@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 61, lalu verifikasi satu pembayaran nyata bernominal kecil: metode pembayaran terbaca, label menerima receipt, admin menerima notifikasi, dan kartu tindak lanjut muncul bila layanannya memerlukan aksi.
 - Redeploy Phase 60, lalu uji satu file kecil terlebih dahulu melalui Royalty Detail → Ganti File Import. Periksa preview per label sebelum mengetik `GANTI DATA`.
 - Gunakan Audit File Ganda sebelum mengganti file yang dicurigai duplikat; commit penggantian menghapus import lama permanen dan hanya Super Admin yang dapat menjalankannya.
 - Redeploy Phase 59 lalu buka Royalty Import → Audit File Ganda → Mulai Audit. Kirim hasil pasangan `MEI 2026.csv` vs `Mei 2022.csv` sebelum tindakan data apa pun.
@@ -40,6 +41,7 @@
 - Add migration/report for legacy PPR releases whose invoices were created before the new post-approval flow.
 
 ## P2 — Quality & operations
+- Tambahkan fingerprint/checksum saat upload royalty CSV ke R2 agar file duplikat ditolak sebelum masuk proses import.
 - Link remaining CMS settings dynamically across all landing sections.
 - Move FastAPI deprecated `on_event` startup/shutdown hooks to lifespan handlers.
 - Add background job notification deep-links by exact job kind instead of the generic migration page.

@@ -50,6 +50,10 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Xendit Payment Session baru dibuat ketika label membuka checkout invoice.
 - Provider polling backend adalah sumber kebenaran pembayaran; return URL hanya untuk navigasi.
 - Release berstatus approved setelah payment PPR yang sebelumnya sudah disetujui admin terkonfirmasi.
+- Admin Payments memakai istilah Indonesia `Dibayar`, `Menunggu Pembayaran`, dan `Kedaluwarsa`, serta menampilkan modal invoice lengkap dengan label, layanan, metode provider, nominal, dan waktu pembayaran.
+- Pembayaran sukses menghasilkan notifikasi in-app serta email idempoten untuk label dan admin terkait; kegagalan email tidak membatalkan fulfillment pembayaran.
+- PPR yang dibayar mengarahkan Admin Release ke rilisan untuk melanjutkan distribusi, layanan custom memiliki status `Sedang Dikerjakan`/`Selesai`, dan langganan aktif otomatis tanpa tindakan manual.
+- Admin Dashboard menampilkan jumlah pembayaran dibayar yang masih membutuhkan tindakan operasional dan mengarah ke daftar terfilter.
 
 ### 3.6 Royalty & Large Data
 - Massive Believe CSV (80MB+) memakai direct upload R2 dan background workers.
@@ -134,6 +138,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 60 menyediakan penggantian import selected-file end-to-end sesuai keputusan pengguna: hard delete lama, paid tetap, adjustment saldo, active withdrawal dihitung ulang, dan mandatory preview.
 - RCA production menemukan pekerjaan hitung ulang global lama `3a8a7130-7646-46ef-a1eb-444f89bc8565` masih berstatus processing sejak 23 Agustus 2026 meski tidak ada perkembangan. Watchdog dan commit guard yang baru menutup pekerjaan kedaluwarsa otomatis.
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
+- Phase 61 Admin Payments localization, invoice detail modal, payment action workflow, provider payment-method lookup, idempotent Admin/Label notifications, and Admin Dashboard action badge are implemented and verified.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.
@@ -151,3 +156,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Legacy marker recovery regression: `backend/tests/test_iter47_balance_audit_draft_legacy_marker.py`; independent report `/app/test_reports/iteration_47.json`.
 - Import-line status recovery regression: `backend/tests/test_phase57_import_line_status_recovery.py`; independent report `/app/test_reports/iteration_48.json`.
 - Import replacement regressions: `backend/tests/test_phase60_royalty_import_replacement.py`, `backend/tests/test_iter50_royalty_import_replacement_guards.py`; full browser R2 upload→preview→commit verified in preview.
+- Payment operations regressions: `backend/tests/test_phase61_admin_payments.py`; final targeted result 12/12 with frontend production build and desktop/mobile browser verification.

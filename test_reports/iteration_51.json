@@ -1,0 +1,54 @@
+{
+  "summary": "Executed Phase61 backend + frontend validation on public preview URL, plus required Phase33 regression suites. Most requested flows passed; one backend enrichment gap and one testability issue found.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/admin/payments",
+        "issue": "payment_method field is missing on at least pending fixture row (phase61-ui-pending). Requirement asks enriched response with payment_method.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin layout notification bell",
+        "issue": "Duplicate data-testid values detected on same page render: notification-bell-button and notification-bell-badge (count=2 each). Violates unique data-testid requirement.",
+        "selector": "[data-testid='notification-bell-button'], [data-testid='notification-bell-badge']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase61_admin_payments.py",
+    "/app/backend/tests/test_phase33_xendit_polling.py",
+    "/app/backend/tests/test_phase33_xendit_safe_api.py",
+    "/app/test_reports/pytest/iter51_phase61_phase33.xml"
+  ],
+  "action_items": [
+    "Ensure /api/admin/payments always includes payment_method key for all rows (including pending/non-polled invoices), even when value is null/empty fallback.",
+    "Make notification bell/badge data-testid unique per rendered instance (desktop/mobile variants).",
+    "After fixes, rerun Phase61 targeted suite and repeat admin payments UI scenario from actionable baseline state."
+  ],
+  "critical_code_review_comments": [
+    "Admin payment enrichment already strips Mongo _id correctly and provides action metadata/path for PPR/WAMI/custom/subscription.",
+    "Custom-service action guardrails are correct: only super_admin/admin_finance/admin_support allowed; non-custom or non-paid payments correctly rejected.",
+    "Idempotent paid-notification flow works in isolated test with MOCKED provider transport and MOCKED SMTP delivery; repeated reconciliation did not duplicate in-app/email delivery events."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase61_admin_payments.py",
+    "/app/test_reports/iteration_51.json"
+  ],
+  "success_rate": {
+    "backend": "91.7% (11/12 passed; only payment_method enrichment assertion failed)",
+    "frontend": "90% (core admin payment workflows passed; testability uniqueness issue found)"
+  },
+  "seed_data_creation": "No new seed script run. Temporary backend test documents were created and cleaned up in test finally blocks.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "UI run changed fixture phase61-ui-custom to completed via real admin action to verify actionable filter behavior. Actionable list now shows ppr only until fixture is reset. Initial state verification (dashboard actionable_payments=2) was captured before this action.",
+  "rca of the issue": "RCA for backend failure: /api/admin/payments currently returns stored payment documents (projection excludes _id) and decorates them, but does not enforce a normalized payment_method key on every row. For phase61-ui-pending fixture, payment_method key is absent because provider reconciliation has not populated it yet and decorate() does not default this field. Mitigation: in payment admin enrichment layer, set payment_method fallback (e.g., null or 'Belum tersedia dari Xendit') for all responses."
+}

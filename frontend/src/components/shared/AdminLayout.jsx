@@ -15,7 +15,7 @@ const NAV = [
   { to: "/admin/labels", label: "Label Management", icon: Building2, tid: ADMIN_NAV.labels, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
   { to: "/admin/artists", label: "Artist Management", icon: UserSquare, tid: ADMIN_NAV.artists, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
   { to: "/admin/releases", label: "Release Management", icon: Disc3, tid: ADMIN_NAV.releases, roles: ["super_admin", "admin_release"] },
-  { to: "/admin/payments", label: "Xendit Payments", icon: CreditCard, tid: ADMIN_NAV.payments, roles: ["super_admin", "admin_finance"] },
+  { to: "/admin/payments", label: "Pembayaran", icon: CreditCard, tid: ADMIN_NAV.payments, roles: ["super_admin", "admin_finance"] },
   { to: "/admin/royalty", label: "Royalty Import", icon: FileSpreadsheet, tid: ADMIN_NAV.royaltyImport, roles: ["super_admin", "admin_finance"] },
   { to: "/admin/withdraw", label: "Withdraw", icon: Banknote, tid: ADMIN_NAV.withdraw, roles: ["super_admin", "admin_finance"] },
   { to: "/admin/wami", label: "WAMI Registrations", icon: Music, tid: "admin-nav-wami", roles: ["super_admin", "admin_release"] },
@@ -91,14 +91,14 @@ export default function AdminLayout() {
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#0B0915] border-b border-white/5 text-white p-4 flex justify-between items-center">
         <Link to="/admin/dashboard"><BrandInline size={30} /></Link>
         <div className="flex items-center gap-2">
-          <NotificationBell />
+          <NotificationBell instance="mobile" />
           <button onClick={onLogout} className="text-sm text-zinc-300" data-testid="admin-logout-mobile">Logout</button>
         </div>
       </div>
 
       <main className="flex-1 p-4 md:p-8 mt-16 md:mt-0 max-w-full overflow-x-hidden text-zinc-100 relative">
         <div className="hidden md:flex absolute top-4 right-6 z-30">
-          <NotificationBell />
+          <NotificationBell instance="desktop" />
         </div>
         <Outlet />
       </main>

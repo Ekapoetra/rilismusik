@@ -16,7 +16,7 @@ function timeAgo(iso) {
   return d.toLocaleDateString("id-ID");
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ instance = "desktop" }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -71,7 +71,7 @@ export default function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/5 transition"
-        data-testid="notification-bell-button"
+        data-testid={instance === "desktop" ? "notification-bell-button" : `notification-bell-button-${instance}`}
         aria-label="Notifikasi"
       >
         <Bell className="w-5 h-5" />
@@ -79,7 +79,7 @@ export default function NotificationBell() {
           <span
             className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center text-[10px] font-bold rounded-full text-white"
             style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}
-            data-testid="notification-bell-badge"
+            data-testid={instance === "desktop" ? "notification-bell-badge" : `notification-bell-badge-${instance}`}
           >
             {unread > 99 ? "99+" : unread}
           </span>
@@ -89,7 +89,7 @@ export default function NotificationBell() {
       {open && (
         <div
           className="absolute right-0 top-full mt-2 w-[360px] max-w-[92vw] z-50 rm-glass-strong rounded-2xl overflow-hidden shadow-2xl border border-white/5"
-          data-testid="notification-dropdown"
+          data-testid={instance === "desktop" ? "notification-dropdown" : `notification-dropdown-${instance}`}
         >
           <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
             <div>
@@ -100,7 +100,7 @@ export default function NotificationBell() {
               onClick={markAll}
               disabled={unread === 0}
               className="text-xs flex items-center gap-1 text-zinc-400 hover:text-white disabled:opacity-40"
-              data-testid="notification-mark-all-button"
+              data-testid={instance === "desktop" ? "notification-mark-all-button" : `notification-mark-all-button-${instance}`}
             >
               <CheckCheck className="w-3 h-3" /> Tandai dibaca
             </button>
@@ -116,7 +116,7 @@ export default function NotificationBell() {
                 key={n.id}
                 onClick={() => handleClick(n)}
                 className={`block w-full text-left px-4 py-3 border-b border-white/5 last:border-0 transition hover:bg-white/5 ${!n.read_at ? "bg-pink-500/[0.04]" : ""}`}
-                data-testid={`notification-item-${n.id}`}
+                data-testid={`notification-item-${n.id}-${instance}`}
               >
                 <div className="flex items-start gap-3">
                   {!n.read_at && (

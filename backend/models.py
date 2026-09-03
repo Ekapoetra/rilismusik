@@ -189,6 +189,10 @@ class PaymentProductUpdateIn(BaseModel):
     active: Optional[bool] = None
 
 
+class PaymentAdminActionIn(BaseModel):
+    action: Literal["in_progress", "completed"]
+
+
 # ============ WAMI ============
 WamiStatus = Literal["unpaid", "pending", "in_progress", "registered", "rejected", "cancelled"]
 

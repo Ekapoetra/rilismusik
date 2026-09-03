@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
-import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3, AlertTriangle, X } from "lucide-react";
+import { Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff, Activity, BarChart3, AlertTriangle, ArrowRight, X } from "lucide-react";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -48,7 +49,7 @@ export default function AdminDashboard() {
   };
   const visibleBanners = PRODUCTION_BANNERS.filter(b => !dismissed.includes(b.id));
 
-  if (!m) return <div className="text-zinc-500">Memuat metrik admin…</div>;
+  if (!m) return <div className="text-zinc-500" data-testid="admin-dashboard-loading">Memuat metrik admin…</div>;
 
   return (
     <div className="space-y-6">
@@ -64,21 +65,31 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {m.actionable_payments > 0 && (
+        <div className="flex flex-col gap-4 rounded-lg border border-rose-400/30 bg-rose-500/10 p-5 sm:flex-row sm:items-center sm:justify-between" data-testid="admin-actionable-payments-alert">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-rose-400/15 text-rose-200"><CreditCard className="h-5 w-5" /></div>
+            <div><h2 className="font-display text-lg font-bold">Pembayaran Baru yang Perlu Ditindaklanjuti</h2><p className="mt-1 text-sm text-zinc-300"><strong data-testid="admin-actionable-payments-count">{m.actionable_payments}</strong> pembayaran menunggu tindakan operasional admin.</p></div>
+          </div>
+          <Link to="/admin/payments?needs_action=true" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="admin-actionable-payments-link">Buka Pembayaran <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <Stat testId={ADMIN_DASHBOARD.totalLabels} label="Total Label" value={m.total_labels} icon={Building2} accent="rose" />
-        <Stat label="Total Artist" value={m.total_artists} icon={Users2} accent="indigo" />
+        <Stat testId="admin-dashboard-total-artists" label="Total Artist" value={m.total_artists} icon={Users2} accent="indigo" />
         <Stat testId={ADMIN_DASHBOARD.totalReleases} label="Total Rilisan" value={m.total_releases} icon={Disc3} accent="amber" />
         <Stat testId={ADMIN_DASHBOARD.pendingReview} label="Antrian Review" value={m.pending_review} icon={Activity} accent="orange" />
 
-        <Stat label="Delivered" value={m.delivered} icon={Disc3} accent="indigo" />
-        <Stat label="Live di DSP" value={m.live} icon={BarChart3} accent="emerald" />
-        <Stat label="Subscription Aktif" value={m.active_subscriptions} icon={Crown} accent="amber" />
-        <Stat label="Label Suspended" value={m.suspended_labels} icon={ShieldOff} accent="rose" />
+        <Stat testId="admin-dashboard-delivered" label="Didistribusikan" value={m.delivered} icon={Disc3} accent="indigo" />
+        <Stat testId="admin-dashboard-live" label="Live di DSP" value={m.live} icon={BarChart3} accent="emerald" />
+        <Stat testId="admin-dashboard-active-subscriptions" label="Langganan Aktif" value={m.active_subscriptions} icon={Crown} accent="amber" />
+        <Stat testId="admin-dashboard-suspended-labels" label="Label Ditangguhkan" value={m.suspended_labels} icon={ShieldOff} accent="rose" />
 
-        <Stat testId={ADMIN_DASHBOARD.pendingInvoices} label="Invoice Pending" value={m.pending_invoices} icon={CreditCard} accent="orange" />
-        <Stat label="Invoice Paid" value={m.paid_invoices} icon={CreditCard} accent="emerald" />
-        <Stat label="Withdraw Pending" value={m.pending_withdraws} icon={Banknote} accent="amber" />
-        <Stat label="Tiket Aktif" value={m.active_tickets} icon={MessageSquare} accent="indigo" />
+        <Stat testId={ADMIN_DASHBOARD.pendingInvoices} label="Menunggu Pembayaran" value={m.pending_invoices} icon={CreditCard} accent="orange" />
+        <Stat testId="admin-dashboard-paid-invoices" label="Invoice Dibayar" value={m.paid_invoices} icon={CreditCard} accent="emerald" />
+        <Stat testId="admin-dashboard-pending-withdraws" label="Withdraw Menunggu" value={m.pending_withdraws} icon={Banknote} accent="amber" />
+        <Stat testId="admin-dashboard-active-tickets" label="Tiket Aktif" value={m.active_tickets} icon={MessageSquare} accent="indigo" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -106,7 +117,7 @@ export default function AdminDashboard() {
           <div className="text-xs uppercase tracking-widest font-bold text-zinc-500 mb-3">Quick Tips</div>
           <ul className="text-sm text-zinc-200 space-y-2 leading-relaxed">
             <li>📦 Review rilisan di menu <b>Release Management</b>.</li>
-            <li>💳 Pantau dan sinkronkan pembayaran production di menu <b>Xendit Payments</b>.</li>
+            <li>💳 Pantau dan sinkronkan pembayaran di menu <b>Pembayaran</b>.</li>
             <li>🎨 Atur konten landing page di menu <b>Landing Page CMS</b>.</li>
             <li>👥 Tambah admin user (multi-role) di menu <b>Admin Users</b>.</li>
           </ul>
@@ -132,7 +143,7 @@ function Stat({ label, value, icon: Icon, accent, testId }) {
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <div className="font-display font-extrabold tracking-tighter text-3xl mt-2">{value}</div>
+      <div className="font-display font-extrabold tracking-tighter text-3xl mt-2" data-testid={`${testId}-value`}>{value}</div>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export default function LabelLayout() {
           <BrandInline size={32} />
         </Link>
         <div className="flex items-center gap-1">
-          <NotificationBell />
+          <NotificationBell instance="mobile" />
           <button onClick={() => setOpen(!open)} className="p-2 text-white" data-testid="label-mobile-menu-button">
             {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -81,7 +81,7 @@ export default function LabelLayout() {
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-x-hidden relative">
           {/* Floating bell - desktop only */}
           <div className="hidden md:flex absolute top-4 right-6 z-30">
-            <NotificationBell />
+            <NotificationBell instance="desktop" />
           </div>
           <Outlet />
         </main>

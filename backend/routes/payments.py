@@ -12,8 +12,9 @@ from .deps import (
 )
 from models import (
     CreateSubscriptionPaymentIn, CreateWamiOrderIn, PaymentProductCreateIn,
-    PaymentProductUpdateIn, now_iso, new_id,
+    PaymentProductUpdateIn, PaymentAdminActionIn, now_iso, new_id,
 )
+from .payment_admin_service import update_custom_service_action
 from payment_service import (
     PaymentCreateData, create_payment_document, create_xendit_session, fulfill_payment,
     payment_price, poll_payment, reconcile_payment, xendit_configured,
@@ -194,6 +195,20 @@ async def admin_delete_product(product_id: str, user: dict = Depends(require_adm
         return {"ok": True, "archived": True}
     await db.payment_products.delete_one({"id": product_id})
     return {"ok": True, "deleted": True}
+
+
+@pay_r.post("/admin/{payment_id}/action")
+async def admin_payment_action(
+    payment_id: str, body: PaymentAdminActionIn, user: dict = Depends(require_admin),
+):
+    if user["role"] not in ("super_admin", "admin_finance", "admin_support"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance, Support, atau Super Admin")
+    payment = await update_custom_service_action(payment_id, body.action)
+    await log_activity(
+        user["id"], f"payment_service_{body.action}", "payment", payment_id,
+        after={"admin_action_status": body.action},
+    )
+    return payment
 
 
 @pay_r.post("/{payment_id}/checkout")

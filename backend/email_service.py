@@ -163,7 +163,7 @@ async def send_subscription_expiry_email(*, to: str, label_name: str, days_left:
     return await send_email(to=to, subject=f"⏰ Subscription berakhir {int(days_left)} hari lagi", html=html)
 
 
-async def send_payment_receipt_email(*, to: str, label_name: str, description: str, amount_idr: int, invoice_id: str) -> Optional[str]:
+def build_payment_receipt_email(*, label_name: str, description: str, amount_idr: int, invoice_id: str) -> tuple[str, str]:
     amt = f"Rp {amount_idr:,}".replace(",", ".")
     body = f"""
     <p>Halo <strong>{h(label_name)}</strong>,</p>
@@ -178,7 +178,46 @@ async def send_payment_receipt_email(*, to: str, label_name: str, description: s
         "Pembayaran berhasil", body,
         "Lihat Invoice", f"{FRONTEND_URL}/label/invoices",
     )
-    return await send_email(to=to, subject=f"Pembayaran diterima — {h(description)}", html=html)
+    return f"Pembayaran diterima — {h(description)}", html
+
+
+def build_admin_paid_payment_email(
+    *, label_name: str, description: str, amount_idr: int, invoice_id: str,
+    payment_type: str, paid_at: str, instruction: str,
+) -> tuple[str, str]:
+    amt = f"Rp {amount_idr:,}".replace(",", ".")
+    body = f"""
+    <p>Pembayaran baru dari <strong>{h(label_name)}</strong> telah dikonfirmasi.</p>
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Invoice</td><td style="text-align:right;color:#fff;font-family:monospace;font-size:12px;">{h(invoice_id)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Layanan</td><td style="text-align:right;color:#fff;">{h(description)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Tipe</td><td style="text-align:right;color:#fff;">{h(payment_type)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;">Waktu bayar</td><td style="text-align:right;color:#fff;">{h(paid_at)}</td></tr>
+      <tr><td style="padding:8px 0;color:#a1a1aa;border-top:1px solid #262626;">Total</td><td style="text-align:right;color:#10b981;font-weight:800;font-size:18px;border-top:1px solid #262626;">{amt}</td></tr>
+    </table>
+    <p style="margin-top:20px;background:#0a0a0a;padding:12px 16px;border-radius:12px;color:#fbbf24;"><strong>Tindakan admin:</strong> {h(instruction)}</p>
+    """
+    html = _wrap("Pembayaran baru diterima", body, "Buka Pembayaran", f"{FRONTEND_URL}/admin/payments?payment_id={h(invoice_id)}")
+    return f"Pembayaran baru — {h(label_name)} — {amt}", html
+
+
+async def send_payment_receipt_email(*, to: str, label_name: str, description: str, amount_idr: int, invoice_id: str) -> Optional[str]:
+    subject, html = build_payment_receipt_email(
+        label_name=label_name, description=description, amount_idr=amount_idr, invoice_id=invoice_id,
+    )
+    return await send_email(to=to, subject=subject, html=html)
+
+
+async def send_admin_paid_payment_email(
+    *, to: str, label_name: str, description: str, amount_idr: int,
+    invoice_id: str, payment_type: str, paid_at: str, instruction: str,
+) -> Optional[str]:
+    subject, html = build_admin_paid_payment_email(
+        label_name=label_name, description=description, amount_idr=amount_idr,
+        invoice_id=invoice_id, payment_type=payment_type, paid_at=paid_at,
+        instruction=instruction,
+    )
+    return await send_email(to=to, subject=subject, html=html)
 
 
 async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int, bank_name: str, account_number: str) -> Optional[str]:

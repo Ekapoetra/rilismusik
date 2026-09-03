@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 61: Admin payment operations
+- Melokalkan Admin Payments dengan status `Dibayar`, `Menunggu Pembayaran`, `Kedaluwarsa`, `Gagal`, dan `Dibatalkan`.
+- Menambahkan modal detail invoice berisi label, email, jenis layanan, deskripsi, metode pembayaran Xendit, nominal, status tindakan, waktu, dan rincian line item.
+- Menambahkan workflow PPR ke Release, WAMI ke halaman proses, layanan custom `Sedang Dikerjakan`/`Selesai`, dan langganan otomatis tanpa aksi manual.
+- Pembayaran sukses kini membuat notifikasi in-app serta email idempoten untuk label dan admin yang relevan; SMTP tetap best-effort dan tidak menggagalkan fulfillment.
+- Metode pembayaran diambil dari payload provider atau Payment Request/Payment Xendit, bukan input browser.
+- Admin Dashboard kini menampilkan kartu pembayaran yang perlu ditindaklanjuti dan membuka daftar terfilter.
+- Memperbaiki bootstrap index lama agar seluruh index notifikasi baru tetap dibuat, serta membuat test ID lonceng desktop/mobile unik.
+- Verifikasi akhir: 12/12 backend/regresi lulus, frontend production build lulus, UI desktop/mobile serta modal/aksi lulus. Xendit/SMTP hanya di-MOCKED pada tes provider terisolasi; API aplikasi tidak di-mock.
+
 ## 2026-09-02 — Phase 60: Guarded royalty import replacement
 - Menambahkan tombol `Ganti File Import` untuk import published/dana_received pada Royalty Detail.
 - File pengganti diunggah ke R2 path terpisah, divalidasi ukuran/header, diproses background, dan disembunyikan dari Analytics/saldo sampai commit.

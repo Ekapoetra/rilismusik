@@ -3,6 +3,7 @@
 This integration intentionally uses backend polling. Redirect return URLs are
 navigation only and are never trusted as proof of payment.
 """
+import asyncio
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,7 @@ from pymongo.errors import DuplicateKeyError
 
 from models import new_id, now_iso
 from routes.deps import db, logger, notify_many
-from email_service import send_payment_receipt_email
+from email_service import send_admin_paid_payment_email, send_payment_receipt_email
 
 
 XENDIT_TERMINAL = {"COMPLETED", "EXPIRED", "CANCELED"}
@@ -35,7 +36,7 @@ DEFAULT_PRICES = {
 
 async def admin_user_ids(roles: tuple[str, ...]) -> list[str]:
     users = await db.users.find(
-        {"role": {"$in": list(roles)}, "status": {"$ne": "disabled"}},
+        {"role": {"$in": list(roles)}, "status": {"$nin": ["disabled", "suspended"]}},
         {"_id": 0, "id": 1},
     ).to_list(1000)
     return [user["id"] for user in users if user.get("id")]
@@ -44,6 +45,75 @@ async def admin_user_ids(roles: tuple[str, ...]) -> list[str]:
 async def label_user_ids(label_id: str) -> list[str]:
     label = await db.labels.find_one({"id": label_id}, {"_id": 0, "user_id": 1})
     return [label["user_id"]] if label and label.get("user_id") else []
+
+
+ADMIN_PAYMENT_ROLES = {
+    "pay_per_release": ("super_admin", "admin_finance", "admin_release"),
+    "annual_subscription": ("super_admin", "admin_finance"),
+    "wami_addon": ("super_admin", "admin_finance", "admin_release"),
+    "custom_service": ("super_admin", "admin_finance", "admin_support"),
+}
+
+
+def _admin_payment_instruction(payment_type: str) -> str:
+    return {
+        "pay_per_release": "Buka release dan lanjutkan proses distribusi.",
+        "custom_service": "Tandai layanan sedang dikerjakan, lalu selesai setelah pekerjaan tuntas.",
+        "wami_addon": "Buka WAMI dan lanjutkan proses pendaftaran.",
+        "annual_subscription": "Langganan sudah aktif otomatis; tidak ada tindakan manual.",
+    }.get(payment_type, "Tinjau detail pembayaran di dashboard admin.")
+
+
+def _admin_payment_link(payment: Dict[str, Any]) -> str:
+    if payment.get("type") == "pay_per_release" and payment.get("release_id"):
+        return f"/admin/releases/{payment['release_id']}"
+    if payment.get("type") == "wami_addon":
+        return "/admin/wami"
+    return f"/admin/payments?payment_id={payment['id']}"
+
+
+async def _upsert_paid_notification(
+    *, event_key: str, user_id: str, ntype: str, title: str, body: str,
+    link: str, payment_id: str,
+) -> None:
+    await db.notifications.update_one(
+        {"event_key": event_key},
+        {"$setOnInsert": {
+            "id": new_id(), "event_key": event_key, "user_id": user_id,
+            "type": ntype, "title": title, "body": body, "link": link,
+            "meta": {"payment_id": payment_id}, "read_at": None, "created_at": now_iso(),
+        }},
+        upsert=True,
+    )
+
+
+async def _send_email_once(event_key: str, recipient: str, sender) -> None:
+    stale_before = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    try:
+        claimed = await db.payment_notification_deliveries.find_one_and_update(
+            {
+                "event_key": event_key,
+                "$or": [
+                    {"status": {"$exists": False}}, {"status": "failed"},
+                    {"status": "processing", "updated_at": {"$lt": stale_before}},
+                ],
+            },
+            {"$set": {"status": "processing", "recipient": recipient, "updated_at": now_iso()},
+             "$setOnInsert": {"event_key": event_key, "created_at": now_iso()}},
+            upsert=True, return_document=ReturnDocument.AFTER, projection={"_id": 0},
+        )
+    except DuplicateKeyError:
+        return
+    if not claimed:
+        return
+    message_id = await sender()
+    await db.payment_notification_deliveries.update_one(
+        {"event_key": event_key},
+        {"$set": {
+            "status": "sent" if message_id else "failed",
+            "message_id": message_id, "updated_at": now_iso(),
+        }},
+    )
 
 
 @dataclass(frozen=True)
@@ -260,6 +330,42 @@ async def get_xendit_session(session_id: str) -> Dict[str, Any]:
     return await _xendit_request("GET", f"/sessions/{session_id}")
 
 
+def _extract_payment_method(payload: Dict[str, Any]) -> Optional[str]:
+    sources = [
+        payload.get("payment_method") if isinstance(payload.get("payment_method"), dict) else {},
+        payload.get("payment_details") if isinstance(payload.get("payment_details"), dict) else {},
+        payload,
+    ]
+    for source in sources:
+        method = source.get("channel_code") or source.get("channel_category")
+        if source is not payload:
+            method = method or source.get("type")
+        if method:
+            return str(method)[:100]
+    return None
+
+
+async def _resolve_provider_payment_metadata(remote: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    method = _extract_payment_method(remote)
+    payment_id = remote.get("payment_id") or remote.get("latest_payment_id")
+    request_id = remote.get("payment_request_id")
+    if method or str(remote.get("status") or "").upper() != "COMPLETED" or not request_id:
+        return method, payment_id
+    try:
+        payment_request = await _xendit_request("GET", f"/v3/payment_requests/{request_id}")
+        method = _extract_payment_method(payment_request)
+        payment_id = payment_request.get("latest_payment_id") or payment_id
+        if payment_id:
+            provider_payment = await _xendit_request("GET", f"/v3/payments/{payment_id}")
+            method = _extract_payment_method(provider_payment) or method
+    except Exception as exc:
+        logger.warning(
+            "[XENDIT] payment method lookup deferred request=%s error=%s",
+            request_id, type(exc).__name__,
+        )
+    return method, payment_id
+
+
 async def _send_receipt(payment: Dict[str, Any]) -> None:
     try:
         label = await db.labels.find_one(
@@ -268,16 +374,70 @@ async def _send_receipt(payment: Dict[str, Any]) -> None:
         user_doc = await db.users.find_one(
             {"id": (label or {}).get("user_id")}, {"_id": 0, "email": 1},
         )
-        if label and user_doc and user_doc.get("email"):
-            await send_payment_receipt_email(
-                to=user_doc["email"],
-                label_name=label.get("label_name") or "Label",
-                description=payment.get("description") or payment["type"],
-                amount_idr=int(payment.get("amount") or 0),
-                invoice_id=payment["id"],
-            )
+        label_name = (label or {}).get("label_name") or "Label"
+        description = payment.get("description") or payment["type"]
+        amount = int(payment.get("amount") or 0)
+        email_jobs = []
+        if user_doc and user_doc.get("email"):
+            recipient = user_doc["email"]
+            email_jobs.append(_send_email_once(
+                f"payment-paid:{payment['id']}:email:label:{recipient}", recipient,
+                lambda recipient=recipient: send_payment_receipt_email(
+                    to=recipient, label_name=label_name, description=description,
+                    amount_idr=amount, invoice_id=payment["id"],
+                ),
+            ))
+        roles = ADMIN_PAYMENT_ROLES.get(payment.get("type"), ("super_admin", "admin_finance"))
+        admins = await db.users.find(
+            {"role": {"$in": list(roles)}, "status": {"$nin": ["disabled", "suspended"]}},
+            {"_id": 0, "id": 1, "email": 1},
+        ).to_list(100)
+        for admin in admins:
+            if not admin.get("email"):
+                continue
+            recipient = admin["email"]
+            email_jobs.append(_send_email_once(
+                f"payment-paid:{payment['id']}:email:admin:{admin['id']}", recipient,
+                lambda recipient=recipient: send_admin_paid_payment_email(
+                    to=recipient, label_name=label_name, description=description,
+                    amount_idr=amount, invoice_id=payment["id"], payment_type=payment["type"],
+                    paid_at=payment.get("paid_at") or now_iso(),
+                    instruction=_admin_payment_instruction(payment["type"]),
+                ),
+            ))
+        if email_jobs:
+            await asyncio.gather(*email_jobs)
     except Exception as exc:
-        logger.warning("[XENDIT] receipt email failed payment=%s error=%s", payment["id"], type(exc).__name__)
+        logger.warning("[XENDIT] payment email failed payment=%s error=%s", payment["id"], type(exc).__name__)
+
+
+async def _dispatch_paid_notifications(payment: Dict[str, Any]) -> None:
+    try:
+        label = await db.labels.find_one(
+            {"id": payment["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1},
+        )
+        label_name = (label or {}).get("label_name") or "Label"
+        description = payment.get("description") or payment["type"]
+        if label and label.get("user_id"):
+            await _upsert_paid_notification(
+                event_key=f"payment-paid:{payment['id']}:inapp:label:{label['user_id']}",
+                user_id=label["user_id"], ntype="payment_paid", title="Pembayaran berhasil",
+                body=f"Pembayaran {description} telah dikonfirmasi Xendit.",
+                link=payment.get("return_path") or "/label/invoices", payment_id=payment["id"],
+            )
+        roles = ADMIN_PAYMENT_ROLES.get(payment.get("type"), ("super_admin", "admin_finance"))
+        admin_ids = await admin_user_ids(roles)
+        for admin_id in admin_ids:
+            await _upsert_paid_notification(
+                event_key=f"payment-paid:{payment['id']}:inapp:admin:{admin_id}",
+                user_id=admin_id, ntype="admin_payment_paid",
+                title="Pembayaran baru diterima",
+                body=f"{label_name} membayar {description}. {_admin_payment_instruction(payment['type'])}",
+                link=_admin_payment_link(payment), payment_id=payment["id"],
+            )
+        await _send_receipt(payment)
+    except Exception as exc:
+        logger.warning("[XENDIT] paid notification dispatch failed payment=%s error=%s", payment["id"], type(exc).__name__)
 
 
 async def _claim_fulfillment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -340,13 +500,6 @@ async def _fulfill_wami(payment: Dict[str, Any]) -> None:
         {"$set": {"status": "pending", "paid_at": now_iso(), "updated_at": now_iso()},
          "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
     )
-    order = await db.wami_orders.find_one({"id": payment.get("wami_order_id")}, {"_id": 0})
-    if order:
-        await notify_many(
-            await admin_user_ids(("super_admin", "admin_release")), "wami_new",
-            "WAMI baru — sudah dibayar", f"WAMI '{order.get('track_title')}' menunggu diproses.",
-            "/admin/wami", {"wami_order_id": order["id"]},
-        )
 
 
 async def _fulfill_custom_service(payment: Dict[str, Any]) -> None:
@@ -354,12 +507,6 @@ async def _fulfill_custom_service(payment: Dict[str, Any]) -> None:
         {"id": payment.get("service_order_id"), "fulfilled_payment_ids": {"$ne": payment["id"]}},
         {"$set": {"status": "paid", "paid_at": now_iso(), "updated_at": now_iso()},
          "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
-    )
-    await notify_many(
-        await admin_user_ids(("super_admin", "admin_finance", "admin_support")),
-        "service_order_paid", "Layanan baru sudah dibayar",
-        f"Pesanan '{payment.get('description')}' siap diproses.",
-        "/admin/payments", {"payment_id": payment["id"]},
     )
 
 
@@ -384,12 +531,8 @@ async def _finalize_fulfillment(payment: Dict[str, Any]) -> None:
         "status": "paid", "fulfillment_status": "fulfilled", "fulfilled_at": now_iso(),
         "paid_at": payment.get("paid_at") or now_iso(), "updated_at": now_iso(),
     }})
-    await notify_many(
-        await label_user_ids(payment["label_id"]), "payment_paid", "Pembayaran berhasil",
-        f"Pembayaran {payment.get('description') or payment['type']} telah dikonfirmasi Xendit.",
-        payment.get("return_path") or "/label/invoices", {"payment_id": payment_id},
-    )
-    await _send_receipt(payment)
+    finalized = {**payment, "status": "paid", "paid_at": payment.get("paid_at") or now_iso()}
+    await _dispatch_paid_notifications(finalized)
 
 
 async def _record_fulfillment_failure(payment_id: str, exc: Exception) -> None:
@@ -402,6 +545,7 @@ async def _record_fulfillment_failure(payment_id: str, exc: Exception) -> None:
 async def fulfill_payment(payment: Dict[str, Any]) -> Dict[str, Any]:
     """Apply paid entitlements exactly once, safe across repeated polling."""
     if payment.get("fulfillment_status") == "fulfilled":
+        await _dispatch_paid_notifications(payment)
         return payment
     claimed = await _claim_fulfillment(payment)
     if not claimed:
@@ -427,11 +571,13 @@ async def reconcile_payment(payment: Dict[str, Any], remote: Dict[str, Any]) -> 
     if provider_status not in LOCAL_STATUS:
         raise HTTPException(status_code=502, detail="Status pembayaran Xendit tidak dikenali")
     local_status = LOCAL_STATUS[provider_status]
+    payment_method, provider_payment_id = await _resolve_provider_payment_metadata(remote)
     await db.payments.update_one({"id": payment["id"]}, {"$set": {
         "provider_status": provider_status,
         "status": local_status,
         "payment_request_id": remote.get("payment_request_id"),
-        "payment_id_provider": remote.get("payment_id"),
+        "payment_id_provider": provider_payment_id,
+        "payment_method": payment_method or payment.get("payment_method"),
         "last_provider_poll_at": now_iso(),
         "paid_at": now_iso() if provider_status == "COMPLETED" else payment.get("paid_at"),
         "updated_at": now_iso(),
