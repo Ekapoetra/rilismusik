@@ -267,6 +267,14 @@ class ManualLegacyWithdrawIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=500)
 
 
+class LegacyWithdrawPeriodPreviewIn(BaseModel):
+    period_to: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+class LegacyWithdrawPeriodCommitIn(BaseModel):
+    preview_id: str = Field(min_length=1, max_length=100)
+
+
 # ============ SUPPORT TICKETING ============
 TicketCategory = Literal[
     "takedown",

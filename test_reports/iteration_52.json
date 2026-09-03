@@ -1,0 +1,62 @@
+{
+  "summary": "Completed backend+frontend verification for legacy withdrawal period edit on public preview URL, including required regressions and production build. Backend scenarios passed; frontend exposed an RBAC route-gap and unstable commit polling visibility.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin routing /admin/withdraw",
+        "issue": "Admin Support can directly open /admin/withdraw (status filter and withdrawal list render), even though sidebar hides the Withdraw menu and requested edit access scope is Finance/Super only.",
+        "selector": "URL /admin/withdraw, [data-testid='admin-withdraw-status-filter']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Legacy edit modal submit/poll completion",
+        "issue": "Preview renders correctly (cutoff and balance delta visible), but UI completion state was not observed within automation wait window in one run (state stayed pending); requires manual confirmation of polling/result rendering reliability.",
+        "affected_selectors": [
+          "[data-testid='legacy-withdraw-edit-submit-button']",
+          "[data-testid='legacy-withdraw-edit-complete']",
+          "[data-testid='legacy-withdraw-edit-error']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter52_legacy_withdraw_edit.py",
+    "/app/backend/tests/test_phase47_manual_legacy_withdraw.py",
+    "/app/backend/tests/test_iter40_manual_legacy_roles_validations.py",
+    "/app/backend/tests/test_phase32_label_visibility_endpoints.py",
+    "/app/test_reports/pytest/iter52_backend.xml",
+    "/app/test_reports/pytest/iter52_targeted.xml",
+    "/app/test_reports/pytest/iter52_regression_required.xml"
+  ],
+  "action_items": [
+    "Add page-level role guard for /admin/withdraw so admin_support cannot access the route directly (not only hidden nav).",
+    "Stabilize legacy edit modal completion feedback/polling so submit consistently transitions to complete/error state in UI automation.",
+    "After fixes, rerun desktop+mobile UI flow for finance/support and confirm commit completion messaging appears deterministically."
+  ],
+  "critical_code_review_comments": [
+    "Backend legacy edit APIs are strongly guarded: preview/commit are limited to super_admin/admin_finance and reject web withdrawals; month format validation is enforced via Pydantic YYYY-MM pattern.",
+    "Preview and commit responses in tested flows did not expose Mongo _id/ObjectId fields.",
+    "GET /api/withdraw/admin correctly sets legacy_editable=true only for paid legacy rows with period_to; web/direct rows stayed false in regression tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter52_legacy_withdraw_edit.py",
+    "/app/scripts/restore_phase62_baseline.py",
+    "/app/test_reports/iteration_52.json"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 combined regressions passed)",
+    "frontend": "80% (core load, visibility, preview, responsive checks passed; route-RBAC and commit-state reliability issue found)"
+  },
+  "seed_data_creation": "No persistent production seed changes. Backend tests used isolated random fixtures with cleanup. Verified phase62 baseline period remains 2026-03 after run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use finance/support credentials from /app/memory/test_credentials.md. phase62 legacy row exists and currently shows period 2026-03 baseline. Support direct URL access to /admin/withdraw is reproducible.",
+  "rca of the issue": "RCA (frontend RBAC): AdminLayout hides Withdraw nav for support, but App route /admin/withdraw is wrapped only by broad ADMIN_ROLES protected route. Because AdminWithdraw component itself has no role guard, support can access page directly by URL. Mitigation: enforce role gate (super_admin/admin_finance) at route level or inside page component."
+}

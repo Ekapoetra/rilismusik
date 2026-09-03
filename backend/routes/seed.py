@@ -83,6 +83,8 @@ async def seed_indexes_and_admins():
     await db_bg.bank_account_change_requests.create_index("status")
     await db_bg.monthly_email_deliveries.create_index([("label_id", 1), ("period", 1)], unique=True)
     await db_bg.withdraw_requests.create_index("manual_legacy_key", unique=True, sparse=True)
+    await db_bg.legacy_withdraw_edit_previews.create_index("id", unique=True)
+    await db_bg.legacy_withdraw_edit_previews.create_index("created_at")
     await db_bg.support_tickets.create_index("label_id")
     await db_bg.support_tickets.create_index("status")
     await db_bg.support_tickets.create_index("category")

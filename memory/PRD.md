@@ -74,6 +74,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Label dengan withdraw aktif atau riwayat paid tanpa `period_to` diblokir dari pemulihan otomatis agar tidak terjadi pembayaran ganda.
 - Pekerjaan hitung ulang persentase yang tidak memperbarui perkembangan selama lebih dari empat jam ditutup otomatis agar tidak memblokir koreksi saldo selamanya; proses yang masih aktif tetap dilindungi.
 - Admin Finance/Super Admin dapat membuat riwayat legacy manual berdasarkan label, rentang bulan, tanggal pengajuan, dan tanggal pencairan; nominal dihitung otomatis dan proses settlement berjalan di background.
+- Admin Finance/Super Admin dapat mengedit hanya `period_to` pada riwayat withdrawal legacy paid, wajib melihat preview cutoff/saldo/baris sebelum commit background. Withdrawal web tidak dapat diedit dan tetap menjadi batas minimum agar dana yang sudah dibayar tidak terbuka kembali.
+- Penurunan cutoff legacy memulihkan status berdasarkan status induk import (`dana_received` → available, `published` → pending); kenaikan cutoff menandai rentang tambahan sebagai legacy settled. Saldo tersimpan, snapshot, cache, revision history, dan activity log diperbarui setelah commit.
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
 
@@ -141,6 +143,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Preview Hostinger SMTP authentication and one real internal delivery have been verified with the official mailbox.
 - Phase 61 Admin Payments localization, invoice detail modal, payment action workflow, provider payment-method lookup, idempotent Admin/Label notifications, and Admin Dashboard action badge are implemented and verified.
 - Native dropdown contrast pada Windows telah diperbaiki secara global; select, opsi aktif, dan opsi nonaktif terverifikasi berlatar gelap dengan teks putih.
+- Phase 62 guarded legacy withdrawal edit sudah diimplementasikan: preview sebelum/sesudah, commit background, direct-web immutability, Finance/Super RBAC, dan deterministic completion UI terverifikasi.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.
@@ -159,3 +162,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Import-line status recovery regression: `backend/tests/test_phase57_import_line_status_recovery.py`; independent report `/app/test_reports/iteration_48.json`.
 - Import replacement regressions: `backend/tests/test_phase60_royalty_import_replacement.py`, `backend/tests/test_iter50_royalty_import_replacement_guards.py`; full browser R2 upload→preview→commit verified in preview.
 - Payment operations regressions: `backend/tests/test_phase61_admin_payments.py`; final targeted result 12/12 with frontend production build and desktop/mobile browser verification.
+- Legacy withdrawal edit regressions: `backend/tests/test_iter52_legacy_withdraw_edit.py`; final combined result 9/9 dengan frontend production build, desktop/mobile preview, route guard, dan completion-state browser verification.

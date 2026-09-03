@@ -108,7 +108,7 @@ function AppRoutes() {
             <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
             <Route path="/admin/royalty" element={<AdminRoyaltyImport />} />
             <Route path="/admin/royalty/:id" element={<AdminRoyaltyDetail />} />
-            <Route path="/admin/withdraw" element={<AdminWithdraw />} />
+            <Route path="/admin/withdraw" element={<ProtectedRoute roles={["super_admin", "admin_finance"]}><AdminWithdraw /></ProtectedRoute>} />
             <Route path="/admin/tickets" element={<AdminTickets />} />
             <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
             <Route path="/admin/contracts" element={<AdminContracts />} />

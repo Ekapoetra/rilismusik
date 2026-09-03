@@ -25,6 +25,7 @@ from models import (
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
     WithdrawRequestIn, WithdrawAdminAction, ManualLegacyWithdrawIn,
+    LegacyWithdrawPeriodPreviewIn, LegacyWithdrawPeriodCommitIn,
     TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
@@ -212,6 +213,7 @@ async def label_list_withdraws(user: dict = Depends(require_label)):
 
 @withdraw_r.get("/admin")
 async def admin_list_withdraws(user: dict = Depends(require_admin), status: Optional[str] = None):
+    _require_finance_admin(user)
     filt: Dict[str, Any] = {}
     if status:
         filt["status"] = status
@@ -222,6 +224,9 @@ async def admin_list_withdraws(user: dict = Depends(require_admin), status: Opti
     name_map = {lab["id"]: lab["label_name"] for lab in labels}
     for it in items:
         it["label_name"] = name_map.get(it["label_id"])
+        it["legacy_editable"] = bool(
+            it.get("legacy_import") is True and it.get("status") == "paid" and it.get("period_to")
+        )
     return items
 
 
@@ -241,6 +246,24 @@ async def admin_create_manual_legacy_withdraw(
     _require_finance_admin(user)
     from .manual_legacy_withdrawal import queue_manual_legacy_withdrawal
     return await queue_manual_legacy_withdrawal(body, user)
+
+
+@withdraw_r.post("/admin/{wd_id}/legacy-edit/preview")
+async def admin_preview_legacy_withdraw_edit(
+    wd_id: str, body: LegacyWithdrawPeriodPreviewIn, user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .legacy_withdraw_edit import build_legacy_withdraw_edit_preview
+    return await build_legacy_withdraw_edit_preview(wd_id, body.period_to, user["id"])
+
+
+@withdraw_r.post("/admin/{wd_id}/legacy-edit")
+async def admin_commit_legacy_withdraw_edit(
+    wd_id: str, body: LegacyWithdrawPeriodCommitIn, user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .legacy_withdraw_edit import queue_legacy_withdraw_edit
+    return await queue_legacy_withdraw_edit(wd_id, body.preview_id, user)
 
 
 @withdraw_r.post("/admin/{wd_id}/action")

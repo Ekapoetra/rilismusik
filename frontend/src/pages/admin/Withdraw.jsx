@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale, PenLine } from "lucide-react";
+import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale, PenLine, Pencil } from "lucide-react";
 import WithdrawImportPanel from "./WithdrawImportPanel";
 import BalanceAuditPanel from "./BalanceAuditPanel";
 import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
+import { LegacyWithdrawEditDialog } from "@/components/admin/LegacyWithdrawEditDialog";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
@@ -28,6 +29,7 @@ export default function AdminWithdraw() {
   const [action, setAction] = useState("");
   const [form, setForm] = useState({ note: "", payment_reference: "", payment_proof_url: "" });
   const [busy, setBusy] = useState(false);
+  const [legacyEdit, setLegacyEdit] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -116,17 +118,17 @@ export default function AdminWithdraw() {
           <div className="col-span-1 text-right">Aksi</div>
         </div>
         {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada withdraw.</div> : items.map((w) => (
-          <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0">
+          <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0" data-testid={`admin-withdraw-row-${w.id}`}>
             <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>
               <div className="min-w-0">
-                <div className="font-semibold text-sm truncate">{w.label_name || w.label_id}</div>
+                <div className="font-semibold text-sm truncate" data-testid={`admin-withdraw-label-${w.id}`}>{w.label_name || w.label_id}</div>
               </div>
             </div>
-            <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight">{fmtAmount(w)}{w.legacy_import && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/15 text-violet-300 align-middle">LEGACY</span>}</div>
+            <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight" data-testid={`admin-withdraw-amount-${w.id}`}>{fmtAmount(w)}{w.legacy_import && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/15 text-violet-300 align-middle" data-testid={`admin-withdraw-legacy-badge-${w.id}`}>LEGACY</span>}</div>
             <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-zinc-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
-            <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1">{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
-            <div className="col-span-6 md:col-span-1"><span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
+            <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1" data-testid={`admin-withdraw-period-${w.id}`}>{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
+            <div className="col-span-6 md:col-span-1"><span data-testid={`admin-withdraw-status-${w.id}`} className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
             <div className="col-span-12 md:col-span-1 text-right">
               {w.status === "requested" && (
                 <div className="flex gap-1 justify-end">
@@ -137,6 +139,7 @@ export default function AdminWithdraw() {
               {w.status === "approved" && (
                 <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
               )}
+              {w.legacy_editable && ["super_admin", "admin_finance"].includes(me?.role) && <button type="button" title="Edit bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
               {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
             </div>
           </div>
@@ -175,6 +178,7 @@ export default function AdminWithdraw() {
           </div>
         </div>
       )}
+      <LegacyWithdrawEditDialog withdrawal={legacyEdit} onClose={() => setLegacyEdit(null)} onComplete={async (result) => { setMsg(`Bulan laporan legacy diperbarui ke ${result.new_period_to}. Saldo tersedia kini ${fmtIDR(result.balance_available_idr)}.`); await load(); }} />
     </div>
   );
 }

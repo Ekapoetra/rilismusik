@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 62 lalu pilih satu withdrawal legacy yang cutoff-nya diketahui. Review preview saldo/baris sebelum commit, verifikasi saldo label sesudahnya, dan pastikan withdrawal web tidak menampilkan tombol edit.
 - Redeploy Phase 61, lalu verifikasi satu pembayaran nyata bernominal kecil: metode pembayaran terbaca, label menerima receipt, admin menerima notifikasi, dan kartu tindak lanjut muncul bila layanannya memerlukan aksi.
 - Redeploy Phase 60, lalu uji satu file kecil terlebih dahulu melalui Royalty Detail → Ganti File Import. Periksa preview per label sebelum mengetik `GANTI DATA`.
 - Gunakan Audit File Ganda sebelum mengganti file yang dicurigai duplikat; commit penggantian menghapus import lama permanen dan hanya Super Admin yang dapat menjalankannya.
@@ -48,6 +49,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 62 menambahkan guarded edit bulan laporan terakhir untuk legacy withdrawal, mandatory preview, background commit, direct-web immutability, rekonsiliasi saldo/status line, dan audit revision.
 - Phase 60 menambahkan selected-file replacement: upload R2 staging, mandatory preview, hard-delete lama setelah commit, adjustment paid history, recalculation active withdrawal, resume/idempotency, dan refresh saldo/analytics.
 - Phase 59 menambahkan audit file ganda background yang hanya membaca data, membandingkan periode, menghitung dampak label/saldo/riwayat, dan memperjelas total file multi-periode pada UI.
 - Phase 57 menyelaraskan draft/pending berdasarkan status induk laporan, memperbaiki alur Dana Diterima agar selalu memproses keduanya, dan menjaga draft pada laporan yang belum diterbitkan.

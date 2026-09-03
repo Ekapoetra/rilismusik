@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children, roles }) {
     // Redirect to correct dashboard based on role
     if (user.role === "label") return <Navigate to="/label/dashboard" replace />;
     if (user.role === "artist") return <Navigate to="/artist/dashboard" replace />;
-    if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content"].includes(user.role))
+    if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"].includes(user.role))
       return <Navigate to="/admin/dashboard" replace />;
     return <Navigate to="/" replace />;
   }

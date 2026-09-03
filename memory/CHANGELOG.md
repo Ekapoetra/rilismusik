@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-03 — Phase 62: Guarded legacy withdrawal period edit
+- Menambahkan tombol edit hanya pada withdrawal `paid` dengan `legacy_import=true`; withdrawal yang berasal dari web tidak dapat diedit di UI maupun API.
+- Admin Finance/Super Admin dapat mengubah hanya bulan laporan terakhir setelah melihat preview cutoff, saldo pending/available, dan jumlah royalty lines terdampak.
+- Commit berjalan di background, single-use preview, stale/concurrent guards, serta memblokir active web withdrawal dan paid history tanpa `period_to`.
+- Penurunan cutoff memulihkan status royalty line sesuai status induk import; kenaikan cutoff kembali menandai rentang sebagai legacy settled tanpa mengubah withdrawal web.
+- Label cutoff, stored balances, snapshot/cache, revision history, activity log, dan deskripsi transaksi legacy disegarkan setelah commit.
+- Menutup akses langsung Admin Support ke halaman/API Withdraw dan menstabilkan modal agar status selesai selalu terlihat tanpa spinner tersisa.
+- Verifikasi: 9/9 backend/regression lulus, frontend production build lulus, serta browser desktop/mobile, redirect RBAC, preview, commit, dan completion state lulus. Tidak ada API yang di-mock.
+
 ## 2026-09-03 — Windows native dropdown contrast fix
 - Menambahkan `color-scheme: dark` pada root dan seluruh native select.
 - Menetapkan background gelap serta teks putih secara eksplisit untuk `option`/`optgroup`, termasuk opsi terpilih.
