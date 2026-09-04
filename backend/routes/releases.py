@@ -50,6 +50,7 @@ from .release_workflow_service import (
     EDITABLE_STATUSES, normalize_artist_credits, require_status,
     validate_artist_web_url, validate_release_date, validate_release_submission,
 )
+from .artist_social_service import resolve_release_artist_credits
 
 # =============================================================================
 #                              RELEASES
@@ -110,7 +111,8 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
     payment = None
     if rel.get("payment_id"):
         payment = await db.payments.find_one({"id": rel["payment_id"]}, {"_id": 0})
-    return {**rel, "tracks": tracks, "payment": payment}
+    label_doc = await db.labels.find_one({"id": rel.get("label_id")}, {"_id": 0, "whatsapp": 1})
+    return {**rel, "tracks": tracks, "payment": payment, "label_whatsapp": rel.get("label_whatsapp_snapshot") or (label_doc or {}).get("whatsapp")}
 
 
 @release_r.get("/{release_id}/copyright-letter")
@@ -188,6 +190,7 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
         "artist_web_url": str(body.artist_web_url or "").strip() or None,
         "label_name_snapshot": label.get("label_name"),
         "responsible_name": user.get("name") or label.get("pic_name"),
+        "label_whatsapp_snapshot": label.get("whatsapp"),
         "release_date": body.release_date,
         "year": body.year or rdate.year,
         "genre": body.genre,
@@ -274,6 +277,7 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
         "artist_web_url": str(body.artist_web_url or "").strip() or None,
         "label_name_snapshot": label.get("label_name"),
         "responsible_name": user.get("name") or label.get("pic_name"),
+        "label_whatsapp_snapshot": label.get("whatsapp"),
         "release_date": body.release_date,
         "year": body.year or rdate.year,
         "genre": body.genre,
@@ -433,6 +437,19 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
 
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
     validate_release_submission(rel, tracks)
+    all_credits = list(rel.get("primary_artists") or []) + list(rel.get("featured_artists") or [])
+    resolved_credits = await resolve_release_artist_credits(db, label["id"], all_credits)
+    primary_count = len(rel.get("primary_artists") or [])
+    resolved_primary = resolved_credits[:primary_count]
+    resolved_featured = resolved_credits[primary_count:]
+    resolved_artist_name = ", ".join(item["name"] for item in resolved_primary)
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "primary_artists": resolved_primary,
+        "featured_artists": resolved_featured,
+        "artist_name": resolved_artist_name,
+        "label_whatsapp_snapshot": label.get("whatsapp"),
+    }})
+    rel = {**rel, "primary_artists": resolved_primary, "featured_artists": resolved_featured, "artist_name": resolved_artist_name}
 
     # Determine payment flow
     now = datetime.now(timezone.utc)
@@ -522,12 +539,12 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "pay_per_release" if rel.get("payment_status") in ("not_generated", "pending", "paid") else "subscription"
     )
     if body.action == "start_review":
-        require_status(rel, ("submitted",), "Mulai review")
+        require_status(rel, ("submitted",), "Mulai pemeriksaan")
         new_status = "under_review"
     elif body.action == "send_payment":
         if rel.get("status") == "awaiting_payment" and rel.get("payment_id"):
             return await db.releases.find_one({"id": release_id}, {"_id": 0})
-        require_status(rel, ("under_review",), "Kirim link pembayaran")
+        require_status(rel, ("under_review",), "Kirim tautan pembayaran")
         if billing_flow != "pay_per_release" or rel.get("payment_status") != "not_generated":
             raise HTTPException(status_code=409, detail="Rilisan ini tidak memerlukan invoice Pay Per Release")
         base_amount = int(await payment_price("pay_per_release"))
@@ -577,29 +594,29 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         return await db.releases.find_one({"id": release_id}, {"_id": 0})
     elif body.action == "approve":
         if billing_flow == "pay_per_release":
-            require_status(rel, ("paid",), "Approve")
+            require_status(rel, ("paid",), "Setujui")
             if rel.get("payment_status") != "paid":
                 raise HTTPException(status_code=409, detail="Pembayaran belum dikonfirmasi Xendit")
         else:
-            require_status(rel, ("under_review",), "Approve")
+            require_status(rel, ("under_review",), "Setujui")
         new_status = "approved"
     elif body.action == "need_revision":
-        require_status(rel, ("submitted", "under_review"), "Need Revision")
+        require_status(rel, ("submitted", "under_review"), "Minta revisi")
         if not (body.note or "").strip():
             raise HTTPException(status_code=400, detail="Catatan revisi wajib diisi")
         new_status = "need_revision"
     elif body.action == "reject":
-        require_status(rel, ("submitted", "under_review", "need_revision"), "Reject")
+        require_status(rel, ("submitted", "under_review", "need_revision"), "Tolak")
         if not (body.note or "").strip():
-            raise HTTPException(status_code=400, detail="Alasan reject wajib diisi")
+            raise HTTPException(status_code=400, detail="Alasan penolakan wajib diisi")
         new_status = "rejected"
     elif body.action == "deliver":
-        require_status(rel, ("approved",), "Deliver to Believe")
+        require_status(rel, ("approved",), "Kirim ke Believe")
         new_status = "delivered"
     elif body.action == "mark_live":
-        require_status(rel, ("delivered",), "Mark Live")
+        require_status(rel, ("delivered",), "Tandai tayang")
         if not (body.upc or rel.get("upc") or "").strip():
-            raise HTTPException(status_code=400, detail="UPC wajib diisi sebelum status Live")
+            raise HTTPException(status_code=400, detail="UPC wajib diisi sebelum status Tayang")
         tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "id": 1, "isrc": 1}).to_list(500)
         missing_isrc = []
         resolved_isrcs = {}
@@ -610,14 +627,14 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
             else:
                 resolved_isrcs[track["id"]] = candidate
         if missing_isrc:
-            raise HTTPException(status_code=400, detail="ISRC wajib diisi untuk setiap track sebelum status Live")
+            raise HTTPException(status_code=400, detail="ISRC wajib diisi untuk setiap track sebelum status Tayang")
         for track_id, candidate in resolved_isrcs.items():
             await db.tracks.update_one({"id": track_id}, {"$set": {"isrc": candidate, "updated_at": now_iso()}})
         new_status = "live"
     else:
-        require_status(rel, ("live",), "Takedown")
+        require_status(rel, ("live",), "Turunkan rilisan")
         if not (body.note or "").strip():
-            raise HTTPException(status_code=400, detail="Alasan takedown wajib diisi")
+            raise HTTPException(status_code=400, detail="Alasan penurunan rilisan wajib diisi")
         new_status = "taken_down"
     upd = {"status": new_status, "updated_at": now_iso()}
     if body.action in ("need_revision", "reject") and body.note:
@@ -644,8 +661,8 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "need_revision": ("Rilisan perlu revisi", f"'{rel.get('release_title')}' perlu revisi. {body.note or ''}"),
         "reject": ("Rilisan ditolak", f"'{rel.get('release_title')}' ditolak. {body.note or ''}"),
         "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),
-        "mark_live": ("Rilisan LIVE 🎉", f"'{rel.get('release_title')}' sudah live di platform."),
-        "takedown": ("Rilisan di-takedown", f"'{rel.get('release_title')}' telah di-takedown."),
+        "mark_live": ("Rilisan sudah tayang", f"'{rel.get('release_title')}' sudah tayang di platform."),
+        "takedown": ("Rilisan diturunkan", f"'{rel.get('release_title')}' telah diturunkan dari platform."),
     }
     if body.action in titles:
         t, msg = titles[body.action]

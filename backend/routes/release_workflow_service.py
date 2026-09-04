@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
+from .artist_social_service import normalize_social_links
 
 
 EDITABLE_STATUSES = ("draft", "need_revision")
@@ -47,9 +48,13 @@ def normalize_artist_credits(values: List[Any], fallback_name: Optional[str] = N
             continue
         spotify_url = str(data.get("spotify_url") or "").strip() or None
         validate_spotify_artist_url(spotify_url, f"URL Spotify {name}")
-        credits.append({"name": name, "spotify_url": spotify_url})
+        social_links = list(data.get("social_links") or [])
+        if spotify_url and not any(str(item.get("platform") if isinstance(item, dict) else getattr(item, "platform", "")) == "spotify" for item in social_links):
+            social_links.append({"platform": "spotify", "url": spotify_url})
+        normalized_links = normalize_social_links(social_links, owner=name)
+        credits.append({"artist_id": data.get("artist_id"), "name": name, "spotify_url": spotify_url, "social_links": normalized_links})
     if not credits and _filled(fallback_name):
-        credits.append({"name": str(fallback_name).strip(), "spotify_url": None})
+        credits.append({"artist_id": None, "name": str(fallback_name).strip(), "spotify_url": None, "social_links": []})
     return credits
 
 
@@ -79,8 +84,10 @@ def validate_release_submission(release: Dict[str, Any], tracks: List[Dict[str, 
         missing.append("Minimal satu artist utama")
     for item in primary:
         validate_spotify_artist_url(item.get("spotify_url"), f"URL Spotify {item.get('name') or 'artist'}")
+        normalize_social_links(item.get("social_links") or [], required=True, owner=item.get("name") or "Artis")
     for item in release.get("featured_artists") or []:
         validate_spotify_artist_url(item.get("spotify_url"), f"URL Spotify {item.get('name') or 'featuring'}")
+        normalize_social_links(item.get("social_links") or [], required=True, owner=item.get("name") or "Artis featuring")
     validate_artist_web_url(release.get("artist_web_url"))
     validate_release_date(release.get("release_date"))
     if not release.get("cover_url") or release.get("cover_width") != 3000 or release.get("cover_height") != 3000:

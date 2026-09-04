@@ -17,6 +17,7 @@ export default function UploadRelease() {
   const [form, setForm] = useState(defaultReleaseForm());
   const [release, setRelease] = useState(null);
   const [products, setProducts] = useState([]);
+  const [savedArtists, setSavedArtists] = useState([]);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [declaration, setDeclaration] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -27,6 +28,7 @@ export default function UploadRelease() {
 
   useEffect(() => {
     api.get("/payments/products").then(({ data }) => setProducts(data || [])).catch(() => {});
+    api.get("/artists/").then(({ data }) => setSavedArtists(data || [])).catch(() => {});
     if (!id) return;
     api.get(`/releases/${id}`).then(({ data }) => {
       setRelease(data); setForm(mapReleaseToForm(data));
@@ -73,12 +75,12 @@ export default function UploadRelease() {
   };
 
   return <div className="max-w-6xl space-y-7 pb-20">
-    <header><div className="text-xs font-bold uppercase text-zinc-500">Distribusi Musik</div><h1 className="mt-1 font-display text-4xl font-extrabold tracking-normal">{id ? "Edit Rilisan" : "Submit Rilisan Baru"}</h1><p className="mt-2 max-w-3xl text-sm text-zinc-400">Lengkapi metadata, kredit, track, cover 3000×3000, dan WAV 44,1/48 kHz sebelum dikirim ke admin.</p></header>
+    <header><div className="text-xs font-bold uppercase text-zinc-500">Distribusi Musik</div><h1 className="mt-1 font-display text-4xl font-extrabold tracking-normal">{id ? "Edit Rilisan" : "Ajukan Rilisan Baru"}</h1><p className="mt-2 max-w-3xl text-sm text-zinc-400">Lengkapi metadata, kredit, track, cover 3000×3000, dan WAV 44,1/48 kHz sebelum dikirim ke admin.</p></header>
     <ReleaseFormStepper step={step} onStep={(value) => value < step && setStep(value)} />
     {error && <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200" data-testid="upload-release-error-alert">{error}</div>}
     {release?.status === "need_revision" && release.admin_note && <div className="border-l-2 border-amber-400 bg-amber-500/10 px-4 py-3 text-sm text-amber-100" data-testid="upload-release-revision-note"><strong>Catatan revisi admin:</strong> {release.admin_note}</div>}
     {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
-    {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} onBack={() => setStep(1)} onNext={goNext} />}
+    {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} savedArtists={savedArtists} onBack={() => setStep(1)} onNext={goNext} />}
     {step === 3 && <TracksStep form={form} updateForm={updateForm} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
     {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} declaration={declaration} setDeclaration={setDeclaration} saving={saving} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
   </div>;

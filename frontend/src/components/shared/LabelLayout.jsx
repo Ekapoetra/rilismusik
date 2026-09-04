@@ -12,15 +12,15 @@ import {
 
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
-  { to: "/label/releases/upload", label: "Upload Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
+  { to: "/label/releases/upload", label: "Ajukan Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
   { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
-  { to: "/label/artists", label: "Artist", icon: Users, tid: LABEL_NAV.artists },
+  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists },
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
-  { to: "/label/withdraw", label: "Withdraw", icon: Wallet, tid: LABEL_NAV.withdraw },
+  { to: "/label/withdraw", label: "Penarikan Dana", icon: Wallet, tid: LABEL_NAV.withdraw },
   { to: "/label/wami", label: "WAMI", icon: Music, tid: "label-nav-wami" },
-  { to: "/label/support", label: "Support", icon: LifeBuoy, tid: LABEL_NAV.support },
+  { to: "/label/support", label: "Bantuan", icon: LifeBuoy, tid: LABEL_NAV.support },
   { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true },
-  { to: "/label/invoices", label: "Invoice", icon: FileText, tid: LABEL_NAV.invoices },
+  { to: "/label/invoices", label: "Tagihan", icon: FileText, tid: LABEL_NAV.invoices },
   { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
 ];
 

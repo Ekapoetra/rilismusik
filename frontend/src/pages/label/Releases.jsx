@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
-import StatusBadge from "@/components/shared/StatusBadge";
+import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { Disc3, Search, Filter } from "lucide-react";
 
 const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected"];
@@ -24,7 +24,7 @@ export default function LabelReleases() {
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Rilisan</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Daftar Rilisan</h1>
         </div>
-        <Link to="/label/releases/upload" className="rm-btn-primary" data-testid="label-releases-upload-button">+ Submit Rilisan</Link>
+        <Link to="/label/releases/upload" className="rm-btn-primary" data-testid="label-releases-upload-button">+ Ajukan Rilisan</Link>
       </div>
 
       {/* Filters */}
@@ -40,7 +40,7 @@ export default function LabelReleases() {
           <label className="rm-label">Status</label>
           <select className="rm-input" value={status} onChange={(e) => setStatus(e.target.value)} data-testid="label-releases-status-filter">
             <option value="">Semua</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
           </select>
         </div>
         <button className="rm-btn-ghost flex items-center gap-2" onClick={load} data-testid="label-releases-apply-filter"><Filter className="w-4 h-4" /> Filter</button>

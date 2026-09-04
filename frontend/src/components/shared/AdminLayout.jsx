@@ -12,25 +12,25 @@ import {
 const NAV = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: ADMIN_NAV.dashboard, roles: ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"] },
   { to: "/admin/analytics", label: "Analytics Royalti", icon: BarChart3, tid: "admin-nav-analytics", roles: ["super_admin", "admin_finance"] },
-  { to: "/admin/labels", label: "Label Management", icon: Building2, tid: ADMIN_NAV.labels, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
-  { to: "/admin/kyc", label: "Review KYC", icon: ShieldCheck, tid: ADMIN_NAV.kyc, roles: ["super_admin", "admin_support"] },
-  { to: "/admin/artists", label: "Artist Management", icon: UserSquare, tid: ADMIN_NAV.artists, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
-  { to: "/admin/releases", label: "Release Management", icon: Disc3, tid: ADMIN_NAV.releases, roles: ["super_admin", "admin_release"] },
+  { to: "/admin/labels", label: "Manajemen Label", icon: Building2, tid: ADMIN_NAV.labels, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
+  { to: "/admin/kyc", label: "Pemeriksaan KYC", icon: ShieldCheck, tid: ADMIN_NAV.kyc, roles: ["super_admin", "admin_support"] },
+  { to: "/admin/artists", label: "Manajemen Artis", icon: UserSquare, tid: ADMIN_NAV.artists, roles: ["super_admin", "admin_release", "admin_finance", "admin_support"] },
+  { to: "/admin/releases", label: "Manajemen Rilisan", icon: Disc3, tid: ADMIN_NAV.releases, roles: ["super_admin", "admin_release"] },
   { to: "/admin/payments", label: "Pembayaran", icon: CreditCard, tid: ADMIN_NAV.payments, roles: ["super_admin", "admin_finance"] },
-  { to: "/admin/royalty", label: "Royalty Import", icon: FileSpreadsheet, tid: ADMIN_NAV.royaltyImport, roles: ["super_admin", "admin_finance"] },
-  { to: "/admin/withdraw", label: "Withdraw", icon: Banknote, tid: ADMIN_NAV.withdraw, roles: ["super_admin", "admin_finance"] },
-  { to: "/admin/wami", label: "WAMI Registrations", icon: Music, tid: "admin-nav-wami", roles: ["super_admin", "admin_release"] },
-  { to: "/admin/tickets", label: "Support Tickets", icon: MessageSquare, tid: ADMIN_NAV.tickets, roles: ["super_admin", "admin_support"] },
+  { to: "/admin/royalty", label: "Impor Royalti", icon: FileSpreadsheet, tid: ADMIN_NAV.royaltyImport, roles: ["super_admin", "admin_finance"] },
+  { to: "/admin/withdraw", label: "Penarikan Dana", icon: Banknote, tid: ADMIN_NAV.withdraw, roles: ["super_admin", "admin_finance"] },
+  { to: "/admin/wami", label: "Registrasi WAMI", icon: Music, tid: "admin-nav-wami", roles: ["super_admin", "admin_release"] },
+  { to: "/admin/tickets", label: "Tiket Bantuan", icon: MessageSquare, tid: ADMIN_NAV.tickets, roles: ["super_admin", "admin_support"] },
   { to: "/admin/cms", label: "Landing Page CMS", icon: LayoutTemplate, tid: ADMIN_NAV.cms, roles: ["super_admin", "admin_content"] },
-  { to: "/admin/contracts", label: "Contracts", icon: FileSignature, tid: ADMIN_NAV.contracts, roles: ["super_admin", "admin_release"] },
-  { to: "/admin/admin-users", label: "Admin Users", icon: Users2, tid: ADMIN_NAV.adminUsers, roles: ["super_admin"] },
+  { to: "/admin/contracts", label: "Kontrak", icon: FileSignature, tid: ADMIN_NAV.contracts, roles: ["super_admin", "admin_release"] },
+  { to: "/admin/admin-users", label: "Pengguna Admin", icon: Users2, tid: ADMIN_NAV.adminUsers, roles: ["super_admin"] },
   { to: "/admin/migrate", label: "Klaim Akun", icon: DatabaseZap, tid: "admin-nav-migrate", roles: ["super_admin"] },
-  { to: "/admin/activity-logs", label: "Activity Logs", icon: ScrollText, tid: ADMIN_NAV.activityLogs, roles: ["super_admin", "admin_finance", "admin_release"] },
+  { to: "/admin/activity-logs", label: "Log Aktivitas", icon: ScrollText, tid: ADMIN_NAV.activityLogs, roles: ["super_admin", "admin_finance", "admin_release"] },
 ];
 
 const ROLE_LABELS = {
   super_admin: "Super Admin",
-  admin_release: "Admin Release",
+  admin_release: "Admin Rilisan",
   admin_finance: "Admin Finance",
   admin_support: "Admin Support",
   admin_content: "Admin Content/CMS",
@@ -56,7 +56,7 @@ export default function AdminLayout() {
           <BrandInline size={38} subtitle="Admin Console" />
         </Link>
 
-        <div className="text-[11px] uppercase tracking-widest text-zinc-500 font-semibold mb-2 px-2">Operations</div>
+        <div className="text-[11px] uppercase tracking-widest text-zinc-500 font-semibold mb-2 px-2">Operasional</div>
         <nav className="space-y-1">
           {items.map((n) => {
             const Icon = n.icon;

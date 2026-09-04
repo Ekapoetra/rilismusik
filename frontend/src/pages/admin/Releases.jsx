@@ -60,9 +60,9 @@ export default function AdminReleases() {
   return (
     <div className="space-y-5" data-testid="admin-releases-page">
       <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Release Operations</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Release Management</h1>
-        <p className="text-sm text-zinc-400 mt-1">Total revenue & bulan laporan aktif dihitung dari <span className="text-zinc-200">royalty_lines</span>.</p>
+        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operasional Rilisan</div>
+        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Rilisan</h1>
+        <p className="text-sm text-zinc-400 mt-1">Total pendapatan dan bulan laporan aktif dihitung dari data royalti.</p>
       </div>
 
       <div className="rm-card p-4 grid md:grid-cols-6 gap-3 items-end">
@@ -92,10 +92,10 @@ export default function AdminReleases() {
           </select>
         </div>
         <div>
-          <label className="rm-label">Sort</label>
+          <label className="rm-label">Urutkan</label>
           <select className="rm-input" value={sortBy} onChange={(e) => setSortBy(e.target.value)} data-testid="admin-releases-sort">
             <option value="status">Prioritas status</option>
-            <option value="revenue">Revenue tertinggi</option>
+            <option value="revenue">Pendapatan tertinggi</option>
             <option value="date">Tanggal rilis</option>
           </select>
         </div>
@@ -105,10 +105,10 @@ export default function AdminReleases() {
         <div className="rm-card p-4 flex items-center justify-between flex-wrap gap-2">
           <div className="text-sm text-zinc-400 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span>{fmtInt(items.length)} rilisan · Total revenue: <b className="text-emerald-300">{fmtIDR(totalRev)}</b></span>
+            <span>{fmtInt(items.length)} rilisan · Total pendapatan: <b className="text-emerald-300">{fmtIDR(totalRev)}</b></span>
           </div>
           {periodFrom && periodTo && (
-            <div className="text-xs text-zinc-500">Range: {fmtPeriod(periodFrom)} – {fmtPeriod(periodTo)}</div>
+            <div className="text-xs text-zinc-500">Rentang: {fmtPeriod(periodFrom)} – {fmtPeriod(periodTo)}</div>
           )}
         </div>
       )}
@@ -117,8 +117,8 @@ export default function AdminReleases() {
         <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-3">Rilisan</div>
           <div className="col-span-2">Label</div>
-          <div className="col-span-2">Release Date</div>
-          <div className="col-span-2 text-right">Revenue</div>
+          <div className="col-span-2">Tanggal Rilis</div>
+          <div className="col-span-2 text-right">Pendapatan</div>
           <div className="col-span-2">Aktif Terakhir</div>
           <div className="col-span-1 text-right">Status</div>
         </div>

@@ -50,6 +50,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Upload Rilisan tampil sebelum Rilisan pada navigasi label.
 - Release Management default diurutkan berdasarkan prioritas operasional: Submitted, Awaiting Payment, Paid, Under Review, Need Revision, Approved, Delivered, Draft, lalu Live; dalam status yang sama pembaruan terbaru tampil lebih dahulu.
 - Label submit memakai wizard empat tahap: informasi rilisan, unlimited artist/featuring dengan URL Spotify opsional, metadata/kredit per track, lalu validasi file dan review.
+- Setiap kredit artis wajib memiliki minimal satu tautan sosial aktif. Platform mendukung Instagram, TikTok, Facebook, YouTube, X/Twitter, Spotify, Situs Web, dan Lainnya hingga 10 tautan.
+- Artis tersimpan dipanggil dari Manajemen Artis dalam mode read-only pada wizard; artis legacy tanpa sosial memblokir submit sampai profil diperbaiki.
+- Artis baru pada wizard wajib nama + tautan sosial; submit berhasil otomatis membuat profil artis reusable/profile-only serta menyimpan snapshot artist_id, nama, dan semua tautan pada rilisan.
 - Release wajib memuat judul, genre/subgenre, label/PIC snapshot akun, SINGLE/EP/ALBUM, C Line/P Line, tahun produksi, tanggal rilis minimal 7 hari, URL web/original YouTube channel, cover JPG/PNG tepat 3000×3000, dan WAV per track pada 44,1/48 kHz.
 - Metadata per track memuat ISRC opsional sampai Live, vocal/instrumental, Writer, Composer, Arranger, Producer, explicit, preview seconds, bahasa judul/lirik, dan lirik. Instrumental otomatis memakai nilai `Instrumental` tanpa input lirik.
 - Need Revision tetap menjadi status backend dan membuka editor seperti Draft; track ID/audio yang sudah valid dipertahankan saat edit, lalu resubmit kembali ke Submitted dengan status history.
@@ -57,6 +60,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Setelah metadata PPR valid, Admin Release mengirim satu invoice gabungan biaya dasar+addons. Label menerima notifikasi in-app/email; pembayaran Xendit mengubah status ke Paid dan tetap memerlukan approval Admin Release.
 - Status Live mensyaratkan UPC rilisan dan ISRC pada setiap track; Reject tersedia sebelum Live dan Takedown hanya dari Live dengan alasan wajib.
 - Detail release Admin dan Label menampilkan metadata penuh, seluruh artist/featuring, kredit/lyrics/audio per track, cover, addon, serta invoice sepanjang lifecycle.
+- Detail rilisan admin menampilkan tautan sosial seluruh artis dan tombol Hubungi Label via WhatsApp dengan template judul, status, serta catatan workflow Bahasa Indonesia tanpa pengiriman otomatis.
+- Label status dan tindakan workflow di UI memakai Bahasa Indonesia; enum backend tetap stabil agar data lama dan integrasi tidak rusak.
 
 ### 3.5 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
@@ -135,7 +140,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - `users`: id, email, password_hash, role, status, token_version.
 - `labels`: id, user_id, payment/subscription state, account status, balances, profile/logo, KYC status/review metadata.
 - `kyc_documents`: id, label_id, private storage key, checksum, content metadata, current/review status, reviewer, rejection reason.
-- `releases`: metadata, tracks, status, payment status, selected add-ons.
+- `artists`: profile account/profile-only, label_id, optional user_id, status, dan multi `social_links`.
+- `releases`: metadata, tracks, status, payment status, selected add-ons, label/WhatsApp snapshot, serta primary/featured artist social snapshots.
 - `tracks`: artist metadata, audio, ISRC, preview/language/type/lyrics fields.
 - `payments`: release_id, reference_id, amount, line_items, provider state.
 - `royalty_lines`: import_id, label_id, period, quantity, label_idr, status.
@@ -170,6 +176,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 65 complete label release submission dan admin workflow sudah diimplementasikan serta terverifikasi, termasuk UI read-only untuk role admin non-release.
 - Phase 66 mandatory label KYC sudah diimplementasikan: checklist profil, logo/KTP R2 privat, reviewer RBAC, approve/reject, backend gating, serta blur overlay untuk route label terlarang. Targeted backend 5/5, release regression 6/6, build frontend, dan browser label/admin lulus.
 - Phase 67 menambahkan pencarian withdraw berdasarkan nama label lintas seluruh periode serta logo/fallback label pada Label Management, Profil, dan Dashboard. Gate akhir 9/9 dan browser desktop/mobile lulus.
+- Phase 68 menambahkan multi-link sosial wajib untuk artis, selector artis reusable pada wizard, persistence artis baru saat submit, snapshot sosial admin, follow-up WhatsApp berbasis status, serta lokalisasi workflow. Gate akhir 10/10 dan testing agent 9/9 lulus.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

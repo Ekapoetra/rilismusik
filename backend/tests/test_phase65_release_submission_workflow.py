@@ -22,11 +22,11 @@ def _payload(title="Phase 65 Release"):
         "p_line": "Pemilik Master", "year": date.today().year,
         "artist_web_url": "https://youtube.com/channel/UCphase65original",
         "primary_artists": [
-            {"name": "Primary One", "spotify_url": "https://open.spotify.com/artist/primaryone"},
-            {"name": "Primary Two", "spotify_url": None},
+            {"name": "Primary One", "spotify_url": "https://open.spotify.com/artist/primaryone", "social_links": [{"platform": "spotify", "url": "https://open.spotify.com/artist/primaryone"}]},
+            {"name": "Primary Two", "spotify_url": None, "social_links": [{"platform": "instagram", "url": "https://instagram.com/primarytwo"}]},
         ],
         "featured_artists": [
-            {"name": "Featured One", "spotify_url": "https://open.spotify.com/artist/featuredone"},
+            {"name": "Featured One", "spotify_url": "https://open.spotify.com/artist/featuredone", "social_links": [{"platform": "spotify", "url": "https://open.spotify.com/artist/featuredone"}, {"platform": "tiktok", "url": "https://tiktok.com/@featuredone"}]},
         ],
         "platforms": ["Spotify", "Apple Music", "TikTok"], "notes": "Metadata lengkap",
         "tracks": [

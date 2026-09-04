@@ -3,7 +3,9 @@ export const todayPlus = (days) => {
   return value.toISOString().slice(0, 10);
 };
 
-export const newArtist = () => ({ client_id: crypto.randomUUID(), name: "", spotify_url: "" });
+import { newSocialLink, socialLinksAreValid } from "@/constants/socialPlatforms";
+
+export const newArtist = () => ({ client_id: crypto.randomUUID(), artist_id: null, name: "", spotify_url: "", social_links: [newSocialLink()] });
 export const newTrack = () => ({
   client_id: crypto.randomUUID(), id: null, track_title: "", isrc: "",
   vocal_type: "vocal", lyricist: "", composer: "", arranger: "", producer: "",
@@ -20,16 +22,24 @@ export const defaultReleaseForm = () => ({
 });
 
 const withClientId = (item) => ({ ...item, client_id: item.client_id || crypto.randomUUID() });
+const mapArtistCredit = (item) => {
+  const socialLinks = item.social_links?.length ? item.social_links : item.spotify_url ? [{ platform: "spotify", url: item.spotify_url }] : [];
+  return withClientId({ ...item, artist_id: item.artist_id || null, social_links: socialLinks.map(withClientId) });
+};
 export const mapReleaseToForm = (release) => ({
   ...defaultReleaseForm(), ...release,
-  primary_artists: (release.primary_artists?.length ? release.primary_artists : [{ name: release.artist_name || "", spotify_url: "" }]).map(withClientId),
-  featured_artists: (release.featured_artists || []).map(withClientId),
+  primary_artists: (release.primary_artists?.length ? release.primary_artists : [{ name: release.artist_name || "", spotify_url: "" }]).map(mapArtistCredit),
+  featured_artists: (release.featured_artists || []).map(mapArtistCredit),
   tracks: (release.tracks?.length ? release.tracks : [newTrack()]).map((track) => withClientId({ ...newTrack(), ...track })),
 });
 
 export const serializeReleaseForm = (form) => {
-  const primary = form.primary_artists.map(({ client_id, ...item }) => item);
-  const featured = form.featured_artists.map(({ client_id, ...item }) => item).filter((item) => item.name.trim());
+  const serializeArtist = ({ client_id, social_links, ...item }) => {
+    const links = (social_links || []).map(({ client_id: linkClientId, ...link }) => link);
+    return { ...item, social_links: links, spotify_url: links.find((link) => link.platform === "spotify")?.url || null };
+  };
+  const primary = form.primary_artists.map(serializeArtist);
+  const featured = form.featured_artists.map(serializeArtist).filter((item) => item.name.trim());
   const artistName = primary.map((item) => item.name.trim()).filter(Boolean).join(", ");
   return {
     ...form, artist_name: artistName, language: form.tracks[0]?.title_language || "Indonesian",
@@ -47,6 +57,7 @@ export const validateStep = (step, form) => {
   if (step === 1 && [form.release_title, form.genre, form.subgenre, form.copyright_line, form.p_line, form.artist_web_url].some((value) => !String(value || "").trim())) return "Lengkapi seluruh informasi rilisan dan URL web/channel artist.";
   if (step === 1 && form.release_date < todayPlus(7)) return "Tanggal rilis digital minimal 7 hari setelah submit.";
   if (step === 2 && (!form.primary_artists.length || form.primary_artists.some((item) => !item.name.trim()))) return "Minimal satu nama artist utama wajib diisi.";
+  if (step === 2 && [...form.primary_artists, ...form.featured_artists].some((item) => item.name.trim() && !socialLinksAreValid(item.social_links))) return "Setiap artis wajib memiliki minimal satu tautan media sosial yang valid.";
   if (step === 3 && form.release_type === "single" && form.tracks.length !== 1) return "SINGLE harus memiliki tepat satu track.";
   if (step === 3) {
     const invalid = form.tracks.find((track) => !track.track_title.trim() || !track.lyricist.trim() || !track.composer.trim() || !track.title_language.trim() || (track.vocal_type === "vocal" && (!track.lyric_language.trim() || !track.lyrics.trim())));

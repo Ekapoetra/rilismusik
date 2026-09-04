@@ -1,133 +1,110 @@
 {
-  "theme": "dark_premium",
-  "archetype": "LUXURY_WITH_SWISS_HIGH_CONTRAST",
   "typography": {
     "headings": {
-      "family": "Cabinet Grotesk",
-      "fallback": "sans-serif",
-      "weights": ["light", "bold", "black"],
-      "usage": "Use for all main dashboard headings, KYC status banners, and section titles. Ensure tight letter spacing (tracking-tight)."
+      "fontFamily": "'Outfit', sans-serif",
+      "weights": ["400", "500", "700"],
+      "usage": "Use Outfit for all primary headings (H1-H4). Apply tracking-tight for H1-H2 to maintain a premium feel. Avoid overly bold weights; prefer Medium (500) or Bold (700)."
     },
     "body": {
-      "family": "Manrope",
-      "fallback": "sans-serif",
-      "weights": ["regular", "medium", "semibold"],
-      "usage": "Use for forms, tables, rejection reasons, and general dashboard text. Opt for higher line-height (leading-relaxed) for readability."
+      "fontFamily": "'Manrope', sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "Use Manrope for body text, form inputs, labels, and badges. Ensure leading-relaxed for body copy and leading-none for badges/pills."
     },
-    "labels": {
-      "style": "uppercase, wide spacing (tracking-[0.2em]), text-xs",
-      "usage": "Use for KYC status tags, form field labels, and table column headers."
-    }
+    "guidelines": "Do NOT use default fonts like Inter or Roboto. Apply tracking-[0.2em] and uppercase for small overlines/labels."
   },
   "colors": {
-    "backgrounds": {
+    "background": {
       "base": "#050505",
-      "surface": "#0F0F0F",
-      "surface_elevated": "#1A1A1A",
-      "overlay": "rgba(5, 5, 5, 0.85)"
+      "surface": "#111111",
+      "surface_hover": "#18181B",
+      "border": "rgba(255, 255, 255, 0.08)"
     },
     "text": {
       "primary": "#FFFFFF",
       "secondary": "#A1A1AA",
       "muted": "#71717A"
     },
-    "borders": {
-      "default": "rgba(255, 255, 255, 0.1)",
-      "focus": "rgba(255, 255, 255, 0.3)"
+    "brand": {
+      "primary": "#FFFFFF",
+      "whatsapp": "#25D366"
     },
     "status": {
-      "verified": "#00C853",
-      "pending": "#F5A623",
-      "rejected": "#FF3B30",
-      "locked": "#71717A"
+      "menunggu_review": { "bg": "rgba(250, 204, 21, 0.1)", "text": "#FACC15", "border": "rgba(250, 204, 21, 0.2)" },
+      "revisi": { "bg": "rgba(251, 146, 60, 0.1)", "text": "#FB923C", "border": "rgba(251, 146, 60, 0.2)" },
+      "disetujui": { "bg": "rgba(52, 211, 153, 0.1)", "text": "#34D399", "border": "rgba(52, 211, 153, 0.2)" },
+      "ditolak": { "bg": "rgba(248, 113, 113, 0.1)", "text": "#F87171", "border": "rgba(248, 113, 113, 0.2)" },
+      "dikirim": { "bg": "rgba(96, 165, 250, 0.1)", "text": "#60A5FA", "border": "rgba(96, 165, 250, 0.2)" },
+      "live": { "bg": "rgba(255, 255, 255, 0.1)", "text": "#FFFFFF", "border": "rgba(255, 255, 255, 0.3)" },
+      "takedown": { "bg": "rgba(113, 113, 122, 0.1)", "text": "#A1A1AA", "border": "rgba(113, 113, 122, 0.2)" }
     },
-    "primary": "#FFFFFF",
-    "primary_hover": "#E4E4E7"
+    "guidelines": "Use 'Archetype 5: LUXURY'. The UI must feel expensive, moody, and cinematic. Never use pure transparent backgrounds over content."
   },
   "visual_enhancers": {
-    "glassmorphism": {
-      "usage": "For the KYC locked overlay, sticky headers, and action modals.",
-      "classes": "backdrop-blur-xl bg-black/60 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-    },
-    "borders": {
-      "usage": "Use 1px subtle inner strokes to define surfaces rather than heavy drop shadows.",
-      "classes": "border border-white/5"
-    },
-    "textures": {
-      "usage": "Apply a very subtle SVG noise or grain texture over the main background to prevent it from looking like a flat, cheap void."
-    }
+    "glassmorphism": "Use backdrop-blur-xl and backdrop-saturate-150 with bg-black/60 for sticky headers or dropdowns. Must have a delicate 1px inner stroke (border-white/10).",
+    "shadows": "Minimal shadows. Rely on 1px borders (border-white/5) for separation. For popovers/modals, use a soft ambient shadow.",
+    "borders": "Rounded-xl for cards, rounded-full for pills and main buttons."
   },
-  "layouts": {
-    "bento_grid": {
-      "description": "Use for the Admin Dashboard KYC queue and Label Profile Checklist.",
-      "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+  "components": [
+    {
+      "name": "Social Link Editor",
+      "path": "src/components/artist/SocialLinkEditor.jsx",
+      "instructions": "A dynamic list form to add multiple social links. Fields: Platform Select (Instagram, TikTok, Facebook, YouTube, X, Spotify, Website, Lainnya) and URL Input. Include 'Add Link' and 'Remove' buttons. At least 1 link is required for validation."
     },
-    "kyc_blur_overlay": {
-      "description": "For unverified users clicking restricted tabs (e.g., Analytics, Payouts).",
-      "structure": "The background content must render but have a 'blur-md opacity-40 pointer-events-none' applied. Overlay a centered modal with 'backdrop-blur-xl bg-[#0F0F0F]/90 border border-white/10' that forces them to the KYC settings."
+    {
+      "name": "Artist Selector",
+      "path": "src/components/release/ArtistSelector.jsx",
+      "instructions": "A read-only selector on the release wizard. Shows selected artist name and non-editable social media chips/icons. Warns/blocks if selected legacy artist has no social links."
     },
-    "spacing": {
-      "strategy": "Generous Spacing Philosophy. Use p-8 or p-12 for dashboard cards to maintain a premium feel. Do not cramp form inputs."
+    {
+      "name": "Status Badge",
+      "path": "src/components/ui/StatusBadge.jsx",
+      "instructions": "Displays workflow status in Indonesian. Uses the 'status' colors defined above. Should be a pill shape."
+    },
+    {
+      "name": "WhatsApp Follow-up Button",
+      "path": "src/components/release/WhatsAppButton.jsx",
+      "instructions": "Button visible on approved/submitted releases. Generates a wa.me link with a pre-filled template based on the current status (e.g., 'Halo Label, saya ingin follow up terkait rilisan [Nama Rilisan] dengan status [Status]'). Uses the WhatsApp green brand color minimally (e.g., green icon on dark button)."
     }
-  },
-  "components": {
-    "file_upload": {
-      "name": "KTP & Logo Uploader",
-      "design": "A dashed border zone (border-white/20) with a subtle bg-white/5 background on hover. Must show clear file size limits (5MB for logo, 10MB for KTP) and allowed formats. Include a secure preview state once uploaded."
-    },
-    "status_banner": {
-      "name": "KYC Status Banner",
-      "design": "Placed at the top of the Profile/Settings page. If Rejected, must heavily feature the 'Rejected' red and distinctly display the Admin's rejection reason in a distinct blockquote style."
-    },
-    "rejection_modal": {
-      "name": "Admin Rejection Reason Dialog",
-      "design": "When Admin clicks 'Reject', open a Shadcn Dialog requiring a text input for the reason. Primary action is 'Confirm Rejection' in destructive red."
-    },
-    "locked_tab": {
-      "name": "Restricted Navigation Item",
-      "design": "Display a small lock icon next to restricted routes in the sidebar. The link remains clickable but triggers the kyc_blur_overlay on the destination route instead of a hard redirect."
-    }
+  ],
+  "grids_and_layouts": {
+    "general": "High Density Grid for the dashboard forms and release details. Minimalist and sleek.",
+    "forms": "Use grid-cols-1 md:grid-cols-2 for form layouts. Social links should span full width in a nested layout.",
+    "spacing": "Generous spacing. p-6 or p-8 inside cards. gap-6 between form sections."
   },
   "motion": {
-    "hover_states": "All buttons should use smooth 'transition-colors duration-200'. Upload zones should have a slight scale effect 'hover:scale-[1.02]'.",
-    "overlay_entrance": "The KYC restriction overlay must fade in 'animate-in fade-in duration-300' to emphasize the lock.",
-    "list_stagger": "Admin KYC queues should use staggered entrance animations for rows to make the review process feel dynamic."
+    "hover": "Subtle background lighten (bg-white/5) and scale (scale-[1.02]) for interactive cards.",
+    "transitions": "Use specific transitions: transition-colors duration-200, transition-transform duration-200. Do NOT use transition-all.",
+    "list_items": "Stagger entrance animations for dynamic social link fields."
   },
-  "image_urls": {
-    "placeholders": [
-      {
-        "url": "https://images.unsplash.com/photo-1726065235203-4368c41c6f19?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwyfHxpZGVudGl0eSUyMGNhcmQlMjB2ZXJpZmljYXRpb258ZW58MHx8fHwxNzg4NDQyNjM4fDA&ixlib=rb-4.1.0&q=85",
-        "description": "Hand holding a card - useful as a placeholder/illustration for the KTP verification empty state",
-        "category": "kyc_illustration"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwyfHxkaiUyMGluJTIwc3R1ZGlvJTIwZGFya3xlbnwwfHx8fDE3ODg0NDI2Mzh8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Dark music studio vibe for aesthetic background or dashboard greeting section",
-        "category": "dashboard_hero"
-      }
-    ]
+  "accessibility": {
+    "contrast": "Ensure all text against the #050505 background passes WCAG AA.",
+    "focus": "Use focus:ring-2 focus:ring-white/20 focus:outline-none for all inputs.",
+    "test_attributes": "All interactive elements MUST include data-testid. Examples: data-testid='add-social-link-btn', data-testid='wa-followup-btn'."
   },
-  "instructions_to_main_agent": [
-    "Implement the 'Unverified labels can click locked tabs' rule exactly as requested: do NOT redirect via React Router.",
-    "Instead, render the restricted page component, but wrap its main content in a blur overlay (blur-md) with pointer-events-none, and mount a fixed, centered KYC action modal on top of it.",
-    "Ensure 'Super Admin' and 'Admin Support' roles can access the KYC review queue, which includes the KTP viewer and the required rejection reason form.",
-    "Use Phosphor Icons (@phosphor-icons/react) for all icons, particularly the Lock icon for restricted tabs and identity icons.",
-    "Do not use generic HTML inputs for file uploads; create a premium dropzone component with Shadcn structure.",
-    "Strictly adhere to the dark mode palette: #050505 background with #0F0F0F cards. Avoid #7351B7 completely.",
-    "Do not use complete transparent backgrounds in dropdowns or modals. Always use a solid dark background or backdrop-blur with a dark tint.",
-    "For KTP preview, ensure the image scales to fit within the modal/container without breaking the layout (object-contain)."
+  "media": {
+    "icons": "Use lucide-react for all standard icons (Plus, Trash, Check, X, etc.). For social media icons, use react-icons (FaInstagram, FaTiktok, etc.). Provide install command: yarn add react-icons."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwyfHxtdXNpYyUyMHByb2R1Y2VyJTIwc3R1ZGlvJTIwZGFya3xlbnwwfHx8fDE3ODg1MTQ1MDB8MA&ixlib=rb-4.1.0&q=85",
+      "category": "background",
+      "description": "Man in studio, can be used for empty state or auth background."
+    }
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Avoid generic, 'on distribution' outputs. Do not make generic centered layouts or simplistic gradients.",
-    "Create depth through layered design elements with z-index hierarchy.",
-    "Use glass-morphism effects with backdrop filters (12-24px blur) where overlays are needed.",
-    "NEVER apply universal transition (transition: all). Use specific transitions (transition-colors, transition-opacity).",
-    "Do NOT center align the app container (.App { text-align: center; }).",
-    "Always use modern button styles (sharp or subtle rounded) with interaction animations & relevant colors.",
-    "NEVER use AI assistant Emoji characters (🤖🧠💭💡) for icons.",
-    "Every interaction needs micro-animations (hover states, transitions).",
-    "Use 2-3x more spacing than feels comfortable. Use Tailwind's generous scale (p-6, p-8, p-12).",
-    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='kyc-upload-button', data-testid='kyc-rejection-reason').",
-    "Use `sonner` for toast notifications."
+  "instructions_to_main_agent": "Implement a Music Release Label Dashboard with a dark premium aesthetic. Build the 'Tambah Artis' and 'Submit Rilisan' flows. Ensure social media link forms are dynamic and validated (min 1 link). On release submission, snapshot the artist's social links. The UI MUST use Indonesian for all status badges and labels. Integrate the WhatsApp follow-up button on the release detail view using standard wa.me links with dynamic text templates based on status.",
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": "Do not center-align the app container. Never use AI emojis for icons. Create depth through layered design (z-index, borders). Add hover states to all interactives. Use sonner for toasts. Do not use generic 'transition: all'. Prioritize custom UI and Shadcn components. Avoid pure transparent backgrounds in overlays. Use data-testid for all interactives.",
+  "pages": [
+    {
+      "name": "Artist Management",
+      "description": "Page to view and add/edit artists. Contains the dynamic Social Link Editor."
+    },
+    {
+      "name": "Release Wizard",
+      "description": "Multi-step form to submit a release. Includes the Artist Selector (read-only for saved artists, inline form for new artists requiring social links)."
+    },
+    {
+      "name": "Release Details (Label View)",
+      "description": "View submitted release data, showing the snapshotted artist social links, Indonesian status badges, and the WhatsApp Follow-up button."
+    }
   ]
 }

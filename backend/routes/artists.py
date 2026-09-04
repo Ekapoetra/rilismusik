@@ -42,6 +42,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .artist_social_service import normalize_social_links
 
 # =============================================================================
 #                              ARTISTS
@@ -107,6 +108,7 @@ async def create_artist(body: ArtistIn, user: dict = Depends(require_label)):
     email = body.email.lower().strip()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Email sudah terdaftar")
+    social_links = normalize_social_links(body.social_links, required=True, owner=body.artist_name)
 
     user_id = new_id()
     artist_id = new_id()
@@ -137,6 +139,7 @@ async def create_artist(body: ArtistIn, user: dict = Depends(require_label)):
         "artist_name": body.artist_name,
         "email": email,
         "whatsapp": body.whatsapp,
+        "social_links": social_links,
         "visibility_settings": visibility,
         "status": "active",
         "created_at": now_iso(),
@@ -171,6 +174,8 @@ async def update_artist(artist_id: str, body: ArtistUpdateIn, user: dict = Depen
     if artist["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan artist Anda")
     upd = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if "social_links" in upd:
+        upd["social_links"] = normalize_social_links(upd["social_links"], required=True, owner=upd.get("artist_name") or artist.get("artist_name") or "Artis")
     upd["updated_at"] = now_iso()
     await db.artists.update_one({"id": artist_id}, {"$set": upd})
     return await db.artists.find_one({"id": artist_id}, {"_id": 0})

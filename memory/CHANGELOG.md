@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 68: Artist social identity & WhatsApp follow-up
+- Menambahkan multi-link sosial wajib untuk tambah/edit artis: Instagram, TikTok, Facebook, YouTube, X/Twitter, Spotify, Situs Web, dan Lainnya.
+- Menambahkan validasi backend URL/domain platform, batas 10 tautan, deduplikasi, dan kewajiban tautan Spotify menuju profil artis.
+- Wizard rilisan kini dapat memanggil artis tersimpan dalam mode read-only; artis legacy tanpa sosial memblokir submit dan diarahkan ke Manajemen Artis.
+- Artis baru pada wizard wajib nama + minimal satu tautan; saat submit berhasil sistem membuat profil artis reusable/profile-only dan menyimpan snapshot nama/artist_id/seluruh sosial pada rilisan.
+- Detail submitted admin/label menampilkan tautan sosial artis utama dan featuring. Backend menggunakan data profil tersimpan yang authoritative sehingga snapshot klien tidak dapat memanipulasi identitas artis.
+- Menambahkan tombol Hubungi Label via `wa.me` pada detail rilisan admin dengan nomor label, judul, status Indonesia, dan catatan workflow; pesan hanya dibuka sebagai draft, tidak dikirim otomatis.
+- Melokalkan status, tombol aksi, stepper, dan navigasi rilisan/artis ke Bahasa Indonesia tanpa mengubah enum backend.
+- Verifikasi akhir: 10/10 targeted/regression, testing agent 9/9, production build, browser desktop/mobile, multi-link, status-template WhatsApp, RBAC, dan KYC lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-04 — Phase 67: Global withdraw search & label identity
 - Menambahkan pencarian nama label server-side pada Admin Withdraw; saat pencarian aktif, daftar mengambil seluruh riwayat lintas bulan sementara filter status tetap berlaku.
 - Pencarian mendukung beberapa kata tanpa harus berurutan, sehingga nama seperti `Demo Label PPR` dapat ditemukan melalui `Demo PPR`.

@@ -76,6 +76,7 @@ def _cleanup(db, seeded, release_id, product_id):
     db.tracks.delete_many({"release_id": release_id})
     db.releases.delete_many({"id": release_id})
     db.payment_products.delete_many({"id": product_id})
+    db.artists.delete_many({"label_id": seeded["label_id"]})
     db.kyc_documents.delete_many({"label_id": seeded["label_id"]})
     db.bank_accounts.delete_many({"label_id": seeded["label_id"]})
     db.contracts.delete_many({"label_id": seeded["label_id"]})
@@ -109,8 +110,8 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
         "p_line": "2026 Phase 43",
         "year": 2026,
         "artist_web_url": "https://youtube.com/channel/UCphase43original",
-        "primary_artists": [{"name": "Artist Phase 43", "spotify_url": "https://open.spotify.com/artist/phase43"}],
-        "featured_artists": [{"name": "Featured Artist", "spotify_url": None}],
+        "primary_artists": [{"name": "Artist Phase 43", "spotify_url": "https://open.spotify.com/artist/phase43", "social_links": [{"platform": "spotify", "url": "https://open.spotify.com/artist/phase43"}]}],
+        "featured_artists": [{"name": "Featured Artist", "spotify_url": None, "social_links": [{"platform": "instagram", "url": "https://instagram.com/featuredphase43"}]}],
         "platforms": ["Spotify", "YouTube Music"],
         "cover_url": "/api/files/phase43-cover.jpg",
         "tracks": [{

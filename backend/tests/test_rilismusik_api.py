@@ -374,6 +374,7 @@ class TestArtistSubAccount:
         r = s.post(f"{API}/artists/", json={
             "artist_name": "TEST Artist", "email": email,
             "password": TEST_USER_PASSWORD, "whatsapp": "+62811",
+            "social_links": [{"platform": "instagram", "url": "https://instagram.com/testartist"}],
         })
         assert r.status_code == 200, r.text
         label_session["artist_email"] = email
@@ -395,6 +396,7 @@ class TestArtistSubAccount:
         # artist cannot create artist
         ra = ns.post(f"{API}/artists/", json={
             "artist_name": "Y", "email": _rand_email("y"), "password": TEST_USER_PASSWORD,
+            "social_links": [{"platform": "instagram", "url": "https://instagram.com/yartist"}],
         })
         assert ra.status_code == 403
 

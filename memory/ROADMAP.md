@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 68 lalu validasi satu artis lama tanpa sosial, satu artis tersimpan multi-link, satu artis baru dari submit, snapshot admin, dan template WhatsApp pada setiap transisi status.
 - Redeploy Phase 67 lalu cek pencarian nama label lintas periode di Admin Withdraw serta rendering logo/fallback pada Admin Label Management, Dashboard, dan Profil label.
 - Redeploy Phase 66 lalu verifikasi satu akun label legacy: isi profil/rekening/kontrak/logo, unggah KTP, review melalui Super Admin/Admin Support, dan pastikan fitur inti baru terbuka setelah approve.
 - Pastikan bucket R2 production tetap privat untuk prefix `kyc-private/`; akses KTP harus melalui endpoint pemilik/reviewer dan `/api/files/kyc-private/*` wajib 404.
@@ -55,6 +56,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 68 menambahkan identitas sosial wajib artis, reusable artist profile dari submission, snapshot sosial admin, WhatsApp follow-up status-aware, dan lokalisasi workflow rilisan.
 - Phase 67 menambahkan pencarian withdrawal lintas seluruh periode berdasarkan nama label serta identitas logo/fallback konsisten di tiga area utama.
 - Phase 66 menambahkan mandatory KYC seluruh label, checklist profil, logo/KTP R2 privat, reviewer queue, approve/reject, dashboard counter, backend feature gate, dan frontend blurred lockout.
 - Phase 65 menambahkan complete release metadata wizard, strict asset validation, revision-safe editing, full Admin detail, role-safe workflow actions, conditional Annual/PPR state machine, invoice notification, Believe delivery, UPC/ISRC Live gate, Reject, dan Takedown.

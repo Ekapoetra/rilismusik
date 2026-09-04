@@ -97,9 +97,19 @@ ReleaseStatus = Literal[
 ]
 
 
+SocialPlatform = Literal["instagram", "tiktok", "facebook", "youtube", "x", "spotify", "website", "other"]
+
+
+class SocialLinkIn(BaseModel):
+    platform: SocialPlatform
+    url: str = Field(min_length=8, max_length=500)
+
+
 class ArtistCreditIn(BaseModel):
+    artist_id: Optional[str] = None
     name: str = Field(min_length=1, max_length=160)
     spotify_url: Optional[str] = Field(default=None, max_length=500)
+    social_links: List[SocialLinkIn] = Field(default_factory=list, max_length=10)
 
 
 class TrackIn(BaseModel):
@@ -169,12 +179,14 @@ class ArtistIn(BaseModel):
     email: EmailStr
     whatsapp: Optional[str] = None
     password: str = Field(min_length=8, max_length=200)
+    social_links: List[SocialLinkIn] = Field(min_length=1, max_length=10)
     visibility_settings: Optional[Dict[str, bool]] = None
 
 
 class ArtistUpdateIn(BaseModel):
     artist_name: Optional[str] = None
     whatsapp: Optional[str] = None
+    social_links: Optional[List[SocialLinkIn]] = Field(default=None, min_length=1, max_length=10)
     visibility_settings: Optional[Dict[str, bool]] = None
     status: Optional[str] = None
 

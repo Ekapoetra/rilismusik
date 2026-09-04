@@ -1,19 +1,7 @@
 import React from "react";
+import { RELEASE_STATUS_LABELS } from "@/utils/releasePresentation";
 
-export const STATUS_LABELS = {
-  draft: "Draft",
-  submitted: "Submitted",
-  awaiting_payment: "Awaiting Payment",
-  paid: "Paid",
-  under_review: "Under Review",
-  need_revision: "Need Revision",
-  approved: "Approved",
-  delivered: "Delivered to Believe",
-  live: "Live",
-  rejected: "Rejected",
-  takedown_requested: "Takedown Requested",
-  taken_down: "Taken Down",
-};
+export const STATUS_LABELS = RELEASE_STATUS_LABELS;
 
 // Dark-mode tuned palette
 const STYLES = {
