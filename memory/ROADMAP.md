@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 72 lalu pastikan dropdown lonceng solid dan Log Aktivitas menampilkan nama pengguna/fallback ID.
 - Redeploy Phase 71 lalu verifikasi lonceng hanya di sticky header kanan atas, halaman Riwayat Notifikasi, scope Semua Admin untuk Super Admin, scope pribadi untuk admin biasa, dan lebar mobile tanpa overflow.
 - Redeploy Phase 70 dan cek badge Status KYC untuk label verified, pending, rejected, dan legacy pada desktop/mobile.
 - Redeploy Phase 69, cek migrasi role bawaan, buat satu role kustom read-only, assign ke admin uji, lalu validasi navigation filtering, action denial, sidebar rail, dan Admin UI settings.
@@ -59,6 +60,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 72 membuat dropdown lonceng solid serta menampilkan nama pelaku pada Log Aktivitas dengan fallback ID untuk akun yang tidak tersedia.
 - Phase 71 memindahkan lonceng admin ke sticky header kanan atas dan menambahkan log notifikasi terfilter, scope audit Super Admin, RBAC, serta layout mobile bebas overflow.
 - Phase 70 menambahkan kolom Status KYC responsif pada Admin Label Management dengan badge Indonesia dan tooltip alasan penolakan.
 - Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer.

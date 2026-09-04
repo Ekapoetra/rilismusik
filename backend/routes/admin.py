@@ -457,6 +457,18 @@ async def admin_review_bank_change(
 @admin_r.get("/activity-logs")
 async def admin_activity_logs(user: dict = Depends(require_admin), limit: int = 200):
     items = await db.activity_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    user_ids = list({item.get("user_id") for item in items if item.get("user_id")})
+    users = await db.users.find(
+        {"id": {"$in": user_ids}},
+        {"_id": 0, "id": 1, "name": 1, "username": 1},
+    ).to_list(len(user_ids) or 1)
+    user_names = {
+        item["id"]: item.get("name") or item.get("username") or item["id"]
+        for item in users
+    }
+    for item in items:
+        actor_id = item.get("user_id")
+        item["user_name"] = user_names.get(actor_id, actor_id or "Sistem")
     return items
 
 

@@ -72,8 +72,10 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Pengguna admin dapat diubah nama, role, status, dan password. Role nonaktif menolak request sesi aktif serta login baru; Super Admin efektif selalu full access dan role bawaan tidak dapat dihapus.
 - Sidebar admin desktop dapat diciutkan menjadi icon rail dengan preferensi persisten; mobile memakai drawer geser dengan backdrop.
 - Lonceng notifikasi admin berada hanya di sticky header kanan atas pada desktop/mobile dan tidak muncul di sidebar maupun drawer.
+- Dropdown lonceng memakai latar solid penuh tanpa transparansi atau backdrop blur agar isi tetap jelas di atas halaman.
 - Halaman `/admin/notifications` menyediakan log in-app dengan pencarian, filter status baca/jenis/rentang tanggal, pagination, tandai baca, dan tautan tujuan internal.
 - Super Admin dapat mengaudit notifikasi seluruh admin dalam mode baca-saja untuk milik admin lain; admin berizin `notifications.view` hanya dapat melihat dan mengubah status baca notifikasinya sendiri.
+- Log Aktivitas menampilkan nama asli/nama akun pelaku dari koleksi user; bila akun tidak lagi tersedia, ID user tetap ditampilkan sebagai fallback audit.
 
 ### 3.6 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
@@ -193,6 +195,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 68 menambahkan multi-link sosial wajib untuk artis, selector artis reusable pada wizard, persistence artis baru saat submit, snapshot sosial admin, follow-up WhatsApp berbasis status, serta lokalisasi workflow. Gate akhir 10/10 dan testing agent 9/9 lulus.
 - Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer. Gate akhir 17/17; testing agent backend 7/7; overflow Royalty mobile diperbaiki dan terukur 390/390px.
 - Phase 71 memindahkan lonceng notifikasi admin ke sticky header kanan atas dan menambahkan log notifikasi terfilter dengan scope Super Admin/admin biasa. Targeted backend 6/6, frontend production build, desktop/mobile browser, RBAC, dan overflow check 390/390px lulus.
+- Phase 72 membuat dropdown lonceng sepenuhnya solid dan memperkaya Log Aktivitas dengan nama pelaku serta fallback ID untuk user yang sudah tidak tersedia. API, frontend production build, dan browser visual lulus.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

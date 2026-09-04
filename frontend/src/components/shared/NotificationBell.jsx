@@ -91,7 +91,7 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
 
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/10 bg-[#101010]/98 shadow-2xl backdrop-blur-xl"
+          className="absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/10 bg-[#101010] shadow-2xl"
           data-testid={instance === "desktop" ? "notification-dropdown" : `notification-dropdown-${instance}`}
         >
           <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">

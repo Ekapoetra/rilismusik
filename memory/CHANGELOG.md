@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 72: Solid Notification Dropdown & Activity Actor Names
+- Mengubah dropdown lonceng menjadi latar `#101010` yang sepenuhnya solid dan menghapus backdrop blur/transparansi.
+- Endpoint Log Aktivitas kini mengambil nama asli/nama akun pelaku secara bulk dari koleksi `users`, tanpa query N+1.
+- Log dari user yang sudah terhapus atau tidak ditemukan tetap menampilkan `user_id` sebagai fallback audit.
+- Melokalkan judul/kolom Log Aktivitas dan menambahkan loading, error, serta test ID pada informasi penting.
+- Verifikasi: API mengembalikan nama `Super Admin`, browser menampilkan nama akun serta fallback ID, computed dropdown `rgb(16, 16, 16)` dengan `backdropFilter=none`, dan frontend production build lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-04 — Phase 71: Admin Notification Header & Log
 - Memindahkan lonceng notifikasi admin ke sticky header kanan atas pada desktop/mobile dan menghapusnya sepenuhnya dari sidebar serta drawer.
 - Menambahkan halaman `/admin/notifications` dengan pencarian, filter status baca/jenis/rentang tanggal, pagination, tandai satu/semua dibaca, dan tautan tujuan internal.
