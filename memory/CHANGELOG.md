@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 70: Status KYC pada Manajemen Label
+- Menambahkan kolom Status KYC terpisah di Admin Label Management.
+- Badge status memakai istilah Indonesia dan warna semantik untuk Belum Lengkap, Menunggu Review, Terverifikasi, Perlu Diperbarui, dan Ditolak.
+- Alasan penolakan KYC tersedia melalui tooltip badge saat datanya ada.
+- Mengubah grid desktop menjadi kolom adaptif dan layout tablet/mobile menjadi summary rows agar tidak clipping atau horizontal overflow.
+- Verifikasi: kontrak API/status 2/2, production build, desktop browser, serta mobile 390px lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-04 — Phase 69: Dynamic Admin RBAC & UI Navigation Builder
 - Mengganti RBAC admin hard-coded menjadi katalog permission backend granular untuk tab, subtab, dan aksi seperti view/manage/review/import/delete.
 - Menambahkan CRUD role kustom, rename/edit role bawaan, proteksi Super Admin, deaktivasi role, dan penerapan permission pada sesi aktif tanpa login ulang.

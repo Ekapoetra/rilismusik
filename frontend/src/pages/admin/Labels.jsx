@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { UserPlus, Copy, FileSpreadsheet, X, RefreshCw, AlertCircle } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 import { LabelLogo } from "@/components/shared/LabelLogo";
+import { KycStatusBadge } from "@/components/admin/KycStatusBadge";
 
 const fmtIDR = (value) => new Intl.NumberFormat("id-ID", {
   style: "currency", currency: "IDR", maximumFractionDigits: 0,
@@ -64,8 +65,8 @@ export default function AdminLabels() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operations</div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Label Management</h1>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operasional</div>
+          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Label</h1>
         </div>
         {hasPermission("royalty.import") && <Link to="/admin/labels/rate-import" className="rm-btn-primary flex items-center gap-2" data-testid="admin-label-rate-import-link"><FileSpreadsheet className="w-4 h-4" /> Impor Rate</Link>}
       </div>
@@ -102,22 +103,23 @@ export default function AdminLabels() {
       {balanceSync?.status === "error" && <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" data-testid="admin-labels-balance-sync-error"><AlertCircle className="mr-2 inline h-4 w-4" />Sinkronisasi saldo gagal. Daftar tetap tersedia; coba buka ulang halaman atau jalankan Audit Saldo.</div>}
 
       <div className="rm-card overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
-          <div className="col-span-1">Logo</div>
-          <div className="col-span-2">Label</div>
-          <div className="col-span-2">Email</div>
-          <div className="col-span-1">Tipe</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-2 text-right" data-testid="admin-labels-available-balance-header">Saldo Available</div>
-          <div className="col-span-2 text-right" data-testid="admin-labels-last-withdraw-header">Withdraw Terakhir</div>
-          <div className="col-span-1 text-right">Aksi</div>
+        <div className="hidden xl:grid xl:grid-cols-[56px_minmax(120px,1.25fr)_minmax(150px,1.35fr)_80px_110px_125px_minmax(125px,1fr)_minmax(125px,1fr)_64px] gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
+          <div>Logo</div>
+          <div>Label</div>
+          <div>Email</div>
+          <div>Tipe</div>
+          <div>Status Akun</div>
+          <div data-testid="admin-labels-kyc-status-header">Status KYC</div>
+          <div className="text-right" data-testid="admin-labels-available-balance-header">Saldo Tersedia</div>
+          <div className="text-right" data-testid="admin-labels-last-withdraw-header">Penarikan Terakhir</div>
+          <div className="text-right">Aksi</div>
         </div>
         {loading ? <div className="p-8 text-center text-zinc-500 text-sm" data-testid="admin-labels-loading">Memuat label…</div> : items.length === 0 ? <div className="p-8 text-center text-zinc-500 text-sm" data-testid="admin-labels-empty">Belum ada label yang sesuai filter.</div> : items.map((l) => {
           const unclaimed = !l.user_id || l.account_status === "legacy_unclaimed";
           return (
-            <div key={l.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`admin-label-row-${l.id}`}>
-              <div className="col-span-2 md:col-span-1"><LabelLogo src={l.logo_url} labelName={l.label_name} className="h-11 w-11" testId={`admin-label-logo-${l.id}`} /></div>
-              <div className="col-span-10 md:col-span-2 min-w-0">
+            <div key={l.id} className="grid min-w-0 grid-cols-12 items-center gap-3 border-b border-white/5 px-4 py-4 last:border-0 hover:bg-white/[0.02] sm:px-5 xl:grid-cols-[56px_minmax(120px,1.25fr)_minmax(150px,1.35fr)_80px_110px_125px_minmax(125px,1fr)_minmax(125px,1fr)_64px]" data-testid={`admin-label-row-${l.id}`}>
+              <div className="col-span-2 xl:col-auto"><LabelLogo src={l.logo_url} labelName={l.label_name} className="h-11 w-11" testId={`admin-label-logo-${l.id}`} /></div>
+              <div className="col-span-10 min-w-0 xl:col-auto">
                 <div className="font-semibold flex items-center gap-2" data-testid={`admin-label-name-${l.id}`}>
                   {l.label_name}
                   {unclaimed && (
@@ -129,9 +131,10 @@ export default function AdminLabels() {
                 </div>
                 <div className="text-xs text-zinc-500">{l.pic_name || "—"}</div>
               </div>
-              <div className="col-span-6 md:col-span-2 text-sm truncate">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
-              <div className="col-span-6 md:col-span-1 text-sm capitalize truncate">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
-              <div className="col-span-4 md:col-span-1">
+              <div className="col-span-7 min-w-0 truncate text-sm xl:col-auto">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
+              <div className="col-span-5 truncate text-sm capitalize xl:col-auto">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
+              <div className="col-span-6 xl:col-auto">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-600 xl:hidden">Status Akun</div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${
                   l.account_status === "active" ? "bg-emerald-500/15 text-emerald-300"
                   : l.account_status === "legacy_unclaimed" ? "bg-amber-500/15 text-amber-300"
@@ -139,17 +142,21 @@ export default function AdminLabels() {
                   : "bg-red-500/15 text-red-300"
                 }`}>{(l.account_status || "—").replace(/_/g, " ")}</span>
               </div>
-              <div className="col-span-4 md:col-span-2 text-right" data-testid={`admin-label-available-balance-${l.id}`}>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500 md:hidden">Saldo Available</div>
+              <div className="col-span-6 min-w-0 xl:col-auto">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-600 xl:hidden">Status KYC</div>
+                <KycStatusBadge status={l.kyc_status} reason={l.kyc_rejection_reason} testId={`admin-label-kyc-status-${l.id}`} />
+              </div>
+              <div className="col-span-6 text-right xl:col-auto" data-testid={`admin-label-available-balance-${l.id}`}>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500 xl:hidden">Saldo Tersedia</div>
                 <div className="font-display font-bold tabular-nums text-emerald-300">{fmtIDR(l.balance_available_idr)}</div>
                 <div className="text-[10px] text-zinc-600">belum withdrawn</div>
               </div>
-              <div className="col-span-4 md:col-span-2 text-right" data-testid={`admin-label-last-withdraw-${l.id}`}>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500 md:hidden">Withdraw Terakhir</div>
+              <div className="col-span-6 text-right xl:col-auto" data-testid={`admin-label-last-withdraw-${l.id}`}>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500 xl:hidden">Penarikan Terakhir</div>
                 <div className={`text-sm font-semibold ${l.last_withdrawn_period ? "text-zinc-200" : "text-zinc-500"}`}>{fmtPeriod(l.last_withdrawn_period)}</div>
                 {l.last_withdrawn_period && <div className="text-[10px] font-mono text-zinc-600">{l.last_withdrawn_period}</div>}
               </div>
-              <div className="col-span-4 md:col-span-1 text-right space-y-1">
+              <div className="col-span-12 space-y-1 text-right xl:col-auto">
                 <Link to={`/admin/labels/${l.id}`} className="block text-sm font-semibold rm-gradient-text" data-testid={`admin-label-detail-${l.id}`}>Detail →</Link>
                 {unclaimed && (
                   <button

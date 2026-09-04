@@ -22,8 +22,8 @@ def test_admin_label_list_exposes_nonnegative_reconciled_available_balance():
     positive_id = f"phase49-positive-{suffix}"
     negative_id = f"phase49-negative-{suffix}"
     db.labels.insert_many([
-        {"id": positive_id, "label_name": f"Phase49 Positive {suffix}", "logo_storage_key": f"label-logo/{positive_id}/logo.png", "balance_available_idr": 59_557_995, "last_withdrawn_period": "2026-03", "created_at": "2026-09-01T00:00:00+00:00"},
-        {"id": negative_id, "label_name": f"Phase49 Negative {suffix}", "balance_available_idr": -500, "created_at": "2026-09-01T00:00:00+00:00"},
+        {"id": positive_id, "label_name": f"Phase49 Positive {suffix}", "logo_storage_key": f"label-logo/{positive_id}/logo.png", "kyc_status": "verified", "balance_available_idr": 59_557_995, "last_withdrawn_period": "2026-03", "created_at": "2026-09-01T00:00:00+00:00"},
+        {"id": negative_id, "label_name": f"Phase49 Negative {suffix}", "kyc_status": "rejected", "kyc_rejection_reason": "Dokumen buram", "balance_available_idr": -500, "created_at": "2026-09-01T00:00:00+00:00"},
     ])
     db.royalty_lines.insert_many([
         {"id": f"phase49-available-{suffix}", "label_id": positive_id, "period": "2026-04", "status": "available", "legacy_settled": False, "label_idr": 13_149_228},
@@ -49,8 +49,11 @@ def test_admin_label_list_exposes_nonnegative_reconciled_available_balance():
         assert by_id[positive_id]["stored_balance_available_idr"] == 13_149_228
         assert by_id[positive_id]["balance_available_idr"] == 13_149_228
         assert by_id[positive_id]["logo_url"] == f"/api/files/label-logo/{positive_id}/logo.png"
+        assert by_id[positive_id]["kyc_status"] == "verified"
         assert by_id[negative_id]["balance_available_idr"] == 0
         assert by_id[negative_id]["logo_url"] is None
+        assert by_id[negative_id]["kyc_status"] == "rejected"
+        assert by_id[negative_id]["kyc_rejection_reason"] == "Dokumen buram"
         detail = requests.get(f"{API}/admin/labels/{positive_id}", headers=headers, timeout=30)
         assert detail.status_code == 200, detail.text
         assert detail.json()["financial_summary"]["available_idr"] == by_id[positive_id]["balance_available_idr"]

@@ -40,6 +40,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Rekening awal diverifikasi admin; perubahan rekening berjalan melalui approval dua arah.
 - Admin Label Management menampilkan saldo available per label dalam Rupiah, tidak termasuk dana withdrawn/legacy-settled atau dana yang sedang direservasi untuk withdraw aktif.
 - Logo label ditampilkan pada kolom khusus di Label Management serta pada header Profil dan Dashboard label; akun tanpa logo memakai fallback inisial nama label.
+- Label Management menampilkan kolom Status KYC terpisah dengan badge Indonesia: Belum Lengkap, Menunggu Review, Terverifikasi, Perlu Diperbarui, atau Ditolak; alasan penolakan tersedia sebagai tooltip.
 - Saldo daftar label dibaca cepat dari snapshot materialized; worker background menghitung ulang snapshot secara bulk dari `royalty_lines` dengan aturan identik ke detail/withdrawable, sehingga request daftar tidak pernah menjalankan agregasi berat.
 - Daftar label default diurutkan berdasarkan saldo available terbesar, mendukung urutan label/email dua arah, serta menampilkan bulan laporan withdraw terakhir atau `Belum pernah WD`.
 
