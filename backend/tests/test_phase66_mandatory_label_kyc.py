@@ -95,6 +95,11 @@ def test_mandatory_kyc_private_document_and_review_flow():
         )
         assert logo.status_code == 200, logo.text
         assert logo.json()["logo_url"].startswith("/api/files/label-logo/")
+        profile_with_logo = requests.get(f"{API}/label/me", headers=headers, timeout=30)
+        dashboard_with_logo = requests.get(f"{API}/label/dashboard", headers=headers, timeout=30)
+        assert profile_with_logo.status_code == dashboard_with_logo.status_code == 200
+        assert profile_with_logo.json()["logo_url"] == logo.json()["logo_url"]
+        assert dashboard_with_logo.json()["label"]["logo_url"] == logo.json()["logo_url"]
 
         submitted = requests.post(
             f"{API}/label/kyc/ktp", headers=headers,

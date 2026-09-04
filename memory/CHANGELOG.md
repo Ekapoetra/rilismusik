@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 67: Global withdraw search & label identity
+- Menambahkan pencarian nama label server-side pada Admin Withdraw; saat pencarian aktif, daftar mengambil seluruh riwayat lintas bulan sementara filter status tetap berlaku.
+- Pencarian mendukung beberapa kata tanpa harus berurutan, sehingga nama seperti `Demo Label PPR` dapat ditemukan melalui `Demo PPR`.
+- Menambahkan kontrak `logo_url` string/null yang stabil pada daftar admin, profil label, dan dashboard label.
+- Menambahkan kolom Logo di samping Label pada Label Management serta logo besar pada header Profil dan Dashboard; logo kosong/rusak memakai fallback inisial.
+- Memperbaiki tampilan error object pada analytics Dashboard menjadi pesan Indonesia yang dapat dibaca.
+- Verifikasi akhir: 9/9 backend/regresi, Python compile, frontend production build, browser desktop/mobile, gambar R2 nyata, dan pencarian lintas 2024–2026 lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-03 — Phase 66: Mandatory label KYC
 - Mewajibkan KYC untuk seluruh label termasuk legacy; hanya Dashboard, Profil/KYC, Kontrak, dan Notifikasi yang tetap terbuka sebelum verifikasi.
 - Menambahkan checklist identitas lengkap, upload logo JPG/PNG maksimal 5 MB, dan KTP JPG/PNG maksimal 10 MB.

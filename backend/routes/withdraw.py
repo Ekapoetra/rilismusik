@@ -7,6 +7,7 @@ import csv
 import io
 import shutil
 import secrets
+import re
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -216,17 +217,34 @@ async def admin_list_withdraws(
     user: dict = Depends(require_admin), status: Optional[str] = None,
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
+    q: Optional[str] = Query(None, max_length=120),
 ):
     _require_finance_admin(user)
     filt: Dict[str, Any] = {}
-    if (year is None) != (month is None):
+    search = (q or "").strip()
+    if search:
+        terms = [term for term in search.split() if term]
+        label_filter = {
+            "$and": [
+                {"label_name": {"$regex": re.escape(term), "$options": "i"}}
+                for term in terms
+            ]
+        }
+        matched_labels = await db.labels.find(
+            label_filter,
+            {"_id": 0, "id": 1},
+        ).to_list(2000)
+        filt["label_id"] = {"$in": [label["id"] for label in matched_labels]}
+        if status:
+            filt["status"] = status
+    elif (year is None) != (month is None):
         raise HTTPException(status_code=400, detail="Tahun dan bulan harus dipilih bersama")
-    if year is not None and month is not None:
+    elif year is not None and month is not None:
         from .finance_reporting import withdrawal_period_filter
         filt = withdrawal_period_filter(status=status, year=year, month=month)
     elif status:
         filt["status"] = status
-    items = await db.withdraw_requests.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    items = await db.withdraw_requests.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000 if search else 500)
     # enrich with label_name
     label_ids = list({i["label_id"] for i in items})
     labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)

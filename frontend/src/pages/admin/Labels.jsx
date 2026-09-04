@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { UserPlus, Copy, FileSpreadsheet, X, RefreshCw, AlertCircle } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
+import { LabelLogo } from "@/components/shared/LabelLogo";
 
 const fmtIDR = (value) => new Intl.NumberFormat("id-ID", {
   style: "currency", currency: "IDR", maximumFractionDigits: 0,
@@ -102,7 +103,8 @@ export default function AdminLabels() {
 
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
-          <div className="col-span-3">Label</div>
+          <div className="col-span-1">Logo</div>
+          <div className="col-span-2">Label</div>
           <div className="col-span-2">Email</div>
           <div className="col-span-1">Tipe</div>
           <div className="col-span-1">Status</div>
@@ -114,8 +116,9 @@ export default function AdminLabels() {
           const unclaimed = !l.user_id || l.account_status === "legacy_unclaimed";
           return (
             <div key={l.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`admin-label-row-${l.id}`}>
-              <div className="col-span-12 md:col-span-3">
-                <div className="font-semibold flex items-center gap-2">
+              <div className="col-span-2 md:col-span-1"><LabelLogo src={l.logo_url} labelName={l.label_name} className="h-11 w-11" testId={`admin-label-logo-${l.id}`} /></div>
+              <div className="col-span-10 md:col-span-2 min-w-0">
+                <div className="font-semibold flex items-center gap-2" data-testid={`admin-label-name-${l.id}`}>
                   {l.label_name}
                   {unclaimed && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-bold uppercase tracking-wider">Unclaimed</span>

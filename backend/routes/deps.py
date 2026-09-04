@@ -118,7 +118,9 @@ LABEL_HIDDEN_FIELDS = (
 
 def redact_label_for_self(label: dict) -> dict:
     """Strip royalty percentage info from a label dict before sending to the label itself."""
-    return {k: v for k, v in (label or {}).items() if k not in LABEL_HIDDEN_FIELDS}
+    safe = {k: v for k, v in (label or {}).items() if k not in LABEL_HIDDEN_FIELDS}
+    safe["logo_url"] = f"/api/files/{safe['logo_storage_key']}" if safe.get("logo_storage_key") else None
+    return safe
 
 
 # ---------- Activity log ----------

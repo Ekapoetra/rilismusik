@@ -39,6 +39,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Saldo selalu diturunkan dari `royalty_lines` pending/available non-legacy, bukan lifetime rollup.
 - Rekening awal diverifikasi admin; perubahan rekening berjalan melalui approval dua arah.
 - Admin Label Management menampilkan saldo available per label dalam Rupiah, tidak termasuk dana withdrawn/legacy-settled atau dana yang sedang direservasi untuk withdraw aktif.
+- Logo label ditampilkan pada kolom khusus di Label Management serta pada header Profil dan Dashboard label; akun tanpa logo memakai fallback inisial nama label.
 - Saldo daftar label dibaca cepat dari snapshot materialized; worker background menghitung ulang snapshot secara bulk dari `royalty_lines` dengan aturan identik ke detail/withdrawable, sehingga request daftar tidak pernah menjalankan agregasi berat.
 - Daftar label default diurutkan berdasarkan saldo available terbesar, mendukung urutan label/email dua arah, serta menampilkan bulan laporan withdraw terakhir atau `Belum pernah WD`.
 
@@ -92,6 +93,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Admin Finance/Super Admin dapat mengedit hanya `period_to` pada riwayat withdrawal legacy paid, wajib melihat preview cutoff/saldo/baris sebelum commit background. Withdrawal web tidak dapat diedit dan tetap menjadi batas minimum agar dana yang sudah dibayar tidak terbuka kembali.
 - Penurunan cutoff legacy memulihkan status berdasarkan status induk import (`dana_received` → available, `published` → pending); kenaikan cutoff menandai rentang tambahan sebagai legacy settled. Saldo tersimpan, snapshot, cache, revision history, dan activity log diperbarui setelah commit.
 - Admin Withdraw menampilkan Dana Tertunda bulanan (`requested + approved` berdasarkan `request_date`) dan Dana Keluar bulanan (`paid` berdasarkan `paid_date`) secara prominen; pilihan bulan/tahun juga memfilter daftar withdrawal.
+- Pencarian nama label pada Admin Withdraw menelusuri seluruh riwayat lintas periode dan mengabaikan filter bulan untuk daftar selama pencarian aktif; filter status tetap berlaku.
 - Detail Label menyediakan audit/rekonsiliasi scoped reusable: cutoff efektif berasal dari label + histori withdrawal paid, baris setelah cutoff diproyeksikan per line memakai persentase aktif dan kurs line/import, parent import `dana_received` diarahkan ke available, lalu preview wajib sebelum commit background.
 - Scoped reconciliation tidak mengubah withdrawal web maupun baris sebelum/equal cutoff; data legacy tanpa EUR/kurs dipertahankan, sementara kurs line yang hilang dapat dibackfill dari import sebelum recalculation.
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
@@ -167,6 +169,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 64 scoped label balance reconciliation sudah diimplementasikan. Simulasi deterministik 24migo memverifikasi Rp3.311.210 → Rp5.117.660 pada cutoff 2026-05, 35%, Juni–Juli, tanpa mengubah paid web withdrawal.
 - Phase 65 complete label release submission dan admin workflow sudah diimplementasikan serta terverifikasi, termasuk UI read-only untuk role admin non-release.
 - Phase 66 mandatory label KYC sudah diimplementasikan: checklist profil, logo/KTP R2 privat, reviewer RBAC, approve/reject, backend gating, serta blur overlay untuk route label terlarang. Targeted backend 5/5, release regression 6/6, build frontend, dan browser label/admin lulus.
+- Phase 67 menambahkan pencarian withdraw berdasarkan nama label lintas seluruh periode serta logo/fallback label pada Label Management, Profil, dan Dashboard. Gate akhir 9/9 dan browser desktop/mobile lulus.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

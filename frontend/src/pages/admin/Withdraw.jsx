@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale, PenLine, Pencil } from "lucide-react";
+import { Banknote, CheckCircle, XCircle, UploadCloud, History, Scale, PenLine, Pencil, Search } from "lucide-react";
 import WithdrawImportPanel from "./WithdrawImportPanel";
 import BalanceAuditPanel from "./BalanceAuditPanel";
 import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
@@ -25,6 +25,8 @@ export default function AdminWithdraw() {
   const [auditOpen, setAuditOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [status, setStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [window, setWindow] = useState(null);
   const [open, setOpen] = useState(null); // selected wd for action
   const [action, setAction] = useState("");
@@ -41,13 +43,17 @@ export default function AdminWithdraw() {
     setLoading(true);
     try {
       const [listResponse, summaryResponse] = await Promise.all([
-        api.get("/withdraw/admin", { params: { status: status || undefined, ...reportPeriod } }),
+        api.get("/withdraw/admin", { params: { status: status || undefined, q: searchQuery || undefined, ...reportPeriod } }),
         api.get("/withdraw/admin/summary", { params: reportPeriod }),
       ]);
       setItems(listResponse.data); setSummary(summaryResponse.data);
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
     finally { setLoading(false); }
-  }, [status, reportPeriod]);
+  }, [status, searchQuery, reportPeriod]);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
   useEffect(() => { load(); api.get("/withdraw/window").then(r => setWindow(r.data)); }, [load]);
 
   const submitAction = async () => {
@@ -95,6 +101,11 @@ export default function AdminWithdraw() {
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-withdraw-message">{msg}</div>}
 
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
+        <div className="min-w-[240px] flex-1">
+          <label className="rm-label">Cari Nama Label</label>
+          <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input className="rm-input pl-10" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari seluruh riwayat label…" data-testid="admin-withdraw-label-search" /></div>
+          {query.trim() && <div className="mt-1.5 text-xs text-emerald-300" data-testid="admin-withdraw-search-scope">Mencari di seluruh periode; filter bulan tidak membatasi daftar.</div>}
+        </div>
         <div className="min-w-[200px]">
           <label className="rm-label">Status</label>
           <select className="rm-input" value={status} onChange={(e) => setStatus(e.target.value)} data-testid="admin-withdraw-status-filter">

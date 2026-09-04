@@ -111,6 +111,7 @@ async def admin_list_labels(
     for item in items:
         item["stored_balance_available_idr"] = max(int(item.get("balance_available_idr") or 0), 0)
         item["balance_available_idr"] = item["stored_balance_available_idr"]
+        item["logo_url"] = f"/api/files/{item['logo_storage_key']}" if item.get("logo_storage_key") else None
     return items
 
 

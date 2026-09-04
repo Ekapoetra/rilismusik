@@ -305,6 +305,24 @@ def test_withdraw_admin_list_filters_paid_by_paid_date_and_requires_year_month_p
         requested_ids = {row["id"] for row in requested_only.json()}
         assert requested_ids == {ids["requested_sep"]}
 
+        general_search = requests.get(
+            f"{API}/withdraw/admin",
+            params={"q": f"Iter53 {suffix}", "year": 2097, "month": 9},
+            headers=headers,
+            timeout=30,
+        )
+        assert general_search.status_code == 200, general_search.text
+        assert {row["id"] for row in general_search.json()} == set(ids.values())
+
+        general_paid_search = requests.get(
+            f"{API}/withdraw/admin",
+            params={"q": f"Iter53 {suffix}", "status": "paid", "year": 2097, "month": 9},
+            headers=headers,
+            timeout=30,
+        )
+        assert general_paid_search.status_code == 200, general_paid_search.text
+        assert {row["id"] for row in general_paid_search.json()} == {ids["paid_sep"], ids["paid_aug"]}
+
         invalid_pair = requests.get(
             f"{API}/withdraw/admin",
             params={"year": 2097},

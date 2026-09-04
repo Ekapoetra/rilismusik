@@ -4,6 +4,7 @@ import { useAuth } from "@/api/AuthContext";
 import { Building2 } from "lucide-react";
 import { BankAccountPanel } from "@/components/label/BankAccountPanel";
 import { KycPanel } from "@/components/label/KycPanel";
+import { LabelLogo } from "@/components/shared/LabelLogo";
 
 export default function LabelProfile() {
   const { refresh, user } = useAuth();
@@ -36,9 +37,12 @@ export default function LabelProfile() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Profil & Rekening</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Profil Label</h1>
+      <div className="flex items-center gap-4">
+        <LabelLogo src={profile.logo_url} labelName={profile.label_name} className="h-16 w-16 md:h-20 md:w-20" testId="label-profile-logo" />
+        <div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Profil & Rekening</div>
+          <h1 className="font-display text-3xl font-extrabold tracking-tighter" data-testid="label-profile-name">{profile.label_name || "Profil Label"}</h1>
+        </div>
       </div>
       {err && <div role="alert" className="rounded-lg bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="profile-error-alert">{err}</div>}
       {msg && <div className="rounded-lg bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="profile-success-alert">{msg}</div>}

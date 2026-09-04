@@ -6,6 +6,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play } from "lucide-react";
+import { LabelLogo } from "@/components/shared/LabelLogo";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -29,9 +30,12 @@ export default function LabelDashboardHome() {
     <div className="space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Dashboard</div>
-          <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Halo, {label.label_name}</h1>
+        <div className="flex items-center gap-4 min-w-0">
+          <LabelLogo src={label.logo_url} labelName={label.label_name} className="h-16 w-16 md:h-20 md:w-20" testId="label-dashboard-logo" />
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Dashboard</div>
+            <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter truncate" data-testid="label-dashboard-name">Halo, {label.label_name}</h1>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link to="/label/releases/upload" data-testid={LABEL_DASHBOARD.uploadReleaseButton} className="rm-btn-primary">+ Submit Rilisan</Link>
