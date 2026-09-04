@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, CheckCheck, Inbox } from "lucide-react";
+import { Bell, CheckCheck, History, Inbox } from "lucide-react";
 import { api } from "@/api/client";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -16,7 +16,7 @@ function timeAgo(iso) {
   return d.toLocaleDateString("id-ID");
 }
 
-export default function NotificationBell({ instance = "desktop" }) {
+export default function NotificationBell({ instance = "desktop", historyPath = null }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -34,7 +34,9 @@ export default function NotificationBell({ instance = "desktop" }) {
   useEffect(() => {
     load();
     const t = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(t);
+    const refresh = () => load();
+    window.addEventListener("rilismusik:notifications-updated", refresh);
+    return () => { clearInterval(t); window.removeEventListener("rilismusik:notifications-updated", refresh); };
   }, []);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function NotificationBell({ instance = "desktop" }) {
         await api.post(`/notifications/mark-read/${n.id}`);
         setUnread((u) => Math.max(0, u - 1));
         setItems((arr) => arr.map((x) => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
+        window.dispatchEvent(new CustomEvent("rilismusik:notifications-updated"));
       } catch (_) { /* silent */ }
     }
     setOpen(false);
@@ -62,6 +65,7 @@ export default function NotificationBell({ instance = "desktop" }) {
       await api.post("/notifications/mark-all-read");
       setUnread(0);
       setItems((arr) => arr.map((x) => x.read_at ? x : { ...x, read_at: new Date().toISOString() }));
+      window.dispatchEvent(new CustomEvent("rilismusik:notifications-updated"));
     } catch (_) { /* silent */ }
   };
 
@@ -70,15 +74,14 @@ export default function NotificationBell({ instance = "desktop" }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/5 transition"
+        className="relative grid h-10 w-10 place-items-center rounded-md border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
         data-testid={instance === "desktop" ? "notification-bell-button" : `notification-bell-button-${instance}`}
         aria-label="Notifikasi"
       >
         <Bell className="w-5 h-5" />
         {unread > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center text-[10px] font-bold rounded-full text-white"
-            style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }}
+            className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#FF1F8E] px-1 text-[10px] font-bold text-white"
             data-testid={instance === "desktop" ? "notification-bell-badge" : `notification-bell-badge-${instance}`}
           >
             {unread > 99 ? "99+" : unread}
@@ -88,7 +91,7 @@ export default function NotificationBell({ instance = "desktop" }) {
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-[360px] max-w-[92vw] z-50 rm-glass-strong rounded-2xl overflow-hidden shadow-2xl border border-white/5"
+          className="absolute right-0 top-full z-50 mt-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/10 bg-[#101010]/98 shadow-2xl backdrop-blur-xl"
           data-testid={instance === "desktop" ? "notification-dropdown" : `notification-dropdown-${instance}`}
         >
           <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
@@ -120,7 +123,7 @@ export default function NotificationBell({ instance = "desktop" }) {
               >
                 <div className="flex items-start gap-3">
                   {!n.read_at && (
-                    <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF1F8E, #A24EFF)" }} />
+                    <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#FF1F8E]" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`}>{n.title}</div>
@@ -131,6 +134,7 @@ export default function NotificationBell({ instance = "desktop" }) {
               </button>
             ))}
           </div>
+          {historyPath && <Link to={historyPath} onClick={() => setOpen(false)} className="flex items-center justify-center gap-2 border-t border-white/10 px-4 py-3 text-xs font-bold text-zinc-300 transition-colors hover:bg-white/5 hover:text-white" data-testid={`notification-history-link-${instance}`}><History className="h-3.5 w-3.5" /> Lihat Riwayat Notifikasi</Link>}
         </div>
       )}
     </div>

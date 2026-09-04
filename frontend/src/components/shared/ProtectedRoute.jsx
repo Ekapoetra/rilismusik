@@ -8,6 +8,7 @@ const ADMIN_FALLBACKS = [
   ["artists.view", "/admin/artists"], ["releases.view", "/admin/releases"],
   ["payments.view", "/admin/payments"], ["royalty.view", "/admin/royalty"],
   ["withdraw.view", "/admin/withdraw"], ["support.view", "/admin/tickets"],
+  ["notifications.view", "/admin/notifications"],
   ["ui.settings.view", "/admin/ui-settings"], ["access.roles.view", "/admin/access"],
 ];
 

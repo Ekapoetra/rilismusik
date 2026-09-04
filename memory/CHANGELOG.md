@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 71: Admin Notification Header & Log
+- Memindahkan lonceng notifikasi admin ke sticky header kanan atas pada desktop/mobile dan menghapusnya sepenuhnya dari sidebar serta drawer.
+- Menambahkan halaman `/admin/notifications` dengan pencarian, filter status baca/jenis/rentang tanggal, pagination, tandai satu/semua dibaca, dan tautan tujuan internal.
+- Menambahkan scope audit seluruh admin khusus Super Admin; admin biasa dengan `notifications.view` hanya dapat melihat serta mengubah notifikasi miliknya.
+- Menambahkan endpoint `GET /api/notifications/admin/log` dengan permission dinamis, proyeksi MongoDB tanpa `_id`, metadata penerima, pagination, dan seluruh filter log.
+- Memperbaiki overflow mobile 390px melalui grid `minmax(0,1fr)`, batas lebar kontrol, wrapping konten, dan pagination responsif.
+- Verifikasi akhir: targeted backend 6/6, frontend production build, desktop browser, mobile 390px (`scrollWidth=390`), posisi header/drawer, filter pencarian, scope, serta RBAC lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-04 — Phase 70: Status KYC pada Manajemen Label
 - Menambahkan kolom Status KYC terpisah di Admin Label Management.
 - Badge status memakai istilah Indonesia dan warna semantik untuk Belum Lengkap, Menunggu Review, Terverifikasi, Perlu Diperbarui, dan Ditolak.

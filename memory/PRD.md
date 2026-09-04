@@ -71,6 +71,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Role bawaan `Admin UI` mengelola label navigasi Indonesia/Inggris, visibilitas, urutan drag-and-drop, serta parent/subtab satu tingkat menuju route internal yang immutable.
 - Pengguna admin dapat diubah nama, role, status, dan password. Role nonaktif menolak request sesi aktif serta login baru; Super Admin efektif selalu full access dan role bawaan tidak dapat dihapus.
 - Sidebar admin desktop dapat diciutkan menjadi icon rail dengan preferensi persisten; mobile memakai drawer geser dengan backdrop.
+- Lonceng notifikasi admin berada hanya di sticky header kanan atas pada desktop/mobile dan tidak muncul di sidebar maupun drawer.
+- Halaman `/admin/notifications` menyediakan log in-app dengan pencarian, filter status baca/jenis/rentang tanggal, pagination, tandai baca, dan tautan tujuan internal.
+- Super Admin dapat mengaudit notifikasi seluruh admin dalam mode baca-saja untuk milik admin lain; admin berizin `notifications.view` hanya dapat melihat dan mengubah status baca notifikasinya sendiri.
 
 ### 3.6 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
@@ -189,6 +192,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 67 menambahkan pencarian withdraw berdasarkan nama label lintas seluruh periode serta logo/fallback label pada Label Management, Profil, dan Dashboard. Gate akhir 9/9 dan browser desktop/mobile lulus.
 - Phase 68 menambahkan multi-link sosial wajib untuk artis, selector artis reusable pada wizard, persistence artis baru saat submit, snapshot sosial admin, follow-up WhatsApp berbasis status, serta lokalisasi workflow. Gate akhir 10/10 dan testing agent 9/9 lulus.
 - Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer. Gate akhir 17/17; testing agent backend 7/7; overflow Royalty mobile diperbaiki dan terukur 390/390px.
+- Phase 71 memindahkan lonceng notifikasi admin ke sticky header kanan atas dan menambahkan log notifikasi terfilter dengan scope Super Admin/admin biasa. Targeted backend 6/6, frontend production build, desktop/mobile browser, RBAC, dan overflow check 390/390px lulus.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.
@@ -211,3 +215,4 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Finance/release reporting regressions: `backend/tests/test_iter53_finance_release_reporting.py`; final combined result 11/11, frontend production build, dan desktop/mobile month-switch verification.
 - Scoped 24migo reconciliation: `backend/tests/test_iter54_phase64_scoped_24migo.py`; final combined gate 14/14 dengan exact line-level rounding, commit, clean re-preview, global audit regressions, legacy withdrawal regressions, dan frontend production build.
 - Release submission/workflow: `backend/tests/test_phase65_release_submission_workflow.py`, `backend/tests/test_iter55_release_rbac_revision.py`, dan updated Phase43; final combined gate 16/16 dengan frontend production build serta desktop/mobile browser QA.
+- Admin notification log: `backend/tests/test_iter60_admin_notifications_log.py`; final targeted result 6/6 dengan report `/app/test_reports/iteration_60.json`, frontend production build, serta desktop/mobile browser QA.

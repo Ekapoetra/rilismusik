@@ -23,6 +23,7 @@ PERMISSION_MODULES = [
     {"key": "ui", "label_id": "Pengaturan UI", "label_en": "UI Settings", "actions": [("ui.settings.view", "Lihat pengaturan UI", "View UI settings"), ("ui.settings.manage", "Edit bahasa/navigasi", "Edit language/navigation")]},
     {"key": "migration", "label_id": "Migrasi", "label_en": "Migration", "actions": [("migration.view", "Lihat migrasi/klaim", "View migration/claims"), ("migration.manage", "Jalankan migrasi/klaim", "Run migration/claims")]},
     {"key": "activity", "label_id": "Log Aktivitas", "label_en": "Activity Logs", "actions": [("activity.view", "Lihat log aktivitas", "View activity logs")]},
+    {"key": "notifications", "label_id": "Notifikasi", "label_en": "Notifications", "actions": [("notifications.view", "Lihat riwayat notifikasi", "View notification history")]},
     {"key": "automation", "label_id": "Otomasi", "label_en": "Automation", "actions": [("automation.manage", "Jalankan tugas terjadwal", "Trigger scheduled jobs")]},
 ]
 
@@ -30,12 +31,12 @@ ALL_PERMISSIONS = [action[0] for module in PERMISSION_MODULES for action in modu
 
 BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
-    "admin_release": ["dashboard.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
-    "admin_finance": ["dashboard.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
-    "admin_support": ["dashboard.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage"],
-    "admin_content": ["dashboard.view", "cms.view", "cms.manage"],
-    "admin_marketing": ["dashboard.view"],
-    "admin_ui": ["dashboard.view", "ui.settings.view", "ui.settings.manage"],
+    "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
+    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
+    "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage"],
+    "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
+    "admin_marketing": ["dashboard.view", "notifications.view"],
+    "admin_ui": ["dashboard.view", "notifications.view", "ui.settings.view", "ui.settings.manage"],
 }
 
 BUILTIN_ROLE_NAMES = {
@@ -46,6 +47,7 @@ BUILTIN_ROLE_NAMES = {
 
 DEFAULT_NAV_ITEMS = [
     ("dashboard", "/admin/dashboard", "LayoutDashboard", "dashboard.view", "Dashboard", "Dashboard", None),
+    ("notifications", "/admin/notifications", "BellRing", "notifications.view", "Riwayat Notifikasi", "Notification History", None),
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
     ("label_rates", "/admin/labels/rate-import", "Percent", "royalty.import", "Tarif Label", "Label Rates", "labels"),
@@ -91,12 +93,24 @@ async def ensure_admin_access_defaults(db) -> None:
             upsert=True,
         )
         await db.admin_roles.update_one(
-            {"key": key, "rbac_schema_version": {"$ne": 1}},
+            {"key": key, "rbac_schema_version": {"$exists": False}},
             {"$set": {"permissions": permissions, "rbac_schema_version": 1}},
+        )
+        await db.admin_roles.update_one(
+            {"key": key, "rbac_schema_version": {"$lt": 3}},
+            {"$addToSet": {"permissions": "notifications.view"}, "$set": {"rbac_schema_version": 3}},
         )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
+    nav = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    existing_keys = {item.get("key") for item in nav.get("items", [])}
+    missing = [item for item in default_navigation()["items"] if item["key"] not in existing_keys]
+    if missing:
+        await db.admin_ui_settings.update_one(
+            {"key": "admin_navigation"},
+            {"$push": {"items": {"$each": missing}}, "$set": {"navigation_schema_version": 2}},
+        )
 
 
 def is_admin_identity(user: Dict[str, Any]) -> bool:
@@ -207,6 +221,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "migration.manage" if mutate else "migration.view"
     if "/admin/activity-logs" in path:
         return "activity.view"
+    if "/notifications/admin/log" in path:
+        return "notifications.view"
     if "/admin/cron" in path:
         return "automation.manage"
     if "/admin/dashboard" in path:

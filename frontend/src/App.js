@@ -48,6 +48,7 @@ import AdminMigrate from "@/pages/admin/Migrate";
 import AdminKycReviews from "@/pages/admin/KycReviews";
 import AdminAccessControl from "@/pages/admin/AccessControl";
 import AdminUiSettings from "@/pages/admin/UiSettings";
+import AdminNotifications from "@/pages/admin/Notifications";
 import { Toaster } from "@/components/ui/sonner";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
@@ -111,6 +112,7 @@ function AppRoutes() {
             <Route path="/admin/admin-users" element={guard("access.users.view", <AdminUsers />)} />
             <Route path="/admin/access" element={guard("access.roles.view", <AdminAccessControl />)} />
             <Route path="/admin/ui-settings" element={guard("ui.settings.view", <AdminUiSettings />)} />
+            <Route path="/admin/notifications" element={guard("notifications.view", <AdminNotifications />)} />
             <Route path="/admin/activity-logs" element={guard("activity.view", <AdminActivityLogs />)} />
             <Route path="/admin/royalty" element={guard("royalty.view", <AdminRoyaltyImport />)} />
             <Route path="/admin/royalty/:id" element={guard("royalty.view", <AdminRoyaltyDetail />)} />
