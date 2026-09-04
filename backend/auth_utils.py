@@ -138,7 +138,7 @@ def make_get_current_user(db):
 # Role guards
 LABEL_ROLE = "label"
 ARTIST_ROLE = "artist"
-ADMIN_ROLES = {"super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"}
+ADMIN_ROLES = {"super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"}
 SUPER_ADMIN = "super_admin"
 
 

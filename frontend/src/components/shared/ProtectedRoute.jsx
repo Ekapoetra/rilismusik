@@ -2,8 +2,19 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/api/AuthContext";
 
-export default function ProtectedRoute({ children, roles }) {
-  const { user, loading } = useAuth();
+const ADMIN_FALLBACKS = [
+  ["dashboard.view", "/admin/dashboard"], ["analytics.view", "/admin/analytics"],
+  ["labels.view", "/admin/labels"], ["kyc.view", "/admin/kyc"],
+  ["artists.view", "/admin/artists"], ["releases.view", "/admin/releases"],
+  ["payments.view", "/admin/payments"], ["royalty.view", "/admin/royalty"],
+  ["withdraw.view", "/admin/withdraw"], ["support.view", "/admin/tickets"],
+  ["ui.settings.view", "/admin/ui-settings"], ["access.roles.view", "/admin/access"],
+];
+
+const adminFallback = (user) => user?.role === "super_admin" ? "/admin/dashboard" : ADMIN_FALLBACKS.find(([permission]) => (user?.permissions || []).includes(permission))?.[1] || "/";
+
+export default function ProtectedRoute({ children, roles, permission }) {
+  const { user, loading, hasPermission, isAdmin } = useAuth();
   const loc = useLocation();
 
   if (loading || user === null) {
@@ -20,9 +31,12 @@ export default function ProtectedRoute({ children, roles }) {
     // Redirect to correct dashboard based on role
     if (user.role === "label") return <Navigate to="/label/dashboard" replace />;
     if (user.role === "artist") return <Navigate to="/artist/dashboard" replace />;
-    if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"].includes(user.role))
-      return <Navigate to="/admin/dashboard" replace />;
+    if (isAdmin)
+      return <Navigate to={adminFallback(user)} replace />;
     return <Navigate to="/" replace />;
+  }
+  if (permission && !hasPermission(permission)) {
+    return <Navigate to={isAdmin ? adminFallback(user) : "/"} replace />;
   }
   return children;
 }

@@ -1,0 +1,21 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { KeyRound, Plus } from "lucide-react";
+import { api, formatApiError } from "@/api/client";
+import { RoleEditor } from "@/components/admin/access/RoleEditor";
+import { toast } from "@/components/ui/sonner";
+import { useAuth } from "@/api/AuthContext";
+
+export default function AccessControl() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission("access.roles.manage");
+  const [roles, setRoles] = useState([]); const [modules, setModules] = useState([]);
+  const [selectedId, setSelectedId] = useState(null); const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const load = useCallback(async () => { try { const [roleRes, catalogRes] = await Promise.all([api.get("/admin/access/roles"), api.get("/admin/access/catalog")]); setRoles(roleRes.data || []); setModules(catalogRes.data.modules || []); setSelectedId((current) => current || roleRes.data?.[0]?.id || null); } catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); } }, []);
+  useEffect(() => { load(); }, [load]);
+  const selected = draft || roles.find((role) => role.id === selectedId) || null;
+  const createRole = () => { setDraft({ name: "Role Baru", description: "", permissions: ["dashboard.view"], active: true, builtin: false }); setSelectedId(null); };
+  const save = async (form) => { setSaving(true); setError(""); try { if (form.id) await api.patch(`/admin/access/roles/${form.id}`, { name: form.name, description: form.description, permissions: form.permissions, active: form.active }); else { const { data } = await api.post("/admin/access/roles", { name: form.name, description: form.description, permissions: form.permissions }); setSelectedId(data.id); } setDraft(null); await load(); toast.success("Role dan permission berhasil disimpan."); } catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); } finally { setSaving(false); } };
+  const remove = async (role) => { if (!window.confirm(`Hapus role “${role.name}”?`)) return; try { await api.delete(`/admin/access/roles/${role.id}`); setSelectedId(null); await load(); toast.success("Role dihapus."); } catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); } };
+  return <div className="space-y-7" data-testid="admin-access-page"><header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-6"><div><div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Keamanan & Akses</div><h1 className="mt-1 font-display text-4xl font-extrabold">Role & Permission</h1><p className="mt-2 text-sm text-zinc-400">Atur akses Tab → Subtab → Fungsi. Perubahan backend berlaku pada request berikutnya.</p></div>{canManage && <button type="button" className="rm-btn-primary inline-flex items-center gap-2" onClick={createRole} data-testid="admin-role-create-button"><Plus className="h-4 w-4" /> Buat Role Kustom</button>}</header>{error && <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200" data-testid="admin-access-error">{error}</div>}<div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)]"><aside className="border-y border-white/10 py-3" data-testid="admin-role-list"><div className="flex items-center gap-2 px-3 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500"><KeyRound className="h-4 w-4" /> Daftar Role</div>{roles.map((role) => <button type="button" key={role.id} onClick={() => { setDraft(null); setSelectedId(role.id); }} className={`mb-1 w-full rounded-md px-3 py-3 text-left transition-colors ${selectedId === role.id && !draft ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`} data-testid={`admin-role-list-item-${role.id}`}><div className="text-sm font-bold">{role.name}</div><div className={`mt-1 text-xs ${selectedId === role.id && !draft ? "text-black/60" : "text-zinc-600"}`}>{role.permissions?.length || 0} izin · {role.builtin ? "Bawaan" : "Kustom"}</div></button>)}</aside><RoleEditor role={selected} modules={modules} onSave={save} onDelete={remove} saving={saving} readOnly={!canManage} /></div></div>;
+}

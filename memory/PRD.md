@@ -63,7 +63,15 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Detail rilisan admin menampilkan tautan sosial seluruh artis dan tombol Hubungi Label via WhatsApp dengan template judul, status, serta catatan workflow Bahasa Indonesia tanpa pengiriman otomatis.
 - Label status dan tindakan workflow di UI memakai Bahasa Indonesia; enum backend tetap stabil agar data lama dan integrasi tidak rusak.
 
-### 3.5 Pay-Per-Release & Xendit
+### 3.5 Admin Access & UI Configuration
+- Dynamic RBAC menggantikan hard-coded role checks: Super Admin dapat membuat role bernama khusus serta mengubah nama, status, dan permission role bawaan/kustom.
+- Permission dikatalogkan per modul menjadi Tab → Subtab → Fungsi/Aksi. Backend tetap menjadi sumber kebenaran dan frontend menyembunyikan/menonaktifkan kontrol yang tidak diizinkan.
+- Perubahan permission role berlaku pada access token aktif di request berikutnya; perubahan assignment role user menaikkan `token_version` dan memutus sesi lama.
+- Role bawaan `Admin UI` mengelola label navigasi Indonesia/Inggris, visibilitas, urutan drag-and-drop, serta parent/subtab satu tingkat menuju route internal yang immutable.
+- Pengguna admin dapat diubah nama, role, status, dan password. Role nonaktif menolak request sesi aktif serta login baru; Super Admin efektif selalu full access dan role bawaan tidak dapat dihapus.
+- Sidebar admin desktop dapat diciutkan menjadi icon rail dengan preferensi persisten; mobile memakai drawer geser dengan backdrop.
+
+### 3.6 Pay-Per-Release & Xendit
 - Submit PPR tidak membuat invoice.
 - Admin approval membuat satu payment document gabungan: biaya dasar + seluruh add-on terpilih.
 - Payment creation idempoten dengan deterministic `reference_id`; parallel approval tetap satu invoice.
@@ -76,7 +84,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Admin Dashboard menampilkan jumlah pembayaran dibayar yang masih membutuhkan tindakan operasional dan mengarah ke daftar terfilter.
 - Admin Payments menampilkan pemasukan Xendit bulanan secara prominen berdasarkan seluruh invoice `paid.paid_at` dan nominal IDR, dengan pilihan bulan/tahun serta jejak 12 bulan.
 
-### 3.6 Royalty & Large Data
+### 3.7 Royalty & Large Data
 - Massive Believe CSV (80MB+) memakai direct upload R2 dan background workers.
 - R2 bucket CORS merge-safe mengizinkan origin production apex/`www` dan preview secara bersamaan untuk direct PUT upload.
 - Periode hanya berasal dari kolom `Bulan laporan`; baris tanpa periode valid ditolak.
@@ -104,12 +112,12 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Picker label pada flow manual memakai server-side search dan tidak memfilter label berdasarkan status withdraw.
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
 
-### 3.7 Support, Contracts & Documents
+### 3.8 Support, Contracts & Documents
 - Tiket Content ID claim memerlukan URL YouTube valid dan deklarasi originalitas.
 - CMS dapat mengunggah tanda tangan/stempel JPG/PNG/WEBP ke R2.
 - Release approved/delivered/live dapat menghasilkan Surat Pernyataan Hak Cipta PDF berisi penanggung jawab, artist, label, judul track, legal entity, signature, dan stamp.
 
-### 3.8 Scheduled Automation
+### 3.9 Scheduled Automation
 - Ringkasan royalti bulan sebelumnya dikirim pada tanggal 3, 02:00 UTC.
 - Pengiriman idempoten per `(label_id, period)`; SMTP failure tersimpan sebagai retryable `failed`, bukan `sent`.
 - Background `migrate_jobs` dan `royalty_imports` terminal menghasilkan notifikasi in-app satu kali per status.
@@ -138,6 +146,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 
 ## 5. Primary Data Models
 - `users`: id, email, password_hash, role, status, token_version.
+- `admin_roles`: stable id/key, editable name/description, built-in/custom flag, active state, permission keys, RBAC schema version.
+- `admin_ui_settings`: locale bawaan dan ordered navigation items berisi label ID/EN, immutable internal route, icon, visibility, dan parent/subtab.
 - `labels`: id, user_id, payment/subscription state, account status, balances, profile/logo, KYC status/review metadata.
 - `kyc_documents`: id, label_id, private storage key, checksum, content metadata, current/review status, reviewer, rejection reason.
 - `artists`: profile account/profile-only, label_id, optional user_id, status, dan multi `social_links`.
@@ -177,6 +187,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Phase 66 mandatory label KYC sudah diimplementasikan: checklist profil, logo/KTP R2 privat, reviewer RBAC, approve/reject, backend gating, serta blur overlay untuk route label terlarang. Targeted backend 5/5, release regression 6/6, build frontend, dan browser label/admin lulus.
 - Phase 67 menambahkan pencarian withdraw berdasarkan nama label lintas seluruh periode serta logo/fallback label pada Label Management, Profil, dan Dashboard. Gate akhir 9/9 dan browser desktop/mobile lulus.
 - Phase 68 menambahkan multi-link sosial wajib untuk artis, selector artis reusable pada wizard, persistence artis baru saat submit, snapshot sosial admin, follow-up WhatsApp berbasis status, serta lokalisasi workflow. Gate akhir 10/10 dan testing agent 9/9 lulus.
+- Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer. Gate akhir 17/17; testing agent backend 7/7; overflow Royalty mobile diperbaiki dan terukur 390/390px.
 - Full implementation history: `/app/memory/CHANGELOG.md`.
 - Remaining priorities/blockers: `/app/memory/ROADMAP.md`.
 - Test credentials: `/app/memory/test_credentials.md`.

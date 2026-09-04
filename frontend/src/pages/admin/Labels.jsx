@@ -14,7 +14,7 @@ const fmtPeriod = (period) => {
 };
 
 export default function AdminLabels() {
-  const { user } = useAuth();
+  const { hasPermission } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -67,7 +67,7 @@ export default function AdminLabels() {
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operations</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Label Management</h1>
         </div>
-        {["super_admin", "admin_finance"].includes(user?.role) && <Link to="/admin/labels/rate-import" className="rm-btn-primary flex items-center gap-2" data-testid="admin-label-rate-import-link"><FileSpreadsheet className="w-4 h-4" /> Impor Rate</Link>}
+        {hasPermission("royalty.import") && <Link to="/admin/labels/rate-import" className="rm-btn-primary flex items-center gap-2" data-testid="admin-label-rate-import-link"><FileSpreadsheet className="w-4 h-4" /> Impor Rate</Link>}
       </div>
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px]">

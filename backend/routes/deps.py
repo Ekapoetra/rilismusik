@@ -17,6 +17,10 @@ from auth_utils import (
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
 )
 from models import now_iso, new_id
+from .admin_permission_service import (
+    enrich_admin_user, is_admin_identity, permission_for_request,
+    assert_admin_permission, has_permission, legacy_role_for_permission,
+)
 
 
 logger = logging.getLogger("rilismusik")
@@ -47,7 +51,14 @@ client_bg = AsyncIOMotorClient(
 )
 db_bg = client_bg[os.environ["DB_NAME"]]
 
-get_current_user = make_get_current_user(db)
+_base_get_current_user = make_get_current_user(db)
+
+
+async def get_current_user(request: Request) -> dict:
+    user = await _base_get_current_user(request)
+    if is_admin_identity(user):
+        return await enrich_admin_user(db, user)
+    return user
 
 
 # ---------- Role-based dependencies ----------
@@ -80,9 +91,14 @@ async def require_artist(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
-async def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ADMIN_ROLES:
+async def require_admin(request: Request, user: dict = Depends(get_current_user)) -> dict:
+    if not is_admin_identity(user) or not user.get("admin_role_active", True):
         raise HTTPException(status_code=403, detail="Akses admin diperlukan")
+    permission = permission_for_request(request.url.path, request.method)
+    if permission:
+        assert_admin_permission(user, permission)
+        user["assigned_role"] = user.get("role")
+        user["role"] = legacy_role_for_permission(permission, user.get("role"))
     return user
 
 
@@ -174,9 +190,20 @@ async def notify_many(user_ids: List[str], ntype: str, title: str, body: str,
 
 
 async def admin_user_ids(allowed_roles: tuple = ADMIN_ROLES) -> List[str]:
+    role_permissions = {
+        "admin_release": ["releases.review", "wami.manage", "contracts.manage"],
+        "admin_finance": ["payments.manage", "royalty.manage", "withdraw.manage"],
+        "admin_support": ["support.manage", "kyc.review", "labels.accounts"],
+        "admin_content": ["cms.manage"], "admin_ui": ["ui.settings.manage"],
+    }
+    if "admin_custom" in allowed_roles or set(allowed_roles) == set(ADMIN_ROLES):
+        custom_role_ids = await db.admin_roles.distinct("id", {"builtin": False, "active": {"$ne": False}})
+    else:
+        required = [permission for role in allowed_roles for permission in role_permissions.get(role, [])]
+        custom_role_ids = await db.admin_roles.distinct("id", {"builtin": False, "active": {"$ne": False}, "permissions": {"$in": required}}) if required else []
     ids = []
     async for u in db.users.find(
-        {"role": {"$in": list(allowed_roles)}, "status": {"$ne": "suspended"}},
+        {"$or": [{"role": {"$in": list(allowed_roles)}}, {"admin_role_id": {"$in": custom_role_ids}}], "status": {"$nin": ["suspended", "disabled"]}},
         {"_id": 0, "id": 1},
     ):
         ids.append(u["id"])
@@ -191,7 +218,7 @@ async def label_user_ids(label_id: str) -> List[str]:
 __all__ = [
     "logger", "UPLOAD_DIR", "client", "db",
     "get_current_user", "require_label", "require_artist",
-    "require_admin", "require_super_admin",
+    "require_admin", "require_super_admin", "assert_admin_permission", "has_permission",
     "public_user", "get_label_by_user", "redact_label_for_self",
     "LABEL_HIDDEN_FIELDS",
     "log_activity",

@@ -12,7 +12,9 @@ const STABLE_REPLACEMENT_STATUSES = ["published", "dana_received"];
 export default function AdminRoyaltyDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission("royalty.manage");
+  const canDelete = hasPermission("royalty.delete");
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
@@ -173,25 +175,25 @@ export default function AdminRoyaltyDetail() {
               <Loader2 className="w-3 h-3 animate-spin" /> Memindahkan saldo… {imp.receive_progress_pct || imp.progress_pct || 0}%
             </span>
           )}
-          {(imp.status === "processing" || imp.status === "error") && (
+          {canManage && (imp.status === "processing" || imp.status === "error") && (
             <button className="rm-btn-ghost flex items-center gap-2" disabled={busy} onClick={retry} data-testid="admin-royalty-retry">
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           )}
-          {(imp.status === "pending_review" || imp.status === "publish_error") && (
+          {canManage && (imp.status === "pending_review" || imp.status === "publish_error") && (
             <button className="rm-btn-primary" disabled={busy} onClick={publish} data-testid="admin-royalty-publish">
               {imp.status === "publish_error" ? "Coba Publish Lagi" : "Publish (kredit ke pending)"}
             </button>
           )}
-          {(imp.status === "published" || imp.status === "receive_error") && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">{imp.status === "receive_error" ? "Coba Tandai Dana Lagi" : "Tandai Dana Diterima"}</button>}
+          {canManage && (imp.status === "published" || imp.status === "receive_error") && <button className="rm-btn-primary" disabled={busy} onClick={markDana} data-testid="admin-royalty-mark-dana">{imp.status === "receive_error" ? "Coba Tandai Dana Lagi" : "Tandai Dana Diterima"}</button>}
           {imp.status === "dana_received" && <span className="px-3 py-2 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300" data-testid="royalty-detail-status-received">✓ Dana sudah diterima</span>}
-          {STABLE_REPLACEMENT_STATUSES.includes(imp.status) && (user?.role === "super_admin" || user?.role === "admin_finance") && <button className="rm-btn-ghost flex items-center gap-2 text-amber-300" onClick={() => setReplacementOpen((value) => !value)} data-testid="admin-royalty-replacement-open"><Replace className="w-4 h-4" /> Ganti File Import</button>}
-          {!['awaiting_upload', 'processing', 'publishing', 'receiving', 'deleting'].includes(imp.status) && imp.period_repair_status !== "processing" && (
+          {STABLE_REPLACEMENT_STATUSES.includes(imp.status) && canManage && <button className="rm-btn-ghost flex items-center gap-2 text-amber-300" onClick={() => setReplacementOpen((value) => !value)} data-testid="admin-royalty-replacement-open"><Replace className="w-4 h-4" /> Ganti File Import</button>}
+          {canManage && !['awaiting_upload', 'processing', 'publishing', 'receiving', 'deleting'].includes(imp.status) && imp.period_repair_status !== "processing" && (
             <button className="rm-btn-ghost flex items-center gap-2 text-cyan-300" disabled={busy} onClick={repairPeriod} data-testid="admin-royalty-repair-period">
               <RefreshCw className="w-4 h-4" /> Perbaiki Bulan Laporan
             </button>
           )}
-          {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(imp.status) && (
+          {canDelete && ["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(imp.status) && (
             <button
               className="rm-btn-ghost text-rose-300 hover:bg-rose-500/10 flex items-center gap-2"
               disabled={busy}
@@ -205,7 +207,7 @@ export default function AdminRoyaltyDetail() {
         </div>
       </div>
 
-      {replacementOpen && <RoyaltyImportReplacementPanel oldImport={imp} canCommit={user?.role === "super_admin"} onClose={() => setReplacementOpen(false)} onCompleted={(replacementId) => nav(`/admin/royalty/${replacementId}`)} />}
+      {replacementOpen && <RoyaltyImportReplacementPanel oldImport={imp} canCommit={canManage} onClose={() => setReplacementOpen(false)} onCompleted={(replacementId) => nav(`/admin/royalty/${replacementId}`)} />}
 
       {imp.status === "processing" && (
         <div className="rm-card p-5 space-y-3" data-testid="royalty-detail-progress">

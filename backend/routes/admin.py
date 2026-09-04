@@ -13,6 +13,7 @@ from pymongo.collation import Collation
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
+    assert_admin_permission,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
@@ -287,30 +288,49 @@ async def admin_payment_income_summary(
 
 
 @admin_r.get("/admin-users")
-async def admin_list_admin_users(user: dict = Depends(require_super_admin)):
+async def admin_list_admin_users(user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.users.view")
     items = await db.users.find(
-        {"role": {"$in": list(ADMIN_ROLES)}, "status": {"$ne": "disabled"}},
+        {"$or": [{"role": {"$in": list(ADMIN_ROLES)}}, {"admin_role_id": {"$exists": True, "$ne": None}}], "status": {"$ne": "disabled"}},
         {"_id": 0, "password_hash": 0},
     ).sort("created_at", -1).to_list(500)
+    role_ids = list({item.get("admin_role_id") or item.get("role") for item in items})
+    roles = await db.admin_roles.find({"$or": [{"id": {"$in": role_ids}}, {"key": {"$in": role_ids}}]}, {"_id": 0}).to_list(500)
+    role_map = {key: role for role in roles for key in (role.get("id"), role.get("key")) if key}
+    for item in items:
+        role = role_map.get(item.get("admin_role_id") or item.get("role")) or {}
+        item["role_name"] = role.get("name") or item.get("role")
     return items
 
 
+async def _resolve_admin_role(role_ref: Optional[str], actor: dict) -> Dict[str, Any]:
+    ref = (role_ref or "admin_release").strip()
+    role = await db.admin_roles.find_one({"$or": [{"id": ref}, {"key": ref}], "active": {"$ne": False}}, {"_id": 0})
+    if not role:
+        raise HTTPException(status_code=400, detail="Role admin tidak valid atau sedang nonaktif")
+    if role.get("key") == SUPER_ADMIN and actor.get("role") != SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat menetapkan role Super Admin")
+    return {"role": role.get("key") if role.get("builtin") else "admin_custom", "admin_role_id": role["id"], "role_name": role.get("name")}
+
+
 @admin_r.post("/admin-users")
-async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(require_super_admin)):
+async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.users.manage")
     email = body.email.lower().strip()
+    assignment = await _resolve_admin_role(body.admin_role_id or body.role, user)
     existing = await db.users.find_one({"email": email}, {"_id": 0})
-    if existing and not (existing.get("role") in ADMIN_ROLES and existing.get("status") == "disabled"):
+    if existing and not ((existing.get("role") in ADMIN_ROLES or existing.get("admin_role_id")) and existing.get("status") == "disabled"):
         raise HTTPException(status_code=409, detail="Email sudah terdaftar")
     if existing:
         await db.users.update_one({"id": existing["id"]}, {
             "$set": {
                 "name": body.name, "email": email, "password_hash": hash_password(body.password),
-                "role": body.role, "status": "active", "updated_at": now_iso(),
+                **assignment, "status": "active", "updated_at": now_iso(),
             },
             "$inc": {"token_version": 1},
             "$unset": {"deleted_at": "", "deleted_by": ""},
         })
-        await log_activity(user["id"], "restore_admin_user", "admin_user", existing["id"], after={"email": email, "role": body.role})
+        await log_activity(user["id"], "restore_admin_user", "admin_user", existing["id"], after={"email": email, **assignment})
         return await db.users.find_one({"id": existing["id"]}, {"_id": 0, "password_hash": 0})
     user_id = new_id()
     doc = {
@@ -318,7 +338,7 @@ async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(
         "name": body.name,
         "email": email,
         "password_hash": hash_password(body.password),
-        "role": body.role,
+        **assignment,
         "email_verified_at": now_iso(),  # admins are auto-verified
         "status": "active",
         "token_version": 0,
@@ -332,19 +352,22 @@ async def admin_create_admin_user(body: AdminUserCreateIn, user: dict = Depends(
 
 
 @admin_r.patch("/admin-users/{user_id}")
-async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict = Depends(require_super_admin)):
+async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.users.manage")
     target = await db.users.find_one({"id": user_id})
-    if not target or target.get("role") not in ADMIN_ROLES:
+    if not target or not (target.get("role") in ADMIN_ROLES or target.get("admin_role_id")):
         raise HTTPException(status_code=404, detail="Admin user tidak ditemukan")
     upd = {}
     if user_id == user["id"] and body.get("status") == "suspended":
         raise HTTPException(status_code=400, detail="Anda tidak dapat menangguhkan akun sendiri")
-    if target.get("role") == SUPER_ADMIN and body.get("role") not in (None, SUPER_ADMIN):
+    requested_role = body.get("admin_role_id") or body.get("role")
+    role_assignment = await _resolve_admin_role(requested_role, user) if requested_role else None
+    if target.get("role") == SUPER_ADMIN and role_assignment and role_assignment.get("role") != SUPER_ADMIN:
         active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
         if active_supers <= 1:
             raise HTTPException(status_code=400, detail="Minimal satu Super Admin aktif harus dipertahankan")
-    if "role" in body and body["role"] in ADMIN_ROLES:
-        upd["role"] = body["role"]
+    if role_assignment:
+        upd.update(role_assignment)
     if "status" in body and body["status"] in ("active", "suspended"):
         upd["status"] = body["status"]
     if "name" in body:
@@ -354,18 +377,19 @@ async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict
     if upd:
         upd["updated_at"] = now_iso()
         update_doc: Dict[str, Any] = {"$set": upd}
-        if "password_hash" in upd or upd.get("status") == "suspended":
+        if "password_hash" in upd or upd.get("status") == "suspended" or role_assignment:
             update_doc["$inc"] = {"token_version": 1}
         await db.users.update_one({"id": user_id}, update_doc)
     return await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
 
 
 @admin_r.delete("/admin-users/{user_id}")
-async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_super_admin)):
+async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.users.manage")
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="Anda tidak dapat menghapus akun sendiri")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not target or target.get("role") not in ADMIN_ROLES or target.get("status") == "disabled":
+    if not target or not (target.get("role") in ADMIN_ROLES or target.get("admin_role_id")) or target.get("status") == "disabled":
         raise HTTPException(status_code=404, detail="Admin user tidak ditemukan")
     if target.get("role") == SUPER_ADMIN:
         active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
@@ -458,8 +482,7 @@ async def admin_blacklist_label(label_id: str, body: BlacklistIn, user: dict = D
 
 @admin_r.post("/labels/{label_id}/unblacklist")
 async def admin_unblacklist_label(label_id: str, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin",):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    assert_admin_permission(user, "labels.manage")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0, "id": 1})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")

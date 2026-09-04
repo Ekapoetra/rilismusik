@@ -1,110 +1,118 @@
 {
+  "theme": "dark premium",
   "typography": {
     "headings": {
-      "fontFamily": "'Outfit', sans-serif",
-      "weights": ["400", "500", "700"],
-      "usage": "Use Outfit for all primary headings (H1-H4). Apply tracking-tight for H1-H2 to maintain a premium feel. Avoid overly bold weights; prefer Medium (500) or Bold (700)."
+      "family": "'Plus Jakarta Sans', sans-serif",
+      "weights": ["600", "700", "800"],
+      "styles": "tracking-tight leading-none text-white",
+      "h1_max": "text-4xl sm:text-5xl lg:text-6xl"
     },
     "body": {
-      "fontFamily": "'Manrope', sans-serif",
+      "family": "'Manrope', sans-serif",
       "weights": ["400", "500", "600"],
-      "usage": "Use Manrope for body text, form inputs, labels, and badges. Ensure leading-relaxed for body copy and leading-none for badges/pills."
+      "styles": "text-sm md:text-base leading-relaxed text-[#D6D3E1]"
     },
-    "guidelines": "Do NOT use default fonts like Inter or Roboto. Apply tracking-[0.2em] and uppercase for small overlines/labels."
+    "labels": {
+      "styles": "text-xs tracking-[0.2em] uppercase font-bold text-[#8B8499]"
+    }
   },
   "colors": {
     "background": {
-      "base": "#050505",
-      "surface": "#111111",
-      "surface_hover": "#18181B",
-      "border": "rgba(255, 255, 255, 0.08)"
+      "base": "#08070D",
+      "surface_1": "#14111E",
+      "surface_2": "#1B1729"
+    },
+    "primary": {
+      "magenta": "#FF1F8E",
+      "magenta_hot": "#FF4FA8",
+      "purple": "#A24EFF",
+      "purple_deep": "#6E2EFF"
     },
     "text": {
       "primary": "#FFFFFF",
-      "secondary": "#A1A1AA",
-      "muted": "#71717A"
+      "secondary": "#D6D3E1",
+      "muted": "#8B8499",
+      "dim": "#5C5670"
     },
-    "brand": {
-      "primary": "#FFFFFF",
-      "whatsapp": "#25D366"
-    },
-    "status": {
-      "menunggu_review": { "bg": "rgba(250, 204, 21, 0.1)", "text": "#FACC15", "border": "rgba(250, 204, 21, 0.2)" },
-      "revisi": { "bg": "rgba(251, 146, 60, 0.1)", "text": "#FB923C", "border": "rgba(251, 146, 60, 0.2)" },
-      "disetujui": { "bg": "rgba(52, 211, 153, 0.1)", "text": "#34D399", "border": "rgba(52, 211, 153, 0.2)" },
-      "ditolak": { "bg": "rgba(248, 113, 113, 0.1)", "text": "#F87171", "border": "rgba(248, 113, 113, 0.2)" },
-      "dikirim": { "bg": "rgba(96, 165, 250, 0.1)", "text": "#60A5FA", "border": "rgba(96, 165, 250, 0.2)" },
-      "live": { "bg": "rgba(255, 255, 255, 0.1)", "text": "#FFFFFF", "border": "rgba(255, 255, 255, 0.3)" },
-      "takedown": { "bg": "rgba(113, 113, 122, 0.1)", "text": "#A1A1AA", "border": "rgba(113, 113, 122, 0.2)" }
-    },
-    "guidelines": "Use 'Archetype 5: LUXURY'. The UI must feel expensive, moody, and cinematic. Never use pure transparent backgrounds over content."
+    "borders": {
+      "subtle": "rgba(255,255,255,0.07)",
+      "strong": "rgba(255,255,255,0.12)"
+    }
   },
   "visual_enhancers": {
-    "glassmorphism": "Use backdrop-blur-xl and backdrop-saturate-150 with bg-black/60 for sticky headers or dropdowns. Must have a delicate 1px inner stroke (border-white/10).",
-    "shadows": "Minimal shadows. Rely on 1px borders (border-white/5) for separation. For popovers/modals, use a soft ambient shadow.",
-    "borders": "Rounded-xl for cards, rounded-full for pills and main buttons."
+    "glassmorphism": "Use .rm-glass for floating nav/headers (blur 24px, saturate 140%, bg white/4) and .rm-glass-strong for modals/dialogs. NEVER use complete transparent backgrounds under content.",
+    "neumorphism": "Not applicable for this dark premium theme. Rely on 1px crisp borders, surface contrast, and subtle glowing shadows.",
+    "grid_borders": "For the Permission Matrix: Use border-collapse with subtle right/bottom borders (border-white/10) to create a technical, dense layout.",
+    "gradients": "Avoid full-screen gradients. Use the existing .rm-mesh background for body. Use .rm-gradient-text exclusively for high-tier role names or empty state highlights."
   },
-  "components": [
-    {
-      "name": "Social Link Editor",
-      "path": "src/components/artist/SocialLinkEditor.jsx",
-      "instructions": "A dynamic list form to add multiple social links. Fields: Platform Select (Instagram, TikTok, Facebook, YouTube, X, Spotify, Website, Lainnya) and URL Input. Include 'Add Link' and 'Remove' buttons. At least 1 link is required for validation."
-    },
-    {
-      "name": "Artist Selector",
-      "path": "src/components/release/ArtistSelector.jsx",
-      "instructions": "A read-only selector on the release wizard. Shows selected artist name and non-editable social media chips/icons. Warns/blocks if selected legacy artist has no social links."
-    },
-    {
-      "name": "Status Badge",
-      "path": "src/components/ui/StatusBadge.jsx",
-      "instructions": "Displays workflow status in Indonesian. Uses the 'status' colors defined above. Should be a pill shape."
-    },
-    {
-      "name": "WhatsApp Follow-up Button",
-      "path": "src/components/release/WhatsAppButton.jsx",
-      "instructions": "Button visible on approved/submitted releases. Generates a wa.me link with a pre-filled template based on the current status (e.g., 'Halo Label, saya ingin follow up terkait rilisan [Nama Rilisan] dengan status [Status]'). Uses the WhatsApp green brand color minimally (e.g., green icon on dark button)."
-    }
-  ],
-  "grids_and_layouts": {
-    "general": "High Density Grid for the dashboard forms and release details. Minimalist and sleek.",
-    "forms": "Use grid-cols-1 md:grid-cols-2 for form layouts. Social links should span full width in a nested layout.",
-    "spacing": "Generous spacing. p-6 or p-8 inside cards. gap-6 between form sections."
+  "components": {
+    "sidebar": "Custom Collapsible Sidebar. Desktop: framer-motion width transition (280px to 80px rail). Mobile: Shadcn `Sheet` component (left side).",
+    "permission_matrix": "Shadcn `Table` or custom CSS Grid with `Accordion` for Tab -> Subtab -> Action hierarchy. Use Shadcn `Switch` or `Checkbox` for toggles.",
+    "drag_and_drop": "Use `@dnd-kit/core` and `@dnd-kit/sortable` for the navigation ordering UI.",
+    "buttons": "Use existing `.rm-btn-primary` and `.rm-btn-ghost` classes. Pill-shaped (rounded-full).",
+    "inputs": "Shadcn `Input` customized with `.rm-input`. Use Shadcn `Select` for role picking and language ID/EN toggle.",
+    "toasts": "Use `sonner` for all success/error feedback (e.g., 'Role Updated', 'Navigation Saved')."
+  },
+  "layouts": {
+    "general": "High-density grid for settings and matrices (gap-4 or gap-6). Use optical alignment. Containers must have padding (p-6 or p-8) if they have borders.",
+    "sidebar_layout": "CSS Grid or Flex layout holding the Sidebar and Main Content. Main content must adjust smoothly when sidebar collapses.",
+    "matrix_layout": "Sticky headers for the permission matrix columns so context isn't lost on scroll. Fixed width for feature names, fluid width for role checkboxes."
   },
   "motion": {
-    "hover": "Subtle background lighten (bg-white/5) and scale (scale-[1.02]) for interactive cards.",
-    "transitions": "Use specific transitions: transition-colors duration-200, transition-transform duration-200. Do NOT use transition-all.",
-    "list_items": "Stagger entrance animations for dynamic social link fields."
+    "sidebar_collapse": "Framer motion transition on width: `type: 'spring', stiffness: 300, damping: 30`.",
+    "drag_state": "When dragging a subtab, scale it up slightly (`scale: 1.02`), add a strong magenta shadow (`shadow-[0_0_15px_rgba(255,31,142,0.4)]`), and dim the rest of the list.",
+    "hover_states": "All interactive rows must have a subtle background shift (`hover:bg-white/5`) and explicitly defined text color (`hover:text-white`)."
   },
   "accessibility": {
-    "contrast": "Ensure all text against the #050505 background passes WCAG AA.",
-    "focus": "Use focus:ring-2 focus:ring-white/20 focus:outline-none for all inputs.",
-    "test_attributes": "All interactive elements MUST include data-testid. Examples: data-testid='add-social-link-btn', data-testid='wa-followup-btn'."
+    "testing_ids": "Every interactive and key informational element MUST have a `data-testid` (e.g., `data-testid=\"sidebar-toggle-btn\"`, `data-testid=\"role-matrix-switch\"`).",
+    "focus_states": "Focus states must use `#FF1F8E` ring (`focus:ring-2 focus:ring-[#FF1F8E]/50`).",
+    "reduced_motion": "Wrap Framer Motion configurations to respect `prefers-reduced-motion`."
   },
   "media": {
-    "icons": "Use lucide-react for all standard icons (Plus, Trash, Check, X, etc.). For social media icons, use react-icons (FaInstagram, FaTiktok, etc.). Provide install command: yarn add react-icons."
+    "images_constraints": "Use `max-h-[80vh]` on mobile for any modal images. Maintain aspect ratios."
+  },
+  "3d_libraries": {
+    "usage": "Not recommended for this data-heavy admin panel. Focus on 2D DOM performance for the heavy permission matrix and drag-and-drop interactions."
   },
   "image_urls": [
     {
-      "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwyfHxtdXNpYyUyMHByb2R1Y2VyJTIwc3R1ZGlvJTIwZGFya3xlbnwwfHx8fDE3ODg1MTQ1MDB8MA&ixlib=rb-4.1.0&q=85",
-      "category": "background",
-      "description": "Man in studio, can be used for empty state or auth background."
+      "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwyfHxtdXNpYyUyMHByb2R1Y2VyJTIwaW4lMjBkYXJrJTIwc3R1ZGlvfGVufDB8fHx8MTc4ODUxNjE1NXww&ixlib=rb-4.1.0&q=85",
+      "description": "Music producer in dark studio. Use for empty states, onboarding modals, or the UI settings header banner to reinforce the premium music brand.",
+      "category": "empty_states_and_banners"
     }
   ],
-  "instructions_to_main_agent": "Implement a Music Release Label Dashboard with a dark premium aesthetic. Build the 'Tambah Artis' and 'Submit Rilisan' flows. Ensure social media link forms are dynamic and validated (min 1 link). On release submission, snapshot the artist's social links. The UI MUST use Indonesian for all status badges and labels. Integrate the WhatsApp follow-up button on the release detail view using standard wa.me links with dynamic text templates based on status.",
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": "Do not center-align the app container. Never use AI emojis for icons. Create depth through layered design (z-index, borders). Add hover states to all interactives. Use sonner for toasts. Do not use generic 'transition: all'. Prioritize custom UI and Shadcn components. Avoid pure transparent backgrounds in overlays. Use data-testid for all interactives.",
-  "pages": [
-    {
-      "name": "Artist Management",
-      "description": "Page to view and add/edit artists. Contains the dynamic Social Link Editor."
+  "design_features_specifics": {
+    "sidebar_navigation": {
+      "desktop": "Collapsible to icon rail (80px). Only icons and tooltips remain visible. Expand to 280px for full text.",
+      "mobile": "Hidden by default. Accessed via Hamburger menu opening a left-anchored `Sheet` (drawer).",
+      "active_state": "Active tabs must have a left-border indicator (2px solid #FF1F8E) and a very subtle gradient background (`bg-gradient-to-r from-[#FF1F8E]/10 to-transparent`)."
     },
-    {
-      "name": "Release Wizard",
-      "description": "Multi-step form to submit a release. Includes the Artist Selector (read-only for saved artists, inline form for new artists requiring social links)."
+    "role_management": {
+      "creation": "Button `data-testid=\"create-role-btn\"` opens a Dialog to input custom role name.",
+      "matrix_ui": "A dense grid where rows are grouped by Tab -> Subtab -> Action. Use Phosphor Icons or Lucide (ChevronRight/Down) to expand/collapse groups. Use indeterminate states for parent checkboxes if only some children are selected."
     },
-    {
-      "name": "Release Details (Label View)",
-      "description": "View submitted release data, showing the snapshotted artist social links, Indonesian status badges, and the WhatsApp Follow-up button."
+    "ui_admin_role": {
+      "language_dictionary": "A two-column grid (Indonesian | English) for navigation labels. Inline editable inputs customized with .rm-input.",
+      "drag_and_drop_nav": "A list of existing internal routes. Users can drag items to reorder them, or drag them under a 'Subtab Group' node to nest them. Visually represent nesting with indentation (pl-8) and tree-lines (border-l). Use @dnd-kit/core."
     }
-  ]
+  },
+  "universal_guidelines_for_main_agent": [
+    "GENERAL UI UX DESIGN GUIDELINES:",
+    "You tend to converge toward generic outputs. Avoid this: make creative, distinctive frontends that fit the 'dark premium RILIS MUSIK' aesthetic. Use the existing CSS variables (.rm-mesh, .rm-glass, .rm-card, etc.).",
+    "NEVER apply universal transitions (e.g., `transition: all`). Target specific properties.",
+    "NEVER center align the app container. Use proper layout grids.",
+    "Use @phosphor-icons/react or lucide-react for sharp, technical dashboard icons.",
+    "Layered design: use z-index hierarchy and glassmorphism (.rm-glass) to create depth over the .rm-mesh background.",
+    "Every interaction needs micro-animations - hover states, transitions, and entrance staggered animations (.rm-stagger).",
+    "Missing categories/images must not be filled with text placeholders. Use provided image URLs or stylised empty state UI.",
+    "CRITICAL: Do not use complete transparent backgrounds for headers, overlays, or dropdowns. Always use solid surfaces or strong glass (.rm-glass-strong)."
+  ],
+  "instructions_to_main_agent": {
+    "files_extension": "Use .js or .jsx extensions for all React components. Do not use .tsx.",
+    "step_1": "Implement the Layout wrapper. Build the Sidebar component utilizing framer-motion for width collapse on desktop (280px to 80px), and Shadcn Sheet for mobile. Map existing CSS variables.",
+    "step_2": "Build the Role Management view. Create the Tabs for 'Permissions' and 'UI Settings'.",
+    "step_3": "Implement the Permission Matrix inside the Permissions tab. Build a recursive accordion-style table/grid for Tabs > Subtabs > Actions.",
+    "step_4": "Implement the UI Settings tab. Add a section for bilingual dictionary inputs (ID/EN) and a section for Navigation Ordering using @dnd-kit/core and @dnd-kit/sortable.",
+    "step_5": "Ensure all interactive elements have `data-testid` attributes. Apply .rm-glass and .rm-mesh aesthetics to panels and backgrounds."
+  }
 }

@@ -3,11 +3,16 @@ import { Link } from "react-router-dom";
 import { useRoyaltyImports } from "@/hooks/useRoyaltyImports";
 import { RoyaltyDuplicateAuditPanel } from "@/components/admin/RoyaltyDuplicateAuditPanel";
 import { Upload, FileSpreadsheet, CheckCircle2, Banknote, AlertTriangle, Trash2, Loader2, RefreshCw, XCircle, Zap, CopyCheck } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return new Intl.NumberFormat("en-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0); }
 
 export default function AdminRoyaltyImport() {
+  const { hasPermission } = useAuth();
+  const canImport = hasPermission("royalty.import");
+  const canManage = hasPermission("royalty.manage");
+  const canDelete = hasPermission("royalty.delete");
   const [showDuplicateAudit, setShowDuplicateAudit] = React.useState(false);
   const {
     user, imports, open, setOpen, resetOpen, setResetOpen, resetConfirm, setResetConfirm,
@@ -16,22 +21,22 @@ export default function AdminRoyaltyImport() {
   } = useRoyaltyImports();
 
   return (
-    <div className="space-y-5">
-      <div className="flex justify-between items-center flex-wrap gap-3">
-        <div>
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Finance</div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Royalty Import</h1>
+          <h1 className="break-words font-display text-3xl font-extrabold tracking-tighter">Impor Royalti</h1>
           <p className="text-sm text-zinc-400 mt-1">Upload CSV Believe (EUR). Periode wajib dibaca dari kolom Bulan laporan.</p>
         </div>
-        <div className="flex gap-2">
-          {(user?.role === "super_admin" || user?.role === "admin_finance") && (
-            <button className="rm-btn-ghost flex items-center gap-2 text-amber-300" onClick={() => setShowDuplicateAudit((value) => !value)} data-testid="admin-royalty-duplicate-audit-button">
+        <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
+          {canManage && (
+            <button className="rm-btn-ghost flex max-w-full items-center gap-2 whitespace-normal text-left text-amber-300" onClick={() => setShowDuplicateAudit((value) => !value)} data-testid="admin-royalty-duplicate-audit-button">
               <CopyCheck className="w-4 h-4" /> Audit File Ganda
             </button>
           )}
-          {(user?.role === "super_admin" || user?.role === "admin_finance") && (
+          {canManage && (
             <button
-              className="rm-btn-ghost flex items-center gap-2 text-sky-300"
+              className="rm-btn-ghost flex max-w-full items-center gap-2 whitespace-normal text-left text-sky-300"
               onClick={recalculateAll}
               disabled={recalcBusy}
               data-testid="admin-royalty-recalculate-all-button"
@@ -40,17 +45,17 @@ export default function AdminRoyaltyImport() {
               <RefreshCw className={`w-4 h-4 ${recalcBusy ? "animate-spin" : ""}`} /> {recalcBusy ? "Menghitung…" : "Hitung Ulang Tanpa Fee"}
             </button>
           )}
-          <button
-            className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200"
+          {canDelete && <button
+            className="rm-btn-ghost flex max-w-full items-center gap-2 whitespace-normal text-left text-red-300 hover:text-red-200"
             onClick={() => setResetOpen(true)}
             data-testid="admin-royalty-reset-button"
             title="Hapus semua data royalti (dummy) sebelum production"
           >
             <Trash2 className="w-4 h-4" /> Reset Data Demo
-          </button>
-          <button className="rm-btn-primary flex items-center gap-2" onClick={() => setOpen(true)} data-testid="admin-royalty-upload-button">
+          </button>}
+          {canImport && <button className="rm-btn-primary flex max-w-full items-center gap-2 whitespace-normal" onClick={() => setOpen(true)} data-testid="admin-royalty-upload-button">
             <Upload className="w-4 h-4" /> Upload CSV
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -74,10 +79,10 @@ export default function AdminRoyaltyImport() {
           <div className="col-span-2">Status</div>
         </div>
         {imports.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada import. Klik &quot;Upload CSV&quot; untuk mulai.</div> : imports.map((i) => (
-          <Link key={i.id} to={`/admin/royalty/${i.id}`} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02]" data-testid={`royalty-import-row-${i.id}`}>
+          <Link key={i.id} to={`/admin/royalty/${i.id}`} className="grid min-w-0 grid-cols-12 items-center gap-3 border-b border-white/5 px-4 py-4 last:border-0 hover:bg-white/[0.02] sm:px-5" data-testid={`royalty-import-row-${i.id}`}>
             <div className="col-span-12 md:col-span-2 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><FileSpreadsheet className="w-4 h-4" /></div>
-              <div>
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-300"><FileSpreadsheet className="w-4 h-4" /></div>
+              <div className="min-w-0">
                 <div className="font-display font-bold text-xs break-all">{i.filename || i.period}</div>
                 <div className="text-[10px] text-zinc-500">{i.is_multi_period ? `${i.period_start} → ${i.period_end}` : i.period}</div>
               </div>
@@ -102,7 +107,7 @@ export default function AdminRoyaltyImport() {
             </div>
             <div className="col-span-12 md:col-span-2 flex items-center gap-2 flex-wrap">
               <StatusBadge s={i.status} />
-              {(i.status === "processing" || i.status === "error") && (
+              {canManage && (i.status === "processing" || i.status === "error") && (
                 <button
                   onClick={(e) => retry(i.id, e)}
                   className="rm-btn-ghost flex items-center gap-1 text-[10px] px-2 py-1"
@@ -112,7 +117,7 @@ export default function AdminRoyaltyImport() {
                   <RefreshCw className="w-3 h-3" /> Retry
                 </button>
               )}
-              {(i.status === "processing" || i.status === "error") && (
+              {canManage && (i.status === "processing" || i.status === "error") && (
                 <button
                   onClick={(e) => forceFinalize(i.id, e)}
                   className="rm-btn-ghost text-amber-300 hover:bg-amber-500/10 flex items-center gap-1 text-[10px] px-2 py-1"
@@ -122,7 +127,7 @@ export default function AdminRoyaltyImport() {
                   <Zap className="w-3 h-3" /> Force Finalize
                 </button>
               )}
-              {["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(i.status) && (
+              {canDelete && ["awaiting_upload", "processing", "error", "publish_error", "pending_review"].includes(i.status) && (
                 <button
                   onClick={(e) => remove(i, e)}
                   className="rm-btn-ghost text-rose-300 hover:bg-rose-500/10 flex items-center gap-1 text-[10px] px-2 py-1"

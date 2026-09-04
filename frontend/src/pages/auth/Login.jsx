@@ -6,10 +6,10 @@ import { LogoFull } from "@/components/shared/Brand";
 import { Eye, EyeOff } from "lucide-react";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
-function roleHome(role) {
-  if (role === "label") return "/label/dashboard";
-  if (role === "artist") return "/artist/dashboard";
-  if (["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"].includes(role)) return "/admin/dashboard";
+function roleHome(user) {
+  if (user.role === "label") return "/label/dashboard";
+  if (user.role === "artist") return "/artist/dashboard";
+  if (user.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user.role)) return "/admin/dashboard";
   return "/";
 }
 
@@ -29,7 +29,7 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await login(email, password);
-      const next = loc.state?.from || roleHome(data.user.role);
+      const next = loc.state?.from || roleHome(data.user);
       navigate(next, { replace: true });
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail) || "Login gagal");

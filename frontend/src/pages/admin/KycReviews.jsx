@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Clock3, Search, ShieldCheck } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { KycReviewDetail } from "@/components/admin/KycReviewDetail";
+import { useAuth } from "@/api/AuthContext";
 
 const FILTERS = [{ value: "pending_review", label: "Menunggu" }, { value: "rejected", label: "Ditolak" }, { value: "verified", label: "Terverifikasi" }, { value: "", label: "Semua" }];
 
 export default function KycReviews() {
+  const { hasPermission } = useAuth();
   const [status, setStatus] = useState("pending_review");
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -43,7 +45,7 @@ export default function KycReviews() {
         {!loading && items.length === 0 && <div className="px-2 py-8 text-sm text-zinc-500" data-testid="admin-kyc-empty-queue">Tidak ada pengajuan pada status ini.</div>}
         <div className="rm-stagger space-y-2">{items.map((item) => <button key={item.id} type="button" onClick={() => setSelectedId(item.label_id)} className={`w-full rounded-lg border p-4 text-left transition-colors rm-fade-up ${selectedId === item.label_id ? "border-white/25 bg-white/[0.08]" : "border-transparent bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]"}`} data-testid={`admin-kyc-queue-item-${item.label_id}`}><div className="flex items-start justify-between gap-3"><div><div className="font-display font-bold text-white">{item.label_name}</div><div className="mt-1 text-xs text-zinc-500">{item.pic_name || item.email}</div></div>{item.status === "verified" ? <BadgeCheck className="h-4 w-4 text-emerald-300" /> : item.status === "pending_review" ? <Clock3 className="h-4 w-4 text-amber-300" /> : <ShieldCheck className="h-4 w-4 text-red-300" />}</div><div className="mt-3 text-[11px] uppercase tracking-widest text-zinc-600">{item.uploaded_at?.slice(0, 10)}</div></button>)}</div>
       </aside>
-      <KycReviewDetail detail={detail} onReviewed={reviewed} />
+      <KycReviewDetail detail={detail} onReviewed={reviewed} canReview={hasPermission("kyc.review")} />
     </div>
   </div>;
 }

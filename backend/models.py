@@ -242,10 +242,38 @@ class CMSUpdateIn(BaseModel):
 
 # ============ ADMIN ============
 class AdminUserCreateIn(BaseModel):
-    name: str
+    name: str = Field(min_length=2, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
-    role: Literal["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"]
+    role: Optional[str] = Field(default=None, max_length=80)
+    admin_role_id: Optional[str] = Field(default=None, max_length=100)
+
+
+class AdminRoleCreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    permissions: List[str] = Field(default_factory=list, max_length=100)
+
+
+class AdminRoleUpdateIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    permissions: Optional[List[str]] = Field(default=None, max_length=100)
+    active: Optional[bool] = None
+
+
+class AdminNavItemIn(BaseModel):
+    key: str = Field(min_length=1, max_length=80)
+    route: str = Field(min_length=1, max_length=200)
+    labels: Dict[Literal["id", "en"], str]
+    parent_key: Optional[str] = Field(default=None, max_length=80)
+    visible: bool = True
+    order: int = Field(default=0, ge=0, le=200)
+
+
+class AdminUiSettingsIn(BaseModel):
+    default_locale: Literal["id", "en"] = "id"
+    items: List[AdminNavItemIn] = Field(min_length=1, max_length=100)
 
 
 class LabelStatusUpdate(BaseModel):

@@ -19,7 +19,8 @@ const STATUS_PILL = {
 };
 
 export default function AdminWithdraw() {
-  const { user: me } = useAuth();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission("withdraw.manage");
   const [items, setItems] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
@@ -117,9 +118,9 @@ export default function AdminWithdraw() {
           </select>
         </div>
         {loading && <div className="text-xs text-zinc-400" role="status" data-testid="admin-withdraw-period-loading">Memuat periode…</div>}
-        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); setManualOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
-        {["super_admin", "admin_finance"].includes(me?.role) && <button className="rm-btn-ghost text-sm flex items-center gap-2" onClick={() => { setManualOpen((value) => !value); setAuditOpen(false); setImportOpen(false); }} data-testid="admin-manual-legacy-withdraw-toggle"><PenLine className="w-4 h-4" /> {manualOpen ? "Tutup Input Manual" : "Tambah Riwayat Manual"}</button>}
-        {me?.role === "super_admin" && (
+        {canManage && <button className="rm-btn-ghost text-sm flex items-center gap-2 ml-auto" onClick={() => { setAuditOpen((value) => !value); setImportOpen(false); setManualOpen(false); }} data-testid="admin-balance-audit-toggle"><Scale className="w-4 h-4" /> {auditOpen ? "Tutup Audit Saldo" : "Audit Saldo Label"}</button>}
+        {canManage && <button className="rm-btn-ghost text-sm flex items-center gap-2" onClick={() => { setManualOpen((value) => !value); setAuditOpen(false); setImportOpen(false); }} data-testid="admin-manual-legacy-withdraw-toggle"><PenLine className="w-4 h-4" /> {manualOpen ? "Tutup Input Manual" : "Tambah Riwayat Manual"}</button>}
+        {canManage && (
           <button
             className="rm-btn-ghost text-sm flex items-center gap-2"
             onClick={() => { setImportOpen((s) => !s); setAuditOpen(false); setManualOpen(false); }}
@@ -130,18 +131,18 @@ export default function AdminWithdraw() {
         )}
       </div>
 
-      {importOpen && me?.role === "super_admin" && (
+      {importOpen && canManage && (
         <div className="rm-card p-5">
           <h3 className="font-display font-bold text-lg tracking-tight mb-3">Import Riwayat Penarikan</h3>
           <WithdrawImportPanel />
         </div>
       )}
 
-      {auditOpen && ["super_admin", "admin_finance"].includes(me?.role) && (
+      {auditOpen && canManage && (
         <div className="rm-card p-5"><BalanceAuditPanel /></div>
       )}
 
-      {manualOpen && ["super_admin", "admin_finance"].includes(me?.role) && (
+      {manualOpen && canManage && (
         <div className="rm-card p-5"><h3 className="font-display font-bold text-lg tracking-tight mb-4">Tambah Riwayat Withdraw Legacy</h3><ManualLegacyWithdrawPanel onComplete={load} /></div>
       )}
 
@@ -167,16 +168,16 @@ export default function AdminWithdraw() {
             <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1" data-testid={`admin-withdraw-period-${w.id}`}>{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
             <div className="col-span-6 md:col-span-1"><span data-testid={`admin-withdraw-status-${w.id}`} className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
             <div className="col-span-12 md:col-span-1 text-right">
-              {w.status === "requested" && (
+              {canManage && w.status === "requested" && (
                 <div className="flex gap-1 justify-end">
                   <button title="Approve" className="text-emerald-300 hover:bg-emerald-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("approve"); }} data-testid={`admin-withdraw-approve-${w.id}`}><CheckCircle className="w-4 h-4" /></button>
                   <button title="Reject" className="text-red-600 hover:bg-red-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("reject"); }} data-testid={`admin-withdraw-reject-${w.id}`}><XCircle className="w-4 h-4" /></button>
                 </div>
               )}
-              {w.status === "approved" && (
+              {canManage && w.status === "approved" && (
                 <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
               )}
-              {w.legacy_editable && ["super_admin", "admin_finance"].includes(me?.role) && <button type="button" title="Edit bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
+              {w.legacy_editable && canManage && <button type="button" title="Edit bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
               {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
             </div>
           </div>

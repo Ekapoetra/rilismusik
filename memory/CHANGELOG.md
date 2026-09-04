@@ -1,5 +1,16 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-04 — Phase 69: Dynamic Admin RBAC & UI Navigation Builder
+- Mengganti RBAC admin hard-coded menjadi katalog permission backend granular untuk tab, subtab, dan aksi seperti view/manage/review/import/delete.
+- Menambahkan CRUD role kustom, rename/edit role bawaan, proteksi Super Admin, deaktivasi role, dan penerapan permission pada sesi aktif tanpa login ulang.
+- Menambahkan edit pengguna admin: nama, role custom/bawaan, status, password opsional, serta revokasi sesi otomatis saat assignment role berubah.
+- Menambahkan role bawaan Admin UI dengan pengaturan label Indonesia/Inggris, visibility, parent/subtab satu tingkat, route internal immutable, dan urutan drag-and-drop menggunakan `dnd-kit`.
+- Sidebar admin desktop kini dapat diciutkan ke icon rail dan menyimpan preferensi; mobile memakai drawer geser. Navigasi difilter backend berdasarkan permission efektif.
+- Menambahkan mode read-only pada Role, UI Settings, KYC, Rilisan, Pembayaran, Royalti, Withdraw, dan Label sesuai action permission.
+- Mempertahankan kompatibilitas role lama melalui migrasi RBAC versioned serta bridge legacy endpoint checks.
+- Memperbaiki overflow mobile Admin Royalty Import; viewport 390px kini memiliki document/body width 390px.
+- Verifikasi akhir: 17/17 targeted/regression, testing agent RBAC 7/7, production build, desktop/mobile browser, drag-and-drop, active-token permission refresh, dan role deactivation lulus. Tidak ada API **MOCKED**.
+
 ## 2026-09-04 — Phase 68: Artist social identity & WhatsApp follow-up
 - Menambahkan multi-link sosial wajib untuk tambah/edit artis: Instagram, TikTok, Facebook, YouTube, X/Twitter, Spotify, Situs Web, dan Lainnya.
 - Menambahkan validasi backend URL/domain platform, batas 10 tautan, deduplikasi, dan kewajiban tautan Spotify menuju profil artis.

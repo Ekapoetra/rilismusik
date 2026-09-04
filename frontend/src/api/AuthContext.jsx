@@ -58,8 +58,16 @@ export function AuthProvider({ children }) {
     setProfile(null);
   };
 
+  const hasPermission = useCallback((permission) => {
+    if (user?.role === "super_admin") return true;
+    const permissions = new Set(user?.permissions || []);
+    const impliedBy = { "access.users.view": "access.users.manage", "access.roles.view": "access.roles.manage", "ui.settings.view": "ui.settings.manage" };
+    return permissions.has(permission) || permissions.has(impliedBy[permission]);
+  }, [user]);
+  const isAdmin = Boolean(user?.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user?.role));
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, exchangeGoogleSession, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, exchangeGoogleSession, logout, hasPermission, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

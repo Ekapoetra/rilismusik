@@ -46,13 +46,16 @@ import AdminContracts from "@/pages/admin/Contracts";
 import AdminWami from "@/pages/admin/Wami";
 import AdminMigrate from "@/pages/admin/Migrate";
 import AdminKycReviews from "@/pages/admin/KycReviews";
+import AdminAccessControl from "@/pages/admin/AccessControl";
+import AdminUiSettings from "@/pages/admin/UiSettings";
 import { Toaster } from "@/components/ui/sonner";
 
 import ArtistDashboard from "@/pages/artist/Dashboard";
 
 const LABEL_ROLES = ["label"];
 const ARTIST_ROLES = ["artist"];
-const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing"];
+const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"];
+const guard = (permission, element) => <ProtectedRoute permission={permission}>{element}</ProtectedRoute>;
 
 function AppRoutes() {
   const location = useLocation();
@@ -89,39 +92,37 @@ function AppRoutes() {
 
           {/* Admin */}
           <Route element={<ProtectedRoute roles={ADMIN_ROLES}><AdminLayout /></ProtectedRoute>}>
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={guard("dashboard.view", <AdminDashboard />)} />
             <Route
               path="/admin/analytics"
               element={
-                <ProtectedRoute roles={["super_admin", "admin_finance"]}>
-                  <AdminAnalytics />
-                </ProtectedRoute>
+                guard("analytics.view", <AdminAnalytics />)
               }
             />
-            <Route path="/admin/labels" element={<AdminLabels />} />
-            <Route path="/admin/labels/rate-import" element={<ProtectedRoute roles={["super_admin", "admin_finance"]}><LabelRateImport /></ProtectedRoute>} />
-            <Route path="/admin/labels/:id" element={<AdminLabelDetail />} />
-            <Route path="/admin/kyc" element={<ProtectedRoute roles={["super_admin", "admin_support"]}><AdminKycReviews /></ProtectedRoute>} />
-            <Route path="/admin/artists" element={<AdminArtists />} />
-            <Route path="/admin/releases" element={<AdminReleases />} />
-            <Route path="/admin/releases/:id" element={<AdminReleaseDetail />} />
-            <Route path="/admin/payments" element={<AdminPayments />} />
-            <Route path="/admin/cms" element={<AdminCMS />} />
-            <Route path="/admin/admin-users" element={<AdminUsers />} />
-            <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
-            <Route path="/admin/royalty" element={<AdminRoyaltyImport />} />
-            <Route path="/admin/royalty/:id" element={<AdminRoyaltyDetail />} />
-            <Route path="/admin/withdraw" element={<ProtectedRoute roles={["super_admin", "admin_finance"]}><AdminWithdraw /></ProtectedRoute>} />
-            <Route path="/admin/tickets" element={<AdminTickets />} />
-            <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
-            <Route path="/admin/contracts" element={<AdminContracts />} />
-            <Route path="/admin/wami" element={<AdminWami />} />
+            <Route path="/admin/labels" element={guard("labels.view", <AdminLabels />)} />
+            <Route path="/admin/labels/rate-import" element={guard("royalty.import", <LabelRateImport />)} />
+            <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
+            <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
+            <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
+            <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />
+            <Route path="/admin/releases/:id" element={guard("releases.view", <AdminReleaseDetail />)} />
+            <Route path="/admin/payments" element={guard("payments.view", <AdminPayments />)} />
+            <Route path="/admin/cms" element={guard("cms.view", <AdminCMS />)} />
+            <Route path="/admin/admin-users" element={guard("access.users.view", <AdminUsers />)} />
+            <Route path="/admin/access" element={guard("access.roles.view", <AdminAccessControl />)} />
+            <Route path="/admin/ui-settings" element={guard("ui.settings.view", <AdminUiSettings />)} />
+            <Route path="/admin/activity-logs" element={guard("activity.view", <AdminActivityLogs />)} />
+            <Route path="/admin/royalty" element={guard("royalty.view", <AdminRoyaltyImport />)} />
+            <Route path="/admin/royalty/:id" element={guard("royalty.view", <AdminRoyaltyDetail />)} />
+            <Route path="/admin/withdraw" element={guard("withdraw.view", <AdminWithdraw />)} />
+            <Route path="/admin/tickets" element={guard("support.view", <AdminTickets />)} />
+            <Route path="/admin/tickets/:id" element={guard("support.view", <AdminTicketDetail />)} />
+            <Route path="/admin/contracts" element={guard("contracts.view", <AdminContracts />)} />
+            <Route path="/admin/wami" element={guard("wami.view", <AdminWami />)} />
             <Route
               path="/admin/migrate"
               element={
-                <ProtectedRoute roles={["super_admin"]}>
-                  <AdminMigrate />
-                </ProtectedRoute>
+                guard("migration.view", <AdminMigrate />)
               }
             />
           </Route>

@@ -59,5 +59,13 @@
 - Admin Finance dan role admin lain menerima 403 dari antrean/detail/file/action KYC.
 - Reject wajib alasan; re-upload membuat dokumen baru current dan approval membuka kembali endpoint inti.
 
+## Dynamic Admin RBAC checks
+- Login dan `/auth/me` admin mengembalikan `is_admin`, `admin_role_id`, `role_name`, dan permission efektif.
+- Role kustom dengan permission view dapat membaca endpoint terkait tetapi menerima 403 `PERMISSION_DENIED` untuk action/manage.
+- Perubahan permission role harus berlaku pada access token aktif di request berikutnya; perubahan assignment user menaikkan `token_version` sehingga sesi lama ditolak.
+- Role nonaktif menolak request sesi aktif dan login baru. Super Admin tetap efektif full-access dan role built-in tidak dapat dihapus.
+- `/api/admin/navigation` hanya mengembalikan item yang visible dan diizinkan. UI settings menolak external route, key duplikat, self-parent, dan nested subtab lebih dari satu tingkat.
+- Admin UI read-only tidak menampilkan editor/save controls; action permission backend tetap wajib meskipun request dikirim manual.
+
 ## Test credentials
 Read `/app/memory/test_credentials.md`; never place passwords in screenshots or reports.

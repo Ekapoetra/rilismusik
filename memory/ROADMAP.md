@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- Redeploy Phase 69, cek migrasi role bawaan, buat satu role kustom read-only, assign ke admin uji, lalu validasi navigation filtering, action denial, sidebar rail, dan Admin UI settings.
 - Redeploy Phase 68 lalu validasi satu artis lama tanpa sosial, satu artis tersimpan multi-link, satu artis baru dari submit, snapshot admin, dan template WhatsApp pada setiap transisi status.
 - Redeploy Phase 67 lalu cek pencarian nama label lintas periode di Admin Withdraw serta rendering logo/fallback pada Admin Label Management, Dashboard, dan Profil label.
 - Redeploy Phase 66 lalu verifikasi satu akun label legacy: isi profil/rekening/kontrak/logo, unggah KTP, review melalui Super Admin/Admin Support, dan pastikan fitur inti baru terbuka setelah approve.
@@ -56,6 +57,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer.
 - Phase 68 menambahkan identitas sosial wajib artis, reusable artist profile dari submission, snapshot sosial admin, WhatsApp follow-up status-aware, dan lokalisasi workflow rilisan.
 - Phase 67 menambahkan pencarian withdrawal lintas seluruh periode berdasarkan nama label serta identitas logo/fallback konsisten di tiga area utama.
 - Phase 66 menambahkan mandatory KYC seluruh label, checklist profil, logo/KTP R2 privat, reviewer queue, approve/reject, dashboard counter, backend feature gate, dan frontend blurred lockout.

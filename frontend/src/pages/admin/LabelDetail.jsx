@@ -11,7 +11,7 @@ const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mill
 
 export default function AdminLabelDetail() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { hasPermission } = useAuth();
   const [data, setData] = useState(null);
   const [royalty, setRoyalty] = useState("");
   const [reason, setReason] = useState("");
@@ -42,8 +42,8 @@ export default function AdminLabelDetail() {
   }, [id]);
 
   useEffect(() => { load().catch((error) => setErr(formatApiError(error.response?.data?.detail))); }, [load]);
-  const canFinance = user?.role === "super_admin" || user?.role === "admin_finance";
-  const canBlacklist = user?.role === "super_admin";
+  const canFinance = hasPermission("labels.bank") || hasPermission("royalty.manage");
+  const canBlacklist = hasPermission("labels.manage");
 
   const runAction = async (action, success) => {
     setErr(""); setMsg("");

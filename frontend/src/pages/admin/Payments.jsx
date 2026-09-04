@@ -10,7 +10,7 @@ import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components
 const fmtIDR = formatIDR;
 
 export default function AdminPayments() {
-  const { user } = useAuth();
+  const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState([]);
@@ -27,7 +27,7 @@ export default function AdminPayments() {
   const [incomeSummary, setIncomeSummary] = useState(null);
   const needsAction = searchParams.get("needs_action") === "true";
   const requestedPaymentId = searchParams.get("payment_id");
-  const canManage = user?.role === "super_admin" || user?.role === "admin_finance";
+  const canManage = hasPermission("payments.manage");
 
   const load = useCallback(async () => {
     try {

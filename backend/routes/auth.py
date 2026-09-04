@@ -49,6 +49,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .admin_permission_service import enrich_admin_user, is_admin_identity
 
 # =============================================================================
 #                                AUTH
@@ -324,6 +325,10 @@ async def login(body: LoginIn, response: Response, request: Request):
     refresh = create_refresh_token(user["id"], token_version, session_id)
     set_auth_cookies(response, access, refresh)
 
+    if is_admin_identity(user):
+        user = await enrich_admin_user(db, user)
+        if not user.get("admin_role_active", True):
+            raise HTTPException(status_code=403, detail="Role admin sedang dinonaktifkan")
     payload = {"user": public_user(user), "access_token": access, "refresh_token": refresh}
     if user["role"] == LABEL_ROLE:
         label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
