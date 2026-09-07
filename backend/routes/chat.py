@@ -335,7 +335,7 @@ async def admin_label_inbox(user: dict = Depends(get_current_user), status: str 
 async def admin_directory(user: dict = Depends(get_current_user)):
     _require_admin(user)
     admins = await db.users.find(
-        {"role": {"$in": ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_custom"]}, "id": {"$ne": user["id"]}, "status": {"$ne": "suspended"}},
+        {"role": {"$in": ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_custom"]}, "id": {"$ne": user["id"]}, "status": {"$nin": ["suspended", "disabled"]}, "deleted_at": {"$in": [None]}},
         {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1},
     ).to_list(1000)
     presence = await _presence_map([a["id"] for a in admins])

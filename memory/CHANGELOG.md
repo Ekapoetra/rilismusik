@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Fix: Daftar Chat Internal Tampilkan Akun Terhapus
+- `GET /api/chat/admin/admins` (`routes/chat.py`) sebelumnya hanya menyaring `status != "suspended"`, sehingga admin yang dihapus (soft-delete → `status: "disabled"`, `deleted_at`) tetap muncul di tab INTERNAL Pusat Chat.
+- Filter diperbarui menjadi `status $nin ["suspended","disabled"]` + `deleted_at $in [None]` agar hanya akun admin aktif yang tampil.
+- Verifikasi DB: menonaktifkan 1 akun → hilang dari daftar (25→24), dipulihkan → muncul lagi (24→25). Perubahan uji di-revert bersih.
+
+
 ## 2026-09-04 — Phase 72: Solid Notification Dropdown & Activity Actor Names
 - Mengubah dropdown lonceng menjadi latar `#101010` yang sepenuhnya solid dan menghapus backdrop blur/transparansi.
 - Endpoint Log Aktivitas kini mengambil nama asli/nama akun pelaku secara bulk dari koleksi `users`, tanpa query N+1.
