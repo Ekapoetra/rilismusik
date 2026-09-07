@@ -1,36 +1,54 @@
 """Realtime (polling-based) chat: label↔support inbox and admin↔admin internal DMs, with presence."""
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+
 from pydantic import BaseModel, Field
 
+import storage_service
 from models import now_iso, new_id
-from .deps import db, get_current_user, is_admin_identity, admin_user_ids
+from .deps import db, get_current_user, is_admin_identity, admin_user_ids, notify
 from .admin_permission_service import has_permission
 
 chat_r = APIRouter(prefix="/chat", tags=["chat"])
 ONLINE_WINDOW_SECONDS = 35
+TYPING_WINDOW_SECONDS = 6
+ATTACH_EXTS = {"jpg", "jpeg", "png", "webp", "gif", "pdf", "txt", "doc", "docx"}
+IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
+MAX_ATTACH_BYTES = 15 * 1024 * 1024
+
+
+class ChatAttachment(BaseModel):
+    url: str
+    filename: str
+    content_type: Optional[str] = None
+    kind: str = "file"
 
 
 class SendMessageIn(BaseModel):
-    body: str = Field(min_length=1, max_length=4000)
+    body: str = Field(default="", max_length=4000)
+    attachment: Optional[ChatAttachment] = None
 
 
 def _is_support(user: Dict[str, Any]) -> bool:
     return user.get("role") == "super_admin" or has_permission(user, "support.manage")
 
 
-def _online(last_seen: Any) -> bool:
-    if not last_seen:
+def _within(value: Any, seconds: int) -> bool:
+    if not value:
         return False
     try:
-        ts = datetime.fromisoformat(str(last_seen))
+        ts = datetime.fromisoformat(str(value))
     except (TypeError, ValueError):
         return False
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - ts).total_seconds() < ONLINE_WINDOW_SECONDS
+    return (datetime.now(timezone.utc) - ts).total_seconds() < seconds
+
+
+def _online(last_seen: Any) -> bool:
+    return _within(last_seen, ONLINE_WINDOW_SECONDS)
 
 
 async def _presence_map(user_ids: List[str]) -> Dict[str, bool]:
@@ -58,7 +76,7 @@ async def _ensure_support_conversation(label: Dict[str, Any]) -> Dict[str, Any]:
     conv = {
         "id": new_id(), "kind": "support", "label_id": label["id"],
         "label_user_id": label.get("user_id"), "label_name": label.get("label_name"),
-        "created_at": now_iso(), "updated_at": now_iso(),
+        "status": "active", "created_at": now_iso(), "updated_at": now_iso(),
         "last_message_at": None, "last_message_preview": None,
     }
     await db.chat_conversations.insert_one(dict(conv))
@@ -88,21 +106,49 @@ async def _mark_read(conversation_id: str, user_id: str) -> None:
         {"conversation_id": conversation_id, "sender_id": {"$ne": user_id}, "read_by": {"$ne": user_id}},
         {"$addToSet": {"read_by": user_id}},
     )
+    await db.notifications.update_many(
+        {"user_id": user_id, "type": "chat_message", "read_at": None, "meta.conversation_id": conversation_id},
+        {"$set": {"read_at": now_iso()}},
+    )
 
 
-async def _post_message(conv: Dict[str, Any], user: Dict[str, Any], body: str) -> Dict[str, Any]:
-    text = body.strip()
+async def _typing_names(conversation_id: str, exclude_user_id: str) -> List[str]:
+    docs = await db.chat_typing.find({"conversation_id": conversation_id, "user_id": {"$ne": exclude_user_id}}, {"_id": 0, "name": 1, "at": 1}).to_list(20)
+    return [d.get("name") or "Seseorang" for d in docs if _within(d.get("at"), TYPING_WINDOW_SECONDS)]
+
+
+async def _notify_recipients(conv: Dict[str, Any], sender: Dict[str, Any]) -> List[tuple]:
+    if conv["kind"] == "support":
+        if not is_admin_identity(sender):
+            ids = await _support_user_ids()
+            return [(uid, True) for uid in ids if uid != sender["id"]]
+        owner = conv.get("label_user_id")
+        return [(owner, False)] if owner and owner != sender["id"] else []
+    return [(pid, True) for pid in conv.get("participant_ids", []) if pid != sender["id"]]
+
+
+async def _post_message(conv: Dict[str, Any], user: Dict[str, Any], body: str, attachment: Optional[ChatAttachment] = None) -> Dict[str, Any]:
+    text = (body or "").strip()
+    if not text and not attachment:
+        raise HTTPException(status_code=400, detail="Pesan tidak boleh kosong")
     sender_name = user.get("name") or user.get("email") or "Pengguna"
     msg = {
         "id": new_id(), "conversation_id": conv["id"], "sender_id": user["id"],
         "sender_role": user.get("role"), "sender_name": sender_name,
-        "body": text, "created_at": now_iso(), "read_by": [user["id"]],
+        "body": text, "attachment": attachment.model_dump() if attachment else None,
+        "created_at": now_iso(), "read_by": [user["id"]],
     }
     await db.chat_messages.insert_one(dict(msg))
+    preview = text[:120] if text else (f"📎 {attachment.filename}" if attachment else "")
     await db.chat_conversations.update_one({"id": conv["id"]}, {"$set": {
         "updated_at": now_iso(), "last_message_at": now_iso(),
-        "last_message_preview": text[:120],
+        "last_message_preview": preview, "status": "active",
     }})
+    await db.chat_typing.delete_one({"conversation_id": conv["id"], "user_id": user["id"]})
+    recipients = await _notify_recipients(conv, user)
+    for rid, is_admin in recipients:
+        await db.notifications.delete_many({"user_id": rid, "type": "chat_message", "read_at": None, "meta.conversation_id": conv["id"]})
+        await notify(rid, "chat_message", f"💬 {sender_name}", preview or "Pesan baru", "/admin/dashboard" if is_admin else "/label/dashboard", {"conversation_id": conv["id"]})
     return msg
 
 
@@ -147,6 +193,30 @@ async def unread(user: dict = Depends(get_current_user)):
     return {"unread": await _unread_count(conv_ids, user["id"])}
 
 
+@chat_r.post("/upload")
+async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    ext = (file.filename or "").lower().rsplit(".", 1)[-1] if "." in (file.filename or "") else ""
+    if ext not in ATTACH_EXTS:
+        raise HTTPException(status_code=400, detail="Format tidak didukung (gambar, PDF, atau dokumen)")
+    data = await file.read()
+    if len(data) > MAX_ATTACH_BYTES:
+        raise HTTPException(status_code=400, detail="Ukuran file maksimal 15MB")
+    key = f"chat/{new_id()}.{ext}"
+    ct = file.content_type or storage_service.guess_content_type(file.filename or key)
+    await storage_service.upload_bytes(key=key, data=data, content_type=ct)
+    return {"url": f"/api/files/{key}", "filename": file.filename, "content_type": ct, "kind": "image" if ext in IMAGE_EXTS else "file"}
+
+
+@chat_r.post("/typing/{conversation_id}")
+async def set_typing(conversation_id: str, user: dict = Depends(get_current_user)):
+    await db.chat_typing.update_one(
+        {"conversation_id": conversation_id, "user_id": user["id"]},
+        {"$set": {"conversation_id": conversation_id, "user_id": user["id"], "name": user.get("name") or "Seseorang", "at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
 # ---------------- Label side ----------------
 @chat_r.get("/label/thread")
 async def label_thread(user: dict = Depends(get_current_user)):
@@ -157,7 +227,7 @@ async def label_thread(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Label belum tersedia")
     conv = await _ensure_support_conversation(label)
     await _mark_read(conv["id"], user["id"])
-    return {"conversation_id": conv["id"], "messages": await _messages(conv["id"]), "support_online": await _any_support_online()}
+    return {"conversation_id": conv["id"], "messages": await _messages(conv["id"]), "support_online": await _any_support_online(), "typing": await _typing_names(conv["id"], user["id"])}
 
 
 @chat_r.post("/label/thread")
@@ -168,7 +238,7 @@ async def label_send(body: SendMessageIn, user: dict = Depends(get_current_user)
     if not label:
         raise HTTPException(status_code=404, detail="Label belum tersedia")
     conv = await _ensure_support_conversation(label)
-    return await _post_message(conv, user, body.body)
+    return await _post_message(conv, user, body.body, body.attachment)
 
 
 # ---------------- Admin side ----------------
@@ -178,11 +248,16 @@ def _require_admin(user: dict) -> None:
 
 
 @chat_r.get("/admin/labels")
-async def admin_label_inbox(user: dict = Depends(get_current_user)):
+async def admin_label_inbox(user: dict = Depends(get_current_user), status: str = "active"):
     _require_admin(user)
     if not _is_support(user):
         raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
-    convs = await db.chat_conversations.find({"kind": "support"}, {"_id": 0}).sort("last_message_at", -1).to_list(2000)
+    query = {"kind": "support"}
+    if status == "resolved":
+        query["status"] = "resolved"
+    else:
+        query["status"] = {"$ne": "resolved"}
+    convs = await db.chat_conversations.find(query, {"_id": 0}).sort("last_message_at", -1).to_list(2000)
     presence = await _presence_map([c.get("label_user_id") for c in convs])
     items = []
     for conv in convs:
@@ -191,7 +266,7 @@ async def admin_label_inbox(user: dict = Depends(get_current_user)):
             "conversation_id": conv["id"], "label_id": conv.get("label_id"),
             "label_name": conv.get("label_name"), "online": presence.get(conv.get("label_user_id"), False),
             "last_message_at": conv.get("last_message_at"), "last_message_preview": conv.get("last_message_preview"),
-            "unread": unread,
+            "unread": unread, "status": conv.get("status", "active"),
         })
     return {"items": items, "is_super_admin": user.get("role") == "super_admin"}
 
@@ -254,11 +329,27 @@ async def admin_thread(conversation_id: str, user: dict = Depends(get_current_us
     if conv["kind"] == "support":
         presence = await _presence_map([conv.get("label_user_id")])
         online = presence.get(conv.get("label_user_id"), False)
-    return {"conversation_id": conv["id"], "kind": conv["kind"], "label_name": conv.get("label_name"), "online": online, "messages": await _messages(conv["id"])}
+    return {
+        "conversation_id": conv["id"], "kind": conv["kind"], "label_name": conv.get("label_name"),
+        "online": online, "status": conv.get("status", "active"),
+        "messages": await _messages(conv["id"]), "typing": await _typing_names(conv["id"], user["id"]),
+    }
 
 
 @chat_r.post("/admin/thread/{conversation_id}")
 async def admin_send(conversation_id: str, body: SendMessageIn, user: dict = Depends(get_current_user)):
     _require_admin(user)
     conv = await _authorize_conversation(conversation_id, user)
-    return await _post_message(conv, user, body.body)
+    return await _post_message(conv, user, body.body, body.attachment)
+
+
+@chat_r.post("/admin/thread/{conversation_id}/resolve")
+async def admin_resolve(conversation_id: str, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    conv = await _authorize_conversation(conversation_id, user)
+    if conv["kind"] != "support":
+        raise HTTPException(status_code=400, detail="Hanya percakapan support yang bisa diarsipkan")
+    await db.chat_conversations.update_one({"id": conv["id"]}, {"$set": {"status": "resolved", "resolved_at": now_iso(), "resolved_by": user["id"], "updated_at": now_iso()}})
+    await _post_message(conv, user, "✔️ Percakapan ditandai selesai oleh tim support.")
+    await db.chat_conversations.update_one({"id": conv["id"]}, {"$set": {"status": "resolved"}})
+    return {"ok": True, "status": "resolved"}

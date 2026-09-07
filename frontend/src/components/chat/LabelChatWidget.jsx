@@ -4,17 +4,19 @@ import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
-import { playChatSound } from "./chatUtils";
+import { playChatSound, uploadChatAttachment } from "./chatUtils";
 
 export default function LabelChatWidget() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [supportOnline, setSupportOnline] = useState(false);
+  const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const prevUnread = useRef(0);
   const openRef = useRef(false);
+  const convRef = useRef(null);
   useEffect(() => { openRef.current = open; }, [open]);
 
   const loadThread = useCallback(async () => {
@@ -22,6 +24,8 @@ export default function LabelChatWidget() {
       const { data } = await api.get("/chat/label/thread");
       setMessages(data.messages || []);
       setSupportOnline(!!data.support_online);
+      setTyping(data.typing || []);
+      convRef.current = data.conversation_id;
     } catch { /* label may not be ready */ }
   }, []);
 
@@ -49,11 +53,16 @@ export default function LabelChatWidget() {
     return () => clearInterval(t);
   }, [open, loadThread]);
 
-  const send = async (body) => {
+  const send = async (body, attachment) => {
     setBusy(true);
-    try { await api.post("/chat/label/thread", { body }); await loadThread(); }
+    try { await api.post("/chat/label/thread", { body, attachment }); await loadThread(); }
     catch { toast.error("Gagal mengirim pesan"); }
     finally { setBusy(false); }
+  };
+  const onType = () => { api.post("/chat/typing/" + (convRef.current || "x")).catch(() => {}); };
+  const onUpload = async (file) => {
+    try { return await uploadChatAttachment(file); }
+    catch (e) { toast.error(e.response?.data?.detail || "Gagal mengunggah berkas"); return null; }
   };
 
   return (
@@ -65,7 +74,7 @@ export default function LabelChatWidget() {
             <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white" data-testid="label-chat-close"><X className="h-4 w-4" /></button>
           </div>
           <div className="min-h-0 flex-1">
-            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online" : "Akan membalas segera"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} />
+            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online" : "Akan membalas segera"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} typing={typing} onType={onType} onUpload={onUpload} />
           </div>
         </div>
       )}

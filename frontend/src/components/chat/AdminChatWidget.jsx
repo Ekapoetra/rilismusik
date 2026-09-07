@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Users, LifeBuoy } from "lucide-react";
+import { MessageCircle, X, Users, LifeBuoy, CheckCircle2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
-import { playChatSound } from "./chatUtils";
+import { playChatSound, uploadChatAttachment } from "./chatUtils";
 
 export default function AdminChatWidget() {
   const { user, hasPermission } = useAuth();
@@ -12,20 +12,24 @@ export default function AdminChatWidget() {
   const isSuperAdmin = user?.role === "super_admin";
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(isSupport ? "label" : "internal");
+  const [inboxStatus, setInboxStatus] = useState("active");
   const [labelInbox, setLabelInbox] = useState([]);
   const [adminDir, setAdminDir] = useState([]);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const prevUnread = useRef(0);
   const openRef = useRef(false);
   const activeRef = useRef(null);
+  const inboxStatusRef = useRef("active");
   useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => { inboxStatusRef.current = inboxStatus; }, [inboxStatus]);
 
   const loadLists = useCallback(async () => {
-    if (isSupport) { try { const { data } = await api.get("/chat/admin/labels"); setLabelInbox(data.items || []); } catch { /* */ } }
+    if (isSupport) { try { const { data } = await api.get("/chat/admin/labels", { params: { status: inboxStatusRef.current } }); setLabelInbox(data.items || []); } catch { /* */ } }
     try { const { data } = await api.get("/chat/admin/admins"); setAdminDir(data.items || []); } catch { /* */ }
   }, [isSupport]);
 
@@ -35,7 +39,8 @@ export default function AdminChatWidget() {
     try {
       const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`);
       setMessages(data.messages || []);
-      setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, title: data.label_name || a.title } : a);
+      setTyping(data.typing || []);
+      setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, status: data.status, title: data.label_name || a.title } : a);
     } catch { /* */ }
   }, []);
 
@@ -60,7 +65,7 @@ export default function AdminChatWidget() {
     loadLists();
     const t = setInterval(loadLists, 4000);
     return () => clearInterval(t);
-  }, [open, loadLists]);
+  }, [open, loadLists, inboxStatus]);
 
   useEffect(() => {
     if (!open || !active) return;
@@ -69,16 +74,26 @@ export default function AdminChatWidget() {
     return () => clearInterval(t);
   }, [open, active, loadThread]);
 
-  const openLabel = (item) => setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online });
+  const openLabel = (item) => setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
   const openInternal = async (a) => {
-    try { const { data } = await api.post(`/chat/admin/internal/${a.user_id}`); setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online }); setMessages(data.messages || []); }
+    try { const { data } = await api.post(`/chat/admin/internal/${a.user_id}`); setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online }); setMessages(data.messages || []); setTyping([]); }
     catch { toast.error("Gagal membuka chat"); }
   };
-  const send = async (body) => {
+  const send = async (body, attachment) => {
     setBusy(true);
-    try { await api.post(`/chat/admin/thread/${active.conversation_id}`, { body }); await loadThread(); }
+    try { await api.post(`/chat/admin/thread/${active.conversation_id}`, { body, attachment }); await loadThread(); }
     catch (e) { toast.error(e.response?.data?.detail || "Gagal mengirim pesan"); }
     finally { setBusy(false); }
+  };
+  const onType = () => { if (active) api.post("/chat/typing/" + active.conversation_id).catch(() => {}); };
+  const onUpload = async (file) => {
+    try { return await uploadChatAttachment(file); }
+    catch (e) { toast.error(e.response?.data?.detail || "Gagal mengunggah berkas"); return null; }
+  };
+  const resolve = async () => {
+    if (!active) return;
+    try { await api.post(`/chat/admin/thread/${active.conversation_id}/resolve`); toast.success("Percakapan ditandai selesai & diarsipkan."); await loadThread(); await loadLists(); }
+    catch (e) { toast.error(e.response?.data?.detail || "Gagal menyelesaikan"); }
   };
 
   const supportReadOnly = active?.kind === "support" && isSuperAdmin && !hasPermission?.("support.manage");
@@ -94,10 +109,14 @@ export default function AdminChatWidget() {
           {active ? (
             <div className="min-h-0 flex-1">
               <ChatThread
-                title={active.title} subtitle={active.kind === "support" ? "Inbox Support Label" : "Chat internal admin"}
+                title={active.title} subtitle={active.kind === "support" ? (active.status === "resolved" ? "Arsip • Inbox Support" : "Inbox Support Label") : "Chat internal admin"}
                 online={active.online} messages={messages} myId={user?.id} onSend={send} busy={busy}
-                onBack={() => { setActive(null); setMessages([]); }}
+                typing={typing} onType={onType} onUpload={onUpload}
+                onBack={() => { setActive(null); setMessages([]); setTyping([]); }}
                 disabled={supportReadOnly} disabledText="Super Admin memantau. Balasan wajib oleh staff Support."
+                headerActions={active.kind === "support" && isSupport && active.status !== "resolved" ? (
+                  <button type="button" onClick={resolve} title="Tandai selesai & arsipkan" className="flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-400/20" data-testid="admin-chat-resolve"><CheckCircle2 className="h-3.5 w-3.5" /> Selesai</button>
+                ) : null}
               />
             </div>
           ) : (
@@ -107,8 +126,14 @@ export default function AdminChatWidget() {
                 <button onClick={() => setTab("internal")} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wide ${tab === "internal" ? "bg-white/[0.06] text-white" : "text-zinc-500"}`} data-testid="admin-chat-tab-internal"><Users className="mr-1 inline h-3.5 w-3.5" /> Internal</button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
+                {tab === "label" && isSupport && (
+                  <div className="flex gap-1 border-b border-white/5 px-3 py-2">
+                    <button onClick={() => setInboxStatus("active")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${inboxStatus === "active" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-active">Aktif</button>
+                    <button onClick={() => setInboxStatus("resolved")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${inboxStatus === "resolved" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-archived">Arsip</button>
+                  </div>
+                )}
                 {tab === "label" && isSupport && (labelInbox.length === 0
-                  ? <div className="p-6 text-center text-xs text-zinc-600">Belum ada percakapan label.</div>
+                  ? <div className="p-6 text-center text-xs text-zinc-600">{inboxStatus === "resolved" ? "Belum ada percakapan diarsipkan." : "Belum ada percakapan label."}</div>
                   : labelInbox.map((it) => (
                     <button key={it.conversation_id} onClick={() => openLabel(it)} className="flex w-full items-center gap-3 border-b border-white/5 px-4 py-3 text-left hover:bg-white/[0.04]" data-testid={`admin-chat-label-item-${it.label_id}`}>
                       <OnlineDot online={it.online} />

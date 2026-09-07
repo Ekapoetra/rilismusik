@@ -1,3 +1,5 @@
+import { api } from "@/api/client";
+
 let audioCtx = null;
 
 export function playChatSound() {
@@ -25,3 +27,10 @@ export const timeLabel = (iso) => {
   try { return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }); }
   catch { return ""; }
 };
+
+export async function uploadChatAttachment(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post("/chat/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+  return data;
+}
