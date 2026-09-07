@@ -6,7 +6,7 @@ const Field = ({ label, children, span = "" }) => <label className={span}><span 
 
 export const ReleaseInfoStep = ({ form, updateForm, labelName, responsibleName, onNext }) => {
   const change = (field) => (event) => updateForm({ [field]: event.target.value });
-  return <section className="space-y-7" data-testid="upload-release-info-step"><div><h2 className="font-display text-2xl font-bold">Informasi rilisan</h2><p className="mt-1 text-sm text-zinc-400">Data utama yang tampil di DSP dan dokumen distribusi.</p></div><div className="grid gap-5 md:grid-cols-2">
+  return <section className="space-y-7" data-testid="upload-release-info-step"><div><h2 className="font-display text-2xl font-bold">Informasi rilisan</h2><p className="mt-1 text-sm text-zinc-400">Data utama yang tampil di DSP dan dokumen distribusi. Semua kolom wajib diisi.</p></div><div className="grid gap-5 md:grid-cols-2">
     <Field label="Judul Rilisan"><input className="rm-input" value={form.release_title} onChange={change("release_title")} data-testid="upload-release-title-input" /></Field>
     <Field label="Tipe Rilisan"><select className="rm-input" value={form.release_type} onChange={change("release_type")} data-testid="upload-release-type-select"><option value="single">SINGLE</option><option value="ep">EP</option><option value="album">ALBUM</option></select></Field>
     <Field label="Genre"><input className="rm-input" value={form.genre} onChange={change("genre")} data-testid="upload-release-genre-input" /></Field>

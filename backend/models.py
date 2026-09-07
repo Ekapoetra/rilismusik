@@ -170,11 +170,12 @@ class ReleaseSubmitConfirmation(BaseModel):
 
 
 class AdminReleaseAction(BaseModel):
-    action: Literal["start_review", "send_payment", "approve", "need_revision", "reject", "deliver", "mark_live", "takedown"]
+    action: Literal["start_review", "send_payment", "approve", "need_revision", "reject", "deliver", "mark_live", "takedown", "override_status"]
     isrc: Optional[str] = None
     track_isrcs: Dict[str, str] = Field(default_factory=dict)
     upc: Optional[str] = None
     note: Optional[str] = None
+    target_status: Optional[str] = None
 
 
 # ============ ARTIST ============

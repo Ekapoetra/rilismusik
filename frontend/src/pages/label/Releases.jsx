@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "@/api/client";
+import { api, formatApiError } from "@/api/client";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
-import { Disc3, Search, Filter } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { Disc3, Search, Filter, Trash2 } from "lucide-react";
 
 const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected"];
 
@@ -10,12 +11,24 @@ export default function LabelReleases() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   const load = useCallback(async () => {
     const { data } = await api.get("/releases/", { params: { status: status || undefined, q: q || undefined } });
     setItems(data);
   }, [status, q]);
   useEffect(() => { load(); }, [load]);
+
+  const deleteRelease = async (release) => {
+    if (!window.confirm(`Hapus rilisan “${release.release_title}”? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDeletingId(release.id);
+    try {
+      await api.delete(`/releases/${release.id}`);
+      toast.success("Rilisan dihapus.");
+      await load();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
+    finally { setDeletingId(null); }
+  };
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -69,7 +82,7 @@ export default function LabelReleases() {
             <div className="col-span-6 md:col-span-2 text-sm capitalize">{r.release_type}</div>
             <div className="col-span-6 md:col-span-2 text-sm">{r.release_date}</div>
             <div className="col-span-6 md:col-span-2"><StatusBadge status={r.status} /></div>
-            <div className="col-span-6 md:col-span-1 text-right"><Link to={`/label/releases/${r.id}`} className="text-sm font-semibold rm-gradient-text" data-testid={`label-release-detail-${r.id}`}>Detail →</Link></div>
+            <div className="col-span-6 md:col-span-1 text-right flex items-center justify-end gap-3"><Link to={`/label/releases/${r.id}`} className="text-sm font-semibold rm-gradient-text" data-testid={`label-release-detail-${r.id}`}>Detail →</Link>{["draft", "rejected"].includes(r.status) && <button type="button" onClick={() => deleteRelease(r)} disabled={deletingId === r.id} className="text-red-300 hover:text-red-200 disabled:opacity-40" title="Hapus rilisan" data-testid={`label-release-delete-${r.id}`}><Trash2 className="w-4 h-4" /></button>}</div>
           </div>
         ))}
       </div>

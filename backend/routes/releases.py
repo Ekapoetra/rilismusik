@@ -525,6 +525,34 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
+@release_r.delete("/{release_id}")
+async def delete_release(release_id: str, user: dict = Depends(require_label)):
+    """Label deletes its own release. Allowed only for draft or rejected releases."""
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    label = await get_label_by_user(user)
+    if rel["label_id"] != label["id"]:
+        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
+    if rel.get("status") not in ("draft", "rejected"):
+        raise HTTPException(status_code=400, detail="Hanya rilisan berstatus draft atau ditolak yang dapat dihapus")
+    import storage_service
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "audio_url": 1}).to_list(500)
+    keys = [rel.get("cover_url")] + [t.get("audio_url") for t in tracks]
+    for url in keys:
+        key = (url or "").replace("/api/files/", "")
+        if key and url and url.startswith("/api/files/"):
+            try:
+                await storage_service.delete_object(key=key)
+            except Exception:
+                pass
+    await db.tracks.delete_many({"release_id": release_id})
+    await db.releases.delete_one({"id": release_id})
+    await log_activity(user["id"], "release_delete", "release", release_id, before={"status": rel.get("status"), "title": rel.get("release_title")})
+    return {"ok": True, "deleted": release_id}
+
+
+
 @release_r.post("/{release_id}/admin/action")
 async def admin_release_action(release_id: str, body: AdminReleaseAction, user: dict = Depends(require_admin)):
     rel = await db.releases.find_one({"id": release_id})
@@ -631,6 +659,16 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         for track_id, candidate in resolved_isrcs.items():
             await db.tracks.update_one({"id": track_id}, {"$set": {"isrc": candidate, "updated_at": now_iso()}})
         new_status = "live"
+    elif body.action == "override_status":
+        override_allowed = ("draft", "submitted", "under_review", "approved", "delivered", "live", "need_revision", "rejected", "taken_down")
+        target = (body.target_status or "").strip()
+        if target not in override_allowed:
+            raise HTTPException(status_code=400, detail="Status tujuan tidak valid untuk koreksi status")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan koreksi status wajib diisi")
+        if target == rel.get("status"):
+            raise HTTPException(status_code=400, detail="Status tujuan sama dengan status saat ini")
+        new_status = target
     else:
         require_status(rel, ("live",), "Turunkan rilisan")
         if not (body.note or "").strip():
@@ -638,6 +676,8 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         new_status = "taken_down"
     upd = {"status": new_status, "updated_at": now_iso()}
     if body.action in ("need_revision", "reject") and body.note:
+        upd["admin_note"] = body.note
+    if body.action == "override_status" and body.note:
         upd["admin_note"] = body.note
     if body.upc:
         upd["upc"] = body.upc
@@ -663,6 +703,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),
         "mark_live": ("Rilisan sudah tayang", f"'{rel.get('release_title')}' sudah tayang di platform."),
         "takedown": ("Rilisan diturunkan", f"'{rel.get('release_title')}' telah diturunkan dari platform."),
+        "override_status": ("Status rilisan diperbarui", f"Status '{rel.get('release_title')}' diperbarui admin. {body.note or ''}"),
     }
     if body.action in titles:
         t, msg = titles[body.action]
