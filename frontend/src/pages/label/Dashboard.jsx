@@ -5,7 +5,7 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight } from "lucide-react";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle } from "lucide-react";
 import { LabelLogo } from "@/components/shared/LabelLogo";
 
 function fmtIDR(n) {
@@ -15,19 +15,23 @@ function fmtIDR(n) {
 export default function LabelDashboardHome() {
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
-  const [kycVerified, setKycVerified] = useState(true);
+  const [kyc, setKyc] = useState(null);
   const analytics = useLabelAnalytics();
 
   useEffect(() => {
     api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
-    api.get("/label/kyc").then((r) => setKycVerified(!!r.data.is_verified)).catch(() => {});
+    api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
   }, []);
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { stats, label } = data;
   const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
-  const locked = !kycVerified;
+  const locked = kyc ? !kyc.is_verified : false;
+  const checks = kyc?.checks || [];
+  const stepsDone = checks.filter((c) => c.complete).length;
+  const stepsTotal = checks.length || 1;
+  const showOnboarding = (stats.active_releases || 0) === 0 && releases.length === 0;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -46,16 +50,47 @@ export default function LabelDashboardHome() {
         </div>
       </div>
 
+      {/* Mobile summary card */}
+      <div className="md:hidden rm-card p-5" data-testid="label-dashboard-mobile-summary">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">Total Belum Ditarik</div>
+          <div className={`grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${locked ? "from-zinc-500/15 to-zinc-500/5 text-zinc-500" : "from-emerald-500/15 to-emerald-500/5 text-emerald-300"}`}>{locked ? <Lock className="h-4 w-4" /> : <Wallet className="h-4 w-4" />}</div>
+        </div>
+        {locked ? (
+          <div className="mt-1 flex items-center gap-2"><span className="font-display text-3xl font-extrabold tracking-tight tabular-nums blur-[6px] select-none" data-testid="label-dashboard-mobile-summary-locked">{fmtIDR(totalUnwithdrawn || 1234567)}</span><Lock className="h-5 w-5 text-zinc-500" /></div>
+        ) : (
+          <div className="mt-1 font-display text-3xl font-extrabold tracking-tight tabular-nums break-words">{fmtIDR(totalUnwithdrawn)}</div>
+        )}
+      </div>
+
       {locked && (
-        <div className="flex flex-col gap-4 rounded-lg border border-amber-400/40 bg-amber-400/[0.08] p-5 sm:flex-row sm:items-center sm:justify-between" data-testid="label-dashboard-verify-warning">
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><ShieldCheck className="h-5 w-5" /></div>
-            <div>
-              <h2 className="font-display text-lg font-bold text-amber-100">Verifikasi Akun Diperlukan</h2>
-              <p className="mt-0.5 text-sm text-amber-200/80">Selesaikan Verifikasi Akun untuk membuka saldo dan melihat jumlah royalti Anda.</p>
+        <div className="rounded-lg border border-amber-400/40 bg-amber-400/[0.08] p-5" data-testid="label-dashboard-verify-warning">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><ShieldCheck className="h-5 w-5" /></div>
+              <div>
+                <h2 className="font-display text-lg font-bold text-amber-100">Verifikasi Akun Diperlukan</h2>
+                <p className="mt-0.5 text-sm text-amber-200/80">Selesaikan Verifikasi Akun untuk membuka saldo dan melihat jumlah royalti Anda.</p>
+              </div>
             </div>
+            <Link to="/label/profile" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="label-dashboard-verify-cta">Verifikasi Sekarang <ArrowRight className="h-4 w-4" /></Link>
           </div>
-          <Link to="/label/profile" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="label-dashboard-verify-cta">Verifikasi Sekarang <ArrowRight className="h-4 w-4" /></Link>
+          <div className="mt-4">
+            <div className="mb-1 flex items-center justify-between text-xs font-semibold text-amber-200/90"><span data-testid="label-dashboard-verify-progress-text">{stepsDone} dari {stepsTotal} langkah selesai</span><span>{Math.round((stepsDone / stepsTotal) * 100)}%</span></div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-amber-400/15"><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-[#FF1F8E] transition-all" style={{ width: `${Math.round((stepsDone / stepsTotal) * 100)}%` }} data-testid="label-dashboard-verify-progress-bar" /></div>
+          </div>
+        </div>
+      )}
+
+      {showOnboarding && (
+        <div className="rm-card p-5" data-testid="label-dashboard-onboarding">
+          <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-[#FF1F8E]" /><h2 className="font-display text-xl font-bold tracking-tight">Selamat datang di RILIS MUSIK!</h2></div>
+          <p className="mt-1 text-sm text-zinc-400">Ikuti langkah singkat berikut sampai rilisan pertama Anda tayang.</p>
+          <div className="mt-4 space-y-2">
+            <OnboardStep n={1} title="Lengkapi profil, logo & rekening" done={!!kyc?.prerequisites_complete} to="/label/profile" cta="Lengkapi" />
+            <OnboardStep n={2} title="Selesaikan Verifikasi Akun" done={!!kyc?.is_verified} to="/label/profile" cta="Verifikasi" locked={!kyc?.prerequisites_complete} />
+            <OnboardStep n={3} title="Submit rilisan pertama Anda" done={(stats.active_releases || 0) > 0} to="/label/releases/upload" cta="Submit" locked={!kyc?.is_verified} />
+          </div>
         </div>
       )}
 
@@ -139,14 +174,24 @@ function StatCard({ label, value, sub, icon: Icon, accent, mini, testId, locked 
         </div>
       </div>
       {locked ? (
-        <div className="mt-2 flex items-center gap-1.5 text-zinc-500" data-testid={testId ? `${testId}-locked` : undefined}>
-          <Lock className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-semibold">Terkunci</span>
+        <div className="mt-2 flex items-center gap-2" data-testid={testId ? `${testId}-locked` : undefined}>
+          <span className={`font-display font-extrabold tracking-tight leading-tight tabular-nums blur-[6px] select-none ${mini ? "text-2xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</span>
+          <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
         </div>
       ) : (
         <div className={`font-display font-extrabold tracking-tight leading-tight tabular-nums break-words mt-2 ${mini ? "text-2xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</div>
       )}
       {sub && !locked && <div className="text-xs text-zinc-500 mt-1 truncate">{sub}</div>}
+    </div>
+  );
+}
+
+function OnboardStep({ n, title, done, to, cta, locked }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3" data-testid={`label-onboard-step-${n}`}>
+      {done ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" /> : locked ? <Lock className="h-5 w-5 shrink-0 text-zinc-600" /> : <Circle className="h-5 w-5 shrink-0 text-[#FF1F8E]" />}
+      <span className={`flex-1 text-sm font-semibold ${done ? "text-zinc-400 line-through" : locked ? "text-zinc-500" : "text-white"}`}>{title}</span>
+      {!done && !locked && <Link to={to} className="rm-btn-ghost shrink-0 text-xs py-1.5" data-testid={`label-onboard-cta-${n}`}>{cta}</Link>}
     </div>
   );
 }
