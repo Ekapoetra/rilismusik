@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Users, LifeBuoy, CheckCircle2 } from "lucide-react";
+import { MessageCircle, X, Users, LifeBuoy, CheckCircle2, Settings } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
+import { ChatSettingsPanel } from "./ChatSettingsPanel";
 import { playChatSound, uploadChatAttachment } from "./chatUtils";
 
 export default function AdminChatWidget() {
@@ -16,6 +17,7 @@ export default function AdminChatWidget() {
   const [labelInbox, setLabelInbox] = useState([]);
   const [adminDir, setAdminDir] = useState([]);
   const [active, setActive] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -104,9 +106,14 @@ export default function AdminChatWidget() {
         <div className="fixed bottom-20 right-4 z-[60] flex h-[74vh] max-h-[600px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101010] shadow-2xl md:bottom-6 md:right-24" data-testid="admin-chat-panel">
           <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
             <div className="text-sm font-bold text-white">Pusat Chat</div>
-            <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white" data-testid="admin-chat-close"><X className="h-4 w-4" /></button>
+            <div className="flex items-center gap-1">
+              {isSupport && !active && !showSettings && <button onClick={() => setShowSettings(true)} title="Jam operasional & auto-reply" className="text-zinc-400 hover:text-white" data-testid="admin-chat-settings-open"><Settings className="h-4 w-4" /></button>}
+              <button onClick={() => { setOpen(false); setShowSettings(false); }} className="text-zinc-400 hover:text-white" data-testid="admin-chat-close"><X className="h-4 w-4" /></button>
+            </div>
           </div>
-          {active ? (
+          {showSettings ? (
+            <div className="min-h-0 flex-1"><ChatSettingsPanel onBack={() => setShowSettings(false)} /></div>
+          ) : active ? (
             <div className="min-h-0 flex-1">
               <ChatThread
                 title={active.title} subtitle={active.kind === "support" ? (active.status === "resolved" ? "Arsip • Inbox Support" : "Inbox Support Label") : "Chat internal admin"}

@@ -11,6 +11,7 @@ export default function LabelChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [supportOnline, setSupportOnline] = useState(false);
+  const [withinHours, setWithinHours] = useState(false);
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,7 @@ export default function LabelChatWidget() {
       const { data } = await api.get("/chat/label/thread");
       setMessages(data.messages || []);
       setSupportOnline(!!data.support_online);
+      setWithinHours(!!data.within_hours);
       setTyping(data.typing || []);
       convRef.current = data.conversation_id;
     } catch { /* label may not be ready */ }
@@ -74,7 +76,7 @@ export default function LabelChatWidget() {
             <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white" data-testid="label-chat-close"><X className="h-4 w-4" /></button>
           </div>
           <div className="min-h-0 flex-1">
-            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online" : "Akan membalas segera"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} typing={typing} onType={onType} onUpload={onUpload} />
+            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online sekarang" : withinHours ? "Dalam jam operasional" : "Di luar jam operasional — dibalas pada jam kerja"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} typing={typing} onType={onType} onUpload={onUpload} />
           </div>
         </div>
       )}

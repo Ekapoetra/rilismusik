@@ -5,8 +5,10 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle } from "lucide-react";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp } from "lucide-react";
 import { LabelLogo } from "@/components/shared/LabelLogo";
+import { motion, AnimatePresence } from "framer-motion";
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -23,6 +25,16 @@ export default function LabelDashboardHome() {
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
     api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
   }, []);
+
+  const [trend, setTrend] = useState(null);
+  const [celebrate, setCelebrate] = useState(false);
+  useEffect(() => {
+    if (!kyc?.is_verified) return;
+    api.get("/label/analytics", { params: { window: "6" } }).then((r) => setTrend(r.data.monthly || [])).catch(() => setTrend([]));
+    const key = `rm:verified_seen:${data?.label?.id || "x"}`;
+    if (!localStorage.getItem(key)) setCelebrate(true);
+  }, [kyc?.is_verified, data?.label?.id]);
+  const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { stats, label } = data;
@@ -49,6 +61,26 @@ export default function LabelDashboardHome() {
           <Link to="/label/withdraw" data-testid={LABEL_DASHBOARD.withdrawButton} className="rm-btn-ghost">Withdraw</Link>
         </div>
       </div>
+
+      <AnimatePresence>
+        {celebrate && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="relative overflow-hidden rounded-lg border border-emerald-400/40 bg-gradient-to-r from-emerald-500/[0.12] to-[#FF1F8E]/[0.1] p-5"
+            data-testid="label-dashboard-verified-celebrate"
+          >
+            <div className="flex items-start gap-3">
+              <motion.div animate={{ rotate: [0, -12, 12, -8, 0] }} transition={{ duration: 0.9, repeat: 2 }} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-400/20 text-emerald-300"><PartyPopper className="h-6 w-6" /></motion.div>
+              <div className="flex-1">
+                <h2 className="font-display text-lg font-extrabold tracking-tight text-emerald-100">Selamat! Akun Anda Terverifikasi 🎉</h2>
+                <p className="mt-0.5 text-sm text-emerald-200/80">Saldo dan jumlah royalti Anda kini terbuka penuh. Selamat berkarya bersama RILIS MUSIK!</p>
+              </div>
+              <button onClick={dismissCelebrate} className="text-emerald-200/70 hover:text-white" data-testid="label-dashboard-celebrate-close"><CheckCircle2 className="h-5 w-5" /></button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mobile summary card */}
       <div className="md:hidden rm-card p-5" data-testid="label-dashboard-mobile-summary">
@@ -111,6 +143,31 @@ export default function LabelDashboardHome() {
         <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={(analytics.data?.latest_report?.streams || 0).toLocaleString("id-ID")} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
         <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" locked={locked} />
       </div>
+
+      {!locked && trend && trend.length > 0 && (
+        <section className="rm-card p-5" data-testid="label-dashboard-trend">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500"><TrendingUp className="h-4 w-4" /> Tren Stream 6 Bulan Terakhir</div>
+          <div className="h-40 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="streamGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FF1F8E" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#FF1F8E" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="period" tickFormatter={(p) => (p || "").slice(5)} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "#101010", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+                  labelStyle={{ color: "#a1a1aa" }} formatter={(v) => [Number(v).toLocaleString("id-ID"), "Stream"]}
+                />
+                <Area type="monotone" dataKey="streams" stroke="#FF1F8E" strokeWidth={2} fill="url(#streamGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-500">Berdasarkan laporan royalti aktif (tidak termasuk riwayat legacy yang sudah cut-off).</p>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard testId={LABEL_DASHBOARD.totalReleases} label="Total Rilisan Aktif" value={stats.active_releases} icon={Disc3} mini />

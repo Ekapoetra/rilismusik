@@ -1,6 +1,7 @@
 """Realtime (polling-based) chat: label↔support inbox and admin↔admin internal DMs, with presence."""
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
@@ -61,6 +62,50 @@ async def _presence_map(user_ids: List[str]) -> Dict[str, bool]:
 
 async def _support_user_ids() -> List[str]:
     return await admin_user_ids(("super_admin", "admin_support"))
+
+
+async def _support_staff_ids() -> List[str]:
+    """Support staff only (excludes super_admin) — used for label-facing online status."""
+    return await admin_user_ids(("admin_support",))
+
+
+DEFAULT_CHAT_SETTINGS = {
+    "id": "chat_settings",
+    "timezone": "Asia/Jakarta",
+    "workdays": [0, 1, 2, 3, 4],
+    "sessions": [{"start": "08:00", "end": "12:00"}, {"start": "13:30", "end": "17:00"}],
+    "holidays": [],
+    "auto_reply_enabled": True,
+    "auto_reply_message": "Terima kasih telah menghubungi Support RILIS MUSIK. Saat ini di luar jam operasional kami (Sen–Jum 08.00–12.00 & 13.30–17.00 WIB). Pesan Anda sudah tercatat dan akan kami balas pada jam kerja berikutnya.",
+}
+
+
+async def _get_chat_settings() -> Dict[str, Any]:
+    doc = await db.app_settings.find_one({"id": "chat_settings"}, {"_id": 0})
+    return {**DEFAULT_CHAT_SETTINGS, **(doc or {})}
+
+
+def _operational_now(settings: Dict[str, Any]) -> bool:
+    try:
+        now = datetime.now(ZoneInfo(settings.get("timezone") or "Asia/Jakarta"))
+    except Exception:
+        now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    if now.weekday() not in (settings.get("workdays") or []):
+        return False
+    if now.strftime("%Y-%m-%d") in (settings.get("holidays") or []):
+        return False
+    cur = now.strftime("%H:%M")
+    for s in settings.get("sessions") or []:
+        if str(s.get("start", "")) <= cur < str(s.get("end", "")):
+            return True
+    return False
+
+
+async def _label_support_status() -> Dict[str, Any]:
+    settings = await _get_chat_settings()
+    within = _operational_now(settings)
+    presence = await _presence_map(await _support_staff_ids())
+    return {"support_online": bool(within and any(presence.values())), "within_hours": within}
 
 
 async def _any_support_online() -> bool:
@@ -227,7 +272,8 @@ async def label_thread(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Label belum tersedia")
     conv = await _ensure_support_conversation(label)
     await _mark_read(conv["id"], user["id"])
-    return {"conversation_id": conv["id"], "messages": await _messages(conv["id"]), "support_online": await _any_support_online(), "typing": await _typing_names(conv["id"], user["id"])}
+    status = await _label_support_status()
+    return {"conversation_id": conv["id"], "messages": await _messages(conv["id"]), "support_online": status["support_online"], "within_hours": status["within_hours"], "typing": await _typing_names(conv["id"], user["id"])}
 
 
 @chat_r.post("/label/thread")
@@ -238,7 +284,21 @@ async def label_send(body: SendMessageIn, user: dict = Depends(get_current_user)
     if not label:
         raise HTTPException(status_code=404, detail="Label belum tersedia")
     conv = await _ensure_support_conversation(label)
-    return await _post_message(conv, user, body.body, body.attachment)
+    msg = await _post_message(conv, user, body.body, body.attachment)
+    settings = await _get_chat_settings()
+    if settings.get("auto_reply_enabled") and not _operational_now(settings):
+        threshold = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+        recent_auto = await db.chat_messages.find_one({"conversation_id": conv["id"], "is_auto_reply": True, "created_at": {"$gte": threshold}}, {"_id": 0, "id": 1})
+        if not recent_auto:
+            auto = {
+                "id": new_id(), "conversation_id": conv["id"], "sender_id": "system",
+                "sender_role": "support_bot", "sender_name": "Support (Auto)",
+                "body": settings.get("auto_reply_message") or "", "attachment": None,
+                "created_at": now_iso(), "read_by": [], "is_auto_reply": True,
+            }
+            await db.chat_messages.insert_one(dict(auto))
+            await db.chat_conversations.update_one({"id": conv["id"]}, {"$set": {"last_message_at": now_iso(), "last_message_preview": (settings.get("auto_reply_message") or "")[:120]}})
+    return msg
 
 
 # ---------------- Admin side ----------------
@@ -353,3 +413,30 @@ async def admin_resolve(conversation_id: str, user: dict = Depends(get_current_u
     await _post_message(conv, user, "✔️ Percakapan ditandai selesai oleh tim support.")
     await db.chat_conversations.update_one({"id": conv["id"]}, {"$set": {"status": "resolved"}})
     return {"ok": True, "status": "resolved"}
+
+
+class ChatSettingsIn(BaseModel):
+    timezone: str = "Asia/Jakarta"
+    workdays: List[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
+    sessions: List[Dict[str, str]] = Field(default_factory=list)
+    holidays: List[str] = Field(default_factory=list)
+    auto_reply_enabled: bool = True
+    auto_reply_message: str = ""
+
+
+@chat_r.get("/admin/settings")
+async def get_chat_settings(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    if not _is_support(user):
+        raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
+    return await _get_chat_settings()
+
+
+@chat_r.put("/admin/settings")
+async def update_chat_settings(body: ChatSettingsIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    if not _is_support(user):
+        raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
+    doc = {"id": "chat_settings", **body.model_dump()}
+    await db.app_settings.update_one({"id": "chat_settings"}, {"$set": doc}, upsert=True)
+    return doc
