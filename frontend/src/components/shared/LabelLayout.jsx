@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { LogoMark, BrandInline } from "@/components/shared/Brand";
 import NotificationBell from "@/components/shared/NotificationBell";
 import { KycGate } from "@/components/shared/KycGate";
+import LabelChatWidget from "@/components/chat/LabelChatWidget";
 import {
   LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole
 } from "lucide-react";
@@ -109,6 +110,7 @@ export default function LabelLayout() {
           {locked && <KycGate status={kyc?.status} loading={kycLoading} />}
         </main>
       </div>
+      <LabelChatWidget />
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 rm-glass-strong border-t border-white/5" style={{ borderRadius: 0 }}>
