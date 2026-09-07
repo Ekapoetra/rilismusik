@@ -65,6 +65,59 @@ async def admin_dashboard(user: dict = Depends(require_admin)):
     return await build_admin_dashboard()
 
 
+@admin_r.get("/action-center")
+async def admin_action_center(user: dict = Depends(require_admin)):
+    """Prioritized list of unresolved operational items for the Action Center."""
+    import asyncio
+    from .payment_admin_service import count_actionable_payments
+
+    async def _oldest(coll, filt, field):
+        doc = await db[coll].find_one(filt, {"_id": 0, field: 1}, sort=[(field, 1)])
+        return doc.get(field) if doc else None
+
+    counts = await asyncio.gather(
+        db.releases.count_documents({"status": "under_review"}),
+        db.kyc_documents.count_documents({"status": "pending_review", "is_current": True}),
+        db.withdraw_requests.count_documents({"status": "requested"}),
+        count_actionable_payments(),
+        db.support_tickets.count_documents({"status": {"$nin": ["done", "rejected"]}}),
+        db.users.count_documents({"role": "label", "claim_status": "pending_link"}),
+    )
+    oldest = await asyncio.gather(
+        _oldest("releases", {"status": "under_review"}, "submitted_at"),
+        _oldest("kyc_documents", {"status": "pending_review", "is_current": True}, "uploaded_at"),
+        _oldest("withdraw_requests", {"status": "requested"}, "created_at"),
+        _oldest("support_tickets", {"status": {"$nin": ["done", "rejected"]}}, "created_at"),
+        _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
+    )
+    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim = counts
+    o_rel, o_kyc, o_wd, o_tk, o_claim = oldest
+    defs = [
+        {"key": "withdrawals", "count": c_wd, "priority": "high", "permission": "withdraw.manage", "oldest_at": o_wd,
+         "title": "Penarikan menunggu verifikasi", "cta": "Tinjau", "link": "/admin/withdraw", "icon": "Banknote",
+         "description": f"{c_wd} permintaan penarikan dana perlu diverifikasi & dibayar."},
+        {"key": "payments", "count": c_pay, "priority": "high", "permission": "payments.manage", "oldest_at": None,
+         "title": "Pembayaran perlu ditindaklanjuti", "cta": "Proses", "link": "/admin/payments?needs_action=true", "icon": "CreditCard",
+         "description": f"{c_pay} pembayaran menunggu tindakan operasional."},
+        {"key": "releases", "count": c_rel, "priority": "normal", "permission": "releases.review", "oldest_at": o_rel,
+         "title": "Rilisan menunggu review", "cta": "Review", "link": "/admin/releases?status=under_review", "icon": "Disc3",
+         "description": f"{c_rel} rilisan siap diperiksa untuk distribusi."},
+        {"key": "kyc", "count": c_kyc, "priority": "normal", "permission": "kyc.view", "oldest_at": o_kyc,
+         "title": "Verifikasi Akun menunggu review", "cta": "Review", "link": "/admin/kyc", "icon": "ShieldCheck",
+         "description": f"{c_kyc} identitas label perlu diperiksa."},
+        {"key": "tickets", "count": c_tk, "priority": "normal", "permission": "support.view", "oldest_at": o_tk,
+         "title": "Tiket bantuan aktif", "cta": "Buka", "link": "/admin/tickets", "icon": "MessageSquare",
+         "description": f"{c_tk} tiket bantuan menunggu respons."},
+        {"key": "claims", "count": c_claim, "priority": "normal", "permission": "migration.view", "oldest_at": o_claim,
+         "title": "Klaim akun lama", "cta": "Tinjau", "link": "/admin/migrate?tab=claims", "icon": "DatabaseZap",
+         "description": f"{c_claim} permintaan klaim label lama menunggu dihubungkan."},
+    ]
+    rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
+    items = [d for d in defs if (d["count"] or 0) > 0]
+    items.sort(key=lambda d: (rank.get(d["priority"], 9), d.get("oldest_at") or "9999"))
+    return {"items": items}
+
+
 @admin_r.post("/dashboard/refresh-revenue")
 async def admin_refresh_revenue(user: dict = Depends(require_admin)):
     """Force a sync recompute of the dashboard revenue totals.

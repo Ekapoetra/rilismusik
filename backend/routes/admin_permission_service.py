@@ -47,7 +47,6 @@ BUILTIN_ROLE_NAMES = {
 
 DEFAULT_NAV_ITEMS = [
     ("dashboard", "/admin/dashboard", "LayoutDashboard", "dashboard.view", "Dashboard", "Dashboard", None),
-    ("notifications", "/admin/notifications", "BellRing", "notifications.view", "Riwayat Notifikasi", "Notification History", None),
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
     ("label_rates", "/admin/labels/rate-import", "Percent", "royalty.import", "Tarif Label", "Label Rates", "labels"),
@@ -115,6 +114,12 @@ async def ensure_admin_access_defaults(db) -> None:
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation", "items": {"$elemMatch": {"key": "kyc", "labels.id": "Pemeriksaan KYC"}}},
         {"$set": {"items.$.labels.id": "Verifikasi Akun", "items.$.labels.en": "Account Verification"}},
+    )
+    # Action Center redesign: remove the standalone "Riwayat Notifikasi" nav item
+    # (still reachable via the header notification bell's history link).
+    await db.admin_ui_settings.update_one(
+        {"key": "admin_navigation"},
+        {"$pull": {"items": {"key": "notifications"}}},
     )
 
 
