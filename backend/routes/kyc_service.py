@@ -99,7 +99,7 @@ async def ensure_label_kyc(user: Dict[str, Any]) -> Dict[str, Any]:
     if not state["is_verified"]:
         raise HTTPException(status_code=403, detail={
             "code": KYC_REQUIRED_CODE,
-            "message": "Aktivasi KYC diperlukan untuk membuka fitur ini.",
+            "message": "Verifikasi Akun diperlukan untuk membuka fitur ini.",
             "status": state["status"],
             "missing_keys": state["missing_keys"],
         })

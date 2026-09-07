@@ -5,7 +5,7 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play } from "lucide-react";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight } from "lucide-react";
 import { LabelLogo } from "@/components/shared/LabelLogo";
 
 function fmtIDR(n) {
@@ -15,16 +15,19 @@ function fmtIDR(n) {
 export default function LabelDashboardHome() {
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
+  const [kycVerified, setKycVerified] = useState(true);
   const analytics = useLabelAnalytics();
 
   useEffect(() => {
     api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
+    api.get("/label/kyc").then((r) => setKycVerified(!!r.data.is_verified)).catch(() => {});
   }, []);
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const { stats, label } = data;
   const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
+  const locked = !kycVerified;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -43,6 +46,19 @@ export default function LabelDashboardHome() {
         </div>
       </div>
 
+      {locked && (
+        <div className="flex flex-col gap-4 rounded-lg border border-amber-400/40 bg-amber-400/[0.08] p-5 sm:flex-row sm:items-center sm:justify-between" data-testid="label-dashboard-verify-warning">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><ShieldCheck className="h-5 w-5" /></div>
+            <div>
+              <h2 className="font-display text-lg font-bold text-amber-100">Verifikasi Akun Diperlukan</h2>
+              <p className="mt-0.5 text-sm text-amber-200/80">Selesaikan Verifikasi Akun untuk membuka saldo dan melihat jumlah royalti Anda.</p>
+            </div>
+          </div>
+          <Link to="/label/profile" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="label-dashboard-verify-cta">Verifikasi Sekarang <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      )}
+
       {/* Status row */}
       <div className="flex flex-wrap gap-2">
         <StatusPill icon={Crown} label={`Subscription: ${stats.subscription_status === "active" ? "Aktif" : "Tidak Aktif"}`} active={stats.subscription_status === "active"} />
@@ -52,13 +68,13 @@ export default function LabelDashboardHome() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Tersedia" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" />
-        <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} icon={Receipt} accent="amber" />
-        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} icon={Receipt} accent="blue" />
-        <StatCard testId="label-dashboard-unwithdrawn-total" label="Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Tersedia" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" locked={locked} />
+        <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} icon={Receipt} accent="amber" locked={locked} />
+        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} icon={Receipt} accent="blue" locked={locked} />
+        <StatCard testId="label-dashboard-unwithdrawn-total" label="Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" locked={locked} />
         <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={(analytics.data?.latest_report?.streams || 0).toLocaleString("id-ID")} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
-        <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" />
+        <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" locked={locked} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -106,7 +122,7 @@ export default function LabelDashboardHome() {
   );
 }
 
-function StatCard({ label, value, sub, icon: Icon, accent, mini, testId }) {
+function StatCard({ label, value, sub, icon: Icon, accent, mini, testId, locked }) {
   const colors = {
     emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300",
     amber: "from-amber-500/15 to-amber-500/5 text-amber-300",
@@ -115,17 +131,22 @@ function StatCard({ label, value, sub, icon: Icon, accent, mini, testId }) {
   };
   const cl = colors[accent] || "from-slate-50 to-slate-100 text-zinc-400";
   return (
-    <div className={`rm-card ${mini ? "p-4" : "p-5"}`} data-testid={testId}>
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
-        {Icon && (
-          <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${cl} grid place-items-center`}>
-            <Icon className="w-4 h-4" />
-          </div>
-        )}
+    <div className={`rm-card min-w-0 ${mini ? "p-4" : "p-4 sm:p-5"}`} data-testid={testId}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-[10px] sm:text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
+        <div className={`w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br ${locked ? "from-zinc-500/15 to-zinc-500/5 text-zinc-500" : cl} grid place-items-center`}>
+          {locked ? <Lock className="w-4 h-4" /> : (Icon && <Icon className="w-4 h-4" />)}
+        </div>
       </div>
-      <div className={`font-display font-extrabold tracking-tighter ${mini ? "text-2xl" : "text-2xl md:text-3xl"} mt-2`}>{value}</div>
-      {sub && <div className="text-xs text-zinc-500 mt-1">{sub}</div>}
+      {locked ? (
+        <div className="mt-2 flex items-center gap-1.5 text-zinc-500" data-testid={testId ? `${testId}-locked` : undefined}>
+          <Lock className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-semibold">Terkunci</span>
+        </div>
+      ) : (
+        <div className={`font-display font-extrabold tracking-tight leading-tight tabular-nums break-words mt-2 ${mini ? "text-2xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</div>
+      )}
+      {sub && !locked && <div className="text-xs text-zinc-500 mt-1 truncate">{sub}</div>}
     </div>
   );
 }
