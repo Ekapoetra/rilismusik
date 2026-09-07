@@ -175,13 +175,19 @@ export default function AdminTicketDetail() {
             </div>
           </div>
 
-          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared) && (
+          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url) && (
             <div className="rm-card p-5 space-y-3 text-sm">
               <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Detail Permintaan</div>
               {t.reason && (
                 <div>
                   <div className="text-xs text-zinc-500">Alasan</div>
                   <div className="text-zinc-200 whitespace-pre-wrap">{t.reason}</div>
+                </div>
+              )}
+              {t.youtube_url && (
+                <div>
+                  <div className="text-xs text-zinc-500">Link YouTube Content ID</div>
+                  <a href={t.youtube_url} target="_blank" rel="noreferrer" className="block rm-gradient-text font-semibold break-all" data-testid="admin-ticket-youtube-link">{t.youtube_url} →</a>
                 </div>
               )}
               {t.new_audio_url && (

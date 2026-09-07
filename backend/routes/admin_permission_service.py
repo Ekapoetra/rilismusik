@@ -9,7 +9,7 @@ PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
     {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
-    {"key": "kyc", "label_id": "KYC", "label_en": "KYC", "actions": [("kyc.view", "Lihat KYC", "View KYC"), ("kyc.review", "Setujui/tolak KYC", "Approve/reject KYC")]},
+    {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status")]},
     {"key": "payments", "label_id": "Pembayaran", "label_en": "Payments", "actions": [("payments.view", "Lihat pembayaran", "View payments"), ("payments.manage", "Kelola pembayaran/produk", "Manage payments/products")]},
@@ -51,7 +51,7 @@ DEFAULT_NAV_ITEMS = [
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
     ("label_rates", "/admin/labels/rate-import", "Percent", "royalty.import", "Tarif Label", "Label Rates", "labels"),
-    ("kyc", "/admin/kyc", "ShieldCheck", "kyc.view", "Pemeriksaan KYC", "KYC Review", None),
+    ("kyc", "/admin/kyc", "ShieldCheck", "kyc.view", "Verifikasi Akun", "Account Verification", None),
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
     ("payments", "/admin/payments", "CreditCard", "payments.view", "Pembayaran", "Payments", None),
@@ -111,6 +111,11 @@ async def ensure_admin_access_defaults(db) -> None:
             {"key": "admin_navigation"},
             {"$push": {"items": {"$each": missing}}, "$set": {"navigation_schema_version": 2}},
         )
+    # Idempotent rename of the KYC nav item to "Verifikasi Akun" (only if still on the old default label).
+    await db.admin_ui_settings.update_one(
+        {"key": "admin_navigation", "items": {"$elemMatch": {"key": "kyc", "labels.id": "Pemeriksaan KYC"}}},
+        {"$set": {"items.$.labels.id": "Verifikasi Akun", "items.$.labels.en": "Account Verification"}},
+    )
 
 
 def is_admin_identity(user: Dict[str, Any]) -> bool:

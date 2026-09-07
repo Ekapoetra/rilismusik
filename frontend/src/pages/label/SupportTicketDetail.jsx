@@ -123,12 +123,18 @@ export default function LabelSupportTicketDetail() {
             </div>
           </Link>
 
-          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared) && (
+          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url) && (
             <div className="col-span-1 md:col-span-2 rm-glass rounded-2xl p-4 text-sm space-y-2">
               {t.reason && (
                 <div>
                   <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Alasan</div>
                   <div className="text-zinc-200">{t.reason}</div>
+                </div>
+              )}
+              {t.youtube_url && (
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Link YouTube Content ID</div>
+                  <a href={t.youtube_url} target="_blank" rel="noreferrer" className="rm-gradient-text font-semibold break-all" data-testid="label-ticket-youtube-link">{t.youtube_url} →</a>
                 </div>
               )}
               {t.new_audio_url && (

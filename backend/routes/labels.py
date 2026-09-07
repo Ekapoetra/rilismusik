@@ -17,7 +17,7 @@ from .deps import (
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
-    LabelProfileUpdate, BankAccountIn, BankAccountChangeRequestIn, BankAccountChangeActionIn,
+    LabelProfileUpdate, LabelClaimRequestIn, BankAccountIn, BankAccountChangeRequestIn, BankAccountChangeActionIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
@@ -86,6 +86,32 @@ async def label_update(body: LabelProfileUpdate, user: dict = Depends(require_la
     updated = await db.labels.find_one({"id": label["id"]}, {"_id": 0})
     from .kyc_service import compute_kyc_state
     return {**redact_label_for_self(updated), "kyc": await compute_kyc_state(user=user, label=updated)}
+
+
+@label_r.post("/claim-request")
+async def label_claim_request(body: LabelClaimRequestIn, user: dict = Depends(require_label)):
+    """Existing (non-claim) label account requests to claim a legacy label after registration."""
+    if user.get("claim_status") in ("pending_link", "linked"):
+        raise HTTPException(status_code=400, detail="Permintaan klaim label sudah pernah diajukan untuk akun ini.")
+    label = await get_label_by_user(user)
+    legacy_name = body.legacy_label_name.strip()
+    now = now_iso()
+    await db.users.update_one({"id": user["id"]}, {"$set": {
+        "claim_status": "pending_link",
+        "claim_legacy_name": legacy_name,
+        "claim_requested_at": now,
+        "claim_label_name_new": label.get("label_name"),
+        "claim_whatsapp": label.get("whatsapp"),
+        "updated_at": now,
+    }})
+    admin_ids = await admin_user_ids(("super_admin", "admin_release", "admin_support"))
+    await notify_many(
+        admin_ids, "claim_request", "Permintaan klaim akun lama",
+        f"User {user.get('name')} ({user.get('email')}) mengaku punya label lama: '{legacy_name}'. Tinjau di Admin → Migrasi → Claims.",
+        "/admin/migrate?tab=claims", {"user_id": user["id"], "legacy_label_name": legacy_name},
+    )
+    await log_activity(user["id"], "claim_request", "label", user["id"], after={"legacy_label_name": legacy_name})
+    return {"ok": True, "claim_pending": True, "claim_legacy_name": legacy_name}
 
 
 @label_r.get("/dashboard")

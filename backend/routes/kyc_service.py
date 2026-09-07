@@ -54,7 +54,7 @@ async def compute_kyc_state(*, user: Dict[str, Any], label: Optional[Dict[str, A
         {"key": "pic_name", "label": "Nama Penanggung Jawab", "complete": bool(str(label.get("pic_name") or "").strip()), "action_path": "/label/profile"},
         {"key": "label_name", "label": "Nama Label", "complete": bool(str(label.get("label_name") or "").strip()), "action_path": "/label/profile"},
         {"key": "logo", "label": "Logo Label", "complete": bool(label.get("logo_storage_key")), "action_path": "/label/profile"},
-        {"key": "email", "label": "Email Aktif & Terverifikasi", "complete": bool(user.get("email") and user.get("email_verified_at") and user.get("status") == "active"), "action_path": "/label/profile"},
+        {"key": "email", "label": "Email Aktif", "complete": bool(user.get("email") and user.get("status") == "active"), "action_path": "/label/profile"},
         {"key": "whatsapp", "label": "Kontak WhatsApp Aktif", "complete": valid_whatsapp(label.get("whatsapp")), "action_path": "/label/profile"},
         {"key": "contract", "label": "Kontrak Aktif", "complete": bool(contract), "action_path": "/label/contract"},
         {"key": "bank", "label": "Nomor Rekening Lengkap", "complete": bool(bank and all(str(bank.get(field) or "").strip() for field in ("bank_name", "account_number", "account_holder_name"))), "action_path": "/label/profile"},

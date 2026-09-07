@@ -138,6 +138,28 @@ async def send_password_reset_email(*, to: str, token: str, base_url: Optional[s
     return await send_email(to=to, subject="Reset password RILIS MUSIK", html=html)
 
 
+async def send_claim_approved_email(*, to: str, pic_name: str, label_name: str) -> Optional[str]:
+    body = f"""
+    <p>Halo <strong>{h(pic_name)}</strong>,</p>
+    <p>Kabar baik! Permintaan klaim akun lama Anda telah <strong style="color:#10b981;">disetujui</strong>. Akun Anda kini terhubung dengan label <strong>{h(label_name)}</strong> beserta seluruh riwayat data (royalti, penarikan, dan rilisan).</p>
+    <p style="color:#a1a1aa;font-size:13px;">Akun Anda juga otomatis terverifikasi. Silakan buka dashboard untuk melihat data Anda.</p>
+    """
+    html = _wrap("Klaim akun disetujui", body, "Buka Dashboard", f"{FRONTEND_URL}/label/dashboard")
+    return await send_email(to=to, subject=f"Klaim akun disetujui — {h(label_name)}", html=html)
+
+
+async def send_claim_rejected_email(*, to: str, pic_name: str, legacy_label_name: str, reason: str) -> Optional[str]:
+    reason_text = (reason or "").strip() or "Tidak ada keterangan."
+    body = f"""
+    <p>Halo <strong>{h(pic_name)}</strong>,</p>
+    <p>Mohon maaf, permintaan klaim akun lama Anda untuk label <strong>{h(legacy_label_name)}</strong> <strong style="color:#f87171;">belum dapat kami setujui</strong> saat ini.</p>
+    <p style="margin-top:12px;background:#0a0a0a;padding:12px 16px;border-radius:12px;color:#fbbf24;"><strong>Alasan:</strong> {h(reason_text)}</p>
+    <p style="color:#a1a1aa;font-size:13px;">Anda dapat mengajukan ulang dengan nama label yang benar melalui menu Profil &amp; Rekening, atau hubungi support untuk bantuan lebih lanjut.</p>
+    """
+    html = _wrap("Klaim akun ditolak", body, "Hubungi Support", f"{FRONTEND_URL}/label/support")
+    return await send_email(to=to, subject="Permintaan klaim akun ditolak", html=html)
+
+
 async def send_contract_expiry_email(*, to: str, label_name: str, days_left: int, end_date: str) -> Optional[str]:
     body = f"""
     <p>Halo <strong>{h(label_name)}</strong>,</p>

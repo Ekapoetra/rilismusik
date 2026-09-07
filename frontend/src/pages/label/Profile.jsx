@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
-import { Building2 } from "lucide-react";
+import { Building2, Clock3 } from "lucide-react";
 import { BankAccountPanel } from "@/components/label/BankAccountPanel";
 import { KycPanel } from "@/components/label/KycPanel";
+import { ClaimLabelCard } from "@/components/label/ClaimLabelCard";
 import { LabelLogo } from "@/components/shared/LabelLogo";
 
 export default function LabelProfile() {
@@ -34,6 +35,22 @@ export default function LabelProfile() {
   };
 
   if (!profile) return <div className="text-zinc-500">Memuat…</div>;
+
+  if (profile.claim_pending) {
+    return (
+      <div className="max-w-2xl space-y-6" data-testid="label-profile-claim-pending">
+        <div className="rm-card p-8 text-center space-y-4">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><Clock3 className="h-7 w-7" /></div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tighter">Permintaan Klaim Menunggu Verifikasi</h1>
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            Permintaan klaim untuk label lama <b className="text-zinc-200">{profile.claim_legacy_name}</b> sedang diproses tim kami. Admin akan menghubungkan data lama Anda dalam 1-3 hari kerja. Anda akan menerima notifikasi setelah akun terhubung.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const canClaim = !user?.claim_status || user?.claim_status === "rejected";
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -66,6 +83,8 @@ export default function LabelProfile() {
       </div>
 
       <BankAccountPanel onChanged={load} />
+
+      {canClaim && <ClaimLabelCard claimStatus={user?.claim_status} onSubmitted={() => { load(); refresh(); }} />}
     </div>
   );
 }

@@ -77,7 +77,7 @@ async def upload_ktp(file: UploadFile = File(...), user: dict = Depends(require_
     if state["status"] == "pending_review":
         raise HTTPException(status_code=409, detail="KTP sedang menunggu review admin")
     if state["is_verified"]:
-        raise HTTPException(status_code=409, detail="KYC sudah terverifikasi")
+        raise HTTPException(status_code=409, detail="Akun sudah terverifikasi")
     data, ext, media_type, width, height = await _read_image(file, 10 * 1024 * 1024, "KTP")
     doc_id = new_id(); key = f"kyc-private/{label['id']}/{doc_id}.{ext}"
     await storage_service.upload_bytes(key=key, data=data, content_type=media_type)
@@ -100,7 +100,7 @@ async def upload_ktp(file: UploadFile = File(...), user: dict = Depends(require_
         await storage_service.delete_object(key=old_doc["storage_key"])
     await notify_many(
         await admin_user_ids(("super_admin", "admin_support")),
-        "kyc_review_required", "KYC baru perlu direview",
+        "kyc_review_required", "Verifikasi Akun baru perlu direview",
         f"{label.get('label_name')} mengunggah foto KTP.", "/admin/kyc",
         {"label_id": label["id"], "kyc_document_id": doc_id},
     )
@@ -203,7 +203,7 @@ async def admin_review_kyc(label_id: str, body: KycReviewActionIn, user: dict = 
     if label.get("user_id"):
         await notify(
             label["user_id"], f"kyc_{next_status}",
-            "KYC Verified" if next_status == "verified" else "Verifikasi KYC ditolak",
+            "Akun Terverifikasi" if next_status == "verified" else "Verifikasi Akun ditolak",
             "Akun label Anda sudah terverifikasi." if next_status == "verified" else f"Alasan: {body.reason}",
             "/label/profile", {"label_id": label_id, "status": next_status},
         )

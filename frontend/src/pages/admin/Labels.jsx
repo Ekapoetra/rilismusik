@@ -109,7 +109,7 @@ export default function AdminLabels() {
           <div>Email</div>
           <div>Tipe</div>
           <div>Status Akun</div>
-          <div data-testid="admin-labels-kyc-status-header">Status KYC</div>
+          <div data-testid="admin-labels-kyc-status-header">Status Verifikasi</div>
           <div className="text-right" data-testid="admin-labels-available-balance-header">Saldo Tersedia</div>
           <div className="text-right" data-testid="admin-labels-last-withdraw-header">Penarikan Terakhir</div>
           <div className="text-right">Aksi</div>
@@ -143,7 +143,7 @@ export default function AdminLabels() {
                 }`}>{(l.account_status || "—").replace(/_/g, " ")}</span>
               </div>
               <div className="col-span-6 min-w-0 xl:col-auto">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-600 xl:hidden">Status KYC</div>
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-600 xl:hidden">Status Verifikasi</div>
                 <KycStatusBadge status={l.kyc_status} reason={l.kyc_rejection_reason} testId={`admin-label-kyc-status-${l.id}`} />
               </div>
               <div className="col-span-6 text-right xl:col-auto" data-testid={`admin-label-available-balance-${l.id}`}>

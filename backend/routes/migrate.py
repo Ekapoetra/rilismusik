@@ -650,6 +650,32 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
         raise HTTPException(status_code=400, detail="Label sudah di-claim oleh user lain")
 
     accepted_at = now_iso()
+
+    # Post-registration claim: the account may already own an empty auto-created
+    # label (from normal registration). Remove it so the account cleanly moves to
+    # the claimed legacy label. Only delete when it carries no releases/royalty.
+    existing = await db.labels.find_one({"user_id": user_id, "id": {"$ne": legacy_label_id}}, {"_id": 0})
+    if existing:
+        old_label_id = existing["id"]
+        has_release = await db.releases.find_one({"label_id": old_label_id}, {"_id": 0, "id": 1})
+        has_royalty = await db.royalty_lines.find_one({"label_id": old_label_id}, {"_id": 0, "id": 1})
+        if has_release or has_royalty:
+            logger.warning("Claim link: existing label %s has data, skipping auto-delete", old_label_id)
+        else:
+            import storage_service
+            async for c in db.contracts.find({"label_id": old_label_id}, {"_id": 0, "file_url": 1}):
+                key = (c.get("file_url") or "").replace("/api/files/", "")
+                if key:
+                    try:
+                        await storage_service.delete_object(key=key)
+                    except Exception:
+                        pass
+            await db.contracts.delete_many({"label_id": old_label_id})
+            await db.bank_accounts.delete_many({"label_id": old_label_id})
+            await db.kyc_documents.delete_many({"label_id": old_label_id})
+            await db.labels.delete_one({"id": old_label_id})
+            logger.info("Claim link: removed empty auto-created label %s for user %s", old_label_id, user_id)
+
     await db.labels.update_one(
         {"id": legacy_label_id},
         {"$set": {
@@ -668,6 +694,7 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
             "claim_status": "linked",
             "claim_linked_label_id": legacy_label_id,
             "claim_resolved_at": accepted_at,
+            "email_verified_at": u.get("email_verified_at") or accepted_at,
             "updated_at": accepted_at,
         }},
     )
@@ -713,6 +740,9 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
         f"Admin telah menghubungkan akun Anda ke label '{lab.get('label_name')}'. Anda kini bisa melihat seluruh riwayat data.",
         "/label/dashboard", {"label_id": legacy_label_id},
     )
+    if u.get("email"):
+        from email_service import send_claim_approved_email
+        await send_claim_approved_email(to=u["email"], pic_name=u.get("name") or "", label_name=lab.get("label_name") or "")
     await log_activity(
         user["id"], "link_claim", "migrate", user_id,
         before={"user_id": user_id, "label_id": None},
@@ -746,6 +776,9 @@ async def reject_claim(user_id: str, reason: str = Form(""), user: dict = Depend
         f"Admin menolak permintaan klaim akun lama Anda. Alasan: {reason or 'Tidak ada keterangan.'} Hubungi support untuk informasi lebih lanjut.",
         "/label/tickets", {},
     )
+    if u.get("email"):
+        from email_service import send_claim_rejected_email
+        await send_claim_rejected_email(to=u["email"], pic_name=u.get("name") or "", legacy_label_name=u.get("claim_legacy_name") or "", reason=reason)
     return {"ok": True}
 
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertTriangle, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { KycChecklist } from "@/components/label/KycChecklist";
+import { KycStepsGuide } from "@/components/label/KycStepsGuide";
 import { KycUploadField } from "@/components/label/KycUploadField";
 
 const STATUS = {
@@ -25,10 +26,11 @@ export const KycPanel = ({ profile, onReload }) => {
         {kyc.status === "rejected" && <blockquote className="mt-5 border-l-2 border-red-300/70 bg-black/20 px-4 py-3 text-sm" data-testid="label-kyc-rejection-reason"><span className="block text-xs font-bold uppercase tracking-widest text-red-300">Alasan penolakan</span><span className="mt-1 block text-red-100">{kyc.rejection_reason}</span></blockquote>}
       </div>
       <div className="space-y-7 p-6 md:p-8">
+        {!kyc.is_verified && <KycStepsGuide kyc={kyc} />}
         <KycChecklist kyc={kyc} />
         <div className="grid gap-8 lg:grid-cols-2">
           <KycUploadField kind="logo" title="Logo Label" description="Logo tampil pada profil label dan dapat diperbarui kapan saja." maxMb={5} currentUrl={profile.logo_url} onUploaded={onReload} />
-          <KycUploadField kind="ktp" title="KTP Penanggung Jawab" description={kyc.prerequisites_complete ? "File disimpan privat dan hanya dapat dilihat oleh Anda serta reviewer KYC." : "Simpan profil, logo, kontrak, dan rekening terlebih dahulu sebelum mengunggah KTP."} maxMb={10} currentUrl={ktpUrl} disabled={ktpDisabled} onUploaded={onReload} />
+          <KycUploadField kind="ktp" title="KTP Penanggung Jawab" description={kyc.prerequisites_complete ? "File disimpan privat dan hanya dapat dilihat oleh Anda serta reviewer Verifikasi Akun." : "Simpan profil, logo, kontrak, dan rekening terlebih dahulu sebelum mengunggah KTP."} maxMb={10} currentUrl={ktpUrl} disabled={ktpDisabled} onUploaded={onReload} />
         </div>
       </div>
     </section>

@@ -26,7 +26,9 @@ def _validate_permissions(values: List[str]) -> List[str]:
 @access_r.get("/access/catalog")
 async def access_catalog(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.roles.view")
-    return {"modules": permission_catalog(), "all_permissions": ALL_PERMISSIONS}
+    config = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    nav = sorted(config.get("items", []), key=lambda item: item.get("order", 0))
+    return {"modules": permission_catalog(), "all_permissions": ALL_PERMISSIONS, "navigation": nav}
 
 
 @access_r.get("/access/roles")

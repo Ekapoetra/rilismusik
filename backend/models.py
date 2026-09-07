@@ -50,6 +50,10 @@ class VerifyEmailIn(BaseModel):
 
 
 # ============ LABEL ============
+class LabelClaimRequestIn(BaseModel):
+    legacy_label_name: str = Field(min_length=2, max_length=200, description="Nama label lama sebelum migrasi")
+
+
 class LabelProfileUpdate(BaseModel):
     label_name: Optional[str] = None
     pic_name: Optional[str] = None
