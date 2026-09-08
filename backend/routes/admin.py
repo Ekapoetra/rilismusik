@@ -234,6 +234,16 @@ async def admin_get_label(label_id: str, user: dict = Depends(require_admin)):
         "last_withdrawn_period": balance["last_withdrawn_period"],
         "source": "royalty_lines_fifo",
     }
+    from .royalty_adjustment_balance import ADJUSTMENT_TYPE
+    adjustment_total = 0
+    async for row in db_bg.balance_transactions.aggregate([
+        {"$match": {"label_id": label_id, "type": ADJUSTMENT_TYPE, "status": "active"}},
+        {"$group": {"_id": None, "amount": {"$sum": "$amount_idr"}}},
+    ]):
+        adjustment_total = int(row["amount"])
+    financial_summary["total_royalty_idr"] += adjustment_total
+    financial_summary["admin_adjustment_total_idr"] = adjustment_total
+    financial_summary["source"] = "royalty_lines_and_adjustments"
     return {
         "label": label,
         "bank_account": bank,

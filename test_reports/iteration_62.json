@@ -1,0 +1,58 @@
+{
+  "summary": "Completed backend + frontend verification for royalty admin adjustment/withdraw integration on public URL with isolated QA fixtures; core preview/commit/idempotency/void/threshold/auth guards passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/admin/migrate/jobs/{job_id}",
+        "issue": "Existing regression test test_iter52_legacy_withdraw_edit::test_commit_decrease_then_increase... now fails with 403 PERMISSION_DENIED (migration.view) when polling job with finance token; appears fixture expectation mismatch vs tightened permission model."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin Royalty Adjustments modal open sequence",
+        "issue": "Intermittent flakiness observed in automation: adjustment form/modal selectors occasionally not becoming visible immediately after clicking Inject Saldo (passed on retry).",
+        "selector": "[data-testid='adjustment-open'] -> [data-testid='adjustment-form']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter62_royalty_adjustments.py",
+    "/app/test_reports/pytest/iter62_backend_targeted.xml",
+    "/app/test_reports/pytest/iter62_phase38.xml",
+    "/app/test_reports/pytest/iter62_phase49.xml",
+    "/app/test_reports/pytest/iter62_phase60.xml",
+    "/app/test_reports/pytest/iter62_legacy_edit.xml",
+    "/app/test_reports/pytest/iter62_legacy_edit_preview.xml"
+  ],
+  "action_items": [
+    "Review/align legacy regression fixture for migration job polling permission (finance token vs migration.view requirement).",
+    "Stabilize adjustment modal open transition (or expose more deterministic ready testid) to reduce flaky UI automation around Inject Saldo dialog.",
+    "Optional: add dedicated frontend e2e seed helper route/fixture to avoid selector retries around dialog animation timing."
+  ],
+  "critical_code_review_comments": [
+    "Permission boundary appears intentionally tighter on migration job read endpoint; at least one existing regression still assumes finance can poll jobs directly.",
+    "Royalty adjustment + withdraw financial invariants validated from API side: no direct wallet overwrite, no royalty_lines mutation, idempotent AJ journal key, and strict >1,000,000 threshold enforced."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter62_royalty_adjustments.py",
+    "/app/tests/iter62_seed_ui_adjustment.py",
+    "/app/tests/iter62_cleanup_ui_adjustment.py",
+    "/app/memory/test_credentials.md",
+    "/app/test_reports/iteration_62.json"
+  ],
+  "success_rate": {
+    "backend": "93%",
+    "frontend": "78%"
+  },
+  "seed_data_creation": "Created temporary QA fixture label iter62-ui-label + user iter62-ui-label@example.com for UI checks, then cleaned up and marked REMOVED in /app/memory/test_credentials.md.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Core backend behavior for /api/royalty/admin/adjustments and withdrawal interactions is covered in test_iter62_royalty_adjustments.py (8 passing tests). Existing Phase38/49/60 targeted regressions passed. One legacy edit regression currently fails due migration.view permission expectation mismatch. UI checks on public URL confirmed: route guard for non-manage admin redirects to /admin/dashboard, label dashboard/royalty/withdraw reflect adjusted balance, responsive widths 390/768/1024/1440 showed no horizontal overflow, modal backdrop after animation was solid (rgb(9,9,11), opacity 1).",
+  "rca of the issue": "Failure in legacy regression is reproducible by running test_iter52_legacy_withdraw_edit::test_commit_decrease_then_increase...; test helper _wait_job uses finance token against /api/admin/migrate/jobs/{job_id}. Endpoint now enforces migration.view permission, returning 403. Mitigation: update test role/fixture to use credential with migration.view or adjust expected authorization path." 
+}

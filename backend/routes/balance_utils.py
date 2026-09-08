@@ -2,6 +2,7 @@
 from typing import Any, Dict, Optional
 
 from .deps import db_bg
+from .royalty_adjustment_balance import adjustment_balances
 
 
 async def compute_labels_available_balances(labels: list[Dict[str, Any]]) -> Dict[str, int]:
@@ -41,8 +42,9 @@ async def compute_labels_available_balances(labels: list[Dict[str, Any]]) -> Dic
         label_id = str(row.get("_id") or "")
         if label_id in reserved:
             reserved[label_id] = int(row.get("amount_idr") or 0)
+    adjustments = await adjustment_balances(label_ids)
     return {
-        label_id: max(source_available[label_id] - reserved[label_id], 0)
+        label_id: max(source_available[label_id] + adjustments[label_id] - reserved[label_id], 0)
         for label_id in label_ids
     }
 
@@ -113,7 +115,8 @@ async def compute_label_balance_snapshot(
     active_amount = sum(int(item.get("amount_idr") or 0) for item in active_withdraws)
     # Existing active requests reserve lines while their status is still
     # `available`; subtract the reserved amount for a truthful display.
-    effective_available = max(grouped["available_idr"] - active_amount, 0)
+    adjustment_available = (await adjustment_balances([label_id]))[label_id]
+    effective_available = max(grouped["available_idr"] + adjustment_available - active_amount, 0)
     latest = await db_bg.royalty_lines.find_one(
         {"label_id": label_id, "period": {"$type": "string"}},
         {"_id": 0, "period": 1},
@@ -126,6 +129,7 @@ async def compute_label_balance_snapshot(
         "balance_available_idr": effective_available,
         "balance_withdraw_requested_idr": max(active_amount, 0),
         "source_available_idr": max(grouped["available_idr"], 0),
+        "adjustment_available_idr": adjustment_available,
         "pending_lines": grouped["pending_lines"],
         "available_lines": grouped["available_lines"],
         "period_from": grouped["period_from"],

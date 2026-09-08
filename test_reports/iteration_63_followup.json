@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-08",
+  "case": "Royalty adjustment PRD final acceptance closure",
+  "status": "pass",
+  "previous_reports": ["iteration_62.json", "iteration_63.json"],
+  "backend": {"feature_and_financial_tests": 17, "passed": 17, "failed": 0, "skipped_or_xfailed": 0, "existing_regressions_passed": 5},
+  "frontend": {"modal_open_close_cycles": 8, "responsive_widths": [320, 768, 1024, 1440], "preview_refresh_recovery": "pass", "actual_credit_and_void": "pass", "history_pagination_5_plus_2": "pass", "history_search_and_status": "pass", "custom_royalty_manage_only_navigation_and_create": "pass"},
+  "resolved": ["History reload no longer disables an already-ready adjustment dialog; input/preview state is explicit", "Legacy regression polls migration job with Super Admin without changing production permissions", "In-process test Motor client and auth dependency database closure are isolated per test loop; no XFAIL remains", "Payment email sender is mocked in the same process as authenticated payment-status handler, with real Mongo data", "Cleanup scoped to owned QA label/credit/withdraw/user IDs; no broad AJ journal-reference wipe"],
+  "evidence": ["/app/test_reports/pytest/royalty_adjustments_final.xml", "/app/test_reports/pytest/iter63_financial_acceptance_retest.xml", "/app/test_reports/pytest/iter62_legacy_edit_retest.xml", "/app/test_reports/pytest/iter62_phase38.xml", "/app/test_reports/pytest/iter62_phase49.xml", "/app/test_reports/pytest/iter62_phase60.xml", "/app/test_reports/pytest/iter62_legacy_edit_preview.xml"],
+  "qa_cleanup": {"users": 0, "labels": 0, "adjustments": 0, "previews": 0, "locks": 0, "custom_ui_role": 0},
+  "production_mocked_apis": [],
+  "test_only_mocking": ["Withdrawal email sender in final in-process endpoint tests", "Deliberate insert/cache faults"],
+  "remaining_known_issues": [],
+  "next": "User acceptance against a verified Believe reference; no automatic production balance adjustments were made."
+}

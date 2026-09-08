@@ -46,12 +46,12 @@ export default function LabelWithdraw() {
     setErr(""); setMsg("");
     if (!computed?.can_withdraw) return;
     if (!window.confirm(
-      `Anda akan menarik SELURUH royalti dari ${fmtPeriod(computed.period_from)} sampai ${fmtPeriod(computed.period_to)} sejumlah ${fmtIDR(computed.withdrawable_idr)}. Lanjutkan?`
+      `Anda akan menarik SELURUH saldo royalti tersedia${computed.period_from ? ` dari ${fmtPeriod(computed.period_from)} sampai ${fmtPeriod(computed.period_to)}` : ""} sejumlah ${fmtIDR(computed.withdrawable_idr)}. Lanjutkan?`
     )) return;
     setBusy(true);
     try {
       const { data } = await api.post("/withdraw/label/request");
-      setMsg(`Permintaan withdraw ${fmtIDR(data.amount_idr)} (periode ${fmtPeriod(data.period_from)} - ${fmtPeriod(data.period_to)}) berhasil diajukan.`);
+      setMsg(`Permintaan withdraw ${fmtIDR(data.amount_idr)}${data.period_from ? ` (periode ${fmtPeriod(data.period_from)} - ${fmtPeriod(data.period_to)})` : ""} berhasil diajukan.`);
       load();
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setBusy(false); }
@@ -110,7 +110,7 @@ export default function LabelWithdraw() {
                   {computed.period_from ? (
                     <>{fmtPeriod(computed.period_from)} <span className="text-zinc-500 mx-1">→</span> {fmtPeriod(computed.period_to)}</>
                   ) : (
-                    <span className="text-zinc-500">Tidak ada periode tersedia</span>
+                    <span className="text-zinc-500" data-testid="withdraw-no-report-period">{computed.withdrawable_idr > 0 ? "Saldo tersedia di luar periode laporan" : "Tidak ada periode tersedia"}</span>
                   )}
                 </div>
                 <div className="text-xs text-zinc-400 mt-1 flex items-center gap-3">
@@ -124,6 +124,7 @@ export default function LabelWithdraw() {
                 </div>
               </div>
             </div>
+            <p className="text-xs text-zinc-400" data-testid="withdraw-minimum-threshold">Saldo harus lebih dari {fmtIDR(computed.min_amount_idr)} dan ditarik seluruhnya.</p>
             {!computed.can_withdraw && computed.reason && (
               <div className="text-xs text-amber-300 bg-amber-500/10 rounded-xl px-3 py-2 mt-2 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 flex-none mt-0.5" /> {computed.reason}

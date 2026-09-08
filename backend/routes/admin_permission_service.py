@@ -55,6 +55,7 @@ DEFAULT_NAV_ITEMS = [
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
     ("payments", "/admin/payments", "CreditCard", "payments.view", "Pembayaran", "Payments", None),
     ("royalty", "/admin/royalty", "FileSpreadsheet", "royalty.view", "Impor Royalti", "Royalty Import", None),
+    ("royalty_adjustments", "/admin/royalty-adjustments", "Wallet", "royalty.manage", "Inject Saldo", "Royalty Adjustments", None),
     ("withdraw", "/admin/withdraw", "Banknote", "withdraw.view", "Penarikan Dana", "Withdrawals", None),
     ("wami", "/admin/wami", "Music", "wami.view", "Registrasi WAMI", "WAMI Registration", None),
     ("tickets", "/admin/tickets", "MessageSquare", "support.view", "Tiket Bantuan", "Support Tickets", None),
@@ -226,6 +227,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
     if "/admin/payments" in path or "/payments/admin" in path:
         return "payments.manage" if mutate else "payments.view"
     if "/royalty/admin" in path:
+        if "/royalty/admin/adjustments" in path:
+            return "royalty.manage"
         if method == "DELETE": return "royalty.delete"
         if mutate and any(token in path for token in ("imports", "upload", "publish", "dana-received")): return "royalty.import"
         return "royalty.manage" if mutate else "royalty.view"

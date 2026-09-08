@@ -44,6 +44,8 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .financial_lock import label_financial_lock
+from .royalty_adjustment_balance import unspent_adjustment_ids, refresh_balance_cache
 
 # =============================================================================
 #                              WITHDRAW
@@ -92,6 +94,7 @@ async def _compute_withdrawable(label_id: str) -> Dict[str, Any]:
         "balance_available_idr": snapshot["balance_available_idr"],
         "balance_withdraw_requested_idr": snapshot["balance_withdraw_requested_idr"],
         "has_active_withdraw": snapshot["has_active_withdraw"],
+        "adjustment_amount_idr": snapshot.get("adjustment_available_idr", 0),
     }
 
 
@@ -108,17 +111,17 @@ async def label_computed_withdrawable(user: dict = Depends(require_label)):
     """
     label = await get_label_by_user(user)
     info = await _compute_withdrawable(label["id"])
-    can_withdraw = info["withdrawable_idr"] >= MIN_WITHDRAW_IDR
+    can_withdraw = info["withdrawable_idr"] > MIN_WITHDRAW_IDR
     return {
-        **info,
+        **{key: value for key, value in info.items() if key != "adjustment_amount_idr"},
         "min_withdraw_idr": MIN_WITHDRAW_IDR,
         "can_withdraw": can_withdraw,
         "reason": None if can_withdraw else (
             "Masih ada withdraw yang sedang diproses"
             if info.get("has_active_withdraw") else
             "Belum ada royalti tersedia setelah penarikan terakhir"
-            if info["lines_count"] == 0 else
-            f"Total Rp {info['withdrawable_idr']:,} di bawah minimum Rp {MIN_WITHDRAW_IDR:,}"
+            if info["withdrawable_idr"] == 0 else
+            f"Saldo harus lebih dari Rp {MIN_WITHDRAW_IDR:,}. Saldo saat ini Rp {info['withdrawable_idr']:,}."
         ),
     }
 
@@ -130,18 +133,25 @@ async def label_request_withdraw(user: dict = Depends(require_label)):
     last_withdrawn_period. Force-full per spec.
     """
     label = await get_label_by_user(user)
+    async with label_financial_lock(label["id"]):
+        return await _create_label_withdrawal(label, user)
+
+
+async def _create_label_withdrawal(label: dict, user: dict):
     state = withdraw_window_state()
     if not state["request_open"]:
         raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
 
     info = await _compute_withdrawable(label["id"])
     amount_idr = info["withdrawable_idr"]
-    if amount_idr < MIN_WITHDRAW_IDR:
-        if info["lines_count"] == 0:
+    if info["has_active_withdraw"]:
+        raise HTTPException(status_code=409, detail="Masih ada withdraw yang sedang diproses")
+    if amount_idr <= MIN_WITHDRAW_IDR:
+        if amount_idr == 0:
             raise HTTPException(status_code=400, detail="Belum ada royalti tersedia untuk ditarik")
         raise HTTPException(
             status_code=400,
-            detail=f"Total Rp {amount_idr:,.0f} di bawah minimum Rp {MIN_WITHDRAW_IDR:,.0f}. Tunggu periode laporan berikutnya.",
+            detail=f"Saldo harus lebih dari Rp {MIN_WITHDRAW_IDR:,.0f}. Saldo saat ini Rp {amount_idr:,.0f}.",
         )
     if not label.get("bank_verified"):
         bank = await db.bank_accounts.find_one({"label_id": label["id"]})
@@ -150,23 +160,7 @@ async def label_request_withdraw(user: dict = Depends(require_label)):
     bank = await db.bank_accounts.find_one({"label_id": label["id"]}, {"_id": 0})
 
     wd_id = new_id()
-    # Move ALL of `balance_available_idr` into `balance_withdraw_requested_idr`
-    # (since FIFO consumes every available line in the eligible range, the
-    # available balance should equal the computed amount minus rounding).
-    await db.labels.update_one({"id": label["id"]}, {"$inc": {
-        "balance_available_idr": -amount_idr,
-        "balance_withdraw_requested_idr": amount_idr,
-    }, "$set": {"updated_at": now_iso()}})
-    await db.balance_transactions.insert_one({
-        "id": new_id(),
-        "label_id": label["id"],
-        "type": "withdraw_request",
-        "amount_idr": -amount_idr,
-        "reference_type": "withdraw",
-        "reference_id": wd_id,
-        "description": f"Withdraw diminta — periode {info['period_from']} s/d {info['period_to']}",
-        "created_at": now_iso(),
-    })
+    adjustment_ids = await unspent_adjustment_ids(label["id"])
     wd = {
         "id": wd_id,
         "label_id": label["id"],
@@ -187,16 +181,31 @@ async def label_request_withdraw(user: dict = Depends(require_label)):
         "period_from": info["period_from"],
         "period_to": info["period_to"],
         "lines_count": info["lines_count"],
+        "adjustment_ids": adjustment_ids,
+        "adjustment_amount_idr": info.get("adjustment_amount_idr", 0),
+        "adjustment_only": info["lines_count"] == 0 and amount_idr == info.get("adjustment_amount_idr", 0),
+        "royalty_amount_idr": amount_idr - info.get("adjustment_amount_idr", 0),
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
     await db.withdraw_requests.insert_one(wd)
+    # This complete withdrawal record is the atomic reservation/source of truth.
+    # Cache/journal mirrors cannot make an unsuccessful insert reserve funds.
+    try:
+        await db.balance_transactions.insert_one({
+            "id": new_id(), "label_id": label["id"], "type": "withdraw_request",
+            "amount_idr": -amount_idr, "reference_type": "withdraw", "reference_id": wd_id,
+            "description": "Permintaan penarikan seluruh saldo royalti tersedia", "created_at": now_iso(),
+        })
+    except Exception:
+        logger.exception("Withdrawal transaction mirror failed wd=%s", wd_id)
+    await refresh_balance_cache(label["id"])
     await log_activity(
         user["id"], "withdraw_request", "withdraw", wd_id,
         after={"amount_idr": amount_idr, "period_from": info["period_from"], "period_to": info["period_to"]},
     )
     wd.pop("_id", None)
-    return wd
+    return {key: value for key, value in wd.items() if key not in {"adjustment_ids", "adjustment_amount_idr", "royalty_amount_idr"}}
 
 
 @withdraw_r.get("/label")
@@ -209,7 +218,7 @@ async def label_list_withdraws(user: dict = Depends(require_label)):
         "label_id": label["id"],
         "legacy_import": {"$ne": True},
     }, {"_id": 0}).sort("created_at", -1).to_list(500)
-    return items
+    return [{key: value for key, value in item.items() if key not in {"adjustment_ids", "adjustment_amount_idr", "royalty_amount_idr"}} for item in items]
 
 
 @withdraw_r.get("/admin")
@@ -305,6 +314,14 @@ async def admin_commit_legacy_withdraw_edit(
 
 @withdraw_r.post("/admin/{wd_id}/action")
 async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dict = Depends(require_admin)):
+    target = await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0, "label_id": 1})
+    if not target:
+        raise HTTPException(404, "Withdraw tidak ditemukan")
+    async with label_financial_lock(target["label_id"]):
+        return await _apply_admin_withdraw_action(wd_id, body, user)
+
+
+async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dict):
     if user["role"] not in ("super_admin", "admin_finance"):
         raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
     wd = await db.withdraw_requests.find_one({"id": wd_id})
@@ -394,6 +411,7 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
     else:
         raise HTTPException(status_code=400, detail="Aksi tidak dikenal")
 
+    await refresh_balance_cache(wd["label_id"])
     await log_activity(user["id"], f"withdraw_{body.action}", "withdraw", wd_id)
     # Notify label
     wd = await db.withdraw_requests.find_one({"id": wd_id}, {"_id": 0})

@@ -247,7 +247,7 @@ def test_commit_decrease_then_increase_restores_and_re_settles_without_touching_
         timeout=30,
     )
     assert first_commit.status_code == 200, first_commit.text
-    first_job = _wait_job(case["finance_token"], first_commit.json()["job_id"])
+    first_job = _wait_job(_token(SUPERADMIN["email"], SUPERADMIN["password"]), first_commit.json()["job_id"])
     assert first_job["status"] == "done", first_job.get("error_message")
 
     target = db.withdraw_requests.find_one({"id": case["target_wd_id"]}, {"_id": 0})
@@ -275,7 +275,7 @@ def test_commit_decrease_then_increase_restores_and_re_settles_without_touching_
         timeout=30,
     )
     assert second_commit.status_code == 200, second_commit.text
-    second_job = _wait_job(case["finance_token"], second_commit.json()["job_id"])
+    second_job = _wait_job(_token(SUPERADMIN["email"], SUPERADMIN["password"]), second_commit.json()["job_id"])
     assert second_job["status"] == "done", second_job.get("error_message")
 
     target_after = db.withdraw_requests.find_one({"id": case["target_wd_id"]}, {"_id": 0})
@@ -373,7 +373,7 @@ def test_preview_validation_and_single_use_preview_and_stale_preview_rejected(se
         timeout=30,
     )
     assert first_commit.status_code == 200, first_commit.text
-    first_job = _wait_job(case["finance_token"], first_commit.json()["job_id"])
+    first_job = _wait_job(_token(SUPERADMIN["email"], SUPERADMIN["password"]), first_commit.json()["job_id"])
     assert first_job["status"] == "done", first_job.get("error_message")
 
     reuse_commit = requests.post(

@@ -117,7 +117,7 @@ async def _load_context(withdrawal_id: str, new_period: str) -> Dict[str, Any]:
         raise HTTPException(status_code=409, detail="Label memiliki withdrawal web aktif. Selesaikan atau tolak terlebih dahulu.")
 
     histories = await db_bg.withdraw_requests.find(
-        {"label_id": label["id"], "status": "paid"},
+        {"label_id": label["id"], "status": "paid", "adjustment_only": {"$ne": True}},
         {"_id": 0, "id": 1, "period_to": 1, "legacy_import": 1},
     ).to_list(5000)
     missing_period = [row for row in histories if row["id"] != withdrawal_id and not row.get("period_to")]
@@ -156,6 +156,7 @@ async def build_legacy_withdraw_edit_preview(withdrawal_id: str, new_period: str
     old_cutoff, new_cutoff = context["old_cutoff"], context["new_cutoff"]
     before = await compute_label_balance_snapshot(label_id=context["label"]["id"], label=context["label"])
     after = await _sum_active_after(context["label"]["id"], new_cutoff)
+    after["available_idr"] += before.get("adjustment_available_idr", 0)
     groups = await _group_range(
         context["label"]["id"],
         after=min(old_cutoff, new_cutoff) if old_cutoff else None,

@@ -67,7 +67,7 @@ async def recompute_label_balance_snapshots() -> dict:
                 {"$set": {
                     "balance_available_idr": int(balances.get(label["id"], 0)),
                     "balance_snapshot_updated_at": timestamp,
-                    "balance_snapshot_source": "royalty_lines",
+                    "balance_snapshot_source": "royalty_lines_and_adjustments",
                 }},
             ) for label in labels
         ]

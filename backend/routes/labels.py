@@ -156,7 +156,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
             "balance_withdraw_requested_idr": balance["balance_withdraw_requested_idr"],
             "last_withdrawn_period": balance["last_withdrawn_period"],
             "latest_report_period": balance["latest_report_period"],
-            "balance_source": "royalty_lines_fifo",
+            "balance_source": "royalty_lines_and_adjustments",
             "last_month_revenue_idr": last_revenue,
             "last_month_period": last_period,
             "total_releases": total_releases,

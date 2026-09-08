@@ -42,6 +42,7 @@ from routes.label_analytics import label_analytics_r
 from routes.admin_analytics import analytics_r, recompute_monthly_analytics
 from routes.royalty import royalty_r, resume_interrupted_imports
 from routes.withdraw import withdraw_r
+from routes.royalty_adjustments import adjustment_r
 from routes.tickets import ticket_r
 from routes.notifications import notif_r
 from routes.kyc import kyc_r
@@ -123,6 +124,7 @@ api.include_router(replacement_r)
 api.include_router(label_analytics_r)
 api.include_router(analytics_r)
 api.include_router(royalty_r)
+api.include_router(adjustment_r)
 api.include_router(withdraw_r)
 api.include_router(ticket_r)
 api.include_router(contract_r)

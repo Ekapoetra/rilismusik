@@ -30,6 +30,7 @@ import AdminAnalytics from "@/pages/admin/Analytics";
 import AdminLabels from "@/pages/admin/Labels";
 import LabelRateImport from "@/pages/admin/LabelRateImport";
 import AdminLabelDetail from "@/pages/admin/LabelDetail";
+import RoyaltyAdjustments from "@/pages/admin/RoyaltyAdjustments";
 import AdminReleases from "@/pages/admin/Releases";
 import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
 import AdminArtists from "@/pages/admin/Artists";
@@ -115,6 +116,7 @@ function AppRoutes() {
             <Route path="/admin/notifications" element={guard("notifications.view", <AdminNotifications />)} />
             <Route path="/admin/activity-logs" element={guard("activity.view", <AdminActivityLogs />)} />
             <Route path="/admin/royalty" element={guard("royalty.view", <AdminRoyaltyImport />)} />
+            <Route path="/admin/royalty-adjustments" element={guard("royalty.manage", <RoyaltyAdjustments />)} />
             <Route path="/admin/royalty/:id" element={guard("royalty.view", <AdminRoyaltyDetail />)} />
             <Route path="/admin/withdraw" element={guard("withdraw.view", <AdminWithdraw />)} />
             <Route path="/admin/tickets" element={guard("support.view", <AdminTickets />)} />

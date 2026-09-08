@@ -6,6 +6,7 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
+import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
 import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp } from "lucide-react";
 import { LabelLogo } from "@/components/shared/LabelLogo";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,6 +23,7 @@ export default function LabelDashboardHome() {
   const [kyc, setKyc] = useState(null);
   const [claimDismissed, setClaimDismissed] = useState(false);
   const analytics = useLabelAnalytics();
+  const { balance: liveBalance } = useRoyaltyBalance(Boolean(kyc?.is_verified));
 
   useEffect(() => {
     api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
@@ -40,7 +42,8 @@ export default function LabelDashboardHome() {
   const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
-  const { stats, label } = data;
+  const { label } = data;
+  const stats = { ...data.stats, ...(liveBalance || {}) };
   const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
   const locked = kyc ? !kyc.is_verified : false;
   const checks = kyc?.checks || [];

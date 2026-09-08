@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-08 — Royalty Balance Adjustment / Legacy Reconciliation (Iterations 62–63)
+- Implementasi PRD unggahan: Inject Saldo pada menu admin dan detail label; Super Admin + izin existing `royalty.manage`; saldo awal nol diizinkan; batas legacy dipilih dan dicatat per label sesuai keputusan B.
+- Jurnal existing `balance_transactions` ditambah tipe `royalty_admin_adjustment`, sumber `ADMIN_ADJUSTMENT`, snapshot sebelum/sesudah, alasan/referensi/actor/time. Preview server-owned, ID konfirmasi idempoten, lease per-label, history/search/filter/pagination/void; tidak ada hard-delete transaksi.
+- Saldo tunggal menggabungkan CSV tersedia dengan penyesuaian belum dibayar lalu mengurangi reservasi. Cashout harus **lebih dari** Rp1.000.000 dan seluruh saldo. Pembayaran adjustment-only tidak mengubah cutoff CSV; reject mengembalikan reservasi, paid tidak bisa di-void atau didebit dua kali.
+- Cache saldo, admin summary, audit saldo, preview edit legacy, dan penggantian impor mempertahankan komponen penyesuaian. Label tetap melihat saldo sederhana, dengan refresh saldo dashboard/royalty saat aktif/fokus. CSV/nilai kurs/rate/record royalti tidak diubah oleh kredit/void.
+- Final: 17/17 tes fitur/keuangan + 5 regresi passed; UI desktop/mobile 320/768/1024/1440, 8 siklus dialog, recovery preview setelah refresh, kredit/void, pagination, dan role `royalty.manage` saja passed. Fixed test-only async-loop isolation and legacy polling fixture permission; no production test hooks or relaxed auth.
+- Laporan akhir `test_reports/iteration_63_followup.json`; detail `memory/ROYALTY_ADJUSTMENT_IMPLEMENTATION.md`. **MOCKED hanya dalam tes akhir:** sender email dan kegagalan insert/cache yang disengaja. Seluruh fixture keuangan/akun QA dibersihkan; tidak ada rekonsiliasi otomatis pada saldo pengguna.
+
 ## 2026-09-08 — Tombol hapus draf/ditolak pada ADMIN (Iteration 61)
 - Akar masalah keluhan berulang: perubahan sebelumnya dibuat hanya pada `pages/label/Releases.jsx` dan `pages/label/ReleaseDetail.jsx`, sedangkan pengguna membuka `/admin/releases`. Endpoint lama hanya menerima label.
 - Endpoint baru `DELETE /api/admin/releases/{release_id}` memakai `require_admin` dan izin dinamis `releases.review`. Super Admin/Admin Rilisan/role kustom berizin dapat menghapus draft/rejected; akses baca-saja, non-admin, dan status lain ditolak.

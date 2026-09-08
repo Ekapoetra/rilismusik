@@ -79,6 +79,8 @@ async def seed_indexes_and_admins():
     await db_bg.withdraw_requests.create_index("label_id")
     await db_bg.withdraw_requests.create_index("status")
     await db_bg.balance_transactions.create_index("label_id")
+    await db_bg.balance_transactions.create_index([("label_id", 1), ("type", 1), ("status", 1), ("created_at", -1)])
+    await db_bg.withdraw_requests.create_index([("label_id", 1), ("status", 1), ("adjustment_ids", 1)])
     await db_bg.bank_accounts.create_index("label_id", unique=True)
     await db_bg.bank_account_change_requests.create_index([("label_id", 1), ("created_at", -1)])
     await db_bg.bank_account_change_requests.create_index("status")

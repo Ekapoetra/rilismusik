@@ -2,12 +2,14 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api, API_BASE, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
 import { Download, Music, Globe2, TrendingUp, Info, BadgeCheck } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 
 export default function LabelRoyalty() {
   const { user } = useAuth();
+  const { balance, error: balanceError } = useRoyaltyBalance(user?.role === "label");
   const [months, setMonths] = useState([]);
   const [period, setPeriod] = useState("");
   const [summary, setSummary] = useState(null);
@@ -84,6 +86,8 @@ export default function LabelRoyalty() {
         </div>
       </div>
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="royalty-error">{err}</div>}
+
+      {user?.role === "label" && <section className="flex flex-wrap items-center justify-between gap-4 border-y border-white/10 py-5" data-testid="royalty-available-section"><div className="min-w-0"><div className="text-xs text-zinc-500">Saldo tersedia</div><div className="mt-1 break-words font-display text-3xl font-bold text-emerald-300" data-testid="royalty-available-balance">{balance ? fmtIDR(balance.balance_available_idr) : "—"}</div>{balanceError && <p role="status" className="mt-1 text-xs text-amber-300" data-testid="royalty-balance-refresh-error">Saldo terbaru belum dapat dimuat.</p>}</div><Link to="/label/withdraw" className="rm-btn-ghost" data-testid="royalty-withdraw-link">Tarik Saldo</Link></section>}
 
       {months.length === 0 ? (
         <RoyaltyEmptyState claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} />

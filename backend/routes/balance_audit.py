@@ -128,7 +128,7 @@ def _finalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     row["expected_pending_idr"] = max(int(row["expected_pending_idr"]), 0)
     row["expected_available_source_idr"] = max(int(row["expected_available_source_idr"]), 0)
     row["expected_available_idr"] = max(
-        row["expected_available_source_idr"] - row["expected_requested_idr"], 0,
+        row["expected_available_source_idr"] + row.get("admin_adjustment_idr", 0) - row["expected_requested_idr"], 0,
     )
     row["pending_delta_idr"] = row["expected_pending_idr"] - row["current_pending_idr"]
     row["available_delta_idr"] = row["expected_available_idr"] - row["current_available_idr"]
@@ -399,7 +399,7 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
             bucket["ids"].append(withdraw["id"])
         paid_by_label: Dict[str, Dict[str, Any]] = {}
         async for withdraw in db_bg.withdraw_requests.find(
-            {**scope_filter, "status": "paid"},
+            {**scope_filter, "status": "paid", "adjustment_only": {"$ne": True}},
             {"_id": 0, "label_id": 1, "period_to": 1},
         ):
             bucket = paid_by_label.setdefault(withdraw["label_id"], {"period_to": None, "missing": 0})
@@ -417,6 +417,10 @@ async def _run_balance_audit_preview(*, job_id: str, label_ids: Optional[List[st
                 paid_by_label.get(label["id"], {}).get("missing", 0),
             ) for label in labels
         }
+        from .royalty_adjustment_balance import adjustment_balances
+        adjustment_totals = await adjustment_balances(list(rows_by_label))
+        for label_id, row in rows_by_label.items():
+            row["admin_adjustment_idr"] = adjustment_totals.get(label_id, 0)
         await db_bg.balance_audit_rows.delete_many({"job_id": job_id})
         await db_bg.migrate_jobs.update_one(
             {"id": job_id},
@@ -696,7 +700,7 @@ async def _paid_withdraw_guard(*, label_id: str, label_cutoff: Optional[str]) ->
     paid_period_to = None
     missing_period_count = 0
     async for withdraw in db_bg.withdraw_requests.find(
-        {"label_id": label_id, "status": "paid"},
+        {"label_id": label_id, "status": "paid", "adjustment_only": {"$ne": True}},
         {"_id": 0, "period_to": 1},
     ):
         period_to = withdraw.get("period_to")

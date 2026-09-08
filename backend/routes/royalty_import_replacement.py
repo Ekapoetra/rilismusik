@@ -203,9 +203,10 @@ async def _run_replacement_preview(job_id: str, old_import_id: str, replacement_
             withdraw = active_by_label.get(row["label_id"])
             row["active_withdraw"] = None
             if withdraw:
-                missing_period = not withdraw.get("period_from") or not withdraw.get("period_to")
+                no_csv_period = not withdraw.get("period_from") or not withdraw.get("period_to")
+                missing_period = no_csv_period and not withdraw.get("adjustment_only")
                 projected = {"amount_idr": int(withdraw.get("amount_idr") or 0), "lines_count": int(withdraw.get("lines_count") or 0)}
-                if not missing_period:
+                if not no_csv_period:
                     projected = await _active_withdraw_projection(
                         label_id=row["label_id"], old_import_id=old_import_id,
                         replacement_import_id=replacement_import_id,
@@ -214,6 +215,7 @@ async def _run_replacement_preview(job_id: str, old_import_id: str, replacement_
                         include_staged_replacement=old_import["status"] == "dana_received",
                         adjustment_period=row["adjustment_period"],
                     )
+                    projected["amount_idr"] += int(withdraw.get("adjustment_amount_idr") or 0)
                 row["active_withdraw"] = {
                     "id": withdraw["id"], "status": withdraw.get("status"),
                     "period_from": withdraw.get("period_from"), "period_to": withdraw.get("period_to"),
@@ -370,6 +372,7 @@ async def _run_replacement_commit(job_id: str) -> None:
                 adjustment_idr=0,
                 include_staged_replacement=False,
             )
+            projected["amount_idr"] += int(current.get("adjustment_amount_idr") or 0)
             revision = {
                 "replacement_job_id": job_id, "old_amount_idr": int(current.get("amount_idr") or 0),
                 "new_amount_idr": projected["amount_idr"], "changed_at": now_iso(),
@@ -377,6 +380,7 @@ async def _run_replacement_commit(job_id: str) -> None:
             await db_bg.withdraw_requests.update_one({"id": current["id"]}, {
                 "$set": {
                     "amount_idr": projected["amount_idr"], "lines_count": projected["lines_count"],
+                    "royalty_amount_idr": projected["amount_idr"] - int(current.get("adjustment_amount_idr") or 0),
                     "replacement_recalculated_at": now_iso(), "updated_at": now_iso(),
                 }, "$push": {"replacement_revisions": revision},
             })
