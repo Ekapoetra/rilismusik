@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-08 — Workflow Support Ticket Label (Iteration 64)
+- UPC + semua ISRC serta subjek otomatis berdasarkan rilisan untuk Takedown/Edit Metadata/Pengajuan Content ID/Cabut Content ID; snapshot sumber disimpan server-side.
+- Takedown memakai empat alasan dan deskripsi wajib. Edit Metadata autofill enam kolom existing, alasan wajib, tanpa deskripsi, lampiran opsional; original/new metadata disimpan tanpa memutasi rilisan.
+- Kedua Content ID mendukung multiple video URLs HTTPS, tambah/hapus baris, deskripsi opsional dan originality wajib. Compatibility single youtube_url/historical tickets tetap terjaga.
+- Masalah Royalti/Lainnya dihapus untuk tiket baru; category labels historis dipertahankan. Admin/label detail menampilkan semua identitas/link dan perbandingan metadata; teks panjang responsif.
+- Dynamic support.view/manage dipakai pada akses/comment/status/upload; label tidak menerima catatan internal. Audio/cover existing tetap, track audio harus milik rilisan terpilih.
+- Final 10/10 backend, UI extended metadata+lampiran nyata+dua Content ID+admin rendering, responsive 320/768/1024/1440, frontend build dan Python compilation passed. Fixture tersisa nol. Laporan final `iteration_64_followup.json`.
+- Insiden pengujian awal: query teardown notifikasi preview terlalu luas (`iter64|Tiket`). Scope sudah diperbaiki dan sentinel non-fixture lulus, pengguna diberi tahu; jumlah notifikasi historis terdampak tidak tercatat dan tidak dipulihkan. Tiket/rilisan tidak terhapus oleh query itu. Detail lengkap `memory/SUPPORT_TICKET_WORKFLOW.md`.
+
 ## 2026-09-08 — Royalty Balance Adjustment / Legacy Reconciliation (Iterations 62–63)
 - Implementasi PRD unggahan: Inject Saldo pada menu admin dan detail label; Super Admin + izin existing `royalty.manage`; saldo awal nol diizinkan; batas legacy dipilih dan dicatat per label sesuai keputusan B.
 - Jurnal existing `balance_transactions` ditambah tipe `royalty_admin_adjustment`, sumber `ADMIN_ADJUSTMENT`, snapshot sebelum/sesudah, alasan/referensi/actor/time. Preview server-owned, ID konfirmasi idempoten, lease per-label, history/search/filter/pagination/void; tidak ada hard-delete transaksi.

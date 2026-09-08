@@ -1,0 +1,29 @@
+{
+  "date": "2026-09-08",
+  "case": "Support ticket label workflows",
+  "implementation_status": "pass",
+  "previous_report": "iteration_64.json",
+  "backend": {"passed": 10, "failed": 0, "report": "/app/test_reports/pytest/iter64_final.xml"},
+  "frontend": {
+    "takedown": "passed in original agent run",
+    "edit_metadata_autofill_and_release_switch": "pass",
+    "edit_metadata_ui_submit_attachment_before_after_no_release_mutation": "pass",
+    "content_id_claim_two_urls_optional_description": "pass",
+    "content_id_release_two_urls_optional_description": "pass",
+    "originality_required_and_url_add_remove": "pass",
+    "admin_all_identifiers_and_both_video_links": "pass",
+    "responsive_widths": [320, 768, 1024, 1440]
+  },
+  "build": "pass",
+  "mocked_application_apis": [],
+  "qa_remaining": {"users": 0, "labels": 0, "tickets": 0, "roles": 0},
+  "resolved_test_issues": ["Fixture credentials loaded explicitly from .env.test and documented", "Demo KYC docs reflect actual gating rather than bypassing verification", "Scoped cleanup now uses exact owned ticket/user/file references and passes unrelated-notification sentinel assertion", "Wait for modal visibility before querying options", "Extended UI acceptance completed for metadata and both Content ID categories"],
+  "preview_data_incident": {
+    "description": "Initial testing-agent teardown used overly broad notification-title deletion matching Tiket in preview. Non-fixture ticket notifications may have been removed; affected count not recorded.",
+    "prevention": "Fixed and verified with unrelated-notification sentinel.",
+    "historical_notification_restoration": "Not performed; do not claim restored.",
+    "user_informed": true,
+    "ticket_and_release_records": "Unaffected by this notification deletion."
+  },
+  "next": "User acceptance of new workflows; restore historical preview notifications only if a valid backup is supplied/available."
+}

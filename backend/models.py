@@ -361,18 +361,19 @@ TicketStatus = Literal[
 
 
 class TicketCreateIn(BaseModel):
-    release_id: str
-    category: TicketCategory
-    subject: str = Field(min_length=3, max_length=200)
-    description: str = Field(min_length=3, max_length=4000)
+    release_id: str = Field(min_length=1)
+    category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release"]
+    subject: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=4000)
     # Category-specific payload
     new_metadata: Optional[Dict[str, Any]] = None      # for edit_metadata
     new_audio_url: Optional[str] = None                # for edit_audio (uploaded WAV)
     new_audio_track_id: Optional[str] = None           # for edit_audio (which track)
     new_cover_url: Optional[str] = None                # for edit_cover (3000x3000 uploaded)
-    reason: Optional[str] = None                       # for takedown / edit_metadata reason
+    reason: Optional[str] = Field(default=None, max_length=4000)
     originality_declared: Optional[bool] = None        # for content_id_claim
     youtube_url: Optional[str] = Field(default=None, max_length=500)
+    youtube_urls: List[str] = Field(default_factory=list, max_length=20)
     attachments: List[str] = Field(default_factory=list)
 
 

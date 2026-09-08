@@ -5,6 +5,7 @@ import TicketStatusBadge, { TICKET_CATEGORY_LABELS } from "@/components/shared/T
 import { SUPPORT } from "@/constants/testIds";
 import { LifeBuoy, Plus, CheckCircle2 } from "lucide-react";
 import { SupportTicketModal } from "@/components/label/SupportTicketModal";
+import { AUTO_SUBJECT_CATEGORIES, CONTENT_ID_CATEGORIES, metadataFromRelease, ticketSubject } from "@/components/label/tickets/ticketFormConfig";
 
 function initialForm() {
   return {
@@ -27,7 +28,7 @@ function initialForm() {
       p_line: "",
     },
     originality_declared: false,
-    youtube_url: "",
+    youtube_urls: [""],
     attachments: [],
   };
 }
@@ -36,6 +37,8 @@ export default function LabelSupportTickets() {
   const [items, setItems] = useState([]);
   const [releases, setReleases] = useState([]);
   const [releaseTracks, setReleaseTracks] = useState([]);
+  const [releaseInfo, setReleaseInfo] = useState(null);
+  const [releaseLoading, setReleaseLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(initialForm());
   const [busy, setBusy] = useState(false);
@@ -53,19 +56,25 @@ export default function LabelSupportTickets() {
   };
 
   useEffect(() => {
-    load();
-    loadReleases();
+    Promise.all([load(), loadReleases()]).catch((e) => setErr(formatApiError(e.response?.data?.detail) || "Gagal memuat tiket dan rilisan."));
   }, []);
 
   // Fetch tracks when release selected
   useEffect(() => {
-    if (!form.release_id) { setReleaseTracks([]); return; }
+    setReleaseTracks([]); setReleaseInfo(null);
+    if (!form.release_id) { setReleaseLoading(false); return; }
     let cancelled = false;
+    setReleaseLoading(true);
+    setErr("");
     api.get(`/releases/${form.release_id}`).then(({ data }) => {
-      if (!cancelled) setReleaseTracks(data.tracks || []);
+      if (!cancelled) {
+        setReleaseTracks(data.tracks || []);
+        setReleaseInfo(data);
+        setForm((current) => ({ ...current, new_metadata: metadataFromRelease(data), subject: AUTO_SUBJECT_CATEGORIES.includes(current.category) ? ticketSubject(current.category, data) : current.subject }));
+      }
     }).catch((error) => {
       if (!cancelled) setErr(formatApiError(error.response?.data?.detail));
-    });
+    }).finally(() => { if (!cancelled) setReleaseLoading(false); });
     return () => { cancelled = true; };
   }, [form.release_id]);
 
@@ -132,9 +141,10 @@ export default function LabelSupportTickets() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (busy || releaseLoading) return;
     setErr("");
     setMsg("");
-    if (!form.release_id) {
+    if (!form.release_id || releaseInfo?.id !== form.release_id) {
       setErr("Pilih rilisan terlebih dahulu");
       return;
     }
@@ -161,14 +171,14 @@ export default function LabelSupportTickets() {
       if (form.category === "takedown") {
         payload.reason = form.reason;
       }
-      if (form.category === "content_id_claim") {
+      if (CONTENT_ID_CATEGORIES.includes(form.category)) {
         payload.originality_declared = form.originality_declared;
-        payload.youtube_url = form.youtube_url;
+        payload.youtube_urls = form.youtube_urls;
       }
       await api.post("/tickets/label/create", payload);
-      setMsg("Tiket berhasil dibuat.");
       setOpen(false);
       reset();
+      setMsg("Tiket berhasil dibuat.");
       load();
     } catch (e2) {
       setErr(formatApiError(e2.response?.data?.detail));
@@ -183,7 +193,7 @@ export default function LabelSupportTickets() {
         <div>
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Support</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Tiket Support</h1>
-          <p className="text-sm text-zinc-400 mt-1">Takedown, edit metadata/audio/cover, Content ID, atau pertanyaan royalti.</p>
+          <p className="text-sm text-zinc-400 mt-1">Takedown, edit metadata/audio/cover, dan YouTube Content ID.</p>
         </div>
         <button
           className="rm-btn-primary flex items-center gap-2"
@@ -195,7 +205,7 @@ export default function LabelSupportTickets() {
       </div>
 
       {msg && (
-        <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm flex items-center gap-2">
+        <div role="status" data-testid="support-ticket-success" className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" /> {msg}
         </div>
       )}
@@ -237,7 +247,8 @@ export default function LabelSupportTickets() {
         ))}
       </div>
 
-      <SupportTicketModal open={open} close={() => setOpen(false)} submit={submit} form={form} setForm={setForm} releases={releases} releaseTracks={releaseTracks} busy={busy} err={err} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} handleAttachment={handleAttachment} />
+      {!open && err && <p role="alert" data-testid="support-list-error" className="text-sm text-red-300">{err}</p>}
+      <SupportTicketModal open={open} close={() => setOpen(false)} submit={submit} form={form} setForm={setForm} releases={releases} releaseTracks={releaseTracks} releaseInfo={releaseInfo} releaseLoading={releaseLoading} busy={busy} err={err} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} handleAttachment={handleAttachment} />
     </div>
   );
 }

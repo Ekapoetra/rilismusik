@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- **2026-09-08, prioritas terbaru:** user acceptance empat workflow support label yang baru. Implementasi/10 tes backend/UI lengkap sudah lulus, fixture bersih; bukan perubahan langsung metadata rilisan.
 - **2026-09-08, prioritas terbaru:** user acceptance Inject Saldo untuk satu label dengan referensi Believe terverifikasi dan batas legacy per label. Implementasi final + 17 tes fitur/keuangan + 5 regresi + UI sudah lulus; tidak ada blocker aplikasi yang diketahui. Tidak melakukan perubahan saldo pengguna secara otomatis.
 - **2026-09-08, prioritas aktif:** verifikasi pengguna atas perbaikan tombol hapus admin pada `/admin/releases` dan detail untuk draft/rejected. Implementasi serta uji preview Iteration 61 sudah lulus; tidak perlu perubahan data produksi untuk pemeriksaan visual.
 - Redeploy Phase 72 lalu pastikan dropdown lonceng solid dan Log Aktivitas menampilkan nama pengguna/fallback ID.
@@ -49,12 +50,14 @@
 - Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
 
 ## P1 — Product follow-up
+- Insiden notifikasi **preview** Iter64: cleanup lama terlalu luas sudah diperbaiki dan sentinel lulus; bila notifikasi historis perlu dipulihkan, gunakan backup valid. Jumlah terdampak tidak tercatat; jangan mengarang timestamp/read-state. Data tiket/rilisan tetap utuh.
 - Add Admin Finance UI for monthly email delivery status/retry (backend status endpoint already exists).
 - Add explicit bank-change history timeline and cancellation before approval.
 - Add bulk download/archive for generated copyright letters.
 - Add migration/report for legacy PPR releases whose invoices were created before the new post-approval flow.
 
 ## P2 — Quality & operations
+- Opsional: template balasan admin untuk tiap kategori Support Ticket.
 - Opsional: ekspor riwayat penyesuaian royalti ke Excel/CSV untuk pemeriksaan keuangan (audit history sudah tersedia dalam aplikasi).
 - Opsional: pisahkan izin `releases.delete` dari `releases.review` bila admin membutuhkan kontrol penghapusan lebih ketat; belum diimplementasikan agar kebijakan izin saat ini tetap konsisten.
 - Tambahkan fingerprint/checksum saat upload royalty CSV ke R2 agar file duplikat ditolak sebelum masuk proses import.
@@ -64,6 +67,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Iteration 64 (2026-09-08): autofill UPC/ISRC/subjek, empat alasan takedown, enam kolom metadata prefilled + reason-only, dua Content ID multi-URL/originality, kategori baru dibatasi enam dengan history kompatibel, rendering admin/label, dynamic support permissions. Final 10/10 backend dan UI desktop/mobile passed. Lihat `SUPPORT_TICKET_WORKFLOW.md` untuk catatan penting cleanup notifikasi preview.
 - Iterations 62–63 (2026-09-08): PRD Royalty Balance Adjustment / Legacy Reconciliation, preview/konfirmasi/idempotensi/audit/void, batas legacy per label, sumber saldo terpisah dalam satu perhitungan, cashout >Rp1 juta penuh, perlindungan paid/active/concurrency, serta UI role-limited dan mobile. Final 17/17 tes baru + 5 regresi lulus; fixture bersih. Detail di `ROYALTY_ADJUSTMENT_IMPLEMENTATION.md`.
 - Iteration 61 (2026-09-08): tombol hapus daftar/detail ADMIN, endpoint hapus admin dengan izin dinamis, konfirmasi aman, regression label ownership/KYC, dan file-shared/status-race safeguards. Backend 6/6, browser desktop/mobile, build, serta tes service ulang 2/2 lulus; akun/fixture sementara dibersihkan.
 - Phase 72 membuat dropdown lonceng solid serta menampilkan nama pelaku pada Log Aktivitas dengan fallback ID untuk akun yang tidak tersedia.

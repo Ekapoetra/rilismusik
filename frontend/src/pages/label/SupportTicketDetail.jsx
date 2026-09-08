@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS } from "@/components/shared/TicketStatusBadge";
 import { SUPPORT } from "@/constants/testIds";
-import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Ban, Info } from "lucide-react";
+import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Ban } from "lucide-react";
+import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
+import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
 
 const NON_CANCELLABLE = ["done", "submitted_to_believe", "rejected", "cancelled"];
 
@@ -72,7 +74,7 @@ export default function LabelSupportTicketDetail() {
   };
 
   if (!data) {
-    return <div className="text-zinc-500">Memuat…</div>;
+    return <div className="text-zinc-500" data-testid="label-ticket-loading-error">{err || "Memuat…"}</div>;
   }
 
   const t = data.ticket;
@@ -80,8 +82,8 @@ export default function LabelSupportTicketDetail() {
   const isClosed = ["done", "rejected", "cancelled"].includes(t.status);
 
   return (
-    <div className="space-y-5 max-w-5xl">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white">
+    <div className="min-w-0 space-y-5 max-w-5xl" data-testid="label-ticket-detail-page">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white" data-testid="label-ticket-back">
         <ArrowLeft className="w-4 h-4" /> Kembali
       </button>
 
@@ -93,7 +95,7 @@ export default function LabelSupportTicketDetail() {
               <TicketStatusBadge status={t.status} />
             </div>
             <div className="text-sm text-zinc-400 mt-1">{TICKET_CATEGORY_LABELS[t.category] || t.category} • {new Date(t.created_at).toLocaleString("id-ID")}</div>
-            <div className="font-semibold text-lg mt-2">{t.subject}</div>
+            <div className="break-words font-semibold text-lg mt-2" data-testid="label-ticket-subject">{t.subject}</div>
           </div>
           {canCancel && (
             <button
@@ -109,8 +111,9 @@ export default function LabelSupportTicketDetail() {
         </div>
 
         <div className="mt-5 grid md:grid-cols-3 gap-4">
-          <Link
+          <div className="col-span-1 min-w-0"><Link
             to={`/label/releases/${t.release_id}`}
+            data-testid="label-ticket-release-link"
             className="col-span-1 rm-glass rounded-2xl p-4 flex items-center gap-3 hover:bg-white/[0.04]"
           >
             {t.release_cover_url && (
@@ -122,42 +125,11 @@ export default function LabelSupportTicketDetail() {
               <div className="text-xs rm-gradient-text">Lihat detail →</div>
             </div>
           </Link>
+          <TicketReleaseIdentifiers upc={t.upc} tracks={t.release_tracks} isrcs={t.isrcs} prefix="label-ticket" /></div>
 
-          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url) && (
-            <div className="col-span-1 md:col-span-2 rm-glass rounded-2xl p-4 text-sm space-y-2">
-              {t.reason && (
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Alasan</div>
-                  <div className="text-zinc-200">{t.reason}</div>
-                </div>
-              )}
-              {t.youtube_url && (
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Link YouTube Content ID</div>
-                  <a href={t.youtube_url} target="_blank" rel="noreferrer" className="rm-gradient-text font-semibold break-all" data-testid="label-ticket-youtube-link">{t.youtube_url} →</a>
-                </div>
-              )}
-              {t.new_audio_url && (
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">File Audio Baru</div>
-                  <a href={fileUrl(t.new_audio_url)} target="_blank" rel="noreferrer" className="rm-gradient-text font-semibold">Buka WAV →</a>
-                </div>
-              )}
-              {t.new_cover_url && (
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Cover Baru</div>
-                  <img src={fileUrl(t.new_cover_url)} alt="" className="w-24 h-24 rounded-lg object-cover mt-1" />
-                </div>
-              )}
-              {t.new_metadata && (
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Metadata Baru</div>
-                  <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words">{JSON.stringify(t.new_metadata, null, 2)}</pre>
-                </div>
-              )}
-              {t.originality_declared && (
-                <div className="text-emerald-300 text-xs flex items-center gap-2"><Info className="w-3 h-3" /> Originalitas dinyatakan ✓</div>
-              )}
+          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url || t.youtube_urls?.length) && (
+            <div className="min-w-0 col-span-1 md:col-span-2 rm-glass rounded-2xl p-4 text-sm space-y-2">
+              <TicketRequestSummary ticket={t} prefix="label-ticket" />
             </div>
           )}
         </div>
@@ -220,26 +192,26 @@ function CommentBubble({ c }) {
   const isLabel = c.role === "label";
   if (c.is_system) {
     return (
-      <div className="text-center text-xs text-zinc-500 italic py-1">
+      <div className="break-words text-center text-xs text-zinc-500 italic py-1" data-testid={`label-ticket-system-comment-${c.id}`}>
         {c.body} • {new Date(c.created_at).toLocaleString("id-ID")}
       </div>
     );
   }
   return (
     <div className={`flex ${isLabel ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[80%] space-y-2 ${isLabel ? "items-end" : "items-start"}`}>
+      <div className={`min-w-0 max-w-[80%] break-words space-y-2 ${isLabel ? "items-end" : "items-start"}`}>
         <div className={`text-[10px] uppercase tracking-widest font-bold ${isAdmin ? "text-pink-300" : "text-zinc-500"}`}>
           {isAdmin ? "Admin" : isLabel ? "Label" : c.role} • {c.user_name || ""} • {new Date(c.created_at).toLocaleString("id-ID")}
         </div>
         <div
-          className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${isLabel ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "rm-glass text-zinc-100"}`}
+          data-testid={`label-ticket-comment-${c.id}`} className={`break-words rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${isLabel ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "rm-glass text-zinc-100"}`}
         >
           {c.body}
         </div>
         {c.attachments?.length > 0 && (
           <div className="space-y-1">
             {c.attachments.map((url, i) => (
-              <a key={url} href={fileUrl(url)} target="_blank" rel="noreferrer" className="block text-xs text-zinc-300 hover:text-white flex items-center gap-2">
+              <a key={url} data-testid={`label-ticket-comment-${c.id}-attachment-${i + 1}`} href={fileUrl(url)} target="_blank" rel="noreferrer" className="text-xs text-zinc-300 hover:text-white flex items-center gap-2">
                 <Paperclip className="w-3 h-3" /> Lampiran {i + 1}
               </a>
             ))}

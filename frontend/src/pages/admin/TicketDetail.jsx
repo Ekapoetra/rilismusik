@@ -3,13 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS, TICKET_STATUS_LABELS } from "@/components/shared/TicketStatusBadge";
 import { ADMIN_TICKET } from "@/constants/testIds";
-import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Info } from "lucide-react";
+import { ArrowLeft, Paperclip, Send, X, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
+import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
+import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
 
 const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 
 export default function AdminTicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission("support.manage");
   const [data, setData] = useState(null);
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState([]);
@@ -81,19 +86,19 @@ export default function AdminTicketDetail() {
     } finally { setBusy(false); }
   };
 
-  if (!data) return <div className="text-zinc-500">Memuat…</div>;
+  if (!data) return <div className="text-zinc-500" data-testid="admin-ticket-loading-error">{err || "Memuat…"}</div>;
   const t = data.ticket;
   const isClosed = ["done", "rejected", "cancelled"].includes(t.status);
 
   return (
-    <div className="space-y-5 max-w-7xl">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white">
+    <div className="min-w-0 space-y-5 max-w-7xl" data-testid="admin-ticket-detail-page">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white" data-testid="admin-ticket-back">
         <ArrowLeft className="w-4 h-4" /> Kembali ke daftar
       </button>
 
       <div className="grid lg:grid-cols-3 gap-5">
         {/* LEFT: Conversation */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="min-w-0 lg:col-span-2 space-y-4">
           <div className="rm-card p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
@@ -102,7 +107,7 @@ export default function AdminTicketDetail() {
                   <TicketStatusBadge status={t.status} />
                 </div>
                 <div className="text-sm text-zinc-400 mt-1">{TICKET_CATEGORY_LABELS[t.category] || t.category} • {new Date(t.created_at).toLocaleString("id-ID")}</div>
-                <div className="font-semibold text-lg mt-2">{t.subject}</div>
+                <div className="break-words font-semibold text-lg mt-2" data-testid="admin-ticket-subject">{t.subject}</div>
               </div>
             </div>
           </div>
@@ -112,8 +117,8 @@ export default function AdminTicketDetail() {
             <div ref={scrollRef} className="max-h-[55vh] overflow-y-auto p-5 space-y-4">
               {data.comments.map((c) => <CommentBubble key={c.id} c={c} />)}
             </div>
-            {isClosed ? (
-              <div className="border-t border-white/5 p-4 text-sm text-zinc-500 text-center">Tiket sudah ditutup.</div>
+            {isClosed || !canManage ? (
+              <div className="border-t border-white/5 p-4 text-sm text-zinc-500 text-center" data-testid="admin-ticket-readonly">{isClosed ? "Tiket sudah ditutup." : "Akses baca-saja."}</div>
             ) : (
               <form onSubmit={sendComment} className="border-t border-white/5 p-4 space-y-3">
                 {err && (
@@ -154,7 +159,7 @@ export default function AdminTicketDetail() {
         </div>
 
         {/* RIGHT: Sidebar */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="rm-card p-5 space-y-3">
             <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Label</div>
             <div className="text-sm">
@@ -170,48 +175,20 @@ export default function AdminTicketDetail() {
               {t.release_cover_url && <img src={fileUrl(t.release_cover_url)} alt="" className="w-14 h-14 rounded-lg object-cover" />}
               <div className="min-w-0">
                 <div className="font-semibold truncate">{t.release_title}</div>
-                <a href={`/admin/releases/${t.release_id}`} className="text-xs rm-gradient-text">Lihat detail rilisan →</a>
+                <a href={`/admin/releases/${t.release_id}`} className="text-xs rm-gradient-text" data-testid="admin-ticket-release-link">Lihat detail rilisan →</a>
               </div>
             </div>
+            <TicketReleaseIdentifiers upc={t.upc} tracks={t.release_tracks} isrcs={t.isrcs} prefix="admin-ticket" />
           </div>
 
-          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url) && (
+          {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url || t.youtube_urls?.length) && (
             <div className="rm-card p-5 space-y-3 text-sm">
               <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Detail Permintaan</div>
-              {t.reason && (
-                <div>
-                  <div className="text-xs text-zinc-500">Alasan</div>
-                  <div className="text-zinc-200 whitespace-pre-wrap">{t.reason}</div>
-                </div>
-              )}
-              {t.youtube_url && (
-                <div>
-                  <div className="text-xs text-zinc-500">Link YouTube Content ID</div>
-                  <a href={t.youtube_url} target="_blank" rel="noreferrer" className="block rm-gradient-text font-semibold break-all" data-testid="admin-ticket-youtube-link">{t.youtube_url} →</a>
-                </div>
-              )}
-              {t.new_audio_url && (
-                <a href={fileUrl(t.new_audio_url)} target="_blank" rel="noreferrer" className="block rm-gradient-text font-semibold">Buka WAV Baru →</a>
-              )}
-              {t.new_cover_url && (
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Cover Baru</div>
-                  <img src={fileUrl(t.new_cover_url)} alt="" className="w-32 h-32 rounded-lg object-cover" />
-                </div>
-              )}
-              {t.new_metadata && (
-                <div>
-                  <div className="text-xs text-zinc-500">Metadata Baru</div>
-                  <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words bg-white/[0.03] p-3 rounded-lg">{JSON.stringify(t.new_metadata, null, 2)}</pre>
-                </div>
-              )}
-              {t.originality_declared && (
-                <div className="text-emerald-300 text-xs flex items-center gap-2"><Info className="w-3 h-3" /> Originalitas dinyatakan ✓</div>
-              )}
+              <TicketRequestSummary ticket={t} prefix="admin-ticket" />
             </div>
           )}
 
-          <div className="rm-card p-5 space-y-3">
+          {canManage && <div className="rm-card p-5 space-y-3">
             <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Atur Status</div>
             <select className="rm-input" value={newStatus} onChange={(e) => setNewStatus(e.target.value)} data-testid={ADMIN_TICKET.setStatusSelect}>
               {STATUSES.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
@@ -226,7 +203,7 @@ export default function AdminTicketDetail() {
             <button onClick={applyStatus} disabled={busy} className="rm-btn-primary w-full" data-testid={ADMIN_TICKET.setStatusButton}>
               {busy ? "Menyimpan…" : "Simpan Perubahan"}
             </button>
-          </div>
+          </div>}
         </div>
       </div>
     </div>
@@ -237,24 +214,24 @@ function CommentBubble({ c }) {
   const isAdmin = (c.role && c.role.startsWith("admin")) || c.role === "super_admin";
   if (c.is_system) {
     return (
-      <div className="text-center text-xs text-zinc-500 italic py-1">
+      <div className="break-words text-center text-xs text-zinc-500 italic py-1" data-testid={`admin-ticket-system-comment-${c.id}`}>
         {c.body} • {new Date(c.created_at).toLocaleString("id-ID")}
       </div>
     );
   }
   return (
     <div className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
-      <div className="max-w-[80%] space-y-2">
+      <div className="min-w-0 max-w-[80%] break-words space-y-2">
         <div className={`text-[10px] uppercase tracking-widest font-bold ${isAdmin ? "text-pink-300" : "text-zinc-500"}`}>
           {isAdmin ? "Admin" : "Label"} • {c.user_name || ""} • {new Date(c.created_at).toLocaleString("id-ID")}
         </div>
-        <div className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${isAdmin ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "rm-glass text-zinc-100"}`}>
+        <div data-testid={`admin-ticket-comment-${c.id}`} className={`break-words rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${isAdmin ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "rm-glass text-zinc-100"}`}>
           {c.body}
         </div>
         {c.attachments?.length > 0 && (
           <div className="space-y-1">
             {c.attachments.map((url, i) => (
-              <a key={url} href={fileUrl(url)} target="_blank" rel="noreferrer" className="block text-xs text-zinc-300 hover:text-white flex items-center gap-2">
+              <a key={url} data-testid={`admin-ticket-comment-${c.id}-attachment-${i + 1}`} href={fileUrl(url)} target="_blank" rel="noreferrer" className="text-xs text-zinc-300 hover:text-white flex items-center gap-2">
                 <Paperclip className="w-3 h-3" /> Lampiran {i + 1}
               </a>
             ))}
