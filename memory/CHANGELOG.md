@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Permission "Verifikasi Klaim Label" & Banner Klaim di Dashboard
+- **Permission baru `migration.claims`** ("Verifikasi klaim label") di modul Migrasi. Endpoint klaim (`GET /admin/migrate/claims`, `POST /claims/{id}/link|reject`, `GET /admin/migrate/labels/unclaimed`) kini digate `migration.claims` (via `permission_for_request`). `migration.claims` meng-imply `migration.view` agar halaman Migrasi & Klaim tetap terbuka. Bisa membuat role kustom yang HANYA verifikasi klaim tanpa akses migrasi lain.
+  - Default: ditambahkan ke `super_admin` & `admin_support` (migrasi RBAC v5). Verifikasi: mapping permission benar, claims-only role punya migration.view (implied) tapi tidak migration.manage.
+- **Banner "Klaim Label" di Dashboard label** (`pages/label/Dashboard.jsx`): CTA klaim muncul untuk akun yang belum `linked`. `rejected` → CTA klaim ulang + alasan; `pending_link` → info "sedang ditinjau"; dapat ditutup (dismiss). Terverifikasi via screenshot.
+
+
 ## 2026-06 — Tombol Hapus Draft (di samping status) & Empty-state Royalti + Saran Klaim
 - **Hapus draft di daftar rilisan** (`pages/label/Releases.jsx`): tombol hapus (ikon 🗑️) kini muncul **di samping badge status** khusus status `draft`; untuk `rejected` tombol hapus tetap di kolom Aksi. Endpoint `DELETE /api/releases/{id}` sudah ada.
 - **Empty-state Royalti label** (`pages/label/Royalty.jsx`): saat belum ada data royalti, pesan disesuaikan dengan `claim_status` user:

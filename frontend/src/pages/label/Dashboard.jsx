@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
+import { useAuth } from "@/api/AuthContext";
 import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
@@ -15,9 +16,11 @@ function fmtIDR(n) {
 }
 
 export default function LabelDashboardHome() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
   const [kyc, setKyc] = useState(null);
+  const [claimDismissed, setClaimDismissed] = useState(false);
   const analytics = useLabelAnalytics();
 
   useEffect(() => {
@@ -113,6 +116,8 @@ export default function LabelDashboardHome() {
           </div>
         </div>
       )}
+
+      {!claimDismissed && <ClaimBanner claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} onDismiss={() => setClaimDismissed(true)} />}
 
       {showOnboarding && (
         <div className="rm-card p-5" data-testid="label-dashboard-onboarding">
@@ -242,6 +247,35 @@ function StatCard({ label, value, sub, icon: Icon, accent, mini, testId, locked 
     </div>
   );
 }
+
+function ClaimBanner({ claimStatus, rejectReason, onDismiss }) {
+  if (claimStatus === "linked") return null;
+  if (claimStatus === "pending_link") {
+    return (
+      <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.08] p-4 flex items-start gap-3" data-testid="label-dashboard-claim-pending">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-400/15 text-sky-300"><ShieldCheck className="h-5 w-5" /></div>
+        <div className="flex-1 text-sm"><div className="font-display font-bold text-sky-100">Permintaan klaim label sedang ditinjau</div><p className="mt-0.5 text-sky-200/80">Admin sedang memproses klaim label lama Anda. Royalti periode sebelumnya akan muncul setelah disetujui.</p></div>
+      </div>
+    );
+  }
+  const rejected = claimStatus === "rejected";
+  return (
+    <div className="relative rounded-lg border border-[#FF1F8E]/30 bg-gradient-to-r from-[#FF1F8E]/[0.1] to-[#A24EFF]/[0.08] p-5" data-testid="label-dashboard-claim-banner">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#FF1F8E]/15 text-[#FF7FC0]"><Sparkles className="h-5 w-5" /></div>
+          <div>
+            <h2 className="font-display text-lg font-bold text-white">{rejected ? "Klaim label belum disetujui" : "Punya label lama di RILIS MUSIK?"}</h2>
+            <p className="mt-0.5 text-sm text-zinc-300">{rejected ? `Ajukan klaim kembali untuk melihat royalti periode sebelumnya${rejectReason ? ` (alasan sebelumnya: ${rejectReason})` : ""}.` : "Klaim label Anda untuk menautkan riwayat royalti & penarikan periode sebelumnya. Royalti bulan berjalan biasanya baru masuk bulan berikutnya."}</p>
+          </div>
+        </div>
+        <Link to="/label/profile" className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid="label-dashboard-claim-cta">Klaim Label <ArrowRight className="h-4 w-4" /></Link>
+      </div>
+      <button onClick={onDismiss} className="absolute right-3 top-3 text-zinc-500 hover:text-white" title="Tutup" data-testid="label-dashboard-claim-dismiss"><span className="text-lg leading-none">×</span></button>
+    </div>
+  );
+}
+
 
 function OnboardStep({ n, title, done, to, cta, locked }) {
   return (

@@ -21,7 +21,7 @@ PERMISSION_MODULES = [
     {"key": "contracts", "label_id": "Kontrak", "label_en": "Contracts", "actions": [("contracts.view", "Lihat kontrak", "View contracts"), ("contracts.manage", "Buat/perpanjang/akhiri", "Create/extend/terminate")]},
     {"key": "access", "label_id": "Kontrol Akses", "label_en": "Access Control", "actions": [("access.users.view", "Lihat pengguna admin", "View admin users"), ("access.users.manage", "Buat/edit pengguna admin", "Create/edit admin users"), ("access.roles.view", "Lihat role", "View roles"), ("access.roles.manage", "Buat/edit role", "Create/edit roles")]},
     {"key": "ui", "label_id": "Pengaturan UI", "label_en": "UI Settings", "actions": [("ui.settings.view", "Lihat pengaturan UI", "View UI settings"), ("ui.settings.manage", "Edit bahasa/navigasi", "Edit language/navigation")]},
-    {"key": "migration", "label_id": "Migrasi", "label_en": "Migration", "actions": [("migration.view", "Lihat migrasi/klaim", "View migration/claims"), ("migration.manage", "Jalankan migrasi/klaim", "Run migration/claims")]},
+    {"key": "migration", "label_id": "Migrasi", "label_en": "Migration", "actions": [("migration.view", "Lihat migrasi/klaim", "View migration/claims"), ("migration.manage", "Jalankan migrasi/klaim", "Run migration/claims"), ("migration.claims", "Verifikasi klaim label", "Verify label claims")]},
     {"key": "activity", "label_id": "Log Aktivitas", "label_en": "Activity Logs", "actions": [("activity.view", "Lihat log aktivitas", "View activity logs")]},
     {"key": "notifications", "label_id": "Notifikasi", "label_en": "Notifications", "actions": [("notifications.view", "Lihat riwayat notifikasi", "View notification history")]},
     {"key": "automation", "label_id": "Otomasi", "label_en": "Automation", "actions": [("automation.manage", "Jalankan tugas terjadwal", "Trigger scheduled jobs")]},
@@ -33,7 +33,7 @@ BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
     "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
     "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.rate", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
-    "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage"],
+    "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
     "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
     "admin_marketing": ["dashboard.view", "notifications.view"],
     "admin_ui": ["dashboard.view", "notifications.view", "ui.settings.view", "ui.settings.manage"],
@@ -105,6 +105,12 @@ async def ensure_admin_access_defaults(db) -> None:
             {"key": key, "rbac_schema_version": {"$lt": 4}},
             {"$addToSet": {"permissions": "labels.rate"}, "$set": {"rbac_schema_version": 4}},
         )
+    # v5: dedicated "migration.claims" permission for verifying label claim requests.
+    for key in ("super_admin", "admin_support"):
+        await db.admin_roles.update_one(
+            {"key": key, "rbac_schema_version": {"$lt": 5}},
+            {"$addToSet": {"permissions": "migration.claims"}, "$set": {"rbac_schema_version": 5}},
+        )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -155,7 +161,7 @@ def has_permission(user: Dict[str, Any], permission: Optional[str]) -> bool:
     permissions = set(user.get("permissions") or [])
     implied = {
         "access.users.manage": {"access.users.view"}, "access.roles.manage": {"access.roles.view"},
-        "ui.settings.manage": {"ui.settings.view"},
+        "ui.settings.manage": {"ui.settings.view"}, "migration.claims": {"migration.view"},
     }
     for source, targets in implied.items():
         if source in permissions:
@@ -233,6 +239,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "wami.manage" if mutate else "wami.view"
     if path.startswith("/api/cms/"):
         return "cms.manage" if mutate else "cms.view"
+    if "/admin/migrate/claims" in path or "/admin/migrate/labels/unclaimed" in path:
+        return "migration.claims"
     if "/admin/migrate" in path:
         return "migration.manage" if mutate else "migration.view"
     if "/admin/activity-logs" in path:
