@@ -6,7 +6,7 @@ const BACKEND = process.env.REACT_APP_BACKEND_URL;
 const fileUrl = (u) => (u?.startsWith("http") ? u : `${BACKEND}${u}`);
 
 export const OnlineDot = ({ online }) => (
-  <span className={`inline-block h-2.5 w-2.5 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
+  <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${online ? "bg-emerald-400 ring-2 ring-emerald-400/30 shadow-[0_0_6px_rgba(52,211,153,0.9)]" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
 );
 
 const Attachment = ({ attachment }) => {

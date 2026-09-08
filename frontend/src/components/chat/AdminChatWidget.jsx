@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Users, LifeBuoy, CheckCircle2, Settings } from "lucide-react";
+import { MessageCircle, X, Users, LifeBuoy, CheckCircle2, Settings, Search } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
@@ -13,7 +13,8 @@ export default function AdminChatWidget() {
   const isSuperAdmin = user?.role === "super_admin";
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(isSupport ? "label" : "internal");
-  const [inboxStatus, setInboxStatus] = useState("active");
+  const [labelFilter, setLabelFilter] = useState("online");
+  const [labelSearch, setLabelSearch] = useState("");
   const [labelInbox, setLabelInbox] = useState([]);
   const [adminDir, setAdminDir] = useState([]);
   const [active, setActive] = useState(null);
@@ -25,13 +26,13 @@ export default function AdminChatWidget() {
   const prevUnread = useRef(0);
   const openRef = useRef(false);
   const activeRef = useRef(null);
-  const inboxStatusRef = useRef("active");
+  const labelFilterRef = useRef("online");
   useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { activeRef.current = active; }, [active]);
-  useEffect(() => { inboxStatusRef.current = inboxStatus; }, [inboxStatus]);
+  useEffect(() => { labelFilterRef.current = labelFilter; }, [labelFilter]);
 
   const loadLists = useCallback(async () => {
-    if (isSupport) { try { const { data } = await api.get("/chat/admin/labels", { params: { status: inboxStatusRef.current } }); setLabelInbox(data.items || []); } catch { /* */ } }
+    if (isSupport) { try { const backendStatus = labelFilterRef.current === "resolved" ? "resolved" : "active"; const { data } = await api.get("/chat/admin/labels", { params: { status: backendStatus } }); setLabelInbox(data.items || []); } catch { /* */ } }
     try { const { data } = await api.get("/chat/admin/admins"); setAdminDir(data.items || []); } catch { /* */ }
   }, [isSupport]);
 
@@ -67,7 +68,7 @@ export default function AdminChatWidget() {
     loadLists();
     const t = setInterval(loadLists, 4000);
     return () => clearInterval(t);
-  }, [open, loadLists, inboxStatus]);
+  }, [open, loadLists, labelFilter]);
 
   useEffect(() => {
     if (!open || !active) return;
@@ -134,26 +135,43 @@ export default function AdminChatWidget() {
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {tab === "label" && isSupport && (
-                  <div className="flex gap-1 border-b border-white/5 px-3 py-2">
-                    <button onClick={() => setInboxStatus("active")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${inboxStatus === "active" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-active">Aktif</button>
-                    <button onClick={() => setInboxStatus("resolved")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${inboxStatus === "resolved" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-archived">Arsip</button>
+                  <div className="border-b border-white/5 px-3 py-2 space-y-2">
+                    <div className="flex gap-1">
+                      <button onClick={() => setLabelFilter("online")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${labelFilter === "online" ? "bg-emerald-400/15 text-emerald-300" : "text-zinc-500"}`} data-testid="admin-chat-inbox-online">● Online</button>
+                      <button onClick={() => setLabelFilter("offline")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${labelFilter === "offline" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-offline">Offline</button>
+                      <button onClick={() => setLabelFilter("resolved")} className={`rounded-full px-3 py-1 text-[11px] font-semibold ${labelFilter === "resolved" ? "bg-white/10 text-white" : "text-zinc-500"}`} data-testid="admin-chat-inbox-archived">Arsip</button>
+                    </div>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-600" />
+                      <input value={labelSearch} onChange={(e) => setLabelSearch(e.target.value)} placeholder="Cari nama label…" className="w-full rounded-lg border border-white/10 bg-black/30 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-zinc-600 focus:border-white/20 focus:outline-none" data-testid="admin-chat-label-search" />
+                    </div>
                   </div>
                 )}
-                {tab === "label" && isSupport && (labelInbox.length === 0
-                  ? <div className="p-6 text-center text-xs text-zinc-600">{inboxStatus === "resolved" ? "Belum ada percakapan diarsipkan." : "Belum ada percakapan label."}</div>
-                  : labelInbox.map((it) => (
+                {tab === "label" && isSupport && (() => {
+                  const q = labelSearch.trim().toLowerCase();
+                  const shown = labelInbox.filter((it) => {
+                    const okStatus = labelFilter === "resolved" ? true : labelFilter === "online" ? it.online : !it.online;
+                    const okSearch = !q || (it.label_name || "").toLowerCase().includes(q);
+                    return okStatus && okSearch;
+                  });
+                  if (shown.length === 0) {
+                    const emptyText = q ? "Tidak ada label cocok." : labelFilter === "resolved" ? "Belum ada percakapan diarsipkan." : labelFilter === "online" ? "Belum ada label online." : "Belum ada label offline.";
+                    return <div className="p-6 text-center text-xs text-zinc-600" data-testid="admin-chat-label-empty">{emptyText}</div>;
+                  }
+                  return shown.map((it) => (
                     <button key={it.conversation_id} onClick={() => openLabel(it)} className="flex w-full items-center gap-3 border-b border-white/5 px-4 py-3 text-left hover:bg-white/[0.04]" data-testid={`admin-chat-label-item-${it.label_id}`}>
                       <OnlineDot online={it.online} />
                       <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-white">{it.label_name || "Label"}</div><div className="truncate text-[11px] text-zinc-500">{it.last_message_preview || "Belum ada pesan"}</div></div>
                       {it.unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">{it.unread}</span>}
                     </button>
-                  )))}
+                  ));
+                })()}
                 {tab === "internal" && (adminDir.length === 0
                   ? <div className="p-6 text-center text-xs text-zinc-600">Tidak ada admin lain.</div>
                   : adminDir.map((a) => (
                     <button key={a.user_id} onClick={() => openInternal(a)} className="flex w-full items-center gap-3 border-b border-white/5 px-4 py-3 text-left hover:bg-white/[0.04]" data-testid={`admin-chat-admin-item-${a.user_id}`}>
                       <OnlineDot online={a.online} />
-                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-white">{a.name}</div><div className="truncate text-[11px] text-zinc-500">{a.role}</div></div>
+                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-white">{a.name}</div><div className="flex items-center gap-1.5 text-[11px] text-zinc-500"><span className={a.online ? "font-semibold text-emerald-400" : "text-zinc-600"}>{a.online ? "Online" : "Offline"}</span><span>·</span><span className="truncate">{a.role}</span></div></div>
                       {a.unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">{a.unread}</span>}
                     </button>
                   )))}

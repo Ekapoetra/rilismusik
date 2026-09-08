@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — 3 Fitur Chat & Laporan Artis
+- **Indikator online internal**: `OnlineDot` diperjelas (titik hijau + ring + glow); daftar admin internal menampilkan teks "Online/Offline" + role, admin online tetap diurutkan paling atas (`chat.py admin_directory`).
+- **Chat Label Online/Offline/Arsip + pencarian** (`AdminChatWidget.jsx`): tab LABEL kini punya 3 sub-tab — Online (label sedang online), Offline (aktif tapi label offline), Arsip (resolved) — plus kotak pencarian nama label. Backend `admin_label_inbox` tetap; filter online/offline dilakukan client-side dari field `online`.
+- **Kirim laporan Excel ke email artis** (manual): endpoint `POST /api/royalty/artists/{artist_id}/send-report?period=` (label-only) — cocokkan `artist_name` dgn `artist_name_raw`, bangun Excel (Ringkasan + detail), kirim ke email artis via SMTP dgn lampiran (`email_service.send_artist_royalty_report_email`, dukungan attachment ditambahkan). Royalti legacy dikecualikan. UI: tombol "Kirim Laporan ke Email Artis" + modal pilih periode di `pages/label/Artists.jsx`.
+- Verifikasi: endpoint kirim laporan diuji in-process (2 baris cocok, xlsx [Ringkasan, Aurora], email helper terpanggil, SMTP di-mock); screenshot chat menampilkan sub-tab Online/Offline/Arsip + pencarian & teks Online/Offline internal. Backend & frontend build sehat.
+
+
 ## 2026-06 — Fix: Admin role `admin_ui` (mis. "Adovi") tidak muncul di chat internal
 - Query daftar chat INTERNAL (`GET /api/chat/admin/admins`, `routes/chat.py`) memakai daftar role hardcode yang **tidak menyertakan `admin_ui`**, sehingga admin dengan role bawaan `admin_ui` (contoh: role "Adovi" hasil rename dari admin_ui) tidak tampil.
 - Diperbaiki memakai `ADMIN_ROLES` lengkap + `$or` dengan `admin_role_id` (mirror `admin_list_admin_users`), jadi SEMUA identitas admin (termasuk `admin_ui` & role kustom) muncul. Tetap menyaring suspended/disabled/deleted.

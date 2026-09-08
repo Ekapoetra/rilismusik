@@ -40,9 +40,10 @@ def _from_header() -> str:
     return f"{SENDER_NAME} <{SENDER_EMAIL}>"
 
 
-def _smtp_send_sync(*, to: str, subject: str, html: str) -> str:
+def _smtp_send_sync(*, to: str, subject: str, html: str, attachments: Optional[list] = None) -> str:
     """Synchronous SMTP send. Called from a worker thread via asyncio.to_thread.
     Returns the SMTP message-id on success; raises on failure.
+    `attachments`: list of dicts {filename, content(bytes), maintype, subtype}.
     """
     msg = EmailMessage()
     msg["From"] = _from_header()
@@ -52,6 +53,12 @@ def _smtp_send_sync(*, to: str, subject: str, html: str) -> str:
     plain_fallback = "Email ini dirancang untuk klien HTML. Buka di browser modern atau Gmail/Outlook untuk tampilan terbaik."
     msg.set_content(plain_fallback)
     msg.add_alternative(html, subtype="html")
+
+    for att in (attachments or []):
+        msg.add_attachment(
+            att["content"], maintype=att.get("maintype", "application"),
+            subtype=att.get("subtype", "octet-stream"), filename=att["filename"],
+        )
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=30) as server:
@@ -98,7 +105,7 @@ def _wrap(title: str, body_html: str, cta_label: Optional[str] = None, cta_url: 
 
 
 # ---------- Low-level send ----------
-async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+async def send_email(*, to: str, subject: str, html: str, attachments: Optional[list] = None) -> Optional[str]:
     """Send an email via Hostinger SMTP. Returns the message-id on success,
     None on failure. Never raises — failure is logged and ignored so callers
     can treat email as best-effort (transactional flows continue to work).
@@ -107,7 +114,7 @@ async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
         logger.warning("[EMAIL] SMTP credentials not set — skipping email to %s (%s)", to, subject)
         return None
     try:
-        message_id = await asyncio.to_thread(_smtp_send_sync, to=to, subject=subject, html=html)
+        message_id = await asyncio.to_thread(_smtp_send_sync, to=to, subject=subject, html=html, attachments=attachments)
         logger.info("[EMAIL] sent to=%s subject=%r id=%s", to, subject, message_id)
         return message_id
     except Exception as e:
@@ -158,6 +165,25 @@ async def send_claim_rejected_email(*, to: str, pic_name: str, legacy_label_name
     """
     html = _wrap("Klaim akun ditolak", body, "Hubungi Support", f"{FRONTEND_URL}/label/support")
     return await send_email(to=to, subject="Permintaan klaim akun ditolak", html=html)
+
+
+async def send_artist_royalty_report_email(*, to: str, artist_name: str, label_name: str, period: Optional[str], xlsx_bytes: bytes, filename: str) -> Optional[str]:
+    periode_txt = period or "semua periode"
+    body = f"""
+    <p>Halo <strong>{h(artist_name)}</strong>,</p>
+    <p>Berikut laporan royalti Anda dari label <strong>{h(label_name)}</strong> untuk <strong>{h(periode_txt)}</strong>, terlampir dalam berkas Excel.</p>
+    <p style="color:#a1a1aa;font-size:13px;">Laporan berisi rincian per platform, negara, dan track. Royalti legacy tidak termasuk dalam laporan ini.</p>
+    <p style="color:#a1a1aa;font-size:13px;">Jika ada pertanyaan, silakan hubungi label Anda.</p>
+    """
+    html = _wrap(f"Laporan Royalti — {periode_txt}", body)
+    return await send_email(
+        to=to, subject=f"Laporan Royalti {h(artist_name)} — {periode_txt}", html=html,
+        attachments=[{
+            "filename": filename, "content": xlsx_bytes,
+            "maintype": "application",
+            "subtype": "vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }],
+    )
 
 
 async def send_contract_expiry_email(*, to: str, label_name: str, days_left: int, end_date: str) -> Optional[str]:

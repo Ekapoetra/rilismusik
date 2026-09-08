@@ -1878,33 +1878,19 @@ def _safe_sheet_title(name: str, used: set) -> str:
     return candidate
 
 
-@royalty_r.get("/export.xlsx")
-async def label_royalty_export_xlsx(
-    user: dict = Depends(require_kyc_for_label_user),
-    period: Optional[str] = None,
-    artist: Optional[str] = None,
-):
-    """Excel detail royalti label/artis: 1 sheet ringkasan + 1 sheet detail per artis.
-    Royalti legacy tidak ditampilkan."""
-    from fastapi.responses import StreamingResponse
+async def _build_royalty_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], artist: Optional[str]) -> bytes:
+    """Bangun workbook Excel: sheet Ringkasan + 1 sheet detail per artis. `base` sudah
+    mengandung filter scope (label/artis), period, dan artist bila diberikan."""
     from openpyxl import Workbook
-
-    base = await _royalty_report_scope(user)
-    if period:
-        base["period"] = period
-    if artist:
-        base["artist_name_raw"] = artist
 
     columns = ["Periode", "Rilisan", "Track", "Artis", "Platform", "Negara",
                "ISRC", "UPC", "Streams", "Royalti IDR", "Status"]
 
-    # Determine artist list for detail sheets
     if artist:
         artist_names = [artist]
     else:
         artist_names = sorted([n for n in await db.royalty_lines.distinct("artist_name_raw", base) if n])
 
-    # Summary aggregation (overall + per artist)
     overall = {"total_idr": 0, "total_streams": 0, "total_lines": 0}
     async for row in db_bg.royalty_lines.aggregate([
         {"$match": base},
@@ -1925,8 +1911,6 @@ async def label_royalty_export_xlsx(
 
     wb = Workbook()
     used_titles = set()
-
-    # ---- Sheet Ringkasan ----
     ws = wb.active
     ws.title = "Ringkasan"
     used_titles.add("ringkasan")
@@ -1945,7 +1929,6 @@ async def label_royalty_export_xlsx(
     for a in per_artist:
         ws.append([a["artist"], a["streams"], a["total_idr"], a["lines"]])
 
-    # ---- Detail sheets per artist ----
     for name in artist_names:
         title = _safe_sheet_title(name, used_titles)
         sheet = wb.create_sheet(title=title)
@@ -1962,13 +1945,74 @@ async def label_royalty_export_xlsx(
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
+    return out.getvalue()
+
+
+@royalty_r.get("/export.xlsx")
+async def label_royalty_export_xlsx(
+    user: dict = Depends(require_kyc_for_label_user),
+    period: Optional[str] = None,
+    artist: Optional[str] = None,
+):
+    """Excel detail royalti label/artis: 1 sheet ringkasan + 1 sheet detail per artis.
+    Royalti legacy tidak ditampilkan."""
+    from fastapi.responses import StreamingResponse
+
+    base = await _royalty_report_scope(user)
+    if period:
+        base["period"] = period
+    if artist:
+        base["artist_name_raw"] = artist
+
+    data = await _build_royalty_workbook_bytes(base=base, period=period, artist=artist)
     safe = "".join(c for c in (artist or "semua") if c.isalnum() or c in ("-", "_"))[:30] or "semua"
     filename = f"royalti_{safe}_{period or 'all'}.xlsx"
     return StreamingResponse(
-        iter([out.getvalue()]),
+        iter([data]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@royalty_r.post("/artists/{artist_id}/send-report")
+async def label_send_artist_report(
+    artist_id: str,
+    user: dict = Depends(require_label),
+    period: Optional[str] = None,
+):
+    """Label mengirim laporan Excel royalti seorang artis ke email artis tersebut.
+    Data dicocokkan berdasarkan nama artis (artist_name_raw). Royalti legacy dikecualikan."""
+    from email_service import send_artist_royalty_report_email
+
+    label = await get_label_by_user(user)
+    artist = await db.artists.find_one({"id": artist_id, "label_id": label["id"]}, {"_id": 0})
+    if not artist:
+        raise HTTPException(status_code=404, detail="Artis tidak ditemukan")
+    to_email = (artist.get("email") or "").strip()
+    if not to_email:
+        raise HTTPException(status_code=400, detail="Artis ini belum memiliki email terdaftar.")
+    artist_name = artist.get("artist_name")
+
+    base = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True},
+            "label_id": label["id"], "artist_name_raw": artist_name}
+    if period:
+        base["period"] = period
+
+    line_count = await db.royalty_lines.count_documents(base)
+    if line_count == 0:
+        raise HTTPException(status_code=400, detail=f"Tidak ada data royalti (non-legacy) untuk artis “{artist_name}”{f' pada periode {period}' if period else ''}.")
+
+    data = await _build_royalty_workbook_bytes(base=base, period=period, artist=artist_name)
+    safe = "".join(c for c in (artist_name or "artis") if c.isalnum() or c in ("-", "_"))[:30] or "artis"
+    filename = f"royalti_{safe}_{period or 'all'}.xlsx"
+
+    sent = await send_artist_royalty_report_email(
+        to=to_email, artist_name=artist_name, label_name=label.get("label_name") or "Label",
+        period=period, xlsx_bytes=data, filename=filename,
+    )
+    await log_activity(user["id"], "send_artist_report", "artist", artist_id,
+                       after={"period": period or "all", "email": to_email, "lines": line_count})
+    return {"ok": True, "email": to_email, "lines": line_count, "email_sent": bool(sent)}
 
 
 # ============================================================
