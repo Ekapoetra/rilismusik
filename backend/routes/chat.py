@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 import storage_service
 from models import now_iso, new_id
-from .deps import db, get_current_user, is_admin_identity, admin_user_ids, notify
+from .deps import db, get_current_user, is_admin_identity, admin_user_ids, notify, ADMIN_ROLES
 from .admin_permission_service import has_permission
 
 chat_r = APIRouter(prefix="/chat", tags=["chat"])
@@ -335,7 +335,7 @@ async def admin_label_inbox(user: dict = Depends(get_current_user), status: str 
 async def admin_directory(user: dict = Depends(get_current_user)):
     _require_admin(user)
     admins = await db.users.find(
-        {"role": {"$in": ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_custom"]}, "id": {"$ne": user["id"]}, "status": {"$nin": ["suspended", "disabled"]}, "deleted_at": {"$in": [None]}},
+        {"$or": [{"role": {"$in": list(ADMIN_ROLES)}}, {"admin_role_id": {"$exists": True, "$ne": None}}], "id": {"$ne": user["id"]}, "status": {"$nin": ["suspended", "disabled"]}, "deleted_at": {"$in": [None]}},
         {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1},
     ).to_list(1000)
     presence = await _presence_map([a["id"] for a in admins])

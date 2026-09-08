@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Fix: Admin role `admin_ui` (mis. "Adovi") tidak muncul di chat internal
+- Query daftar chat INTERNAL (`GET /api/chat/admin/admins`, `routes/chat.py`) memakai daftar role hardcode yang **tidak menyertakan `admin_ui`**, sehingga admin dengan role bawaan `admin_ui` (contoh: role "Adovi" hasil rename dari admin_ui) tidak tampil.
+- Diperbaiki memakai `ADMIN_ROLES` lengkap + `$or` dengan `admin_role_id` (mirror `admin_list_admin_users`), jadi SEMUA identitas admin (termasuk `admin_ui` & role kustom) muncul. Tetap menyaring suspended/disabled/deleted.
+- Verifikasi: user `admin_ui` yang di-seed kini tampil di directory chat (sebelumnya tidak).
+
+
 ## 2026-06 — 3 Fitur: Hapus Draft (Detail), Laporan Excel Royalti, Nama File Audio
 - **Hapus draft di Detail Rilisan**: `pages/label/ReleaseDetail.jsx` kini punya tombol "Hapus Rilisan" untuk status `draft`/`rejected` (endpoint `DELETE /api/releases/{id}` sudah ada; tombol di daftar juga tetap ada).
 - **Laporan Excel royalti** (`routes/royalty.py`): endpoint baru `GET /api/royalty/export.xlsx?period=&artist=` → workbook openpyxl dengan sheet **Ringkasan** (total keseluruhan + tabel per artis) dan **1 sheet detail per artis** (kolom: Periode, Rilisan, Track, Artis, Platform, Negara, ISRC, UPC, Streams, Royalti IDR, Status). Royalti **legacy dikecualikan** (`legacy_settled != True`, status pending/available). Endpoint bantu `GET /api/royalty/report-artists`. UI: dropdown artis + tombol "Download Excel" di `pages/label/Royalty.jsx`.
