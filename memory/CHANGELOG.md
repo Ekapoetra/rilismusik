@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Feature: Izin Terpisah "Ubah Rate/Fee Label" (labels.rate)
+- Menambah permission baru `labels.rate` ("Ubah rate/fee label") di modul Label pada RBAC.
+- `_queue_royalty_change` kini butuh izin `labels.rate` (bukan `labels.manage`), sehingga ubah rate/royalti bisa dipisah dari edit label biasa.
+- Migrasi RBAC v4 (`ensure_admin_access_defaults`): `labels.rate` otomatis ditambahkan ke `super_admin` & `admin_finance`. Role lain (termasuk role kustom) harus mencentang izin ini secara manual.
+- Frontend: editor "Bagian Royalti Label (%)" (`LabelDetailView.jsx`) kini tampil berdasarkan izin `labels.rate` (`canRate`), bukan `canFinance`.
+- Verifikasi E2E: `admin_finance` → PATCH rate HTTP 200; `admin_release` (tanpa labels.rate) → HTTP 403 "Anda tidak memiliki izin Ubah Rate/Fee Label". Data demo dikembalikan ke 60%.
+
+
 ## 2026-06 — Fix: Izin Ubah Rate/Royalti Label (RBAC)
 - `_queue_royalty_change` di `routes/admin_label_service.py` sebelumnya hardcode `_require_role(user, FINANCE_ROLES)` sehingga hanya `super_admin`/`admin_finance` yang bisa ubah "Bagian Royalti Label (%)", mengabaikan izin role kustom.
 - Diubah menjadi berbasis izin: kini siapa pun dengan izin `labels.manage` (Edit Label) bisa mengubah rate/royalti label. Super admin & admin_finance tetap bisa (keduanya punya `labels.manage`).

@@ -52,7 +52,7 @@ export function PricingSection({ pricing = {} }) {
 const RoyaltyRow = ({ label, value, bold, muted }) => <div className={`flex justify-between ${muted ? "text-zinc-500" : "text-zinc-300"} ${bold ? "font-bold text-white" : ""}`}><span>{label}</span><span>{value}</span></div>;
 
 export function RoyaltySection({ settings, simulation, setSimulation }) {
-  const labelPercent = settings.royalty_sim?.label_percent_default ?? 60;
+  const labelPercent = 95;
   const labelEur = simulation.revenue * (labelPercent / 100);
   const labelIdr = labelEur * simulation.rate;
   return <section id="royalty" className="px-6 md:px-12 lg:px-24 py-20"><div className="max-w-6xl mx-auto rm-glass-strong rounded-[32px] p-8 md:p-12"><div className="grid md:grid-cols-2 gap-10 items-center"><div><div className="text-xs uppercase tracking-[0.18em] font-bold rm-gradient-text mb-3">SIMULASI ROYALTI</div><h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter">Hitung estimasi pendapatan Anda.</h2><p className="mt-3 text-zinc-400">Masukkan revenue Believe dan kurs EUR/IDR. Hasil bersifat estimasi.</p><div className="mt-6 space-y-4 max-w-sm"><div><label className="rm-label">Revenue (EUR)</label><input type="number" data-testid={LANDING.simRevenueInput} className="rm-input" value={simulation.revenue} onChange={(e) => setSimulation({ ...simulation, revenue: Number(e.target.value || 0) })} /></div><div><label className="rm-label">Kurs EUR → IDR</label><input type="number" data-testid={LANDING.simRateInput} className="rm-input" value={simulation.rate} onChange={(e) => setSimulation({ ...simulation, rate: Number(e.target.value || 0) })} /></div></div></div>

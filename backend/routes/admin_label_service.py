@@ -80,8 +80,8 @@ async def _queue_royalty_change(
 ) -> Tuple[Dict[str, Any], Optional[str]]:
     if body.royalty_percentage_default is None:
         return {}, None
-    if not has_permission(user, "labels.manage"):
-        raise HTTPException(status_code=403, detail="Anda tidak memiliki izin Edit Label untuk mengubah rate/royalti label")
+    if not has_permission(user, "labels.rate"):
+        raise HTTPException(status_code=403, detail="Anda tidak memiliki izin Ubah Rate/Fee Label")
     active = await db.withdraw_requests.find_one({
         "label_id": label_id,
         "status": {"$in": ["requested", "approved"]},

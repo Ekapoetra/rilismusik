@@ -43,6 +43,7 @@ export default function AdminLabelDetail() {
 
   useEffect(() => { load().catch((error) => setErr(formatApiError(error.response?.data?.detail))); }, [load]);
   const canFinance = hasPermission("labels.bank") || hasPermission("royalty.manage");
+  const canRate = hasPermission("labels.rate");
   const canBlacklist = hasPermission("labels.manage");
 
   const runAction = async (action, success) => {
@@ -114,7 +115,7 @@ export default function AdminLabelDetail() {
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const label = data.label;
   const isBlacklisted = label.account_status === "blacklisted";
-  const permissions = { canFinance, canBlacklist, isBlacklisted };
+  const permissions = { canFinance, canRate, canBlacklist, isBlacklisted };
   const actions = { setStatus, unblacklist, verifyBank, openBlacklist: () => setBlacklistOpen(true), openEmail: () => setEmailOpen(true), openRevoke: () => setRevokeOpen(true) };
   const royaltyState = { royalty, setRoyalty, reason, setReason, save: setRoyaltyPct, saving: royaltySaving, recalcJob };
   const subscriptionState = { tier: subTier, setTier: setSubTier, expiry: subExpiry, setExpiry: setSubExpiry, save: saveSubscription, saving: subSaving };
