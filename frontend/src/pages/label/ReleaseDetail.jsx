@@ -1,17 +1,20 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { CreditCard, Disc3, Music, Download } from "lucide-react";
+import { CreditCard, Disc3, Music, Download, Trash2 } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [invoice, setInvoice] = useState(null);
   const [paying, setPaying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
@@ -56,6 +59,17 @@ export default function ReleaseDetail() {
     } catch (error) { setErr(formatApiError(error.response?.data?.detail) || "Gagal membuat surat hak cipta"); }
   };
 
+  const deleteRelease = async () => {
+    if (!window.confirm(`Hapus rilisan “${data.release_title}”? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/releases/${id}`);
+      toast.success("Rilisan dihapus.");
+      navigate("/label/releases");
+    } catch (error) { setErr(formatApiError(error.response?.data?.detail) || "Gagal menghapus rilisan"); }
+    finally { setDeleting(false); }
+  };
+
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
 
   return (
@@ -78,6 +92,9 @@ export default function ReleaseDetail() {
         </div>
         {(data.status === "draft" || data.status === "need_revision") && (
           <Link to={`/label/releases/${data.id}/edit`} className="rm-btn-ghost" data-testid="release-detail-edit-button">Edit</Link>
+        )}
+        {["draft", "rejected"].includes(data.status) && (
+          <button type="button" onClick={deleteRelease} disabled={deleting} className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200 disabled:opacity-40" data-testid="release-detail-delete-button"><Trash2 className="w-4 h-4" /> {deleting ? "Menghapus…" : "Hapus Rilisan"}</button>
         )}
         {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost flex items-center gap-2" onClick={downloadCopyright} data-testid="release-detail-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
       </div>

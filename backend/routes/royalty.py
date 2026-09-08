@@ -1840,6 +1840,137 @@ async def label_royalty_export_csv(
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
+def _royalty_report_base(user: dict) -> Dict[str, Any]:
+    """Filter untuk laporan royalti label/artis: hanya pending/available & bukan legacy."""
+    return {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+
+
+async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
+    base = _royalty_report_base(user)
+    if user["role"] == LABEL_ROLE:
+        label = await get_label_by_user(user)
+        base["label_id"] = label["id"]
+    elif user["role"] == ARTIST_ROLE:
+        base["artist_id"] = user["id"]
+    else:
+        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    return base
+
+
+@royalty_r.get("/report-artists")
+async def label_report_artists(user: dict = Depends(require_kyc_for_label_user)):
+    """Daftar nama artis yang punya data royalti (non-legacy) untuk filter laporan."""
+    base = await _royalty_report_scope(user)
+    names = await db.royalty_lines.distinct("artist_name_raw", base)
+    return sorted([n for n in names if n])
+
+
+def _safe_sheet_title(name: str, used: set) -> str:
+    import re
+    title = re.sub(r"[\\/*?:\[\]]", " ", str(name or "Artis")).strip()[:28] or "Artis"
+    candidate = title
+    i = 1
+    while candidate.lower() in used:
+        suffix = f" {i}"
+        candidate = title[: 28 - len(suffix)] + suffix
+        i += 1
+    used.add(candidate.lower())
+    return candidate
+
+
+@royalty_r.get("/export.xlsx")
+async def label_royalty_export_xlsx(
+    user: dict = Depends(require_kyc_for_label_user),
+    period: Optional[str] = None,
+    artist: Optional[str] = None,
+):
+    """Excel detail royalti label/artis: 1 sheet ringkasan + 1 sheet detail per artis.
+    Royalti legacy tidak ditampilkan."""
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+
+    base = await _royalty_report_scope(user)
+    if period:
+        base["period"] = period
+    if artist:
+        base["artist_name_raw"] = artist
+
+    columns = ["Periode", "Rilisan", "Track", "Artis", "Platform", "Negara",
+               "ISRC", "UPC", "Streams", "Royalti IDR", "Status"]
+
+    # Determine artist list for detail sheets
+    if artist:
+        artist_names = [artist]
+    else:
+        artist_names = sorted([n for n in await db.royalty_lines.distinct("artist_name_raw", base) if n])
+
+    # Summary aggregation (overall + per artist)
+    overall = {"total_idr": 0, "total_streams": 0, "total_lines": 0}
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": base},
+        {"$group": {"_id": None, "total_idr": {"$sum": "$label_idr"},
+                    "total_streams": {"$sum": "$quantity"}, "total_lines": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        overall = {"total_idr": row["total_idr"], "total_streams": row["total_streams"], "total_lines": row["total_lines"]}
+
+    per_artist = []
+    async for row in db_bg.royalty_lines.aggregate([
+        {"$match": base},
+        {"$group": {"_id": "$artist_name_raw", "total_idr": {"$sum": "$label_idr"},
+                    "streams": {"$sum": "$quantity"}, "lines": {"$sum": 1}}},
+        {"$sort": {"total_idr": -1}},
+    ], allowDiskUse=True):
+        per_artist.append({"artist": row["_id"] or "Tanpa Nama", "total_idr": row["total_idr"],
+                           "streams": row["streams"], "lines": row["lines"]})
+
+    wb = Workbook()
+    used_titles = set()
+
+    # ---- Sheet Ringkasan ----
+    ws = wb.active
+    ws.title = "Ringkasan"
+    used_titles.add("ringkasan")
+    scope_label = "Semua Artis" if not artist else artist
+    ws.append(["Laporan Royalti"])
+    ws.append(["Periode", period or "Semua periode"])
+    ws.append(["Cakupan", scope_label])
+    ws.append(["Catatan", "Royalti legacy tidak termasuk"])
+    ws.append([])
+    ws.append(["Total Royalti IDR", overall["total_idr"]])
+    ws.append(["Total Streams", overall["total_streams"]])
+    ws.append(["Total Baris", overall["total_lines"]])
+    ws.append([])
+    ws.append(["Ringkasan per Artis"])
+    ws.append(["Artis", "Streams", "Royalti IDR", "Baris"])
+    for a in per_artist:
+        ws.append([a["artist"], a["streams"], a["total_idr"], a["lines"]])
+
+    # ---- Detail sheets per artist ----
+    for name in artist_names:
+        title = _safe_sheet_title(name, used_titles)
+        sheet = wb.create_sheet(title=title)
+        sheet.append(columns)
+        cursor = db.royalty_lines.find({**base, "artist_name_raw": name}, {"_id": 0}).sort("period", -1)
+        async for it in cursor:
+            sheet.append([
+                it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
+                it.get("artist_name_raw"), it.get("platform"), it.get("country"),
+                it.get("isrc"), it.get("upc"), it.get("quantity"),
+                it.get("label_idr"), it.get("status"),
+            ])
+
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    safe = "".join(c for c in (artist or "semua") if c.isalnum() or c in ("-", "_"))[:30] or "semua"
+    filename = f"royalti_{safe}_{period or 'all'}.xlsx"
+    return StreamingResponse(
+        iter([out.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ============================================================
 # Recovery & Retry for interrupted background imports
 # ============================================================

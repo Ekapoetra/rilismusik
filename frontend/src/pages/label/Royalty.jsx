@@ -10,6 +10,8 @@ export default function LabelRoyalty() {
   const [summary, setSummary] = useState(null);
   const [lines, setLines] = useState([]);
   const [filter, setFilter] = useState({ platform: "", country: "", track_id: "" });
+  const [reportArtists, setReportArtists] = useState([]);
+  const [reportArtist, setReportArtist] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -21,6 +23,9 @@ export default function LabelRoyalty() {
         setPeriod((current) => current || response.data[0] || "");
       })
       .catch((error) => active && setErr(formatApiError(error.response?.data?.detail)));
+    api.get("/royalty/report-artists")
+      .then((response) => active && setReportArtists(response.data || []))
+      .catch(() => {});
     return () => { active = false; };
   }, []);
 
@@ -45,6 +50,13 @@ export default function LabelRoyalty() {
     return `${API_BASE}/royalty/export.csv?${p.toString()}`;
   }, [period]);
 
+  const excelUrl = useMemo(() => {
+    const p = new URLSearchParams();
+    if (period) p.set("period", period);
+    if (reportArtist) p.set("artist", reportArtist);
+    return `${API_BASE}/royalty/export.xlsx?${p.toString()}`;
+  }, [period, reportArtist]);
+
   if (!summary) return <div className="text-zinc-500">Memuat…</div>;
 
   return (
@@ -55,11 +67,16 @@ export default function LabelRoyalty() {
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Laporan Royalti</h1>
           <p className="text-sm text-zinc-400 mt-1">Detail bagian Anda dari laporan Believe (dalam IDR).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-end">
           <select className="rm-input min-w-[140px]" value={period} onChange={(e) => setPeriod(e.target.value)} data-testid="royalty-period-select">
             <option value="">Semua periode</option>
             {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          <select className="rm-input min-w-[150px]" value={reportArtist} onChange={(e) => setReportArtist(e.target.value)} data-testid="royalty-report-artist-select">
+            <option value="">Semua artis</option>
+            {reportArtists.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <a href={excelUrl} className="rm-btn-primary flex items-center gap-2 text-sm" data-testid="royalty-export-excel"><Download className="w-4 h-4" /> Download Excel</a>
           <a href={exportUrl} className="rm-btn-ghost flex items-center gap-2 text-sm" data-testid="royalty-export-csv"><Download className="w-4 h-4" /> Export CSV</a>
         </div>
       </div>

@@ -81,7 +81,7 @@ def expand_origin_variants(origins: list[str]) -> list[str]:
 # Hybrid file serving: try R2 (presigned redirect) first, fall back to local disk
 # for legacy files uploaded before the R2 migration.
 @app.get("/api/files/{path:path}")
-async def serve_file(path: str):
+async def serve_file(path: str, download: str | None = None):
     from fastapi import HTTPException
     if path.lstrip("/").startswith("kyc-private/"):
         raise HTTPException(status_code=404, detail="File not found")
@@ -91,7 +91,7 @@ async def serve_file(path: str):
             meta = await storage_service.head_object(key=path)
             if meta:
                 ttl = 3600 * 24 * 7 if path.startswith(("cover/", "landing/")) else 3600
-                url = await storage_service.generate_presigned_url(key=path, ttl=ttl)
+                url = await storage_service.generate_presigned_url(key=path, ttl=ttl, filename=download or None)
                 return RedirectResponse(url=url, status_code=302)
         except Exception as e:
             logger.warning("[FILES] R2 lookup failed for %s: %s", path, e)
@@ -100,7 +100,7 @@ async def serve_file(path: str):
     if not str(local_path).startswith(str(UPLOAD_DIR.resolve())):
         raise HTTPException(status_code=400, detail="Invalid file path")
     if local_path.exists():
-        return FileResponse(str(local_path))
+        return FileResponse(str(local_path), filename=download or None)
     raise HTTPException(status_code=404, detail="File not found")
 
 

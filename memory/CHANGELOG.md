@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — 3 Fitur: Hapus Draft (Detail), Laporan Excel Royalti, Nama File Audio
+- **Hapus draft di Detail Rilisan**: `pages/label/ReleaseDetail.jsx` kini punya tombol "Hapus Rilisan" untuk status `draft`/`rejected` (endpoint `DELETE /api/releases/{id}` sudah ada; tombol di daftar juga tetap ada).
+- **Laporan Excel royalti** (`routes/royalty.py`): endpoint baru `GET /api/royalty/export.xlsx?period=&artist=` → workbook openpyxl dengan sheet **Ringkasan** (total keseluruhan + tabel per artis) dan **1 sheet detail per artis** (kolom: Periode, Rilisan, Track, Artis, Platform, Negara, ISRC, UPC, Streams, Royalti IDR, Status). Royalti **legacy dikecualikan** (`legacy_settled != True`, status pending/available). Endpoint bantu `GET /api/royalty/report-artists`. UI: dropdown artis + tombol "Download Excel" di `pages/label/Royalty.jsx`.
+- **Nama file audio saat diunduh** (`server.py`): `/api/files/{path}` menerima query `?download=<nama>` → presigned R2 menyetel `ResponseContentDisposition: attachment; filename` (fallback lokal via `FileResponse(filename=...)`). Tombol "Unduh WAV" ditambahkan di `components/releases/ReleaseMetadataView.jsx` (dipakai detail rilisan label & admin) memakai `track.audio_filename`.
+- Verifikasi: Excel diuji in-process (sheets & angka benar, legacy tidak muncul); presigned URL memuat disposition nama asli; frontend build sukses.
+
+
 ## 2026-06 — Feature: Izin Terpisah "Ubah Rate/Fee Label" (labels.rate)
 - Menambah permission baru `labels.rate` ("Ubah rate/fee label") di modul Label pada RBAC.
 - `_queue_royalty_change` kini butuh izin `labels.rate` (bukan `labels.manage`), sehingga ubah rate/royalti bisa dipisah dari edit label biasa.
