@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Tombol Hapus Draft (di samping status) & Empty-state Royalti + Saran Klaim
+- **Hapus draft di daftar rilisan** (`pages/label/Releases.jsx`): tombol hapus (ikon 🗑️) kini muncul **di samping badge status** khusus status `draft`; untuk `rejected` tombol hapus tetap di kolom Aksi. Endpoint `DELETE /api/releases/{id}` sudah ada.
+- **Empty-state Royalti label** (`pages/label/Royalty.jsx`): saat belum ada data royalti, pesan disesuaikan dengan `claim_status` user:
+  - `pending_link`: "Permintaan klaim sedang ditinjau…"
+  - `rejected`: "Royalti belum tersedia bulan ini" + alasan + tombol "Klaim Label".
+  - belum klaim (default): "Royalti belum tersedia bulan ini. Laporan biasanya masuk bulan berikutnya. Silakan klaim label…" + tombol "Klaim Label" → /label/profile.
+  - `linked`: pesan tanpa ajakan klaim.
+- Verifikasi: frontend build sukses. (Smoke screenshot langsung terbatas karena halaman label ter-gate KYC pada akun demo preview.)
+
+
 ## 2026-06 — 3 Fitur Chat & Laporan Artis
 - **Indikator online internal**: `OnlineDot` diperjelas (titik hijau + ring + glow); daftar admin internal menampilkan teks "Online/Offline" + role, admin online tetap diurutkan paling atas (`chat.py admin_directory`).
 - **Chat Label Online/Offline/Arsip + pencarian** (`AdminChatWidget.jsx`): tab LABEL kini punya 3 sub-tab — Online (label sedang online), Offline (aktif tapi label offline), Arsip (resolved) — plus kotak pencarian nama label. Backend `admin_label_inbox` tetap; filter online/offline dilakukan client-side dari field `online`.

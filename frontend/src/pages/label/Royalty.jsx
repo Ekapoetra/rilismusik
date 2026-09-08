@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { api, API_BASE, formatApiError } from "@/api/client";
-import { Download, Music, Globe2, TrendingUp } from "lucide-react";
+import { useAuth } from "@/api/AuthContext";
+import { Download, Music, Globe2, TrendingUp, Info, BadgeCheck } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 
 export default function LabelRoyalty() {
+  const { user } = useAuth();
   const [months, setMonths] = useState([]);
   const [period, setPeriod] = useState("");
   const [summary, setSummary] = useState(null);
@@ -83,11 +86,7 @@ export default function LabelRoyalty() {
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="royalty-error">{err}</div>}
 
       {months.length === 0 ? (
-        <div className="rm-card p-10 text-center text-zinc-500">
-          <Music className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
-          <div className="font-display font-bold text-lg">Belum ada data royalti</div>
-          <p className="text-sm mt-1">Data royalti akan muncul setelah admin upload CSV Believe dan publish.</p>
-        </div>
+        <RoyaltyEmptyState claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} />
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -181,3 +180,35 @@ function Row({ k, v, sub }) {
   return <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0"><div className="text-sm">{k}{sub && <div className="text-[10px] text-zinc-500">{sub}</div>}</div><div className="font-bold text-sm">{v}</div></div>;
 }
 function Empty() { return <div className="text-sm text-zinc-500 py-4">Belum ada data.</div>; }
+
+function RoyaltyEmptyState({ claimStatus, rejectReason }) {
+  if (claimStatus === "pending_link") {
+    return (
+      <div className="rm-card p-10 text-center" data-testid="royalty-empty-claim-pending">
+        <Info className="w-10 h-10 mx-auto mb-3 text-amber-300" />
+        <div className="font-display font-bold text-lg text-white">Permintaan klaim sedang ditinjau</div>
+        <p className="text-sm mt-2 text-zinc-400 max-w-md mx-auto">Permintaan klaim label lama Anda sedang diproses admin. Royalti Anda akan muncul di sini setelah klaim disetujui dan data periode masuk.</p>
+      </div>
+    );
+  }
+  if (claimStatus === "rejected") {
+    return (
+      <div className="rm-card p-10 text-center" data-testid="royalty-empty-claim-rejected">
+        <Info className="w-10 h-10 mx-auto mb-3 text-rose-300" />
+        <div className="font-display font-bold text-lg text-white">Royalti belum tersedia bulan ini</div>
+        <p className="text-sm mt-2 text-zinc-400 max-w-md mx-auto">Permintaan klaim label Anda belum disetujui{rejectReason ? ` (alasan: ${rejectReason})` : ""}. Data royalti biasanya baru masuk pada bulan berikutnya. Silakan ajukan klaim label kembali untuk mengecek royalti periode berikutnya.</p>
+        <Link to="/label/profile" className="rm-btn-primary inline-flex items-center gap-2 mt-5 text-sm" data-testid="royalty-empty-claim-cta"><BadgeCheck className="w-4 h-4" /> Klaim Label</Link>
+      </div>
+    );
+  }
+  // Newly registered / not yet claimed (claimStatus undefined) — encourage claim.
+  const notLinked = claimStatus !== "linked";
+  return (
+    <div className="rm-card p-10 text-center" data-testid="royalty-empty-default">
+      <Info className="w-10 h-10 mx-auto mb-3 text-sky-300" />
+      <div className="font-display font-bold text-lg text-white">Royalti belum tersedia bulan ini</div>
+      <p className="text-sm mt-2 text-zinc-400 max-w-md mx-auto">Laporan royalti biasanya masuk pada bulan berikutnya setelah periode berjalan selesai. {notLinked ? "Jika Anda memiliki label lama, silakan klaim label Anda untuk melihat royalti periode sebelumnya dan mengecek royalti di bulan berikutnya." : "Data akan otomatis muncul di sini setelah periode royalti berikutnya masuk."}</p>
+      {notLinked && <Link to="/label/profile" className="rm-btn-primary inline-flex items-center gap-2 mt-5 text-sm" data-testid="royalty-empty-claim-cta"><BadgeCheck className="w-4 h-4" /> Klaim Label</Link>}
+    </div>
+  );
+}

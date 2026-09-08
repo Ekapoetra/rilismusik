@@ -81,8 +81,8 @@ export default function LabelReleases() {
             </div>
             <div className="col-span-6 md:col-span-2 text-sm capitalize">{r.release_type}</div>
             <div className="col-span-6 md:col-span-2 text-sm">{r.release_date}</div>
-            <div className="col-span-6 md:col-span-2"><StatusBadge status={r.status} /></div>
-            <div className="col-span-6 md:col-span-1 text-right flex items-center justify-end gap-3"><Link to={`/label/releases/${r.id}`} className="text-sm font-semibold rm-gradient-text" data-testid={`label-release-detail-${r.id}`}>Detail →</Link>{["draft", "rejected"].includes(r.status) && <button type="button" onClick={() => deleteRelease(r)} disabled={deletingId === r.id} className="text-red-300 hover:text-red-200 disabled:opacity-40" title="Hapus rilisan" data-testid={`label-release-delete-${r.id}`}><Trash2 className="w-4 h-4" /></button>}</div>
+            <div className="col-span-6 md:col-span-2 flex items-center gap-2"><StatusBadge status={r.status} />{r.status === "draft" && <button type="button" onClick={() => deleteRelease(r)} disabled={deletingId === r.id} className="text-red-300 hover:text-red-200 disabled:opacity-40" title="Hapus draft" data-testid={`label-release-delete-status-${r.id}`}><Trash2 className="w-3.5 h-3.5" /></button>}</div>
+            <div className="col-span-6 md:col-span-1 text-right flex items-center justify-end gap-3"><Link to={`/label/releases/${r.id}`} className="text-sm font-semibold rm-gradient-text" data-testid={`label-release-detail-${r.id}`}>Detail →</Link>{r.status === "rejected" && <button type="button" onClick={() => deleteRelease(r)} disabled={deletingId === r.id} className="text-red-300 hover:text-red-200 disabled:opacity-40" title="Hapus rilisan" data-testid={`label-release-delete-${r.id}`}><Trash2 className="w-4 h-4" /></button>}</div>
           </div>
         ))}
       </div>
