@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "@/api/client";
+import { api, formatApiError } from "@/api/client";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
+import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
 import { Calendar, TrendingUp } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
@@ -21,10 +22,12 @@ export default function AdminReleases() {
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState("status"); // status | revenue | date
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const params = {};
       if (status) params.status = status;
@@ -40,6 +43,8 @@ export default function AdminReleases() {
       } else if (sortBy === "revenue") data.sort((a, b) => (b.revenue_idr || 0) - (a.revenue_idr || 0));
       else data.sort((a, b) => String(b.release_date || b.created_at || "").localeCompare(String(a.release_date || a.created_at || "")));
       setItems(data);
+    } catch (requestError) {
+      setError(formatApiError(requestError.response?.data?.detail) || "Gagal memuat rilisan.");
     } finally { setLoading(false); }
   }, [status, q, periodFrom, periodTo, sortBy]);
 
@@ -113,30 +118,31 @@ export default function AdminReleases() {
         </div>
       )}
 
+      {error && <div role="alert" className="rounded-md bg-red-500/10 p-4 text-sm text-red-300" data-testid="admin-releases-error">{error}</div>}
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-3">Rilisan</div>
           <div className="col-span-2">Label</div>
           <div className="col-span-2">Tanggal Rilis</div>
           <div className="col-span-2 text-right">Pendapatan</div>
-          <div className="col-span-2">Aktif Terakhir</div>
-          <div className="col-span-1 text-right">Status</div>
+          <div className="col-span-1">Aktif Terakhir</div>
+          <div className="col-span-2 text-right">Status / Aksi</div>
         </div>
         {items.length === 0 ? (
           <div className="p-8 text-center text-zinc-500 text-sm">{loading ? "Memuat…" : "Tidak ada rilisan."}</div>
         ) : items.map((r) => (
-          <Link to={`/admin/releases/${r.id}`} key={r.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition" data-testid={`admin-release-row-${r.id}`}>
-            <div className="col-span-12 md:col-span-3">
-              <div className="font-semibold truncate">{r.release_title}</div>
+          <div key={r.id} className="relative px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors" data-testid={`admin-release-row-${r.id}`}>
+            <div className="min-w-0 col-span-12 md:col-span-3">
+              <Link to={`/admin/releases/${r.id}`} className="block truncate font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-white/50" data-testid={`admin-release-open-${r.id}`}>{r.release_title}</Link>
               <div className="text-xs text-zinc-500 truncate">{r.artist_name} • {r.release_type}</div>
             </div>
             <div className="col-span-6 md:col-span-2 text-sm truncate">{r.label_name || "—"}</div>
-            <div className="col-span-6 md:col-span-2 text-sm">{r.release_date || "—"}</div>
-            <div className="col-span-6 md:col-span-2 text-right">
+            <div className="min-w-0 col-span-6 md:col-span-2 text-sm break-words">{r.release_date || "—"}</div>
+            <div className="min-w-0 col-span-6 md:col-span-2 text-right break-words">
               <div className={`font-mono font-bold ${r.revenue_idr > 0 ? "text-emerald-300" : "text-zinc-600"}`}>{fmtIDR(r.revenue_idr)}</div>
               <div className="text-[10px] text-zinc-500">{fmtInt(r.royalty_lines_count)} baris</div>
             </div>
-            <div className="col-span-6 md:col-span-2 text-xs">
+            <div className="min-w-0 col-span-6 md:col-span-1 text-xs">
               {r.last_active_period ? (
                 <>
                   <div className="text-zinc-300">{fmtPeriod(r.last_active_period)}</div>
@@ -146,8 +152,11 @@ export default function AdminReleases() {
                 </>
               ) : <span className="text-zinc-600">—</span>}
             </div>
-            <div className="col-span-6 md:col-span-1 text-right"><StatusBadge status={r.status} /></div>
-          </Link>
+            <div className="min-w-0 col-span-12 md:col-span-2 flex flex-wrap items-center justify-end gap-2" data-testid={`admin-release-status-actions-${r.id}`}>
+              <span data-testid={`admin-release-status-${r.id}`}><StatusBadge status={r.status} /></span>
+              <AdminDeleteReleaseButton release={r} compact onDeleted={(id) => setItems((current) => current.filter((item) => item.id !== id))} />
+            </div>
+          </div>
         ))}
       </div>
     </div>

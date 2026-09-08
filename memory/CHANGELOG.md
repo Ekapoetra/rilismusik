@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-08 — Tombol hapus draf/ditolak pada ADMIN (Iteration 61)
+- Akar masalah keluhan berulang: perubahan sebelumnya dibuat hanya pada `pages/label/Releases.jsx` dan `pages/label/ReleaseDetail.jsx`, sedangkan pengguna membuka `/admin/releases`. Endpoint lama hanya menerima label.
+- Endpoint baru `DELETE /api/admin/releases/{release_id}` memakai `require_admin` dan izin dinamis `releases.review`. Super Admin/Admin Rilisan/role kustom berizin dapat menghapus draft/rejected; akses baca-saja, non-admin, dan status lain ditolak.
+- Ikon hapus berwarna merah tampil di samping badge status pada daftar admin; tombol `Hapus Rilisan` di header detail admin. Dialog konfirmasi, batal, pesan gagal, pencegahan submit ganda, penghilangan baris setelah sukses, dan kembali ke daftar dari detail memakai komponen reusable `AdminDeleteReleaseButton`.
+- Layanan penghapusan bersama menjaga status atomik dan kepemilikan label, membersihkan tracks, mencatat audit, serta melewati file yang masih dipakai rilisan lain. Alur label tetap memakai KYC dan pembatasan milik sendiri. Tidak menghapus pembayaran/royalti.
+- Verifikasi: `yarn build` berhasil, backend/API 6/6 lulus, browser daftar/detail/konfirmasi/batal/role/ponsel lulus pada 320/768/1024/1440. Tes service ulang mandiri 2/2 lulus. Penghapusan sukses diuji API nyata pada fixture terisolasi; **MOCKED** terbatas pada error/pending browser serta unit storage. Seluruh akun/fixture sementara Iter61 dibersihkan.
+- Laporan `/app/test_reports/iteration_61.json`; bukti `/app/test_reports/screenshots/iter61_ui/iter61_admin_releases_1920.jpeg` dan `iter61_admin_release_detail_1920.jpeg`. Verifikasi langsung oleh pengguna pada situs production masih menunggu.
+
 ## 2026-06 — Permission "Verifikasi Klaim Label" & Banner Klaim di Dashboard
 - **Permission baru `migration.claims`** ("Verifikasi klaim label") di modul Migrasi. Endpoint klaim (`GET /admin/migrate/claims`, `POST /claims/{id}/link|reject`, `GET /admin/migrate/labels/unclaimed`) kini digate `migration.claims` (via `permission_for_request`). `migration.claims` meng-imply `migration.view` agar halaman Migrasi & Klaim tetap terbuka. Bisa membuat role kustom yang HANYA verifikasi klaim tanpa akses migrasi lain.
   - Default: ditambahkan ke `super_admin` & `admin_support` (migrasi RBAC v5). Verifikasi: mapping permission benar, claims-only role punya migration.view (implied) tapi tidak migration.manage.

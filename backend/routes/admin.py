@@ -53,6 +53,7 @@ from .dashboard_cache import recompute as recompute_dashboard_revenue, snapshot 
 from .bank_change_service import create_bank_change_request, review_bank_change_request
 from .payment_admin_service import list_admin_payments
 from .finance_reporting import payment_income_summary
+from .release_deletion_service import ReleaseDeletionResult, delete_release_record
 
 # =============================================================================
 #                                ADMIN
@@ -322,6 +323,12 @@ async def admin_list_artists(
         it["last_active_period"] = r.get("last_period")
         it["first_active_period"] = r.get("first_period")
     return items
+
+
+@admin_r.delete("/releases/{release_id}", response_model=ReleaseDeletionResult)
+async def admin_delete_release(release_id: str, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    return await delete_release_record(release_id, user["id"])
 
 
 @admin_r.get("/payments")

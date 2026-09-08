@@ -51,6 +51,7 @@ from .release_workflow_service import (
     validate_artist_web_url, validate_release_date, validate_release_submission,
 )
 from .artist_social_service import resolve_release_artist_credits
+from .release_deletion_service import ReleaseDeletionResult, delete_release_record
 
 # =============================================================================
 #                              RELEASES
@@ -525,31 +526,11 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
-@release_r.delete("/{release_id}")
+@release_r.delete("/{release_id}", response_model=ReleaseDeletionResult)
 async def delete_release(release_id: str, user: dict = Depends(require_label)):
     """Label deletes its own release. Allowed only for draft or rejected releases."""
-    rel = await db.releases.find_one({"id": release_id})
-    if not rel:
-        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
     label = await get_label_by_user(user)
-    if rel["label_id"] != label["id"]:
-        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
-    if rel.get("status") not in ("draft", "rejected"):
-        raise HTTPException(status_code=400, detail="Hanya rilisan berstatus draft atau ditolak yang dapat dihapus")
-    import storage_service
-    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "audio_url": 1}).to_list(500)
-    keys = [rel.get("cover_url")] + [t.get("audio_url") for t in tracks]
-    for url in keys:
-        key = (url or "").replace("/api/files/", "")
-        if key and url and url.startswith("/api/files/"):
-            try:
-                await storage_service.delete_object(key=key)
-            except Exception:
-                pass
-    await db.tracks.delete_many({"release_id": release_id})
-    await db.releases.delete_one({"id": release_id})
-    await log_activity(user["id"], "release_delete", "release", release_id, before={"status": rel.get("status"), "title": rel.get("release_title")})
-    return {"ok": True, "deleted": release_id}
+    return await delete_release_record(release_id, user["id"], label_id=label["id"])
 
 
 

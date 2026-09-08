@@ -63,6 +63,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Detail release Admin dan Label menampilkan metadata penuh, seluruh artist/featuring, kredit/lyrics/audio per track, cover, addon, serta invoice sepanjang lifecycle.
 - Detail rilisan admin menampilkan tautan sosial seluruh artis dan tombol Hubungi Label via WhatsApp dengan template judul, status, serta catatan workflow Bahasa Indonesia tanpa pengiriman otomatis.
 - Label status dan tindakan workflow di UI memakai Bahasa Indonesia; enum backend tetap stabil agar data lama dan integrasi tidak rusak.
+- Penghapusan draf/ditolak tersedia pada daftar dan detail **admin maupun label**. Admin memakai izin dinamis `releases.review`; label hanya boleh menghapus miliknya sendiri setelah Verifikasi Akun. Status lain tidak dapat dihapus.
+- Pada daftar admin, ikon tempat sampah berada di samping badge status; detail admin menampilkan tombol `Hapus Rilisan`. Dialog konfirmasi wajib, klik hapus tidak membuka detail, status sibuk mencegah kirim ganda, dan kegagalan tetap menampilkan pesan tanpa menghilangkan baris.
 
 ### 3.5 Admin Access & UI Configuration
 - Dynamic RBAC menggantikan hard-coded role checks: Super Admin dapat membuat role bernama khusus serta mengubah nama, status, dan permission role bawaan/kustom.
@@ -172,6 +174,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Layouts must not horizontally overflow at mobile or desktop widths.
 
 ## 7. Current Status
+- **2026-09-08 — Perbaikan tombol hapus admin (Iteration 61):** keluhan berulang terkonfirmasi berasal dari implementasi sebelumnya yang hanya mencakup halaman label dan endpoint `require_label`, bukan masalah yang dapat selesai dengan mengulang rilis aplikasi. Ditambahkan `DELETE /api/admin/releases/{release_id}` dengan `require_admin` + `releases.review`, serta komponen hapus bersama untuk daftar/detail admin. Endpoint label tetap mempertahankan KYC/kepemilikan.
+- Penghapusan admin/label memakai `release_deletion_service.py`: cek status dalam operasi delete atomik sebelum membersihkan tracks/aset, response Pydantic, audit `release_delete`, dan perlindungan file bersama yang masih digunakan rilisan lain. Tidak mengubah saldo, pembayaran, atau data royalti.
+- Verifikasi Iteration 61: build frontend berhasil; backend/API **6/6** lulus; browser konfirmasi/batal/hapus daftar dan detail, navigasi, error/pending, izin baca-saja, serta lebar 320/768/1024/1440 lulus. Ulang mandiri dua tes service **2/2** lulus. Skenario gagal/pending browser serta unit storage memakai **MOCKED** hanya dalam pengujian; penghapusan sukses memakai API nyata. Fixture/akun sementara dibersihkan dan jumlah sisa nol. Laporan `/app/test_reports/iteration_61.json`; bukti tombol di `/app/test_reports/screenshots/iter61_ui/`. **P0 tersisa:** verifikasi pengguna pada halaman admin; belum diverifikasi langsung pada situs production.
 - P0 multi-device authentication is implemented and independently verified.
 - P1 account, release/PPR, support/add-on, and copyright PDF scope is implemented.
 - P2 monthly summary scheduling and background completion notifications are implemented.
@@ -212,6 +217,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 ## 8. Key References
 - Auth: `backend/routes/auth.py`, `backend/auth_utils.py`.
 - Release/PPR: `backend/routes/releases.py`, `backend/payment_service.py`.
+- Admin release deletion: `backend/routes/admin.py`, `backend/routes/release_deletion_service.py`, `frontend/src/components/releases/AdminDeleteReleaseButton.jsx`; regresi `backend/tests/test_iter61_release_delete_admin_label.py`.
 - Bank approval: `backend/routes/bank_change_service.py`, `backend/routes/labels.py`, `backend/routes/admin.py`.
 - Documents: `backend/routes/cms.py`, `backend/routes/copyright_generator.py`.
 - Automation: `backend/routes/monthly_royalty_email.py`, `backend/routes/background_job_notifications.py`, `backend/routes/cron_jobs.py`.
