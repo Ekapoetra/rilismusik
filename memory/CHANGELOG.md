@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Fix: Izin Ubah Rate/Royalti Label (RBAC)
+- `_queue_royalty_change` di `routes/admin_label_service.py` sebelumnya hardcode `_require_role(user, FINANCE_ROLES)` sehingga hanya `super_admin`/`admin_finance` yang bisa ubah "Bagian Royalti Label (%)", mengabaikan izin role kustom.
+- Diubah menjadi berbasis izin: kini siapa pun dengan izin `labels.manage` (Edit Label) bisa mengubah rate/royalti label. Super admin & admin_finance tetap bisa (keduanya punya `labels.manage`).
+- Perubahan Paket Langganan (subscription) tetap terkunci Finance/Super Admin sesuai keputusan user.
+- Verifikasi E2E: login `admin_release` (punya `labels.manage`, bukan finance) → `PATCH /api/admin/labels/{id}` dengan `royalty_percentage_default` → HTTP 200 (sebelumnya 403). Data demo dikembalikan ke 60%.
+
+
 ## 2026-06 — Fix: Daftar Chat Internal Tampilkan Akun Terhapus
 - `GET /api/chat/admin/admins` (`routes/chat.py`) sebelumnya hanya menyaring `status != "suspended"`, sehingga admin yang dihapus (soft-delete → `status: "disabled"`, `deleted_at`) tetap muncul di tab INTERNAL Pusat Chat.
 - Filter diperbarui menjadi `status $nin ["suspended","disabled"]` + `deleted_at $in [None]` agar hanya akun admin aktif yang tampil.

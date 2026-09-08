@@ -10,6 +10,7 @@ from auth_utils import hash_password
 from email_service import h, send_email
 from models import LabelStatusUpdate, new_id, now_iso
 from .deps import db, logger, log_activity
+from .admin_permission_service import has_permission
 from .royalty_recalculation import run_label_recalculation_job
 
 
@@ -79,7 +80,8 @@ async def _queue_royalty_change(
 ) -> Tuple[Dict[str, Any], Optional[str]]:
     if body.royalty_percentage_default is None:
         return {}, None
-    _require_role(user, FINANCE_ROLES, "Hanya Admin Finance / Super Admin")
+    if not has_permission(user, "labels.manage"):
+        raise HTTPException(status_code=403, detail="Anda tidak memiliki izin Edit Label untuk mengubah rate/royalti label")
     active = await db.withdraw_requests.find_one({
         "label_id": label_id,
         "status": {"$in": ["requested", "approved"]},
