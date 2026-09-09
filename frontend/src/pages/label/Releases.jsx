@@ -4,6 +4,7 @@ import { api, formatApiError } from "@/api/client";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { toast } from "@/components/ui/sonner";
 import { Disc3, Search, Filter, Trash2 } from "lucide-react";
+import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 
 const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected"];
 
@@ -72,11 +73,11 @@ export default function LabelReleases() {
           <div className="p-10 text-center text-zinc-500 text-sm">Belum ada rilisan.</div>
         ) : items.map((r) => (
           <div key={r.id} className="px-5 py-4 border-b border-white/5 last:border-0 grid grid-cols-12 gap-3 items-center hover:bg-white/[0.02]">
-            <div className="col-span-12 md:col-span-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white"><Disc3 className="w-4 h-4" /></div>
+            <div className="min-w-0 col-span-12 md:col-span-5 flex items-start gap-3">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white"><Disc3 className="w-4 h-4" /></div>
               <div className="min-w-0">
-                <div className="font-semibold truncate">{r.release_title}</div>
-                <div className="text-xs text-zinc-500 truncate">{r.artist_name}</div>
+                <div className="font-semibold break-words [overflow-wrap:anywhere]" translate="no" data-testid={`label-release-title-${r.id}`}>{r.release_title}</div>
+                <ReleaseArtistCredits release={r} prefix="label-release" />
               </div>
             </div>
             <div className="col-span-6 md:col-span-2 text-sm capitalize">{r.release_type}</div>

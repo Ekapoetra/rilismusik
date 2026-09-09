@@ -126,6 +126,7 @@ async def get_label_by_user(user: dict) -> dict:
 # Fields hidden from label/artist when returning label profile data.
 # Labels MUST NOT see their own royalty percentage or distributor fee.
 LABEL_HIDDEN_FIELDS = (
+    "package_change_history",
     "royalty_percentage_default",
     "royalty_percentage_history",
     "default_royalty_share",

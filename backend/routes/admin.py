@@ -257,7 +257,18 @@ async def admin_update_label(label_id: str, body: LabelStatusUpdate, user: dict 
     return await update_label(label_id, body, user)
 
 
-@admin_r.get("/releases")
+from .label_package_service import LabelPackageUpdate, LabelPackageResult, change_label_package
+
+
+@admin_r.patch("/labels/{label_id}/package", response_model=LabelPackageResult)
+async def admin_update_label_package(label_id: str, body: LabelPackageUpdate, user: dict = Depends(require_admin)):
+    return await change_label_package(label_id, body, user)
+
+
+from .release_list_metadata import ReleaseListItem, enrich_release_list
+
+
+@admin_r.get("/releases", response_model=List[ReleaseListItem])
 async def admin_list_releases(
     user: dict = Depends(require_admin),
     status: Optional[str] = None,
@@ -271,6 +282,7 @@ async def admin_list_releases(
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    await enrich_release_list(db, items)
     status_order = [
         "submitted", "awaiting_payment", "paid", "under_review", "need_revision",
         "approved", "delivered", "draft", "live",

@@ -24,9 +24,6 @@ export default function AdminLabelDetail() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [emailNotify, setEmailNotify] = useState(true);
-  const [subTier, setSubTier] = useState("pay_per_release");
-  const [subExpiry, setSubExpiry] = useState("");
-  const [subSaving, setSubSaving] = useState(false);
   const [royaltySaving, setRoyaltySaving] = useState(false);
   const [recalcJob, setRecalcJob] = useState(null);
   const [err, setErr] = useState("");
@@ -38,8 +35,6 @@ export default function AdminLabelDetail() {
     const label = response.data.label;
     setData(response.data);
     setRoyalty(String(label.royalty_percentage_default ?? 60));
-    setSubTier(label.payment_type === "annual_subscription" ? (label.subscription_tier || "annual_normal") : "pay_per_release");
-    setSubExpiry(label.subscription_expires_at?.slice(0, 10) || "");
   }, [id]);
 
   useEffect(() => { load().catch((error) => setErr(formatApiError(error.response?.data?.detail))); }, [load]);
@@ -79,14 +74,6 @@ export default function AdminLabelDetail() {
     finally { setRoyaltySaving(false); }
   };
 
-  const saveSubscription = async () => {
-    if (subTier !== "pay_per_release" && !subExpiry) { setErr("Isi tanggal masa berlaku untuk paket tahunan."); return; }
-    setSubSaving(true);
-    const payload = subTier === "pay_per_release" ? { payment_type: "pay_per_release" } : { subscription_tier: subTier, subscription_expires_at: subExpiry };
-    await runAction(() => api.patch(`/admin/labels/${id}`, payload), "Paket langganan diperbarui.");
-    setSubSaving(false);
-  };
-
   const blacklist = async (event) => {
     event.preventDefault();
     await runAction(() => api.post(`/admin/labels/${id}/blacklist`, { reason: blacklistReason }), "Label di-blacklist. Login akan ditolak.");
@@ -116,10 +103,9 @@ export default function AdminLabelDetail() {
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const label = data.label;
   const isBlacklisted = label.account_status === "blacklisted";
-  const permissions = { canFinance, canRate, canBlacklist, isBlacklisted };
+  const permissions = { canFinance, canRate, canBlacklist, isBlacklisted, canPackage: hasPermission("labels.package"), canAccounts: hasPermission("labels.accounts") };
   const actions = { setStatus, unblacklist, verifyBank, openBlacklist: () => setBlacklistOpen(true), openEmail: () => setEmailOpen(true), openRevoke: () => setRevokeOpen(true) };
   const royaltyState = { royalty, setRoyalty, reason, setReason, save: setRoyaltyPct, saving: royaltySaving, recalcJob };
-  const subscriptionState = { tier: subTier, setTier: setSubTier, expiry: subExpiry, setExpiry: setSubExpiry, save: saveSubscription, saving: subSaving };
   const modals = {
     revoke: { open: revokeOpen, close: () => setRevokeOpen(false), submit: revokeAccount, reason: revokeReason, setReason: setRevokeReason, cascade: revokeCascade, setCascade: setRevokeCascade },
     email: { open: emailOpen, close: () => setEmailOpen(false), submit: changeEmail, value: newEmail, setValue: setNewEmail, notify: emailNotify, setNotify: setEmailNotify },
@@ -131,7 +117,7 @@ export default function AdminLabelDetail() {
     <div className="flex items-center gap-3 flex-wrap"><h1 className="font-display text-3xl font-extrabold tracking-tighter">{label.label_name}</h1>{isBlacklisted && <span className="rm-badge bg-red-500/20 text-red-300">BLACKLISTED</span>}</div>
     {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}{msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
     {isBlacklisted && label.blacklist_reason && <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm"><div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1">Alasan Blacklist</div><div className="text-red-100">{label.blacklist_reason}</div></div>}
-    <LabelDetailCards data={data} permissions={permissions} actions={actions} royaltyState={royaltyState} subscriptionState={subscriptionState} />
+    <LabelDetailCards data={data} permissions={permissions} actions={actions} royaltyState={royaltyState} onChanged={load} />
     {hasPermission("royalty.manage") && <RoyaltyAdjustmentPanel label={label} onChanged={load} />}
     {canFinance && <section className="border-y border-white/10 py-5" data-testid="admin-label-balance-adjustment-section"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Kesesuaian Saldo Royalti</h2><p className="mt-1 text-sm text-zinc-400">Preview perhitungan ulang setelah cutoff tanpa menyentuh withdrawal web.</p></div><button type="button" className={balanceAuditOpen ? "rm-btn-primary inline-flex items-center gap-2" : "rm-btn-ghost inline-flex items-center gap-2"} onClick={() => setBalanceAuditOpen((value) => !value)} data-testid="admin-label-balance-audit-toggle"><Scale className="h-4 w-4" /> {balanceAuditOpen ? "Tutup Penyesuaian" : "Audit & Sesuaikan Saldo"}</button></div>{balanceAuditOpen && <div className="mt-5" data-testid="admin-label-balance-audit-content"><BalanceAuditPanel label={label} onComplete={load} /></div>}</section>}
     <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />

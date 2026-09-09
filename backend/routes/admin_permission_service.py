@@ -8,7 +8,7 @@ from fastapi import HTTPException
 PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
-    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.rate", "Ubah rate/fee label", "Change label rate/fee"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
+    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Paket Label", "Change Label Package"), ("labels.rate", "Ubah rate/fee label", "Change label rate/fee"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status")]},
@@ -32,17 +32,18 @@ ALL_PERMISSIONS = [action[0] for module in PERMISSION_MODULES for action in modu
 BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
     "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
-    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.rate", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
+    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package", "labels.rate", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
     "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
     "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
     "admin_marketing": ["dashboard.view", "notifications.view"],
     "admin_ui": ["dashboard.view", "notifications.view", "ui.settings.view", "ui.settings.manage"],
+    "admin_package_manager": ["labels.view", "labels.package"],
 }
 
 BUILTIN_ROLE_NAMES = {
     "super_admin": "Super Admin", "admin_release": "Admin Rilisan", "admin_finance": "Admin Finance",
     "admin_support": "Admin Support", "admin_content": "Admin Konten/CMS",
-    "admin_marketing": "Admin Marketing", "admin_ui": "Admin UI",
+    "admin_marketing": "Admin Marketing", "admin_ui": "Admin UI", "admin_package_manager": "Pengelola Paket",
 }
 
 DEFAULT_NAV_ITEMS = [
@@ -88,7 +89,7 @@ async def ensure_admin_access_defaults(db) -> None:
             {"key": key},
             {"$setOnInsert": {"id": key, "key": key, "name": BUILTIN_ROLE_NAMES[key], "builtin": True,
                               "normalized_name": BUILTIN_ROLE_NAMES[key].casefold(),
-                              "permissions": permissions, "active": True}},
+                              "permissions": permissions, "active": True, "rbac_schema_version": 6}},
             upsert=True,
         )
         await db.admin_roles.update_one(
@@ -110,6 +111,12 @@ async def ensure_admin_access_defaults(db) -> None:
         await db.admin_roles.update_one(
             {"key": key, "rbac_schema_version": {"$lt": 5}},
             {"$addToSet": {"permissions": "migration.claims"}, "$set": {"rbac_schema_version": 5}},
+        )
+    # One-time grant; subsequent boots preserve manual permission revocation and customization.
+    for key in ("super_admin", "admin_finance"):
+        await db.admin_roles.update_one(
+            {"key": key, "rbac_schema_version": {"$lt": 6}},
+            {"$addToSet": {"permissions": "labels.package"}, "$set": {"rbac_schema_version": 6}},
         )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
@@ -212,6 +219,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
     if "/admin/balance-audit" in path:
         return "royalty.manage" if mutate else "royalty.view"
     if "/admin/labels" in path:
+        if path.endswith("/package"):
+            return "labels.package"
         if any(token in path for token in ("bank-change", "bank-account")):
             return "labels.bank"
         if any(token in path for token in ("create-account", "revoke-account", "change-email")):

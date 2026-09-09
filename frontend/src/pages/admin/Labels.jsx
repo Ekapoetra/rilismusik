@@ -40,6 +40,7 @@ export default function AdminLabels() {
   loadRef.current = load;
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    if (!hasPermission("labels.manage")) return;
     let timer;
     const check = async () => {
       try {
@@ -54,7 +55,7 @@ export default function AdminLabels() {
       if (data.status === "running" || data.queued) timer = setTimeout(check, 1500);
     }).catch(() => {});
     return () => { if (timer) clearTimeout(timer); };
-  }, []);
+  }, [hasPermission]);
 
   const onCreated = () => {
     setCreating(null);
@@ -131,7 +132,7 @@ export default function AdminLabels() {
                 <div className="text-xs text-zinc-500">{l.pic_name || "—"}</div>
               </div>
               <div className="col-span-7 min-w-0 truncate text-sm xl:col-auto">{l.email || <span className="text-zinc-600 italic">tidak ada</span>}</div>
-              <div className="col-span-5 truncate text-sm capitalize xl:col-auto">{l.payment_type?.replace(/_/g, " ") || "—"}</div>
+              <div className="col-span-5 min-w-0 break-words text-sm xl:col-auto" data-testid={`admin-label-package-${l.id}`}>{l.payment_type === "annual_subscription" ? (l.subscription_tier === "annual_vip" ? "VIP" : "Annual") : "Pay Per Release"}</div>
               <div className="col-span-6 xl:col-auto">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-600 xl:hidden">Status Akun</div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${
@@ -157,7 +158,7 @@ export default function AdminLabels() {
               </div>
               <div className="col-span-12 space-y-1 text-right xl:col-auto">
                 <Link to={`/admin/labels/${l.id}`} className="block text-sm font-semibold rm-gradient-text" data-testid={`admin-label-detail-${l.id}`}>Detail →</Link>
-                {unclaimed && (
+                {unclaimed && hasPermission("labels.accounts") && (
                   <button
                     onClick={() => setCreating(l)}
                     className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1 ml-auto"

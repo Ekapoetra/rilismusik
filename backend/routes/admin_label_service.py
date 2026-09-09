@@ -24,7 +24,7 @@ def _require_role(user: dict, allowed: tuple[str, ...], detail: str) -> None:
 
 
 async def _get_label(label_id: str) -> dict:
-    label = await db.labels.find_one({"id": label_id})
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
     return label
@@ -49,7 +49,8 @@ def _subscription_update(body: LabelStatusUpdate, label: dict, user: dict) -> Di
     ))
     if not touched:
         return {}
-    _require_role(user, FINANCE_ROLES, "Hanya Admin Finance / Super Admin yang bisa mengubah paket langganan")
+    if not has_permission(user, "labels.package"):
+        raise HTTPException(status_code=403, detail="Anda tidak memiliki izin Ubah Paket Label")
     update: Dict[str, Any] = {}
     if body.payment_type == "pay_per_release":
         update.update({
@@ -114,6 +115,8 @@ async def _queue_royalty_change(
 async def update_label(label_id: str, body: LabelStatusUpdate, user: dict) -> dict:
     label = await _get_label(label_id)
     update: Dict[str, Any] = {}
+    # Validate package access before royalty jobs/history or any other writes.
+    subscription_update = _subscription_update(body, label, user)
     if body.account_status is not None:
         update["account_status"] = body.account_status
         if body.account_status == "blacklisted":
@@ -122,10 +125,13 @@ async def update_label(label_id: str, body: LabelStatusUpdate, user: dict) -> di
         label_id=label_id, label=label, body=body, user=user,
     )
     update.update(royalty_update)
-    update.update(_subscription_update(body, label, user))
+    update.update(subscription_update)
     if update:
         update["updated_at"] = now_iso()
-        await db.labels.update_one({"id": label_id}, {"$set": update})
+        operation = {"$set": update}
+        if subscription_update:
+            operation["$inc"] = {"package_revision": 1}
+        await db.labels.update_one({"id": label_id}, operation)
         await log_activity(user["id"], "update_label", "label", label_id, before=label, after=update)
     if job_id:
         asyncio.create_task(run_label_recalculation_job(

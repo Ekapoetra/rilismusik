@@ -52,6 +52,7 @@ from .release_workflow_service import (
 )
 from .artist_social_service import resolve_release_artist_credits
 from .release_deletion_service import ReleaseDeletionResult, delete_release_record
+from .release_list_metadata import ReleaseListItem, enrich_release_list
 
 # =============================================================================
 #                              RELEASES
@@ -59,7 +60,7 @@ from .release_deletion_service import ReleaseDeletionResult, delete_release_reco
 release_r = APIRouter(prefix="/releases", tags=["releases"])
 
 
-@release_r.get("/")
+@release_r.get("/", response_model=List[ReleaseListItem])
 async def list_releases(
     user: dict = Depends(require_kyc_for_label_user),
     status: Optional[str] = None,
@@ -81,6 +82,7 @@ async def list_releases(
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    await enrich_release_list(db, items)
     # Phase 21: enrich with revenue rollup + last_active_period
     from .revenue_rollup import rollup_revenue_by_id
     rollup = await rollup_revenue_by_id(

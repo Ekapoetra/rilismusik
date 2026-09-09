@@ -58,7 +58,7 @@ import ArtistDashboard from "@/pages/artist/Dashboard";
 
 const LABEL_ROLES = ["label"];
 const ARTIST_ROLES = ["artist"];
-const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"];
+const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom", "admin_package_manager"];
 const guard = (permission, element) => <ProtectedRoute permission={permission}>{element}</ProtectedRoute>;
 
 function AppRoutes() {
