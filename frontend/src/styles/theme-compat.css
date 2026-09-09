@@ -1,0 +1,8 @@
+html[data-app-theme="light"] [class~="bg-[#0F0F0F]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#111016]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#111318]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#101010]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#090909]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#0F0F0F]/95"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#14111E]"] { background-color: var(--ui-surface); }
+html[data-app-theme="light"] [class~="bg-[#121212]"] { background-color: var(--ui-surface); }

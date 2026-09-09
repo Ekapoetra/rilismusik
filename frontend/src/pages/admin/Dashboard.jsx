@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
 import { useAuth } from "@/api/AuthContext";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import {
   Building2, Users2, Disc3, FileSpreadsheet, CreditCard, Banknote, MessageSquare, Crown, ShieldOff,
   Activity, BarChart3, ArrowRight, ShieldCheck, DatabaseZap, CheckCircle2, AlertTriangle, RefreshCw,
@@ -38,6 +39,7 @@ function activityLink(a) {
 
 function ActionCenter() {
   const { hasPermission } = useAuth();
+  const { t } = useAppPreferences();
   const [state, setState] = useState({ loading: true, error: false, items: [] });
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: false }));
@@ -78,15 +80,15 @@ function ActionCenter() {
                   <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-black/30 ${p.icon}`}><Icon className="h-5 w-5" /></div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-display text-base font-bold">{it.title}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${p.chip}`}>{p.label}</span>
+                      <span className="font-display text-base font-bold" data-testid={`admin-action-title-${it.key}`}>{t(it.title)}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${p.chip}`} data-testid={`admin-action-priority-${it.key}`}>{t(p.label)}</span>
                       <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white" data-testid={`admin-action-count-${it.key}`}>{it.count}</span>
                       {it.oldest_at && <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500"><Clock className="h-3 w-3" /> tertua {timeAgo(it.oldest_at)}</span>}
                     </div>
-                    <p className="mt-0.5 text-sm text-zinc-400">{it.description}</p>
+                    <p className="mt-0.5 text-sm text-zinc-400" data-testid={`admin-action-description-${it.key}`}>{t(it.description)}</p>
                   </div>
                 </div>
-                <Link to={it.link} className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid={`admin-action-cta-${it.key}`}>{it.cta} <ArrowRight className="h-4 w-4" /></Link>
+                <Link to={it.link} className="rm-btn-primary inline-flex shrink-0 items-center justify-center gap-2" data-testid={`admin-action-cta-${it.key}`}>{t(it.cta)} <ArrowRight className="h-4 w-4" /></Link>
               </div>
             );
           })}

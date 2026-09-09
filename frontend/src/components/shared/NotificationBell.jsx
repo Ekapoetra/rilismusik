@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, CheckCheck, History, Inbox } from "lucide-react";
 import { api } from "@/api/client";
+import { playNotificationSound } from "@/lib/notificationSound";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 10_000;
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -17,6 +19,8 @@ function timeAgo(iso) {
 }
 
 export default function NotificationBell({ instance = "desktop", historyPath = null }) {
+  const { t, locale } = useAppPreferences();
+  const known = useRef(null);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -26,6 +30,9 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
   const load = async () => {
     try {
       const { data } = await api.get("/notifications/me", { params: { limit: 15 } });
+      const rows = data.items || [];
+      if (known.current) { const fresh = rows.find((item) => !known.current.has(item.id) && !item.read_at && !String(item.type || "").includes("chat")); if (fresh) playNotificationSound("notification", `notification:${fresh.id}`); }
+      known.current = new Set(rows.map((item) => item.id));
       setItems(data.items || []);
       setUnread(data.unread_count || 0);
     } catch (_) { /* silent */ }
@@ -74,7 +81,7 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative grid h-10 w-10 place-items-center rounded-md border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white"
+        className="ui-icon-button relative"
         data-testid={instance === "desktop" ? "notification-bell-button" : `notification-bell-button-${instance}`}
         aria-label="Notifikasi"
       >
@@ -126,9 +133,9 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
                     <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#FF1F8E]" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`}>{n.title}</div>
-                    <div className="text-xs text-zinc-400 line-clamp-2 mt-0.5">{n.body}</div>
-                    <div className="text-[10px] text-zinc-600 mt-1">{timeAgo(n.created_at)}</div>
+                    <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`} data-testid={`notification-title-${n.id}-${instance}`}>{n.type === "chat_message" ? n.title : t(n.title)}</div>
+                    <div className="text-xs text-zinc-400 line-clamp-2 mt-0.5" data-testid={`notification-body-${n.id}-${instance}`}>{n.type === "chat_message" ? n.body : t(n.body)}</div>
+                    <div className="text-[10px] text-zinc-600 mt-1">{locale === "id" ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString("en-GB")}</div>
                   </div>
                 </div>
               </button>

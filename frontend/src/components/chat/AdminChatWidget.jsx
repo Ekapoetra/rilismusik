@@ -5,7 +5,9 @@ import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
 import { ChatSettingsPanel } from "./ChatSettingsPanel";
-import { playChatSound, uploadChatAttachment } from "./chatUtils";
+import { uploadChatAttachment } from "./chatUtils";
+import { useIncomingChat, NewChatNotice } from "./NewChatNotice";
+import { playNotificationSound } from "@/lib/notificationSound";
 
 export default function AdminChatWidget() {
   const { user, hasPermission } = useAuth();
@@ -18,12 +20,15 @@ export default function AdminChatWidget() {
   const [labelInbox, setLabelInbox] = useState([]);
   const [adminDir, setAdminDir] = useState([]);
   const [active, setActive] = useState(null);
+  const activeConversationId = active?.conversation_id;
   const [showSettings, setShowSettings] = useState(false);
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
-  const prevUnread = useRef(0);
+  const chatNotice = useIncomingChat(() => setOpen(true));
+  const receiveChat = chatNotice.receive;
+  const previousOnline = useRef(null);
   const openRef = useRef(false);
   const activeRef = useRef(null);
   const labelFilterRef = useRef("online");
@@ -33,8 +38,8 @@ export default function AdminChatWidget() {
 
   const loadLists = useCallback(async () => {
     if (isSupport) { try { const backendStatus = labelFilterRef.current === "resolved" ? "resolved" : "active"; const { data } = await api.get("/chat/admin/labels", { params: { status: backendStatus } }); setLabelInbox(data.items || []); } catch { /* */ } }
-    try { const { data } = await api.get("/chat/admin/admins"); setAdminDir(data.items || []); } catch { /* */ }
-  }, [isSupport]);
+    try { const { data } = await api.get("/chat/admin/admins"); const rows = data.items || []; const online = new Set(rows.filter((item) => item.online && item.user_id !== user?.id).map((item) => item.user_id)); if (previousOnline.current) { const arrival = [...online].find((id) => !previousOnline.current.has(id)); if (arrival) playNotificationSound("online", `online:${arrival}:${Date.now()}`); } previousOnline.current = online; setAdminDir(rows); } catch { /* */ }
+  }, [isSupport, user?.id]);
 
   const loadThread = useCallback(async () => {
     const cur = activeRef.current;
@@ -55,13 +60,14 @@ export default function AdminChatWidget() {
       try {
         const { data } = await api.get("/chat/unread");
         const n = data.unread || 0;
-        if (n > prevUnread.current && !openRef.current) { playChatSound(); toast.message("Pesan chat baru"); }
-        prevUnread.current = n;
+        receiveChat(data);
         setUnread(n);
       } catch { /* */ }
     }, 4000);
     return () => { clearInterval(hb); clearInterval(poll); };
-  }, []);
+  }, [receiveChat]);
+
+  useEffect(() => { loadLists(); const timer = setInterval(() => { if (!openRef.current) loadLists(); }, 15000); return () => clearInterval(timer); }, [loadLists]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,11 +77,11 @@ export default function AdminChatWidget() {
   }, [open, loadLists, labelFilter]);
 
   useEffect(() => {
-    if (!open || !active) return;
+    if (!open || !activeConversationId) return;
     loadThread();
     const t = setInterval(loadThread, 3000);
     return () => clearInterval(t);
-  }, [open, active, loadThread]);
+  }, [open, activeConversationId, loadThread]);
 
   const openLabel = (item) => setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
   const openInternal = async (a) => {
@@ -180,6 +186,7 @@ export default function AdminChatWidget() {
           )}
         </div>
       )}
+      {chatNotice.notice && <NewChatNotice onOpen={chatNotice.showChat} onDismiss={chatNotice.dismiss} />}
       <button onClick={() => setOpen((v) => !v)} className="fixed bottom-6 right-6 z-[60] grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white shadow-2xl transition-transform hover:scale-105" data-testid="admin-chat-toggle">
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && unread > 0 && <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white" data-testid="admin-chat-unread">{unread > 99 ? "99+" : unread}</span>}

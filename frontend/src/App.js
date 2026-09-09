@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/api/AuthContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import LabelLayout from "@/components/shared/LabelLayout";
@@ -28,9 +28,11 @@ import LabelWami from "@/pages/label/Wami";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminAnalytics from "@/pages/admin/Analytics";
 import AdminLabels from "@/pages/admin/Labels";
-import LabelRateImport from "@/pages/admin/LabelRateImport";
 import AdminLabelDetail from "@/pages/admin/LabelDetail";
 import RoyaltyAdjustments from "@/pages/admin/RoyaltyAdjustments";
+import { AppPreferencesProvider } from "@/contexts/AppPreferencesContext";
+import { AudioPreviewProvider } from "@/contexts/AudioPreviewContext";
+import { RoleWebsitePreview } from "@/components/admin/access/RoleWebsitePreview";
 import AdminReleases from "@/pages/admin/Releases";
 import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
 import AdminArtists from "@/pages/admin/Artists";
@@ -102,7 +104,7 @@ function AppRoutes() {
               }
             />
             <Route path="/admin/labels" element={guard("labels.view", <AdminLabels />)} />
-            <Route path="/admin/labels/rate-import" element={guard("royalty.import", <LabelRateImport />)} />
+            <Route path="/admin/labels/rate-import" element={<Navigate to="/admin/labels" replace />} />
             <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
             <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
             <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
@@ -137,7 +139,8 @@ function AppRoutes() {
 }
 
 function App() {
-  return <BrowserRouter><AuthProvider><AppRoutes /><Toaster /></AuthProvider></BrowserRouter>;
+  if (window.location.pathname === "/admin/role-preview") return <MemoryRouter><AppPreferencesProvider preview><RoleWebsitePreview /></AppPreferencesProvider></MemoryRouter>;
+  return <BrowserRouter><AppPreferencesProvider><AuthProvider><AudioPreviewProvider><AppRoutes /><Toaster /></AudioPreviewProvider></AuthProvider></AppPreferencesProvider></BrowserRouter>;
 }
 
 export default App;

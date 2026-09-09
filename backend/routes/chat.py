@@ -232,10 +232,20 @@ async def heartbeat(user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
-@chat_r.get("/unread")
+class UnreadChatOut(BaseModel):
+    unread: int
+    latest_incoming_id: Optional[str] = None
+    latest_incoming_at: Optional[str] = None
+
+
+@chat_r.get("/unread", response_model=UnreadChatOut)
 async def unread(user: dict = Depends(get_current_user)):
     conv_ids = await _user_conversation_ids(user)
-    return {"unread": await _unread_count(conv_ids, user["id"])}
+    latest = await db.chat_messages.find_one({
+        "conversation_id": {"$in": conv_ids}, "sender_id": {"$nin": [user["id"], "system"]},
+    }, {"_id": 0, "id": 1, "created_at": 1}, sort=[("created_at", -1)]) if conv_ids else None
+    return UnreadChatOut(unread=await _unread_count(conv_ids, user["id"]),
+                         latest_incoming_id=(latest or {}).get("id"), latest_incoming_at=(latest or {}).get("created_at"))
 
 
 @chat_r.post("/upload")

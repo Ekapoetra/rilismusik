@@ -68,7 +68,6 @@ export default function AdminLabels() {
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operasional</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Label</h1>
         </div>
-        {hasPermission("royalty.import") && <Link to="/admin/labels/rate-import" className="rm-btn-primary flex items-center gap-2" data-testid="admin-label-rate-import-link"><FileSpreadsheet className="w-4 h-4" /> Impor Rate</Link>}
       </div>
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px]">

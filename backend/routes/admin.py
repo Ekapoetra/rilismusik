@@ -48,7 +48,6 @@ from .admin_dashboard_service import build_admin_dashboard
 from .admin_label_service import (
     change_label_email, create_label_account, revoke_label_account, update_label,
 )
-from .admin_reset_service import run_full_reset
 from .dashboard_cache import recompute as recompute_dashboard_revenue, snapshot as dashboard_revenue_snapshot
 from .bank_change_service import create_bank_change_request, review_bank_change_request
 from .payment_admin_service import list_admin_payments
@@ -624,63 +623,5 @@ async def admin_change_label_email(
     )
 
 
-# ============================================================
-# DANGER: Full Production Reset (Super Admin only)
-# ============================================================
-@admin_r.post("/admin/danger/reset-all-data")
-async def admin_reset_all_data(
-    confirm: str = Form(...),
-    delete_r2_files: bool = Form(True),
-    user: dict = Depends(require_super_admin),
-):
-    """⚠️ DESTRUCTIVE: wipe ALL business data so the system can be tested
-    from a clean slate. Preserves only:
-      - Admin users (any role in ADMIN_ROLES + super_admin)
-      - CMS landing settings (hero, pricing, FAQ, footer, legal entity)
-      - Database indexes
-
-    Deletes (across all 22 collections):
-      - All non-admin users (labels & artists)
-      - All labels, releases, tracks, artists
-      - All royalty data (imports, lines, percentage history, balance txns)
-      - All contracts, withdraws, tickets, comments
-      - All payments, subscriptions, WAMI orders
-      - All notifications, activity logs, login attempts
-      - All email/password tokens, bank accounts
-    Optionally deletes ALL files in the R2 bucket (cover/, audio/, contract/,
-    ticket/, landing/, smoketest/) — pass `delete_r2_files=False` to keep them.
-
-    Requires `confirm='RESET-ALL-DATA'` to proceed. Super Admin only.
-
-    Phase 29.1 — async background job. On production the `royalty_lines`
-    collection holds 3M+ rows: a synchronous `delete_many({})` through the
-    CSOT-capped `db` client (timeoutMS=10000) fails mid-way and the 120s
-    ingress timeout kills the request. This endpoint now returns a `job_id`
-    immediately; the wipe runs in the background using `drop_collection`
-    (instant regardless of row count) via `db_bg`, then re-seeds indexes +
-    admins and clears all dashboard caches. Poll
-    `GET /api/admin/migrate/jobs/{job_id}`.
-    """
-    if confirm != "RESET-ALL-DATA":
-        raise HTTPException(
-            status_code=400,
-            detail="Konfirmasi tidak cocok. Ketik tepat: RESET-ALL-DATA",
-        )
-    job_id = new_id()
-    await db.migrate_jobs.insert_one({
-        "id": job_id,
-        "kind": "reset_all_data",
-        "status": "queued",
-        "submitted_by": user["id"],
-        "submitted_at": now_iso(),
-        "updated_at": now_iso(),
-        "options": {"delete_r2_files": bool(delete_r2_files)},
-    })
-    import asyncio as _aio
-    _aio.create_task(run_full_reset(
-        job_id=job_id, delete_r2_files=bool(delete_r2_files),
-        user_id=user["id"], user_email=user["email"],
-    ))
-    return {"ok": True, "job_id": job_id, "status": "queued", "kind": "reset_all_data"}
 
 

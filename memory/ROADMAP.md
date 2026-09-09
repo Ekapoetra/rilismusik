@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- **2026-09-09 — P0 UI/UX refresh selesai pada preview:** user acceptance atas ID/EN, Light/Dark/Auto WIB, sidebar/logo, simulasi role, player audio bawah, chat/suara. Iter65/66 + follow-up menutup temuan; build akhir lulus. Tidak ada saldo/CSV pengguna diubah, P1/P2 tidak dikerjakan. Rincian `UI_REFRESH_TASK.md` dan `test_reports/iteration_66_followup.json`.
 - **2026-09-08, prioritas terbaru:** user acceptance empat workflow support label yang baru. Implementasi/10 tes backend/UI lengkap sudah lulus, fixture bersih; bukan perubahan langsung metadata rilisan.
 - **2026-09-08, prioritas terbaru:** user acceptance Inject Saldo untuk satu label dengan referensi Believe terverifikasi dan batas legacy per label. Implementasi final + 17 tes fitur/keuangan + 5 regresi + UI sudah lulus; tidak ada blocker aplikasi yang diketahui. Tidak melakukan perubahan saldo pengguna secara otomatis.
 - **2026-09-08, prioritas aktif:** verifikasi pengguna atas perbaikan tombol hapus admin pada `/admin/releases` dan detail untuk draft/rejected. Implementasi serta uji preview Iteration 61 sudah lulus; tidak perlu perubahan data produksi untuk pemeriksaan visual.
@@ -57,6 +58,7 @@
 - Add migration/report for legacy PPR releases whose invoices were created before the new post-approval flow.
 
 ## P2 — Quality & operations
+- Opsional: perluasan glosarium istilah musik/royalti ID/EN berdasarkan masukan tim operasional; katalog lokal sudah berjalan, belum ada review linguistik manual setiap kalimat.
 - Opsional: template balasan admin untuk tiap kategori Support Ticket.
 - Opsional: ekspor riwayat penyesuaian royalti ke Excel/CSV untuk pemeriksaan keuangan (audit history sudah tersedia dalam aplikasi).
 - Opsional: pisahkan izin `releases.delete` dari `releases.review` bila admin membutuhkan kontrol penghapusan lebih ketat; belum diimplementasikan agar kebijakan izin saat ini tetap konsisten.
@@ -67,6 +69,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Iter65–66 + follow-up (2026-09-09):11-point UI refresh, compiler/catalog repair, isolated role website simulation, real bottom WAV player/download, WIB auto boundaries/timer/persistence, theme branding, notification/chat/online sound, obsolete tab/reset removal. Backend5/5, build, browser and scoped320–1440px checks passed; final findings/dispositions in `test_reports/iteration_66_followup.json`.
 - Iteration 64 (2026-09-08): autofill UPC/ISRC/subjek, empat alasan takedown, enam kolom metadata prefilled + reason-only, dua Content ID multi-URL/originality, kategori baru dibatasi enam dengan history kompatibel, rendering admin/label, dynamic support permissions. Final 10/10 backend dan UI desktop/mobile passed. Lihat `SUPPORT_TICKET_WORKFLOW.md` untuk catatan penting cleanup notifikasi preview.
 - Iterations 62–63 (2026-09-08): PRD Royalty Balance Adjustment / Legacy Reconciliation, preview/konfirmasi/idempotensi/audit/void, batas legacy per label, sumber saldo terpisah dalam satu perhitungan, cashout >Rp1 juta penuh, perlindungan paid/active/concurrency, serta UI role-limited dan mobile. Final 17/17 tes baru + 5 regresi lulus; fixture bersih. Detail di `ROYALTY_ADJUSTMENT_IMPLEMENTATION.md`.
 - Iteration 61 (2026-09-08): tombol hapus daftar/detail ADMIN, endpoint hapus admin dengan izin dinamis, konfirmasi aman, regression label ownership/KYC, dan file-shared/status-race safeguards. Backend 6/6, browser desktop/mobile, build, serta tes service ulang 2/2 lulus; akun/fixture sementara dibersihkan.

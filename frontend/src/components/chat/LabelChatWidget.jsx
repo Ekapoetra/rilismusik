@@ -4,7 +4,8 @@ import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
-import { playChatSound, uploadChatAttachment } from "./chatUtils";
+import { uploadChatAttachment } from "./chatUtils";
+import { useIncomingChat, NewChatNotice } from "./NewChatNotice";
 
 export default function LabelChatWidget() {
   const { user } = useAuth();
@@ -15,7 +16,8 @@ export default function LabelChatWidget() {
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
-  const prevUnread = useRef(0);
+  const chatNotice = useIncomingChat(() => setOpen(true));
+  const receiveChat = chatNotice.receive;
   const openRef = useRef(false);
   const convRef = useRef(null);
   useEffect(() => { openRef.current = open; }, [open]);
@@ -39,18 +41,17 @@ export default function LabelChatWidget() {
       try {
         const { data } = await api.get("/chat/unread");
         const n = data.unread || 0;
-        if (n > prevUnread.current && !openRef.current) { playChatSound(); toast.message("Pesan baru dari Support"); }
-        prevUnread.current = n;
+        receiveChat(data);
         setUnread(openRef.current ? 0 : n);
       } catch { /* noop */ }
     }, 4000);
     return () => { clearInterval(hb); clearInterval(poll); };
-  }, []);
+  }, [receiveChat]);
 
   useEffect(() => {
     if (!open) return;
     loadThread();
-    setUnread(0); prevUnread.current = 0;
+    setUnread(0);
     const t = setInterval(loadThread, 3000);
     return () => clearInterval(t);
   }, [open, loadThread]);
@@ -80,6 +81,7 @@ export default function LabelChatWidget() {
           </div>
         </div>
       )}
+      {chatNotice.notice && <NewChatNotice onOpen={chatNotice.showChat} onDismiss={chatNotice.dismiss} />}
       <button onClick={() => setOpen((v) => !v)} className="fixed bottom-20 right-4 z-[60] grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white shadow-2xl transition-transform hover:scale-105 md:bottom-6 md:right-6" data-testid="label-chat-toggle">
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && unread > 0 && <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white" data-testid="label-chat-unread">{unread > 99 ? "99+" : unread}</span>}

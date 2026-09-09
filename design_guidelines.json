@@ -1,118 +1,68 @@
 {
-  "theme": "dark premium",
   "typography": {
-    "headings": {
-      "family": "'Plus Jakarta Sans', sans-serif",
-      "weights": ["600", "700", "800"],
-      "styles": "tracking-tight leading-none text-white",
-      "h1_max": "text-4xl sm:text-5xl lg:text-6xl"
-    },
-    "body": {
-      "family": "'Manrope', sans-serif",
-      "weights": ["400", "500", "600"],
-      "styles": "text-sm md:text-base leading-relaxed text-[#D6D3E1]"
-    },
-    "labels": {
-      "styles": "text-xs tracking-[0.2em] uppercase font-bold text-[#8B8499]"
-    }
+    "primary": "Inter or system-sans",
+    "guidelines": "Maintain existing fonts but enforce tracking-tight for headers. Ensure system translation text matches original weight and size. DO NOT translate metadata (Artist Name, Song Title, etc)."
   },
   "colors": {
-    "background": {
-      "base": "#08070D",
-      "surface_1": "#14111E",
-      "surface_2": "#1B1729"
+    "light": {
+      "background": "bg-white",
+      "surface": "bg-slate-50",
+      "text": "text-slate-900",
+      "border": "border-slate-200",
+      "logo_full": "/brand/logo-mono.png",
+      "logo_icon": "/brand/logo-icon-gradient.png"
     },
-    "primary": {
-      "magenta": "#FF1F8E",
-      "magenta_hot": "#FF4FA8",
-      "purple": "#A24EFF",
-      "purple_deep": "#6E2EFF"
-    },
-    "text": {
-      "primary": "#FFFFFF",
-      "secondary": "#D6D3E1",
-      "muted": "#8B8499",
-      "dim": "#5C5670"
-    },
-    "borders": {
-      "subtle": "rgba(255,255,255,0.07)",
-      "strong": "rgba(255,255,255,0.12)"
+    "dark": {
+      "background": "bg-slate-950",
+      "surface": "bg-slate-900",
+      "text": "text-slate-50",
+      "border": "border-slate-800",
+      "logo_full": "/brand/logo-mark.png",
+      "logo_icon": "/brand/logo-icon-outline.png"
     }
   },
-  "visual_enhancers": {
-    "glassmorphism": "Use .rm-glass for floating nav/headers (blur 24px, saturate 140%, bg white/4) and .rm-glass-strong for modals/dialogs. NEVER use complete transparent backgrounds under content.",
-    "neumorphism": "Not applicable for this dark premium theme. Rely on 1px crisp borders, surface contrast, and subtle glowing shadows.",
-    "grid_borders": "For the Permission Matrix: Use border-collapse with subtle right/bottom borders (border-white/10) to create a technical, dense layout.",
-    "gradients": "Avoid full-screen gradients. Use the existing .rm-mesh background for body. Use .rm-gradient-text exclusively for high-tier role names or empty state highlights."
-  },
-  "components": {
-    "sidebar": "Custom Collapsible Sidebar. Desktop: framer-motion width transition (280px to 80px rail). Mobile: Shadcn `Sheet` component (left side).",
-    "permission_matrix": "Shadcn `Table` or custom CSS Grid with `Accordion` for Tab -> Subtab -> Action hierarchy. Use Shadcn `Switch` or `Checkbox` for toggles.",
-    "drag_and_drop": "Use `@dnd-kit/core` and `@dnd-kit/sortable` for the navigation ordering UI.",
-    "buttons": "Use existing `.rm-btn-primary` and `.rm-btn-ghost` classes. Pill-shaped (rounded-full).",
-    "inputs": "Shadcn `Input` customized with `.rm-input`. Use Shadcn `Select` for role picking and language ID/EN toggle.",
-    "toasts": "Use `sonner` for all success/error feedback (e.g., 'Role Updated', 'Navigation Saved')."
+  "visual enhancers": {
+    "audio_player": "backdrop-blur-2xl bg-background/85 border-t border-border shadow-[0_-10px_40px_rgba(0,0,0,0.1)]",
+    "chat_toast": "bottom-24 right-6 to avoid chat FAB overlap. Use subtle slide-in-from-right animation.",
+    "sidebar_button": "absolute -right-3 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background shadow-sm hover:scale-110 transition-transform"
   },
   "layouts": {
-    "general": "High-density grid for settings and matrices (gap-4 or gap-6). Use optical alignment. Containers must have padding (p-6 or p-8) if they have borders.",
-    "sidebar_layout": "CSS Grid or Flex layout holding the Sidebar and Main Content. Main content must adjust smoothly when sidebar collapses.",
-    "matrix_layout": "Sticky headers for the permission matrix columns so context isn't lost on scroll. Fixed width for feature names, fluid width for role checkboxes."
+    "header_actions": "flex items-center justify-end gap-3 lg:gap-4 ml-auto",
+    "bottom_audio_player": "fixed bottom-0 left-0 right-0 w-full h-24 px-6 md:px-12 flex items-center justify-between z-50",
+    "role_preview": "border border-border rounded-xl p-4 md:p-6 bg-muted/20 overflow-hidden relative shadow-inner"
   },
   "motion": {
-    "sidebar_collapse": "Framer motion transition on width: `type: 'spring', stiffness: 300, damping: 30`.",
-    "drag_state": "When dragging a subtab, scale it up slightly (`scale: 1.02`), add a strong magenta shadow (`shadow-[0_0_15px_rgba(255,31,142,0.4)]`), and dim the rest of the list.",
-    "hover_states": "All interactive rows must have a subtle background shift (`hover:bg-white/5`) and explicitly defined text color (`hover:text-white`)."
+    "player_enter": "animate-in slide-in-from-bottom-full duration-300 ease-out",
+    "toast_enter": "animate-in slide-in-from-right-8 duration-300"
   },
   "accessibility": {
-    "testing_ids": "Every interactive and key informational element MUST have a `data-testid` (e.g., `data-testid=\"sidebar-toggle-btn\"`, `data-testid=\"role-matrix-switch\"`).",
-    "focus_states": "Focus states must use `#FF1F8E` ring (`focus:ring-2 focus:ring-[#FF1F8E]/50`).",
-    "reduced_motion": "Wrap Framer Motion configurations to respect `prefers-reduced-motion`."
+    "audio_player": "aria-label=\"Audio player\", keyboard navigable controls",
+    "theme_toggle": "aria-label=\"Toggle theme\"",
+    "sidebar_toggle": "aria-label=\"Toggle sidebar\""
   },
-  "media": {
-    "images_constraints": "Use `max-h-[80vh]` on mobile for any modal images. Maintain aspect ratios."
-  },
-  "3d_libraries": {
-    "usage": "Not recommended for this data-heavy admin panel. Focus on 2D DOM performance for the heavy permission matrix and drag-and-drop interactions."
-  },
-  "image_urls": [
-    {
-      "url": "https://images.unsplash.com/photo-1610716632424-4d45990bcd48?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwyfHxtdXNpYyUyMHByb2R1Y2VyJTIwaW4lMjBkYXJrJTIwc3R1ZGlvfGVufDB8fHx8MTc4ODUxNjE1NXww&ixlib=rb-4.1.0&q=85",
-      "description": "Music producer in dark studio. Use for empty states, onboarding modals, or the UI settings header banner to reinforce the premium music brand.",
-      "category": "empty_states_and_banners"
-    }
+  "component_path": [
+    "/app/frontend/src/components/shared/AdminLayout.jsx",
+    "/app/frontend/src/components/shared/LabelLayout.jsx",
+    "/app/frontend/src/components/shared/Brand.jsx",
+    "/app/frontend/src/components/releases/ReleaseMetadataView.jsx",
+    "/app/frontend/src/components/admin/access/RoleNavPreview.jsx"
   ],
-  "design_features_specifics": {
-    "sidebar_navigation": {
-      "desktop": "Collapsible to icon rail (80px). Only icons and tooltips remain visible. Expand to 280px for full text.",
-      "mobile": "Hidden by default. Accessed via Hamburger menu opening a left-anchored `Sheet` (drawer).",
-      "active_state": "Active tabs must have a left-border indicator (2px solid #FF1F8E) and a very subtle gradient background (`bg-gradient-to-r from-[#FF1F8E]/10 to-transparent`)."
-    },
-    "role_management": {
-      "creation": "Button `data-testid=\"create-role-btn\"` opens a Dialog to input custom role name.",
-      "matrix_ui": "A dense grid where rows are grouped by Tab -> Subtab -> Action. Use Phosphor Icons or Lucide (ChevronRight/Down) to expand/collapse groups. Use indeterminate states for parent checkboxes if only some children are selected."
-    },
-    "ui_admin_role": {
-      "language_dictionary": "A two-column grid (Indonesian | English) for navigation labels. Inline editable inputs customized with .rm-input.",
-      "drag_and_drop_nav": "A list of existing internal routes. Users can drag items to reorder them, or drag them under a 'Subtab Group' node to nest them. Visually represent nesting with indentation (pl-8) and tree-lines (border-l). Use @dnd-kit/core."
-    }
-  },
-  "universal_guidelines_for_main_agent": [
-    "GENERAL UI UX DESIGN GUIDELINES:",
-    "You tend to converge toward generic outputs. Avoid this: make creative, distinctive frontends that fit the 'dark premium RILIS MUSIK' aesthetic. Use the existing CSS variables (.rm-mesh, .rm-glass, .rm-card, etc.).",
-    "NEVER apply universal transitions (e.g., `transition: all`). Target specific properties.",
-    "NEVER center align the app container. Use proper layout grids.",
-    "Use @phosphor-icons/react or lucide-react for sharp, technical dashboard icons.",
-    "Layered design: use z-index hierarchy and glassmorphism (.rm-glass) to create depth over the .rm-mesh background.",
-    "Every interaction needs micro-animations - hover states, transitions, and entrance staggered animations (.rm-stagger).",
-    "Missing categories/images must not be filled with text placeholders. Use provided image URLs or stylised empty state UI.",
-    "CRITICAL: Do not use complete transparent backgrounds for headers, overlays, or dropdowns. Always use solid surfaces or strong glass (.rm-glass-strong)."
+  "instructions_to_main_agent": [
+    "1. L10N/Translations: Move Language toggle to Header (top right, next to bell). Implement global translation for system text ONLY. Exclude Label Name, Artist, Song Title, and Release metadata from translation.",
+    "2. Theme Toggle & Branding: Add 3-state toggle (Light/Dark/Auto) to Header. Auto mode relies on Asia/Jakarta timezone (WIB): Light between 06:00-17:59, Dark between 18:00-05:59. Update `Brand.jsx` to reflect theme: Light mode uses `logo-mono.png`, Dark mode uses `logo-mark.png`.",
+    "3. Sidebar Enhancements: Position the collapse toggle button exactly on the middle of the right divider border (`absolute -right-3 top-1/2`). Use a simple, clean `ChevronLeft`/`ChevronRight` icon. If sidebar is collapsed, swap logo to `logo-icon-gradient.png` (light) or `logo-icon-outline.png` (dark).",
+    "4. Chat Notifications: Render the 'Pesan Chat Baru' pop-up offset from the bottom-right corner (e.g., `bottom-24 right-6`) to ensure it doesn't cover the chat action button.",
+    "5. Bottom Audio Player: In `ReleaseMetadataView.jsx`, convert inline audio to a modern fixed bottom player (Artlist.io/Epidemic Sound inspired). Use full width, blur background (`backdrop-blur-2xl bg-background/85`). Must retain the download button on the right side.",
+    "6. Role Nav Preview: Update `RoleNavPreview.jsx` to render a simulated visual layout of the sidebar based on configured permissions (read-only mock), instead of just a raw list.",
+    "7. Clean up: Remove the 'Import Rate Label' tab (keep 'ubah label rate' functionality intact). Remove the 'Reset Data Bisnis' function from Admin Users.",
+    "8. Sound Notifications: Add clear, distinctly audible sound alerts for 1) standard notifications, 2) incoming chat messages, and 3) internal user online status. Ensure sound triggers are robustly tied to these events."
   ],
-  "instructions_to_main_agent": {
-    "files_extension": "Use .js or .jsx extensions for all React components. Do not use .tsx.",
-    "step_1": "Implement the Layout wrapper. Build the Sidebar component utilizing framer-motion for width collapse on desktop (280px to 80px), and Shadcn Sheet for mobile. Map existing CSS variables.",
-    "step_2": "Build the Role Management view. Create the Tabs for 'Permissions' and 'UI Settings'.",
-    "step_3": "Implement the Permission Matrix inside the Permissions tab. Build a recursive accordion-style table/grid for Tabs > Subtabs > Actions.",
-    "step_4": "Implement the UI Settings tab. Add a section for bilingual dictionary inputs (ID/EN) and a section for Navigation Ordering using @dnd-kit/core and @dnd-kit/sortable.",
-    "step_5": "Ensure all interactive elements have `data-testid` attributes. Apply .rm-glass and .rm-mesh aesthetics to panels and backgrounds."
-  }
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "DO NOT use complete `transparent` background in header, overlays, or any surface that has content scrolling under it. Use backdrop-blur with semi-transparent colors (e.g. bg-background/80).",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g. data-testid='theme-toggle-btn').",
+    "Use modern button styles. Avoid defaults. Enhance with appropriate padding and focus rings.",
+    "Ensure color contrast meets accessibility standards. Never place dark gray text on a dark background.",
+    "Create depth through layered design elements with proper z-index hierarchy and shadows."
+  ]
 }

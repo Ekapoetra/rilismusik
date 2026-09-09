@@ -27,7 +27,7 @@ def _validate_permissions(values: List[str]) -> List[str]:
 async def access_catalog(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.roles.view")
     config = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
-    nav = sorted(config.get("items", []), key=lambda item: item.get("order", 0))
+    nav = sorted([item for item in config.get("items", []) if item.get("key") != "label_rates"], key=lambda item: item.get("order", 0))
     return {"modules": permission_catalog(), "all_permissions": ALL_PERMISSIONS, "navigation": nav}
 
 
@@ -105,7 +105,7 @@ async def admin_navigation(user: dict = Depends(require_admin)):
     enriched = await enrich_admin_user(db, user)
     allowed = set(enriched.get("permissions") or [])
     if enriched.get("role") == "super_admin": allowed = set(ALL_PERMISSIONS)
-    items = [item for item in config.get("items", []) if item.get("visible", True) and has_permission(enriched, item.get("permission"))]
+    items = [item for item in config.get("items", []) if item.get("key") != "label_rates" and item.get("visible", True) and has_permission(enriched, item.get("permission"))]
     return {"default_locale": config.get("default_locale", "id"), "items": sorted(items, key=lambda item: item.get("order", 0)),
             "role": {"id": enriched.get("admin_role_id"), "name": enriched.get("role_name")}, "permissions": list(allowed)}
 
@@ -113,7 +113,8 @@ async def admin_navigation(user: dict = Depends(require_admin)):
 @access_r.get("/ui-settings")
 async def get_ui_settings(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "ui.settings.view")
-    return await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    config = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    return {**config, "items": [item for item in config.get("items", []) if item.get("key") != "label_rates"]}
 
 
 @access_r.put("/ui-settings")

@@ -9,13 +9,13 @@ export const OnlineDot = ({ online }) => (
   <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${online ? "bg-emerald-400 ring-2 ring-emerald-400/30 shadow-[0_0_6px_rgba(52,211,153,0.9)]" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
 );
 
-const Attachment = ({ attachment }) => {
+const Attachment = ({ attachment, messageId }) => {
   if (!attachment) return null;
   if (attachment.kind === "image") {
-    return <a href={fileUrl(attachment.url)} target="_blank" rel="noreferrer" data-testid="chat-attachment-image"><img src={fileUrl(attachment.url)} alt={attachment.filename} className="mt-1 max-h-52 rounded-lg border border-white/10 object-cover" /></a>;
+    return <a href={fileUrl(attachment.url)} target="_blank" rel="noreferrer" data-testid={`chat-attachment-image-${messageId}`}><img src={fileUrl(attachment.url)} alt={attachment.filename} className="mt-1 max-h-52 rounded-lg border border-white/10 object-contain" /></a>;
   }
   return (
-    <a href={fileUrl(attachment.url)} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-zinc-200 hover:bg-black/50" data-testid="chat-attachment-file">
+    <a href={fileUrl(attachment.url)} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-zinc-200 hover:bg-black/50" data-testid={`chat-attachment-file-${messageId}`}>
       <FileText className="h-4 w-4 shrink-0" /><span className="truncate">{attachment.filename}</span>
     </a>
   );
@@ -68,8 +68,8 @@ export const ChatThread = ({ title, subtitle, online, messages, myId, onSend, bu
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div className="max-w-[80%]">
                 {!mine && <div className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">{m.sender_name}</div>}
-                {m.body && <div className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${mine ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "bg-white/[0.06] text-zinc-100"}`}>{m.body}</div>}
-                <Attachment attachment={m.attachment} />
+                {m.body && <div translate="no" data-testid={`chat-message-body-${m.id}`} className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${mine ? "bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white" : "bg-white/[0.06] text-zinc-100"}`}>{m.body}</div>}
+                <Attachment attachment={m.attachment} messageId={m.id} />
                 <div className={`mt-0.5 text-[10px] text-zinc-600 ${mine ? "text-right" : ""}`}>{timeLabel(m.created_at)}</div>
               </div>
             </div>
@@ -85,7 +85,7 @@ export const ChatThread = ({ title, subtitle, online, messages, myId, onSend, bu
             <div className="mb-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-zinc-300" data-testid="chat-pending-attachment">
               {pending.kind === "image" ? <img src={fileUrl(pending.url)} alt="" className="h-8 w-8 rounded object-cover" /> : <FileText className="h-4 w-4" />}
               <span className="min-w-0 flex-1 truncate">{pending.filename}</span>
-              <button type="button" onClick={() => setPending(null)} className="text-zinc-500 hover:text-white"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setPending(null)} className="text-zinc-500 hover:text-white" aria-label="Hapus lampiran" data-testid="chat-pending-attachment-remove"><X className="h-4 w-4" /></button>
             </div>
           )}
           <div className="flex items-center gap-2">

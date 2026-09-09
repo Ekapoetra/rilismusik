@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 
 const AdminNavigationContext = createContext(null);
 
@@ -15,20 +16,19 @@ const FALLBACK_ITEMS = [
 export const AdminNavigationProvider = ({ children }) => {
   const { hasPermission } = useAuth();
   const [items, setItems] = useState([]);
-  const [locale, setLocaleState] = useState(localStorage.getItem("admin-ui-locale") || "id");
+  const { locale, setLocale } = useAppPreferences();
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try {
       const { data } = await api.get("/admin/navigation");
-      setItems(data.items || []);
-      if (!localStorage.getItem("admin-ui-locale")) setLocaleState(data.default_locale || "id");
+      setItems((data.items || []).filter((item) => item.key !== "label_rates" && item.route !== "/admin/labels/rate-import"));
+      if (!localStorage.getItem("admin-ui-locale")) setLocale(data.default_locale || "id");
     } catch {
       setItems(FALLBACK_ITEMS.filter((item) => hasPermission(item.permission)));
     } finally { setLoading(false); }
-  }, [hasPermission]);
+  }, [hasPermission, setLocale]);
   useEffect(() => { load(); }, [load]);
-  const setLocale = (next) => { setLocaleState(next); localStorage.setItem("admin-ui-locale", next); };
-  const value = useMemo(() => ({ items, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [items, locale, loading, load]);
+  const value = useMemo(() => ({ items, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [items, locale, setLocale, loading, load]);
   return <AdminNavigationContext.Provider value={value}>{children}</AdminNavigationContext.Provider>;
 };
 

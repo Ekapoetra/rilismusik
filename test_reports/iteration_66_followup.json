@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-09",
+  "scope": "P0 UI refresh final verification, after iteration65/66",
+  "status": "passed_scoped_acceptance",
+  "resolved_findings": [
+    {"finding": "Global EN UI not compiled", "resolution": "Registered direct Babel helper dependency, loaded current compiler configuration, added plugin-content cache identity/build dependency, regenerated source-only catalog with correct Moses/subword-nmt tokenizer. Live Action Center text now translated."},
+    {"finding": "Incorrect English business labels", "resolution": "Curated reviewed catalog now supplies Distributed, Active Subscriptions, Suspended Labels and release-form terminology. Explicit EN DOM assertions passed."},
+    {"finding": "Role manage-implies-view missing", "resolution": "Not reproduced on an active draft role: access.users.manage checked and access.users.view unchecked displays admin_users in iframe. No role saved. Inactive role intentionally has no menu. Browser assertion passed."},
+    {"finding": "Normal notification sound missing", "resolution": "Controlled retest seeded the real notification AFTER browser baseline initialization. Oscillators: 0 on startup, 2 for Test Sound, 4 after incoming ordinary notification. The earlier emitter had completed before the screenshot browser started, so it was correctly treated as initial history. No speculative change to working event detection."},
+    {"finding": "Chat pending-attachment button missing test ID", "resolution": "Added chat-pending-attachment-remove, accessible label, per-message attachment/message IDs."}
+  ],
+  "verification": {
+    "backend": "Iteration65/66 regression 5/5 passed; navigation excludes label_rates, unread latest fields present, removed reset endpoint absent. No auth changes in this P0 continuation.",
+    "build": "CI=false yarn build compiled successfully without ESLint warnings; /tmp/p0-final-build.log. Bundle-size advisory remains nonblocking.",
+    "theme": "Browser checked 05:59 WIB dark, 06:00 light, 17:59 light, 18:00 dark; matching loaded logo src at all boundaries. Clock installed before app initialization: 17:59:50 -> 18:00:11 actual provider interval changed light to dark without focus/reload. Manual light persisted after reload. Computed foreground/background/logo visibility verified.",
+    "role_preview": "Iteration66 iframe zero /api requests; read-only simulated rows, mobile drawer/overflow. Follow-up active unsaved manage-only role shows Admin Users, editor changes never saved.",
+    "real_audio": "Generated owned 20-second mono WAV 44100Hz and owned PNG cover, uploaded through real release APIs/R2. Browser verified playback/time advancement, pause, keyboard seek >=2.9s, mute/unmute, actual download p0-owned-audio.wav without failure, next broken-track error, previous valid-track recovery, Escape close.",
+    "release_wizard": "Existing owned draft loaded before clicking Next; proceeded info -> artists -> tracks -> explicit Save Draft -> files, opened bottom audio, returned to metadata. Title Aktif, artist Simpan and original Indonesian lyrics unchanged under EN. Final API state remained draft; no release submission or payment triggered.",
+    "responsive": "Audio/files wizard document scrollWidth matched innerWidth at320/768/1024/1440; chat toggle bottom remained above audio dock. Iteration66 broader pages/drawer checks390/768/1024/1440 passed. Final icon-button CSS respects hidden/md:hidden/md:inline-flex and width-auto: desktop mobile menu hidden;320px menu+language+drawer passed after viewport settling, scrollWidth320.",
+    "sounds": "Iteration66 chat/new-message notice and internal-online WebAudio tests passed. Follow-up real non-chat notification test passed after baseline; no initial unread burst. Browser audio still requires first user interaction.",
+    "removed_features": "Import Rate Label navigation/tab absent and old route redirects; manual rate/fee controls retained. Reset Data Bisnis UI/endpoint absent, no business reset executed."
+  },
+  "cleanup": {
+    "last_owned_fixture": "iter66-ui-0664b784@example.com — retired",
+    "release": "f9c0e2ef-6bcc-433f-bce2-5468570f82ae deleted through authenticated label DELETE API (asset cleanup), then exact fixture cleanup",
+    "notifications": "Two follow-up emitted IDs deleted exactly; meta.iter66 alerts remaining0",
+    "prior_fixture_orphan": "Removed one orphan message with exact conversation ID ef8fcde7-0a45-4837-ad93-588c73f673f1 traced to already-retired Iter66 fixture sender; matching owned notification/typing cleaned. Corrected fixture cleanup to capture actual conversation IDs before deletion.",
+    "remaining_users": 0,
+    "remaining_iter66_message_candidates": 0,
+    "credentials": "/app/memory/test_credentials.md updated automatically by fixture lifecycle"
+  },
+  "mocking": "No application API mocked. Role preview is intentionally SIMULATED/read-only. Browser clocks and WebAudio instrumentation are test-only; deliberately missing audio URL used for error scenario.",
+  "limits": ["No physical-device speaker/audibility assessment; WebAudio oscillator execution verified.", "Not an exhaustive linguistic review of all catalog entries or all historical records.", "User acceptance remains pending; no unrelated P1/P2 work was performed."]
+}

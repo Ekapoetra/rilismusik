@@ -1,5 +1,7 @@
 // craco.config.js
 const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
@@ -70,6 +72,7 @@ if (config.enableHealthCheck) {
 }
 
 let webpackConfig = {
+  babel: { plugins: [require.resolve("./scripts/ui-i18n-plugin.cjs")] },
   eslint: {
     configure: {
       extends: ["plugin:react-hooks/recommended"],
@@ -84,6 +87,20 @@ let webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      const uiPlugin = require.resolve("./scripts/ui-i18n-plugin.cjs");
+      const uiPluginHash = crypto.createHash("sha256").update(fs.readFileSync(uiPlugin)).digest("hex");
+      const updateBabelCache = (rules = []) => rules.forEach((rule) => {
+        if (!rule || typeof rule !== "object") return;
+        if (String(rule.loader || "").includes("babel-loader") && rule.options) {
+          rule.options.cacheIdentifier = `${rule.options.cacheIdentifier || ""}:rilis-ui:${uiPluginHash}`;
+        }
+        updateBabelCache(rule.oneOf); updateBabelCache(rule.rules);
+      });
+      updateBabelCache(webpackConfig.module?.rules);
+      if (webpackConfig.cache && typeof webpackConfig.cache === "object") {
+        webpackConfig.cache.buildDependencies ||= {};
+        webpackConfig.cache.buildDependencies.rilisUi = [uiPlugin, __filename];
+      }
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {

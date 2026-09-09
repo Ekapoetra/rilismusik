@@ -1,10 +1,10 @@
-import { useTheme } from "next-themes"
+import { useOptionalAppPreferences } from "@/contexts/AppPreferencesContext"
 import { Toaster as Sonner, toast } from "sonner"
 
 const Toaster = ({
   ...props
 }) => {
-  const { theme = "system" } = useTheme()
+  const { theme = "dark" } = useOptionalAppPreferences() || {}
 
   return (
     <Sonner
