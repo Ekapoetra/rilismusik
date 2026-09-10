@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
-import { api, formatApiError, fileUrl } from "@/api/client";
+import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { CreditCard, Disc3, Music, Download, Trash2 } from "lucide-react";
+import { CreditCard, Music, Download, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
+import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -78,11 +79,7 @@ export default function ReleaseDetail() {
 
       <div className="flex items-start justify-between gap-5 flex-wrap">
         <div className="flex gap-4 items-start">
-          {data.cover_url ? (
-            <img src={fileUrl(data.cover_url)} alt="cover" className="w-28 h-28 rounded-2xl object-cover" />
-          ) : (
-            <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-[#FF4FA8] to-[#A24EFF] grid place-items-center text-white"><Disc3 className="w-8 h-8" /></div>
-          )}
+          <ReleaseArtwork release={data} prefix="label-detail" large onUpdated={(patch) => setData((current) => ({ ...current, ...patch }))} />
           <div>
             <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{data.release_type}</div>
             <h1 className="font-display text-3xl font-extrabold tracking-tighter">{data.release_title}</h1>
@@ -90,7 +87,7 @@ export default function ReleaseDetail() {
             <div className="mt-2"><StatusBadge status={data.status} /></div>
           </div>
         </div>
-        {(data.status === "draft" || data.status === "need_revision") && (
+        {["draft", "need_revision", "rejected"].includes(data.status) && (
           <Link to={`/label/releases/${data.id}/edit`} className="rm-btn-ghost" data-testid="release-detail-edit-button">Edit</Link>
         )}
         {["draft", "rejected"].includes(data.status) && (

@@ -6,6 +6,7 @@ import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteRelea
 import { Calendar, TrendingUp } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 import { ReleaseIsrcPanel, ReleaseIsrcToggle } from "@/components/releases/ReleaseIdentifiers";
+import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtInt(n) { return Number(n || 0).toLocaleString("id-ID"); }
@@ -131,10 +132,13 @@ export default function AdminReleases() {
           <div className="p-8 text-center text-zinc-500 text-sm">{loading ? "Memuat…" : "Tidak ada rilisan."}</div>
         ) : items.map((r) => (
           <div key={r.id} className="relative px-5 py-4 grid grid-cols-12 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors" data-testid={`admin-release-row-${r.id}`}>
-            <div className="min-w-0 col-span-12 xl:col-auto">
+            <div className="min-w-0 col-span-12 xl:col-auto flex items-start gap-3">
+              <ReleaseArtwork release={r} prefix="admin-list" onUpdated={(patch) => setItems((current) => current.map((item) => item.id === r.id ? { ...item, ...patch } : item))} />
+              <div className="min-w-0">
               <Link to={`/admin/releases/${r.id}`} translate="no" className="block break-words font-semibold [overflow-wrap:anywhere] after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-white/50" data-testid={`admin-release-open-${r.id}`}>{r.release_title}</Link>
               <ReleaseArtistCredits release={r} prefix="admin-release" />
               <div className="mt-1 text-[10px] uppercase text-zinc-500" data-testid={`admin-release-type-${r.id}`}>{r.release_type}</div>
+              </div>
             </div>
             <div className="col-span-12 min-w-0 break-words text-sm xl:col-auto" translate="no" data-testid={`admin-release-label-${r.id}`}>{r.label_name || "—"}</div>
             <div className="min-w-0 col-span-6 xl:col-auto"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">UPC</div><code className="break-all text-xs" translate="no" data-testid={`admin-release-upc-${r.id}`}>{r.upc || "—"}</code></div>

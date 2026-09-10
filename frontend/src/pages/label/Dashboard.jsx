@@ -9,6 +9,7 @@ import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
 import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp } from "lucide-react";
 import { LabelLogo } from "@/components/shared/LabelLogo";
+import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -68,6 +69,7 @@ export default function LabelDashboardHome() {
         </div>
       </div>
 
+      {!locked && <SubmissionQuota prefix="label-dashboard" />}
       <AnimatePresence>
         {celebrate && (
           <motion.div

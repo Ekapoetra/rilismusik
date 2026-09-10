@@ -53,6 +53,7 @@ from .release_workflow_service import (
 from .artist_social_service import resolve_release_artist_credits
 from .release_deletion_service import ReleaseDeletionResult, delete_release_record
 from .release_list_metadata import ReleaseListItem, enrich_release_list
+from .release_submission_quota import SubmissionQuotaOut, submission_quota, submission_slot
 
 # =============================================================================
 #                              RELEASES
@@ -99,6 +100,14 @@ async def list_releases(
         it["last_active_period"] = r.get("last_period")
         it["first_active_period"] = r.get("first_period")
     return items
+
+
+@release_r.get("/submission-quota", response_model=SubmissionQuotaOut)
+async def get_submission_quota(release_id: Optional[str] = None, user: dict = Depends(require_label)):
+    label = await get_label_by_user(user)
+    if release_id and not await db.releases.find_one({"id": release_id, "label_id": label["id"]}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Rilisan tidak ditemukan")
+    return await submission_quota(db, label["id"], release_id)
 
 
 @release_r.get("/{release_id}")
@@ -181,6 +190,8 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
     featured_artists = normalize_artist_credits(body.featured_artists)
     validate_artist_web_url(body.artist_web_url)
 
+    track_featured = [normalize_artist_credits(track.featured_artists) for track in body.tracks]
+
     release_id = new_id()
     rel = {
         "id": release_id,
@@ -242,6 +253,7 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
             "track_type": t.track_type,
             "featuring_artist_id": t.featuring_artist_id,
             "featuring_artist_name": t.featuring_artist_name,
+            "featured_artists": track_featured[idx - 1],
             "spotify_artist_id": t.spotify_artist_id,
             "youtube_artist_id": t.youtube_artist_id,
             "lyrics": t.lyrics,
@@ -270,6 +282,8 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
     primary_artists = normalize_artist_credits(body.primary_artists, body.artist_name)
     featured_artists = normalize_artist_credits(body.featured_artists)
     validate_artist_web_url(body.artist_web_url)
+
+    track_featured = [normalize_artist_credits(track.featured_artists) for track in body.tracks]
 
     upd = {
         "release_title": body.release_title,
@@ -331,6 +345,7 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
             "track_type": t.track_type,
             "featuring_artist_id": t.featuring_artist_id,
             "featuring_artist_name": t.featuring_artist_name,
+            "featured_artists": track_featured[idx - 1],
             "spotify_artist_id": t.spotify_artist_id,
             "youtube_artist_id": t.youtube_artist_id,
             "lyrics": t.lyrics,
@@ -441,18 +456,11 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
     validate_release_submission(rel, tracks)
     all_credits = list(rel.get("primary_artists") or []) + list(rel.get("featured_artists") or [])
-    resolved_credits = await resolve_release_artist_credits(db, label["id"], all_credits)
+    for track in tracks:
+        all_credits.extend(track.get("featured_artists") or [])
+    await resolve_release_artist_credits(db, label["id"], all_credits, persist=False)
     primary_count = len(rel.get("primary_artists") or [])
-    resolved_primary = resolved_credits[:primary_count]
-    resolved_featured = resolved_credits[primary_count:]
-    resolved_artist_name = ", ".join(item["name"] for item in resolved_primary)
-    await db.releases.update_one({"id": release_id}, {"$set": {
-        "primary_artists": resolved_primary,
-        "featured_artists": resolved_featured,
-        "artist_name": resolved_artist_name,
-        "label_whatsapp_snapshot": label.get("whatsapp"),
-    }})
-    rel = {**rel, "primary_artists": resolved_primary, "featured_artists": resolved_featured, "artist_name": resolved_artist_name}
+    featured_count = len(rel.get("featured_artists") or [])
 
     # Determine payment flow
     now = datetime.now(timezone.utc)
@@ -489,9 +497,24 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         billing_flow = "pay_per_release"
         payment_id = None
 
-    await db.releases.update_one(
-        {"id": release_id},
+    async with submission_slot(db, label["id"], release_id) as slot:
+        # Re-check after acquiring the per-release lease to avoid duplicate submissions.
+        current = await db.releases.find_one({"id": release_id}, {"_id": 0, "status": 1, "updated_at": 1})
+        if not current or current.get("status") != rel.get("status") or current.get("updated_at") != rel.get("updated_at"):
+            raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+        resolved_credits = await resolve_release_artist_credits(db, label["id"], all_credits)
+        cursor = primary_count + featured_count
+        for track in tracks:
+            size = len(track.get("featured_artists") or [])
+            await db.tracks.update_one({"id": track["id"], "release_id": release_id}, {"$set": {"featured_artists": resolved_credits[cursor:cursor + size]}})
+            cursor += size
+        result = await db.releases.update_one(
+        {"id": release_id, "status": rel.get("status"), "updated_at": rel.get("updated_at"), "$expr": {"$eq": [{"$dateToString": {"date": "$$NOW", "format": "%Y-%m-%d", "timezone": "Asia/Jakarta"}}, slot["day"]]}},
         {"$set": {
+            "primary_artists": resolved_credits[:primary_count],
+            "featured_artists": resolved_credits[primary_count:primary_count + featured_count],
+            "artist_name": ", ".join(item["name"] for item in resolved_credits[:primary_count]),
+            "label_whatsapp_snapshot": label.get("whatsapp"),
             "status": new_status,
             "payment_status": payment_status,
             "payment_id": payment_id,
@@ -505,10 +528,16 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             "updated_at": now_iso(),
         }, "$push": {"status_history": {
             "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
-            "changed_at": now_iso(), "note": "Submit ulang setelah revisi" if rel.get("status") == "need_revision" else "Submit pertama",
+            "quota_token": slot["token"], "submission_day": slot["day"],
+            "changed_at": now_iso(), "note": "Submit ulang setelah revisi/penolakan" if rel.get("status") in ("need_revision", "rejected") else "Submit pertama",
         }}},
     )
-    await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
+        if result.modified_count != 1:
+            raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+    try:
+        await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
+    except Exception:
+        logger.exception("Submission audit mirror failed; embedded status history retained")
     admin_ids = await admin_user_ids(("super_admin", "admin_release"))
     await notify_many(
         admin_ids, "release_submitted", "Rilisan baru menunggu review",

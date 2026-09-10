@@ -137,6 +137,7 @@ export default function LabelSupportTicketDetail() {
       </div>
 
       {/* Comments */}
+      {t.linked_release_status === "taken_down" && <p className="border-l-2 border-amber-400 px-4 py-3 text-sm text-amber-300" data-testid="label-ticket-takedown-synced">Status rilisan telah berubah menjadi Takedown.</p>}
       {t.category === "content_id_claim" && <ContentIdDocuments ticket={t} prefix="label-ticket" />}
       <div className="rm-card overflow-hidden">
         <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">Percakapan</div>

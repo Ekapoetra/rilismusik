@@ -59,6 +59,7 @@ async def enrich_release_list(db, releases):
 
     for release in releases:
         tracks = sorted(grouped[release["id"]], key=track_order)
+        release["display_cover_url"] = (release.get("internal_cover_url") if release.get("imported_legacy") else None) or release.get("cover_url")
         primary, featured = {}, {}
         for record in [release, *tracks]:
             main_credits = _credits(record.get("primary_artists"))

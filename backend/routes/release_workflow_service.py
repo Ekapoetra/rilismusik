@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from .artist_social_service import normalize_social_links
 
 
-EDITABLE_STATUSES = ("draft", "need_revision")
+EDITABLE_STATUSES = ("draft", "need_revision", "rejected")
 RELEASE_TYPES = ("single", "ep", "album")
 
 
@@ -28,7 +28,7 @@ def validate_spotify_artist_url(value: Optional[str], field: str) -> None:
 
 def validate_artist_web_url(value: Optional[str]) -> None:
     if not _filled(value):
-        raise HTTPException(status_code=400, detail="URL web artist atau channel YouTube wajib diisi")
+        return
     parsed = urlparse(str(value).strip())
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(status_code=400, detail="URL web artist atau YouTube tidak valid")
@@ -72,7 +72,7 @@ def validate_release_submission(release: Dict[str, Any], tracks: List[Dict[str, 
     required_release = {
         "release_title": "Judul rilisan", "genre": "Genre", "subgenre": "Sub Genre",
         "copyright_line": "C Line", "p_line": "P Line", "label_name_snapshot": "Nama label",
-        "responsible_name": "Nama penanggung jawab", "artist_web_url": "URL web artist atau YouTube",
+        "responsible_name": "Nama penanggung jawab",
     }
     missing = [label for field, label in required_release.items() if not _filled(release.get(field))]
     if release.get("release_type") not in RELEASE_TYPES:
@@ -98,6 +98,8 @@ def validate_release_submission(release: Dict[str, Any], tracks: List[Dict[str, 
         missing.append("SINGLE harus memiliki tepat satu track")
     for index, track in enumerate(tracks, start=1):
         prefix = f"Track {index}"
+        for credit in track.get("featured_artists") or []:
+            normalize_social_links(credit.get("social_links") or [], required=True, owner=credit.get("name") or f"{prefix} featuring")
         for field, label in (
             ("track_title", "judul"), ("lyricist", "nama pencipta/writer"),
             ("composer", "nama komposer"), ("title_language", "bahasa judul"),

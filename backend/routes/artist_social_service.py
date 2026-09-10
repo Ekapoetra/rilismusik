@@ -59,7 +59,7 @@ def artist_credit_snapshot(artist: Dict[str, Any]) -> Dict[str, Any]:
     return {"artist_id": artist["id"], "name": artist["artist_name"], "social_links": links, "spotify_url": spotify}
 
 
-async def resolve_release_artist_credits(db, label_id: str, values: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def resolve_release_artist_credits(db, label_id: str, values: List[Dict[str, Any]], *, persist=True) -> List[Dict[str, Any]]:
     """Validate every credit first, then persist new profile-only artists as one batch."""
     plans: List[Dict[str, Any]] = []
     new_by_name: Dict[str, Dict[str, Any]] = {}
@@ -103,6 +103,6 @@ async def resolve_release_artist_credits(db, label_id: str, values: List[Dict[st
             new_by_name[normalized_name] = pending
         plans.append({"snapshot": pending["snapshot"]})
 
-    if new_by_name:
+    if new_by_name and persist:
         await db.artists.insert_many([item["doc"] for item in new_by_name.values()])
     return [plan["snapshot"] for plan in plans]

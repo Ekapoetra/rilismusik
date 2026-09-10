@@ -8,6 +8,7 @@ import { useAuth } from "@/api/AuthContext";
 import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
 import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 
 const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 
@@ -15,6 +16,7 @@ export default function AdminTicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const { t: ui } = useAppPreferences();
   const canManage = hasPermission("support.manage");
   const [data, setData] = useState(null);
   const [body, setBody] = useState("");
@@ -24,14 +26,26 @@ export default function AdminTicketDetail() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const scrollRef = useRef(null);
+  const loadSequence = useRef(0);
+  const editorTicket = useRef(null);
+  const dirty = useRef({ status: false, note: false });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (resetEditor = false) => {
+    const sequence = ++loadSequence.current;
+    if (editorTicket.current !== id) {
+      editorTicket.current = id;
+      dirty.current = { status: false, note: false };
+      setData(null);
+    }
     try {
       const { data: r } = await api.get(`/tickets/${id}`);
+      if (sequence !== loadSequence.current) return;
       setData(r);
-      setNewStatus(r.ticket.status);
-      setInternalNote(r.ticket.internal_note || "");
+      if (resetEditor === true) dirty.current = { status: false, note: false };
+      if (!dirty.current.status) setNewStatus(r.ticket.status);
+      if (!dirty.current.note) setInternalNote(r.ticket.internal_note || "");
     } catch (e) {
+      if (sequence !== loadSequence.current) return;
       setErr(formatApiError(e.response?.data?.detail));
     }
   }, [id]);
@@ -71,6 +85,7 @@ export default function AdminTicketDetail() {
   };
 
   const applyStatus = async () => {
+    if (data.ticket.category === "takedown" && newStatus === "done" && data.ticket.status !== "done" && !window.confirm("Selesaikan tiket takedown? Status rilisan Live akan berubah menjadi Takedown.")) return;
     setBusy(true); setErr("");
     try {
       const payload = {};
@@ -81,7 +96,7 @@ export default function AdminTicketDetail() {
         return;
       }
       await api.post(`/tickets/admin/${id}/status`, payload);
-      await load();
+      await load(true);
     } catch (e2) {
       setErr(formatApiError(e2.response?.data?.detail));
     } finally { setBusy(false); }
@@ -114,6 +129,7 @@ export default function AdminTicketDetail() {
           </div>
 
           {t.category === "content_id_claim" && <ContentIdDocuments ticket={t} prefix="admin-ticket" />}
+          {t.linked_release_status === "taken_down" && <p className="border-l-2 border-amber-400 px-4 py-3 text-sm text-amber-300" data-testid="admin-ticket-takedown-synced">Status rilisan telah berubah menjadi Takedown.</p>}
           <div className="rm-card overflow-hidden">
             <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">Percakapan</div>
             <div ref={scrollRef} className="max-h-[55vh] overflow-y-auto p-5 space-y-4">
@@ -192,13 +208,13 @@ export default function AdminTicketDetail() {
 
           {canManage && <div className="rm-card p-5 space-y-3">
             <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Atur Status</div>
-            <select className="rm-input" value={newStatus} onChange={(e) => setNewStatus(e.target.value)} data-testid={ADMIN_TICKET.setStatusSelect}>
-              {STATUSES.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
+            <select translate="no" className="rm-input" value={newStatus} onChange={(e) => { dirty.current.status = true; setNewStatus(e.target.value); }} data-testid={ADMIN_TICKET.setStatusSelect}>
+              {STATUSES.map((status) => React.createElement("option", { key: status, value: status, "data-testid": `admin-ticket-status-option-${status}` }, ui(TICKET_STATUS_LABELS[status])))}
             </select>
             <textarea
               className="rm-input min-h-[60px]"
               value={internalNote}
-              onChange={(e) => setInternalNote(e.target.value)}
+              onChange={(e) => { dirty.current.note = true; setInternalNote(e.target.value); }}
               placeholder="Catatan internal (tidak dilihat label)…"
               data-testid={ADMIN_TICKET.internalNoteInput}
             />

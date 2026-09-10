@@ -11,6 +11,7 @@ export const newTrack = () => ({
   vocal_type: "vocal", lyricist: "", composer: "", arranger: "", producer: "",
   explicit: false, preview_start_seconds: 0, title_language: "Indonesian",
   lyric_language: "Indonesian", lyrics: "", audio_url: null, audio_sample_rate: null,
+  featured_artists: [],
 });
 
 export const defaultReleaseForm = () => ({
@@ -28,9 +29,11 @@ const mapArtistCredit = (item) => {
 };
 export const mapReleaseToForm = (release) => ({
   ...defaultReleaseForm(), ...release,
+  artist_web_url: release.artist_web_url || "",
   primary_artists: (release.primary_artists?.length ? release.primary_artists : [{ name: release.artist_name || "", spotify_url: "" }]).map(mapArtistCredit),
   featured_artists: (release.featured_artists || []).map(mapArtistCredit),
-  tracks: (release.tracks?.length ? release.tracks : [newTrack()]).map((track) => withClientId({ ...newTrack(), ...track })),
+  tracks: (release.tracks?.length ? release.tracks : [newTrack()]).map((track) => withClientId({ ...newTrack(), ...track,
+    featured_artists: (track.featured_artists?.length ? track.featured_artists : track.featuring_artist_name ? [{ name: track.featuring_artist_name, artist_id: track.featuring_artist_id }] : []).map(mapArtistCredit) })),
 });
 
 export const serializeReleaseForm = (form) => {
@@ -47,6 +50,9 @@ export const serializeReleaseForm = (form) => {
     featured_artists: featured,
     tracks: form.tracks.map(({ client_id, audio_sample_rate, ...track }, index) => ({
       ...track, track_number: index + 1, artist_name: artistName,
+      featured_artists: (track.featured_artists || []).map(serializeArtist),
+      featuring_artist_id: track.featured_artists?.length === 1 ? track.featured_artists[0].artist_id : null,
+      featuring_artist_name: track.featured_artists?.map((artist) => artist.name).join(", ") || null,
       lyrics: track.vocal_type === "instrumental" ? "Instrumental" : track.lyrics,
       lyric_language: track.vocal_type === "instrumental" ? "Instrumental" : track.lyric_language,
     })),
@@ -54,12 +60,14 @@ export const serializeReleaseForm = (form) => {
 };
 
 export const validateStep = (step, form) => {
-  if (step === 1 && [form.release_title, form.genre, form.subgenre, form.copyright_line, form.p_line, form.artist_web_url].some((value) => !String(value || "").trim())) return "Lengkapi seluruh informasi rilisan dan URL web/channel artist.";
+  if (step === 1 && [form.release_title, form.genre, form.subgenre, form.copyright_line, form.p_line].some((value) => !String(value || "").trim())) return "Lengkapi seluruh informasi rilisan yang wajib.";
+  if (step === 1 && form.artist_web_url?.trim()) { try { const url = new URL(form.artist_web_url.trim()); if (!["http:", "https:"].includes(url.protocol)) return "URL web artist atau YouTube tidak valid"; } catch { return "URL web artist atau YouTube tidak valid"; } }
   if (step === 1 && form.release_date < todayPlus(7)) return "Tanggal rilis digital minimal 7 hari setelah submit.";
   if (step === 2 && (!form.primary_artists.length || form.primary_artists.some((item) => !item.name.trim()))) return "Minimal satu nama artist utama wajib diisi.";
   if (step === 2 && [...form.primary_artists, ...form.featured_artists].some((item) => item.name.trim() && !socialLinksAreValid(item.social_links))) return "Setiap artis wajib memiliki minimal satu tautan media sosial yang valid.";
   if (step === 3 && form.release_type === "single" && form.tracks.length !== 1) return "SINGLE harus memiliki tepat satu track.";
   if (step === 3) {
+    if (form.tracks.some((track) => (track.featured_artists || []).some((artist) => !artist.name.trim() || !socialLinksAreValid(artist.social_links)))) return "Lengkapi nama dan tautan sosial setiap artis featuring pada track.";
     const invalid = form.tracks.find((track) => !track.track_title.trim() || !track.lyricist.trim() || !track.composer.trim() || !track.title_language.trim() || (track.vocal_type === "vocal" && (!track.lyric_language.trim() || !track.lyrics.trim())));
     if (invalid) return "Lengkapi judul, writer, komposer, bahasa, dan lirik pada setiap track.";
   }

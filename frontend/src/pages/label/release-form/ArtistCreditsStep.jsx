@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { newArtist } from "./releaseFormState";
 import { SocialLinksEditor } from "@/components/artists/SocialLinksEditor";
 import { SocialLinksList } from "@/components/artists/SocialLinksList";
+export { ArtistList };
 
 const ArtistRow = ({ artist, index, savedArtists, updateArtist, remove, canRemove, prefix, roleLabel }) => {
   const stored = artist.artist_id ? savedArtists.find((item) => item.id === artist.artist_id) : null;

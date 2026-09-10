@@ -138,6 +138,7 @@ class TrackIn(BaseModel):
     track_type: Literal["original", "cover", "live"] = "original"
     featuring_artist_id: Optional[str] = None
     featuring_artist_name: Optional[str] = None
+    featured_artists: List[ArtistCreditIn] = Field(default_factory=list)
     spotify_artist_id: Optional[str] = None
     youtube_artist_id: Optional[str] = None
     lyrics: Optional[str] = Field(default=None, max_length=20000)

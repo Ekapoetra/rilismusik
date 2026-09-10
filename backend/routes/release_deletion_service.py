@@ -28,6 +28,10 @@ async def delete_release_record(release_id: str, actor_id: str, *, label_id: str
     if result.deleted_count != 1:
         raise HTTPException(status_code=409, detail="Status rilisan berubah atau rilisan sudah dihapus. Muat ulang daftar rilisan.")
     await db.tracks.delete_many({"release_id": release_id})
+    internal = await db.release_internal_covers.find_one_and_delete({"_id": release_id}, projection={"_id": 0})
+    if internal:
+        try: await storage_service.delete_object(key=internal["key"])
+        except Exception: logger.warning("Internal cover cleanup pending for deleted release %s", release_id)
     await log_activity(actor_id, "release_delete", "release", release_id, before={
         "status": release["status"], "title": release.get("release_title"), "label_id": release.get("label_id"),
     })

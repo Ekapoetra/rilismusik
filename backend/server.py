@@ -85,7 +85,7 @@ def expand_origin_variants(origins: list[str]) -> list[str]:
 async def serve_file(path: str, download: str | None = None):
     from fastapi import HTTPException
     import posixpath
-    if posixpath.normpath(path.replace("\\", "/")).lstrip("/").startswith(("kyc-private/", "contentid-private/")):
+    if posixpath.normpath(path.replace("\\", "/")).lstrip("/").startswith(("kyc-private/", "contentid-private/", "release-internal/")):
         raise HTTPException(status_code=404, detail="File not found")
     # 1) Try R2
     if storage_service.is_configured():
@@ -112,6 +112,8 @@ api = APIRouter(prefix="/api")
 api.include_router(auth)
 api.include_router(label_r)
 api.include_router(release_r)
+from routes.release_internal_cover import internal_cover_r
+api.include_router(internal_cover_r)
 api.include_router(artist_r)
 api.include_router(pay_r)
 api.include_router(wami_r)

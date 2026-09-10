@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { toast } from "@/components/ui/sonner";
-import { Disc3, Search, Filter, Trash2 } from "lucide-react";
+import { Search, Filter, Trash2 } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
+import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
+import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 
-const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected"];
+const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected", "taken_down"];
 
 export default function LabelReleases() {
   const [items, setItems] = useState([]);
@@ -61,6 +63,7 @@ export default function LabelReleases() {
       </div>
 
       {/* Table */}
+      <SubmissionQuota />
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-5">Judul / Artist</div>
@@ -72,11 +75,11 @@ export default function LabelReleases() {
         {items.length === 0 ? (
           <div className="p-10 text-center text-zinc-500 text-sm">Belum ada rilisan.</div>
         ) : items.map((r) => (
-          <div key={r.id} className="px-5 py-4 border-b border-white/5 last:border-0 grid grid-cols-12 gap-3 items-center hover:bg-white/[0.02]">
+          <div key={r.id} className="px-5 py-4 border-b border-white/5 last:border-0 grid grid-cols-12 gap-3 items-center hover:bg-white/[0.02]" data-testid={`label-release-row-${r.id}`}>
             <div className="min-w-0 col-span-12 md:col-span-5 flex items-start gap-3">
-              <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white"><Disc3 className="w-4 h-4" /></div>
+              <ReleaseArtwork release={r} prefix="label-list" onUpdated={(patch) => setItems((current) => current.map((item) => item.id === r.id ? { ...item, ...patch } : item))} />
               <div className="min-w-0">
-                <div className="font-semibold break-words [overflow-wrap:anywhere]" translate="no" data-testid={`label-release-title-${r.id}`}>{r.release_title}</div>
+                <Link to={`/label/releases/${r.id}`} className="font-semibold break-words [overflow-wrap:anywhere]" translate="no" data-testid={`label-release-title-${r.id}`}>{r.release_title}</Link>
                 <ReleaseArtistCredits release={r} prefix="label-release" />
               </div>
             </div>

@@ -8,6 +8,7 @@ import { AdminReleaseWorkflow } from "./releases/AdminReleaseWorkflow";
 import { useAuth } from "@/api/AuthContext";
 import { WhatsAppFollowUpButton } from "@/components/releases/WhatsAppFollowUpButton";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
+import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 
 export default function AdminReleaseDetail() {
   const { id } = useParams();
@@ -30,10 +31,13 @@ export default function AdminReleaseDetail() {
       {error && <div className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert" data-testid="admin-release-error">{error}</div>}
       {!release ? (!error && <div className="text-zinc-500" data-testid="admin-release-detail-loading">Memuat detail rilisan…</div>) : <>
         <header className="flex flex-col gap-4 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-start gap-4">
+            <ReleaseArtwork release={release} prefix="admin-detail" large onUpdated={(patch) => setRelease((current) => ({ ...current, ...patch }))} />
+            <div className="min-w-0">
             <div className="break-all text-xs font-bold uppercase text-zinc-500" data-testid="admin-release-detail-reference">{release.release_type} · {release.id}</div>
             <h1 className="mt-1 break-words font-display text-4xl font-extrabold tracking-normal" data-testid="admin-release-detail-title">{release.release_title}</h1>
             <p className="mt-2 break-words text-sm text-zinc-400" data-testid="admin-release-detail-artist-label">{release.artist_name} · {release.label_name_snapshot}</p>
+            </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             <WhatsAppFollowUpButton release={release} />

@@ -1,6 +1,16 @@
 # RILIS MUSIK — Prioritized Roadmap
 
-## P0 — Production rollout
+## Status sesi — 2026-09-10
+- **P0 dokumentasi selesai:** pengguna memilih `p0` saja. Pembaruan ROADMAP yang tertunda telah dicocokkan dengan PRD, catatan implementasi, laporan akhir Iter66/67/69/70, dan hasil JUnit tersimpan; tidak ada perubahan kode aplikasi, akun, integrasi, atau data bisnis pada sesi ini.
+- Verifikasi di atas adalah pemeriksaan bukti pengujian sesi sebelumnya, **bukan pengujian ulang aplikasi** atau persetujuan pengguna atas fitur. Temuan awal Iter69/70 memakai laporan follow-up sebagai status akhir.
+- Langkah berikutnya: verifikasi pengguna atas lima perubahan Iter70. Investigasi SMTP (P1) dan implementasi backlog (P2) tetap ditunda sampai diminta.
+- Sinkronisasi status backlog: email royalti bulanan, notifikasi penyelesaian background, serta edit/hapus/arsip add-on sudah tercatat selesai pada Phase43/45 dan bagian Completed; jangan membangunnya ulang berdasarkan ringkasan handoff. Keandalan pengiriman SMTP tetap isu terpisah.
+
+## P0 — Verifikasi pengguna
+- **2026-09-10 — Iter70 selesai di preview:** verifikasi URL Web Artist/YouTube opsional, featuring independen per track, kuota 7 rilisan/hari reset 00.00 WIB (resubmit rilisan yang sama pada hari sama tidak dihitung dua kali), cover legacy internal oleh pemilik/admin berizin, dan tiket Takedown Selesai → Taken Down. Delapan kelompok skenario backend tercakup melalui 7 lulus pada uji awal + 1 uji ulang cover lulus; bukan satu full-suite rerun. Browser dan build akhir lulus menurut `test_reports/iteration_70_followup.json`. Email saat beban paralel belum dinyatakan andal.
+
+### Catatan verifikasi terdahulu — status pengguna belum dikonfirmasi
+- Daftar historis berikut dipertahankan sebagai referensi; bukan instruksi menjalankan perubahan data atau seluruh langkah lama dalam sesi P0 dokumentasi ini.
 - **2026-09-09 — Iter68–69 Content ID letter complete:** user acceptance of mandatory creator/KTP/signature flow and generated declaration wording; use label Support → Tiket Baru → Pengajuan Content ID, then admin ticket → Surat Pernyataan Hak Cipta.14/14 backend, real drawn-signature browser and private download/responsive tests passed. Manual Believe forwarding only; no certified e-signature integration.
 - **2026-09-09 — Iter67 selesai:** user acceptance nama seluruh artis utama/featuring pada daftar label, UPC + panel ISRC/track pada daftar admin, serta Finance/Pengelola Paket → Label → Detail → Paket & Langganan. Permission `labels.package` tersedia untuk role lain. Role baru tersedia tanpa membuat akun staf otomatis; tetapkan pada pengguna yang dipilih.5/5 backend+24/24 checkpoint frontend lulus; tidak mengubah paket label pengguna untuk pengujian.
 - **2026-09-09 — P0 UI/UX refresh selesai pada preview:** user acceptance atas ID/EN, Light/Dark/Auto WIB, sidebar/logo, simulasi role, player audio bawah, chat/suara. Iter65/66 + follow-up menutup temuan; build akhir lulus. Tidak ada saldo/CSV pengguna diubah, P1/P2 tidak dikerjakan. Rincian `UI_REFRESH_TASK.md` dan `test_reports/iteration_66_followup.json`.
@@ -53,6 +63,7 @@
 - Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
 
 ## P1 — Product follow-up
+- **2026-09-10 — SMTP timeout saat submit paralel (belum ditangani):** Iter70 mencatat sebagian koneksi email notifikasi timeout; penyimpanan rilisan, kuota, dan notifikasi in-app tetap berhasil. Investigasi antrean, pembatasan konkurensi, timeout, dan retry pada pengiriman email perlu persetujuan lingkup terpisah. Bukti: `test_reports/iteration_70_followup.json` dan `memory/RELEASE_WORKFLOW_UPDATES.md`. Hindari uji massal yang mengirim email nyata; pengujian beban berikutnya harus mengisolasi transport email. Pengguna memilih P0 saja; tidak ada klaim perbaikan SMTP.
 - Insiden notifikasi **preview** Iter64: cleanup lama terlalu luas sudah diperbaiki dan sentinel lulus; bila notifikasi historis perlu dipulihkan, gunakan backup valid. Jumlah terdampak tidak tercatat; jangan mengarang timestamp/read-state. Data tiket/rilisan tetap utuh.
 - Add Admin Finance UI for monthly email delivery status/retry (backend status endpoint already exists).
 - Add explicit bank-change history timeline and cancellation before approval.
@@ -70,8 +81,15 @@
 - Move FastAPI deprecated `on_event` startup/shutdown hooks to lifespan handlers.
 - Add background job notification deep-links by exact job kind instead of the generic migration page.
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
+- Integrasi kalender hari libur nasional Indonesia untuk jam operasional chat.
+- Ringkasan admin pagi hari melalui email/Telegram; melengkapi digest operasional opsional di atas, belum diimplementasikan.
+- Estimasi tanggal saldo royalti berikutnya dapat ditarik.
+- Ekspor grafik tren stream sebagai gambar.
+- Penjadwalan otomatis laporan Excel artis saat periode royalti diterbitkan; pengiriman manual sudah tersedia.
+- Riwayat tanggal terakhir pengiriman laporan pada kartu Manajemen Artis.
 
 ## Completed in current cycle
+- Iter70 (2026-09-10): URL Web Artist/YouTube opsional dengan validasi bila diisi; featuring per-track tersimpan terpisah dari featuring rilisan; kuota atomik 7 rilisan per label/hari WIB dengan retry hari sama, indikator dashboard/daftar/wizard; cover web asli dan cover legacy privat khusus tampilan internal; penyelesaian tiket Takedown menyinkronkan status Live → Taken Down secara idempoten tanpa panggilan DSP otomatis. Memperbaiki upload cover 500 tanpa melonggarkan KYC dan race pemuatan detail tiket yang menimpa pilihan status/catatan admin. Bukti akhir: `test_reports/iteration_70_followup.json`, `test_reports/pytest/iter70_internal_cover_retest.xml`, dan `memory/RELEASE_WORKFLOW_UPDATES.md`. Browser 320/768/1024/1440 dan build lulus pada sesi implementasi; fixture milik pengujian dibersihkan. SMTP tetap P1.
 - Iter68–69 (2026-09-09): creator-specific Content ID statements from user DOCX; mandatory KTP/NIK, uploaded or drawn signature, single/multiple creator song assignment, formal unbranded PDF with KTP appendix, private R2/authorized downloads/audits, idempotency and staged cleanup. Distinct from any generic CMS-stamped copyright document backlog: this claim letter intentionally has NO letterhead/stamp/letter number. `test_reports/iteration_69_final_followup.json` closes initial test findings.
 - Iter67 (2026-09-09): read-only batched release-list credits/track identifiers, legacy track fallback, full wrapping names, UPC and expandable/copyable per-track ISRC; granular manual package permission+restricted built-in role, confirmation/reason/audit/revision protection and no auto invoices. Fixed Finance legacy-role bridge rejection. `test_reports/iteration_67.json`, build succeeded, fixtures retired.
 - Iter65–66 + follow-up (2026-09-09):11-point UI refresh, compiler/catalog repair, isolated role website simulation, real bottom WAV player/download, WIB auto boundaries/timer/persistence, theme branding, notification/chat/online sound, obsolete tab/reset removal. Backend5/5, build, browser and scoped320–1440px checks passed; final findings/dispositions in `test_reports/iteration_66_followup.json`.

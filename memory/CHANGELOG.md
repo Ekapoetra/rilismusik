@@ -1,5 +1,18 @@
 # RILIS MUSIK — Changelog
 
+## 2026-09-10 — Penutupan P0 dokumentasi
+- Pengguna memilih `p0` saja: menyelesaikan pembaruan ROADMAP yang gagal pada akhir sesi sebelumnya, tanpa mengubah kode aplikasi, akun, integrasi, atau data bisnis.
+- ROADMAP kini mencatat lima fitur Iter70 sebagai selesai secara implementasi, dengan verifikasi pengguna masih menunggu; timeout SMTP tetap P1 belum ditangani dan backlog P2 tetap ditunda. Email royalti bulanan/notifikasi background serta pengelolaan add-on tidak dikembalikan ke backlog karena sudah tercatat selesai.
+- Memperbaiki persyaratan lama PRD yang masih mewajibkan URL Web Artist/YouTube pada informasi rilisan; URL tersebut opsional sejak Iter70, berbeda dari tautan sosial artis yang tetap wajib.
+- Memeriksa laporan akhir Iter66/67/69/70 dan JUnit tersimpan: Iter67 5/5, Content ID 14/14, Iter70 7 lulus dari 8 awal lalu uji ulang cover 1/1 lulus. Pemeriksaan sesi ini hanya konsistensi dokumentasi dan bukti, bukan menjalankan ulang pengujian aplikasi.
+
+## 2026-09-10 — Lima pembaruan alur rilisan (Iteration 70, implementasi sesi sebelumnya)
+- URL Web Artist/YouTube pada informasi rilisan opsional; featuring per-track independen dengan artis tersimpan/baru dan persistensi draft/edit/submit.
+- Batas 7 rilisan berbeda per label/hari WIB, reset 00.00, retry hari sama tanpa kuota tambahan; indikator pada dashboard, daftar, dan wizard. Draft/gagal tidak memakai kuota; konkurensi dijaga ledger dan lease MongoDB.
+- Thumbnail cover web asli dan cover legacy privat khusus internal dapat diunggah/diganti pemilik label atau admin berizin, tanpa mengubah cover canonical, UPC/ISRC, atau distribusi DSP.
+- Tiket Takedown Selesai menyinkronkan rilisan Live menjadi Taken Down secara idempoten. Memperbaiki upload cover 500 melalui dependency KYC yang benar dan respons awal detail tiket yang menimpa status/catatan pilihan admin.
+- Bukti akhir `test_reports/iteration_70_followup.json`: delapan kelompok skenario backend tercakup dalam uji awal + retest terarah; browser persistensi/artwork/quota/takedown/responsif dan build lulus. Fixture milik pengujian dibersihkan. SMTP paralel mencatat timeout dan **belum diperbaiki**; tidak ada API aplikasi MOCKED atau pengiriman DSP otomatis.
+
 ## 2026-09-08 — Workflow Support Ticket Label (Iteration 64)
 - UPC + semua ISRC serta subjek otomatis berdasarkan rilisan untuk Takedown/Edit Metadata/Pengajuan Content ID/Cabut Content ID; snapshot sumber disimpan server-side.
 - Takedown memakai empat alasan dan deskripsi wajib. Edit Metadata autofill enam kolom existing, alasan wajib, tanpa deskripsi, lampiran opsional; original/new metadata disimpan tanpa memutasi rilisan.

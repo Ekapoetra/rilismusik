@@ -364,7 +364,13 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
         upd["assigned_admin_id"] = user["id"]
     if body.internal_note is not None:
         upd["internal_note"] = body.internal_note
-    await db.support_tickets.update_one({"id": ticket_id}, {"$set": upd})
+    if body.status == ticket.get("status") and (body.internal_note is None or body.internal_note == ticket.get("internal_note")):
+        return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if ticket.get("category") == "takedown" and body.status == "done":
+        from .ticket_takedown_service import complete_takedown_ticket
+        await complete_takedown_ticket(ticket, upd, user)
+    else:
+        await db.support_tickets.update_one({"id": ticket_id}, {"$set": upd})
     # System comment
     if body.status:
         status_labels = {
