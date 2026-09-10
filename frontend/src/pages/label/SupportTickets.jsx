@@ -6,6 +6,7 @@ import { SUPPORT } from "@/constants/testIds";
 import { LifeBuoy, Plus, CheckCircle2 } from "lucide-react";
 import { SupportTicketModal } from "@/components/label/SupportTicketModal";
 import { AUTO_SUBJECT_CATEGORIES, CONTENT_ID_CATEGORIES, metadataFromRelease, ticketSubject } from "@/components/label/tickets/ticketFormConfig";
+import { newContentIdState, prepareContentIdPayload } from "@/components/label/tickets/contentIdForm";
 
 function initialForm() {
   return {
@@ -30,6 +31,7 @@ function initialForm() {
     originality_declared: false,
     youtube_urls: [""],
     attachments: [],
+    ...newContentIdState(),
   };
 }
 
@@ -149,6 +151,7 @@ export default function LabelSupportTickets() {
       return;
     }
     setBusy(true);
+    let copyrightUpload;
     try {
       const payload = {
         release_id: form.release_id,
@@ -175,13 +178,19 @@ export default function LabelSupportTickets() {
         payload.originality_declared = form.originality_declared;
         payload.youtube_urls = form.youtube_urls;
       }
-      await api.post("/tickets/label/create", payload);
+      if (form.category === "content_id_claim") {
+        copyrightUpload = await prepareContentIdPayload(form);
+        Object.assign(payload, copyrightUpload.payload);
+      }
+      const { data: result } = await api.post("/tickets/label/create", payload, { timeout: 180000 });
+      if (result.submission_replayed) await copyrightUpload?.cleanup();
       setOpen(false);
       reset();
       setMsg("Tiket berhasil dibuat.");
       load();
     } catch (e2) {
-      setErr(formatApiError(e2.response?.data?.detail));
+      await copyrightUpload?.cleanup();
+      setErr(e2.response?.data?.detail ? formatApiError(e2.response.data.detail) : (e2.message || "Tiket gagal dikirim."));
     } finally {
       setBusy(false);
     }

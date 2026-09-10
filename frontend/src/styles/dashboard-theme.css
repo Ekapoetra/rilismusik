@@ -28,6 +28,7 @@ html[data-app-theme="light"] body, html[data-app-theme="light"] #root { color-sc
 .ui-icon-button:hover { color: var(--ui-text); background: var(--ui-hover); }
 .ui-icon-button:focus-visible { outline: 2px solid #ec4899; outline-offset: 2px; }
 .ui-icon-button.w-auto { width: auto; }
+fieldset:disabled [data-testid$="-signature-canvas"] { pointer-events: none; }
 .ui-icon-button.hidden { display: none; }
 @media(min-width:768px) {
   .ui-icon-button.md\:hidden { display: none; }

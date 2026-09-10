@@ -7,6 +7,7 @@ import { ArrowLeft, Paperclip, Send, X, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
+import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
 
 const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 
@@ -112,6 +113,7 @@ export default function AdminTicketDetail() {
             </div>
           </div>
 
+          {t.category === "content_id_claim" && <ContentIdDocuments ticket={t} prefix="admin-ticket" />}
           <div className="rm-card overflow-hidden">
             <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">Percakapan</div>
             <div ref={scrollRef} className="max-h-[55vh] overflow-y-auto p-5 space-y-4">

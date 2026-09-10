@@ -6,6 +6,7 @@ import { SUPPORT } from "@/constants/testIds";
 import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Ban } from "lucide-react";
 import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
+import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
 
 const NON_CANCELLABLE = ["done", "submitted_to_believe", "rejected", "cancelled"];
 
@@ -136,6 +137,7 @@ export default function LabelSupportTicketDetail() {
       </div>
 
       {/* Comments */}
+      {t.category === "content_id_claim" && <ContentIdDocuments ticket={t} prefix="label-ticket" />}
       <div className="rm-card overflow-hidden">
         <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">Percakapan</div>
         <div ref={scrollRef} className="max-h-[55vh] overflow-y-auto p-5 space-y-4">

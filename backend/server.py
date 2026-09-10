@@ -84,7 +84,8 @@ def expand_origin_variants(origins: list[str]) -> list[str]:
 @app.get("/api/files/{path:path}")
 async def serve_file(path: str, download: str | None = None):
     from fastapi import HTTPException
-    if path.lstrip("/").startswith("kyc-private/"):
+    import posixpath
+    if posixpath.normpath(path.replace("\\", "/")).lstrip("/").startswith(("kyc-private/", "contentid-private/")):
         raise HTTPException(status_code=404, detail="File not found")
     # 1) Try R2
     if storage_service.is_configured():
@@ -127,6 +128,8 @@ api.include_router(royalty_r)
 api.include_router(adjustment_r)
 api.include_router(withdraw_r)
 api.include_router(ticket_r)
+from routes.contentid_assets import contentid_r
+api.include_router(contentid_r)
 api.include_router(contract_r)
 api.include_router(migrate_r)
 api.include_router(notif_r)
@@ -195,6 +198,8 @@ async def on_startup():
     """
     import asyncio
     asyncio.create_task(_bootstrap_async())
+    from routes.contentid_assets import contentid_maintenance
+    app.state.contentid_maintenance_task = asyncio.create_task(contentid_maintenance())
     logger.info("RILIS MUSIK API server up — deferring heavy bootstrap to background")
 
 
@@ -241,5 +246,12 @@ async def _bootstrap_async():
 
 @app.on_event("shutdown")
 async def on_shutdown():
+    import asyncio
+    from contextlib import suppress
+    task = getattr(app.state, "contentid_maintenance_task", None)
+    if task:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
     stop_scheduler()
     client.close()

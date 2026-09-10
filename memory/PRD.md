@@ -131,6 +131,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Admin Dashboard membagi Total Bagian Label menjadi Sudah Withdraw (modern + legacy) dan Belum Withdraw dengan invariant jumlah keduanya sama dengan total.
 
 ### 3.8 Support, Contracts & Documents
+- **Content ID copyright declarations (2026-09-09, Iter68–69):** NEW `content_id_claim` submissions require selected tracks,1–20 creators, name exactly per KTP, NIK16digits, domicile/signing city, uploaded KTP, and signature PNG/JPG upload or actual canvas drawing, plus consent. One creator can sign for all selected songs; multiple creators get individual letters for their assigned songs. Revoke and other ticket forms unchanged; historical claims remain readable without new docs.
+- Automatically generate an immutable formal-premium unbranded A4 statement per creator using the user's DOCX wording, dynamic WIB city/date, selected songs/ISRC/UPC, visual signature and separate KTP appendix. **No company letterhead, letter number, CMS signature/stamp or automatic Believe submission.** NIK/KTP/signatures/PDF private to label owner and support-authorized admins, with authenticated no-store downloads, masked-NIK UI, preview and audit events. This is a visual signature, not certified electronic signing or automated identity/authorship verification.
+- Client holds KTP/signature files locally until submit; server validates image bytes/size, owner+release+kind, selected-song coverage and unique NIK, prevents bound-asset reuse, generates all PDFs before ticket publication, and supports idempotent retry/failure rollback. Staged unused assets expire24h; submitted evidence does not expire through that cleanup. Details in `memory/CONTENT_ID_DECLARATIONS.md`.
 - Tiket Content ID claim memerlukan URL YouTube valid dan deklarasi originalitas.
 - CMS dapat mengunggah tanda tangan/stempel JPG/PNG/WEBP ke R2.
 - Release approved/delivered/live dapat menghasilkan Surat Pernyataan Hak Cipta PDF berisi penanggung jawab, artist, label, judul track, legal entity, signature, dan stamp.
@@ -159,12 +162,14 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Domain routes berada di `/app/backend/routes/`; shared auth di `/app/backend/auth_utils.py`.
 
 ### Storage & Integrations
+- Content ID declarations reuse existing private Cloudflare R2 storage under `contentid-private/`, blocked by the public file route. Dedicated authenticated ticket endpoints proxy documents without exposing storage keys/public URLs. ReportLab/Pillow produce PDFs; `signature_pad` is the new frontend drawing dependency. No new provider credentials or login changes.
 - Cloudflare R2 melalui `backend/storage_service.py`.
 - Xendit Payment Sessions production dengan backend polling.
 - Hostinger SMTP melalui `backend/email_service.py`.
 - Custom JWT authentication.
 
 ## 5. Primary Data Models
+- `contentid_assets`: opaque ID, uploader/label/release, kind, private storage key, image metadata/hash, staged/reserved/bound state and expiration. `contentid_declarations`: immutable creator identity/track snapshots, signature/KTP references, consent/template version, private PDF key/status. `contentid_requests`: in-flight idempotency/reservation gate. General support ticket carries only document summaries; full identity is available through authorized no-store metadata endpoints.
 - `users`: id, email, password_hash, role, status, token_version.
 - `admin_roles`: stable id/key, editable name/description, built-in/custom flag, active state, permission keys, RBAC schema version.
 - `admin_ui_settings`: locale bawaan dan ordered navigation items berisi label ID/EN, immutable internal route, icon, visibility, dan parent/subtab.
@@ -186,6 +191,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Layouts must not horizontally overflow at mobile or desktop widths.
 
 ## 7. Current Status
+- **2026-09-09 — Content ID declarations completed and verified:** approved both signature input methods, both single/multiple creator modes, mandatory creator KTP/name/NIK/signature, formal no-kop/no-number PDF matching uploaded DOCX, and private admin download/viewer. Final report `test_reports/iteration_69_final_followup.json`; detailed architecture/scope `memory/CONTENT_ID_DECLARATIONS.md`.
+- Final verification: **14/14 backend tests**, real browser claim with drawn ink → owner/admin download + private KTP/signature views,320/768/1024/1440 responsive/ink checks, multiple creators/immutable PDFs/access isolation/rollback/long pagination, and successful frontend build. Main visually reviewed real generated synthetic two-page letter with clear signature and uncropped KTP appendix. All temporary accounts, owned private R2 objects and test tickets cleaned; no user package/balance/CSV or real KTP modified.
+- Closed test findings: cache-header exact-string assertion corrected to RFC no-store semantics; first-click tests must wait for actual KYC-ready DOM, not a nullable expression. **Do not weaken KYC to optimistic access.** Fixed real invalid option-span markup with native text-only release options. Admin PDF click must wait for preview dialog exit before forced automation clicks. No known remaining blocker in scoped flows. Next: user wording review and manual Believe submission; optional pre-submit private PDF preview remains future work.
 - **2026-09-09 — Iter67 completed/verified:** user requested complete label artist credits, admin UPC+expandable ISRC, and chose BOTH Finance permission and dedicated role. Implemented all3 with existing design/i18n and permission boundaries. Root Finance bug was legacy labels.manage bridge mapping to Admin Support while package mutation checked hard-coded Finance identity; now effective `labels.package` governs the dedicated endpoint and legacy fields.
 - Evidence: `/app/test_reports/iteration_67.json`,5/5 backend tests and24/24 frontend checkpoints (real isolated fixtures, no application API mocks), successful frontend build without lint warnings. Checks cover artist fallback/dedupe/label scoping, sorted track codes/leading-zero UPC, panel/copy interactions, responsive320/768/1024/1440, Finance and Package Manager confirmation/cancel/persistence, permission denials, revision conflicts, atomic audit, and unchanged payment/royalty counts. Main read-only follow-up confirmed Finance/Super permission,8 existing enriched releases, and exact2-permission role. Fixtures retired, no user label package changed by tests.
 - Next: user acceptance; assign Pengelola Paket to a chosen admin account or enable `Ubah Paket Label` on another role as needed. Optional enhancement: artist/UPC/ISRC search in release lists. Other backlog remains deferred.

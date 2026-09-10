@@ -1,6 +1,7 @@
 # RILIS MUSIK — Prioritized Roadmap
 
 ## P0 — Production rollout
+- **2026-09-09 — Iter68–69 Content ID letter complete:** user acceptance of mandatory creator/KTP/signature flow and generated declaration wording; use label Support → Tiket Baru → Pengajuan Content ID, then admin ticket → Surat Pernyataan Hak Cipta.14/14 backend, real drawn-signature browser and private download/responsive tests passed. Manual Believe forwarding only; no certified e-signature integration.
 - **2026-09-09 — Iter67 selesai:** user acceptance nama seluruh artis utama/featuring pada daftar label, UPC + panel ISRC/track pada daftar admin, serta Finance/Pengelola Paket → Label → Detail → Paket & Langganan. Permission `labels.package` tersedia untuk role lain. Role baru tersedia tanpa membuat akun staf otomatis; tetapkan pada pengguna yang dipilih.5/5 backend+24/24 checkpoint frontend lulus; tidak mengubah paket label pengguna untuk pengujian.
 - **2026-09-09 — P0 UI/UX refresh selesai pada preview:** user acceptance atas ID/EN, Light/Dark/Auto WIB, sidebar/logo, simulasi role, player audio bawah, chat/suara. Iter65/66 + follow-up menutup temuan; build akhir lulus. Tidak ada saldo/CSV pengguna diubah, P1/P2 tidak dikerjakan. Rincian `UI_REFRESH_TASK.md` dan `test_reports/iteration_66_followup.json`.
 - **2026-09-08, prioritas terbaru:** user acceptance empat workflow support label yang baru. Implementasi/10 tes backend/UI lengkap sudah lulus, fixture bersih; bukan perubahan langsung metadata rilisan.
@@ -59,6 +60,7 @@
 - Add migration/report for legacy PPR releases whose invoices were created before the new post-approval flow.
 
 ## P2 — Quality & operations
+- Optional private PDF preview for label before final Content ID ticket submission. This is not required for the completed admin-download workflow.
 - Opsional: perluasan glosarium istilah musik/royalti ID/EN berdasarkan masukan tim operasional; katalog lokal sudah berjalan, belum ada review linguistik manual setiap kalimat.
 - Opsional: template balasan admin untuk tiap kategori Support Ticket.
 - Opsional: ekspor riwayat penyesuaian royalti ke Excel/CSV untuk pemeriksaan keuangan (audit history sudah tersedia dalam aplikasi).
@@ -70,6 +72,7 @@
 - Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
 
 ## Completed in current cycle
+- Iter68–69 (2026-09-09): creator-specific Content ID statements from user DOCX; mandatory KTP/NIK, uploaded or drawn signature, single/multiple creator song assignment, formal unbranded PDF with KTP appendix, private R2/authorized downloads/audits, idempotency and staged cleanup. Distinct from any generic CMS-stamped copyright document backlog: this claim letter intentionally has NO letterhead/stamp/letter number. `test_reports/iteration_69_final_followup.json` closes initial test findings.
 - Iter67 (2026-09-09): read-only batched release-list credits/track identifiers, legacy track fallback, full wrapping names, UPC and expandable/copyable per-track ISRC; granular manual package permission+restricted built-in role, confirmation/reason/audit/revision protection and no auto invoices. Fixed Finance legacy-role bridge rejection. `test_reports/iteration_67.json`, build succeeded, fixtures retired.
 - Iter65–66 + follow-up (2026-09-09):11-point UI refresh, compiler/catalog repair, isolated role website simulation, real bottom WAV player/download, WIB auto boundaries/timer/persistence, theme branding, notification/chat/online sound, obsolete tab/reset removal. Backend5/5, build, browser and scoped320–1440px checks passed; final findings/dispositions in `test_reports/iteration_66_followup.json`.
 - Iteration 64 (2026-09-08): autofill UPC/ISRC/subjek, empat alasan takedown, enam kolom metadata prefilled + reason-only, dua Content ID multi-URL/originality, kategori baru dibatasi enam dengan history kompatibel, rendering admin/label, dynamic support permissions. Final 10/10 backend dan UI desktop/mobile passed. Lihat `SUPPORT_TICKET_WORKFLOW.md` untuk catatan penting cleanup notifikasi preview.

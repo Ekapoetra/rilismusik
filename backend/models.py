@@ -360,6 +360,9 @@ TicketStatus = Literal[
 ]
 
 
+from contentid_models import ContentIdCreatorIn
+
+
 class TicketCreateIn(BaseModel):
     release_id: str = Field(min_length=1)
     category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release"]
@@ -375,6 +378,11 @@ class TicketCreateIn(BaseModel):
     youtube_url: Optional[str] = Field(default=None, max_length=500)
     youtube_urls: List[str] = Field(default_factory=list, max_length=20)
     attachments: List[str] = Field(default_factory=list)
+
+    content_id_request_id: Optional[str] = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
+    content_id_track_ids: List[str] = Field(default_factory=list, max_length=200)
+    content_id_creators: List[ContentIdCreatorIn] = Field(default_factory=list, max_length=20)
+    content_id_consent: bool = False
 
 
 class TicketCommentIn(BaseModel):

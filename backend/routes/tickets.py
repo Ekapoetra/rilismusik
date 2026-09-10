@@ -128,6 +128,20 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
     if release["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Rilisan ini bukan milik Anda")
 
+    if body.category == "content_id_claim":
+        if not body.content_id_request_id:
+            raise HTTPException(400, "Identitas pengajuan Content ID wajib tersedia")
+        from .contentid_service import contentid_ticket_id
+        candidate_id = contentid_ticket_id(label["id"], body.content_id_request_id)
+        existing = await db.support_tickets.find_one({"id": candidate_id, "label_id": label["id"]}, {"_id": 0})
+        if existing:
+            await db.contentid_assets.update_many({"ticket_id": candidate_id, "status": "reserved"}, {"$set": {"status": "bound"}})
+            await db.contentid_requests.delete_one({"_id": candidate_id})
+            return TicketCreatedOut(**existing, submission_replayed=True)
+        if await db.contentid_requests.find_one({"_id": candidate_id}, {"_id": 1}):
+            raise HTTPException(409, "Pengajuan ini sedang diproses. Tunggu sebentar lalu periksa daftar tiket.")
+    elif body.content_id_creators or body.content_id_track_ids:
+        raise HTTPException(400, "Surat pencipta hanya untuk Pengajuan Content ID")
     submission = await prepare_ticket_submission(body, release)
     # Retain the existing audio/cover workflows.
     if body.category == "edit_audio":
@@ -141,7 +155,11 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         if not body.new_cover_url:
             raise HTTPException(status_code=400, detail="Upload cover baru 3000x3000 wajib untuk edit cover")
 
-    ticket_id = new_id()
+    ticket_id = candidate_id if body.category == "content_id_claim" else new_id()
+    content_id_documents = []
+    if body.category == "content_id_claim":
+        from .contentid_service import build_contentid_documents
+        content_id_documents = await build_contentid_documents(body, release, label, ticket_id, user)
     # short ticket number for display: RM-YYMMDD-XXXXX
     short_no = f"RM-{datetime.now(timezone.utc).strftime('%y%m%d')}-{ticket_id[:5].upper()}"
     doc = {
@@ -174,7 +192,19 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         "updated_at": now_iso(),
         **submission,
     }
-    await db.support_tickets.insert_one(doc)
+    if body.category == "content_id_claim":
+        doc.update({"content_id_documents": content_id_documents, "content_id_track_ids": body.content_id_track_ids,
+                    "content_id_request_id": body.content_id_request_id, "content_id_consent_at": now_iso()})
+    try:
+        await db.support_tickets.insert_one(doc)
+    except Exception:
+        if body.category == "content_id_claim":
+            from .contentid_service import rollback_contentid
+            await rollback_contentid(ticket_id)
+        raise
+    if content_id_documents:
+        await db.contentid_assets.update_many({"ticket_id": ticket_id, "status": "reserved"}, {"$set": {"status": "bound"}})
+        await db.contentid_requests.delete_one({"_id": ticket_id})
     # Seed first comment with the description so it's visible in chat
     await db.ticket_comments.insert_one({
         "id": new_id(),
