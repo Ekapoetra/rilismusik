@@ -50,6 +50,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from .admin_permission_service import assert_admin_permission
 from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text
 from email_service import send_release_invoice_email, send_release_submission_email
 from .release_workflow_service import (
@@ -975,8 +976,7 @@ def _release_metadata_txt(rel: dict, tracks: list) -> str:
 
 @release_r.get("/{release_id}/admin/export-package")
 async def admin_export_release_package(release_id: str, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
+    assert_admin_permission(user, "releases.review")
     rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
     if not rel:
         raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
