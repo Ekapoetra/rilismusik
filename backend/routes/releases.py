@@ -44,7 +44,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
-from payment_service import PaymentCreateData, create_payment_document, payment_price
+from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text
 from email_service import send_release_invoice_email, send_release_submission_email
 from .release_workflow_service import (
     EDITABLE_STATUSES, normalize_artist_credits, require_status,
@@ -492,7 +492,7 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         base_amount = 0
     else:
         new_status = "submitted"
-        base_amount = await payment_price("pay_per_release")
+        base_amount = ppr_base_amount(rel.get("release_type"), len(tracks), await ppr_pricing())
         payment_status = "not_generated"
         billing_flow = "pay_per_release"
         payment_id = None
@@ -587,14 +587,16 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         require_status(rel, ("under_review",), "Kirim tautan pembayaran")
         if billing_flow != "pay_per_release" or rel.get("payment_status") != "not_generated":
             raise HTTPException(status_code=409, detail="Rilisan ini tidak memerlukan invoice Pay Per Release")
-        base_amount = int(await payment_price("pay_per_release"))
+        track_count = await db.tracks.count_documents({"release_id": release_id})
+        base_amount = ppr_base_amount(rel.get("release_type"), track_count, await ppr_pricing())
+        base_name, base_desc = ppr_line_item_text(rel.get("release_type"), track_count)
         selected_addons = rel.get("selected_addons") or []
         addon_amount = sum(int(item.get("amount") or 0) for item in selected_addons)
         total_amount = base_amount + addon_amount
         line_items = [{
             "reference_id": f"release-base-{release_id}",
-            "name": "Biaya Distribusi Pay Per Release",
-            "description": rel.get("release_title"),
+            "name": base_name,
+            "description": f"{rel.get('release_title')} — {base_desc}",
             "amount": base_amount, "quantity": 1,
         }] + [{
             "reference_id": f"addon-{item['id']}",
@@ -723,3 +725,110 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
+
+
+def _require_release_finance(user: dict) -> None:
+    if user.get("role") not in ("super_admin", "admin_finance", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin, Admin Finance, atau Admin Release")
+
+
+async def _ppr_paid_base(release_id: str) -> int:
+    """Total PPR base already settled for a release (excludes add-ons)."""
+    total = 0
+    async for payment in db.payments.find(
+        {"release_id": release_id, "type": {"$in": ["pay_per_release", "release_shortfall"]}, "status": "paid"},
+        {"_id": 0, "type": 1, "amount": 1, "base_amount": 1, "addon_amount": 1},
+    ):
+        if payment.get("type") == "release_shortfall":
+            total += int(payment.get("amount") or 0)
+        else:
+            base = payment.get("base_amount")
+            if base is None:
+                base = int(payment.get("amount") or 0) - int(payment.get("addon_amount") or 0)
+            total += int(base or 0)
+    return total
+
+
+async def _shortfall_state(release_id: str) -> dict:
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    pricing = await ppr_pricing()
+    album_price = int(pricing["album"])
+    paid_base = await _ppr_paid_base(release_id)
+    is_album = (rel.get("release_type") or "").lower() == "album"
+    shortfall = max(0, album_price - paid_base) if is_album else 0
+    pending = await db.payments.find_one(
+        {"release_id": release_id, "type": "release_shortfall", "status": {"$in": ["pending", "expired", "cancelled", "failed"]}},
+        {"_id": 0, "id": 1, "amount": 1, "status": 1}, sort=[("created_at", -1)],
+    )
+    open_id = (pending or {}).get("id") if pending and pending.get("status") == "pending" else None
+    return {
+        "release_id": release_id,
+        "release_title": rel.get("release_title"),
+        "release_type": rel.get("release_type"),
+        "is_album": is_album,
+        "has_prior_payment": paid_base > 0,
+        "album_package_price_idr": album_price,
+        "already_paid_idr": paid_base,
+        "shortfall_idr": shortfall,
+        "open_shortfall_invoice_id": open_id,
+        "eligible": is_album and paid_base > 0 and shortfall > 0 and not open_id,
+    }
+
+
+@release_r.get("/{release_id}/admin/shortfall-preview")
+async def admin_shortfall_preview(release_id: str, user: dict = Depends(require_admin)):
+    _require_release_finance(user)
+    return await _shortfall_state(release_id)
+
+
+@release_r.post("/{release_id}/admin/shortfall-invoice")
+async def admin_create_shortfall_invoice(release_id: str, user: dict = Depends(require_admin)):
+    _require_release_finance(user)
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    state = await _shortfall_state(release_id)
+    if not state["is_album"]:
+        raise HTTPException(status_code=400, detail="Invoice kekurangan hanya untuk rilisan tipe ALBUM")
+    if not state["has_prior_payment"]:
+        raise HTTPException(status_code=400, detail="Belum ada pembayaran per lagu untuk rilisan ini")
+    if state["open_shortfall_invoice_id"]:
+        raise HTTPException(status_code=409, detail="Invoice kekurangan masih menunggu pembayaran label")
+    if state["shortfall_idr"] <= 0:
+        raise HTTPException(status_code=400, detail="Tidak ada kekurangan pembayaran untuk rilisan ini")
+    amount = int(state["shortfall_idr"])
+    invoice_doc = await create_payment_document(PaymentCreateData(
+        label_id=rel["label_id"], payment_type="release_shortfall", amount=amount,
+        release_id=release_id, description=f"Kekurangan paket album — {rel.get('release_title')}",
+        return_path=f"/label/releases/{release_id}", reference_id=f"ppr-shortfall-{release_id}-{new_id()[:8]}",
+        line_items=[{
+            "reference_id": f"shortfall-{release_id}",
+            "name": "Kekurangan Paket Album Pay Per Release",
+            "description": f"Selisih menuju paket album Rp {state['album_package_price_idr']:,.0f} (sudah dibayar Rp {state['already_paid_idr']:,.0f})",
+            "amount": amount, "quantity": 1,
+        }],
+        base_amount=amount, addon_amount=0, approval_required_before_payment=True,
+    ))
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "ppr_shortfall_payment_id": invoice_doc["id"], "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "admin_create_shortfall_invoice", "release", release_id, after={
+        "payment_id": invoice_doc["id"], "amount": amount,
+        "album_price": state["album_package_price_idr"], "already_paid": state["already_paid_idr"],
+    })
+    await notify_many(
+        await label_user_ids(rel["label_id"]), "release_shortfall_invoice", "Invoice kekurangan paket album",
+        f"Rilisan '{rel.get('release_title')}' kurang Rp {amount:,.0f} untuk paket album. Selesaikan pembayaran di menu Invoice.",
+        f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
+    )
+    label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
+    label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
+    if label_user and label_user.get("email"):
+        asyncio.create_task(send_release_invoice_email(
+            to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
+            release_title=rel.get("release_title") or "Rilisan", amount_idr=amount,
+            payment_id=invoice_doc["id"], release_id=release_id,
+        ))
+    return {"invoice": invoice_doc, "state": await _shortfall_state(release_id)}

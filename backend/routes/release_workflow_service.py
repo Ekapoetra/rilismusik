@@ -94,8 +94,14 @@ def validate_release_submission(release: Dict[str, Any], tracks: List[Dict[str, 
         missing.append("Cover JPG/PNG tepat 3000×3000")
     if not tracks:
         missing.append("Minimal satu track")
-    if release.get("release_type") == "single" and len(tracks) != 1:
+    release_type = release.get("release_type")
+    track_count = len(tracks)
+    if release_type == "single" and track_count != 1:
         missing.append("SINGLE harus memiliki tepat satu track")
+    elif release_type == "ep" and not (2 <= track_count <= 6):
+        missing.append("EP harus memiliki 2–6 track")
+    elif release_type == "album" and not (7 <= track_count <= 12):
+        missing.append("ALBUM harus memiliki 7–12 track")
     for index, track in enumerate(tracks, start=1):
         prefix = f"Track {index}"
         for credit in track.get("featured_artists") or []:

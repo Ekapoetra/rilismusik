@@ -9,7 +9,7 @@ const TIERS = [
   { key: "annual_normal", name: "Annual Normal", price: 350000, desc: "Unlimited release tanpa biaya per release.", icon: Crown, perks: ["Submit unlimited release", "Prioritas review", "Tanpa biaya per release"] },
   { key: "annual_vip", name: "Annual VIP", price: 500000, desc: "Plus GRATIS WAMI + konten promosi.", icon: Star, vip: true, perks: ["Submit unlimited release", "Prioritas review", "GRATIS daftar LMKN-WAMI semua lagu", "GRATIS konten promosi (JPG)", "Status WAMI real-time"] },
 ];
-const TYPE_LABELS = { annual_subscription: "Annual Subscription", pay_per_release: "Pay Per Release", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
+const TYPE_LABELS = { annual_subscription: "Annual Subscription", pay_per_release: "Pay Per Release", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
 
 export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();

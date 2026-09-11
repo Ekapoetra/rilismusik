@@ -48,7 +48,8 @@ function BenefitsPanel({ settings, setValue }) {
 function PricingPanel({ settings, setValue }) {
   const pricing = settings.pricing || {};
   return <div className="grid md:grid-cols-2 gap-3">
-    <Field label="Pay Per Release (Rp)"><input data-testid={ADMIN_CMS.payPrice} className="rm-input" type="number" value={pricing.pay_per_release_price || 0} onChange={(e) => setValue("pricing.pay_per_release_price", Number(e.target.value || 0))} /></Field>
+    <Field label="Pay Per Release / Single & EP per lagu (Rp)"><input data-testid={ADMIN_CMS.payPrice} className="rm-input" type="number" value={pricing.pay_per_release_price || 0} onChange={(e) => setValue("pricing.pay_per_release_price", Number(e.target.value || 0))} /></Field>
+    <Field label="Paket Album 7–12 lagu (Rp)"><input data-testid="admin-cms-album-price" className="rm-input" type="number" value={pricing.album_package_price || 0} onChange={(e) => setValue("pricing.album_package_price", Number(e.target.value || 0))} /></Field>
     <Field label="Annual Subscription (Rp)"><input data-testid={ADMIN_CMS.subPrice} className="rm-input" type="number" value={pricing.annual_subscription_price || 0} onChange={(e) => setValue("pricing.annual_subscription_price", Number(e.target.value || 0))} /></Field>
     <Field label="Description">{textInput(pricing.description, (e) => setValue("pricing.description", e.target.value))}</Field>
   </div>;

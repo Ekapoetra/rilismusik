@@ -42,6 +42,7 @@ DEFAULT_LANDING_SETTINGS: Dict[str, Any] = {
     ],
     "pricing": {
         "pay_per_release_price": 35000,
+        "album_package_price": 200000,
         "annual_normal_price": 350000,
         "annual_subscription_price": 500000,  # VIP — kept key for backwards compat
         "wami_addon_price": 100000,

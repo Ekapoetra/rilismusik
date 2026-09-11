@@ -19,6 +19,7 @@ export default function UploadRelease() {
   const [form, setForm] = useState(defaultReleaseForm());
   const [release, setRelease] = useState(null);
   const [products, setProducts] = useState([]);
+  const [pricing, setPricing] = useState({ per_track: 35000, album: 200000 });
   const [savedArtists, setSavedArtists] = useState([]);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [declaration, setDeclaration] = useState(false);
@@ -29,9 +30,25 @@ export default function UploadRelease() {
   const isPpr = profile?.payment_type !== "annual_subscription" || profile?.subscription_status !== "active";
   const addonTotal = useMemo(() => products.filter((item) => selectedAddons.includes(item.id)).reduce((sum, item) => sum + Number(item.amount || 0), 0), [products, selectedAddons]);
 
+  const trackCount = release?.tracks?.length || form.tracks?.length || 1;
+  const releaseType = release?.release_type || form.release_type || "single";
+  const baseEstimate = useMemo(() => {
+    if (releaseType === "album") return pricing.album;
+    return pricing.per_track * Math.max(1, trackCount);
+  }, [releaseType, trackCount, pricing]);
+  const pricingLabel = useMemo(() => {
+    if (releaseType === "album") return `Album (${trackCount} lagu — paket flat)`;
+    if (releaseType === "ep") return `EP (${trackCount} lagu × Rp ${pricing.per_track.toLocaleString("id-ID")})`;
+    return "Single (1 lagu)";
+  }, [releaseType, trackCount, pricing]);
+
   useEffect(() => {
     api.get("/payments/products").then(({ data }) => setProducts(data || [])).catch(() => {});
     api.get("/artists/").then(({ data }) => setSavedArtists(data || [])).catch(() => {});
+    api.get("/cms/landing").then(({ data }) => setPricing({
+      per_track: Number(data?.pricing?.pay_per_release_price) || 35000,
+      album: Number(data?.pricing?.album_package_price) || 200000,
+    })).catch(() => {});
     if (!id) return;
     api.get(`/releases/${id}`).then(({ data }) => {
       setRelease(data); setForm(mapReleaseToForm(data));
@@ -88,6 +105,6 @@ export default function UploadRelease() {
     {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
     {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} savedArtists={savedArtists} onBack={() => setStep(1)} onNext={goNext} />}
     {step === 3 && <TracksStep form={form} updateForm={updateForm} savedArtists={savedArtists} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
-    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
+    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
   </div>;
 }

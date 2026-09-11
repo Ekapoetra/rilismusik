@@ -66,6 +66,8 @@ export const validateStep = (step, form) => {
   if (step === 2 && (!form.primary_artists.length || form.primary_artists.some((item) => !item.name.trim()))) return "Minimal satu nama artist utama wajib diisi.";
   if (step === 2 && [...form.primary_artists, ...form.featured_artists].some((item) => item.name.trim() && !socialLinksAreValid(item.social_links))) return "Setiap artis wajib memiliki minimal satu tautan media sosial yang valid.";
   if (step === 3 && form.release_type === "single" && form.tracks.length !== 1) return "SINGLE harus memiliki tepat satu track.";
+  if (step === 3 && form.release_type === "ep" && (form.tracks.length < 2 || form.tracks.length > 6)) return "EP harus memiliki 2–6 track.";
+  if (step === 3 && form.release_type === "album" && (form.tracks.length < 7 || form.tracks.length > 12)) return "ALBUM harus memiliki 7–12 track.";
   if (step === 3) {
     if (form.tracks.some((track) => (track.featured_artists || []).some((artist) => !artist.name.trim() || !socialLinksAreValid(artist.social_links)))) return "Lengkapi nama dan tautan sosial setiap artis featuring pada track.";
     const invalid = form.tracks.find((track) => !track.track_title.trim() || !track.lyricist.trim() || !track.composer.trim() || !track.title_language.trim() || (track.vocal_type === "vocal" && (!track.lyric_language.trim() || !track.lyrics.trim())));

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History } from "lucide-react";
+import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { releaseStatusLabel } from "@/utils/releasePresentation";
 
 const OVERRIDE_STATUSES = ["draft", "submitted", "under_review", "approved", "delivered", "live", "need_revision", "rejected", "taken_down"];
+const fmtIDR = (value) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
 
 export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError }) => {
   const [busy, setBusy] = useState(false);
@@ -12,7 +13,31 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
   const [isrcs, setIsrcs] = useState({});
   const [showOverride, setShowOverride] = useState(false);
   const [targetStatus, setTargetStatus] = useState("");
+  const [showShortfall, setShowShortfall] = useState(false);
+  const [shortfall, setShortfall] = useState(null);
+  const [shortfallBusy, setShortfallBusy] = useState(false);
   useEffect(() => { setUpc(release.upc || ""); setIsrcs(Object.fromEntries((release.tracks || []).map((track) => [track.id, track.isrc || ""]))); }, [release]);
+
+  const loadShortfall = async () => {
+    setShortfallBusy(true); setError("");
+    try { const { data } = await api.get(`/releases/${release.id}/admin/shortfall-preview`); setShortfall(data); }
+    catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); }
+    finally { setShortfallBusy(false); }
+  };
+  const toggleShortfall = async () => {
+    const next = !showShortfall; setShowShortfall(next);
+    if (next && !shortfall) await loadShortfall();
+  };
+  const createShortfall = async () => {
+    setShortfallBusy(true); setError("");
+    try {
+      const { data } = await api.post(`/releases/${release.id}/admin/shortfall-invoice`, {});
+      setShortfall(data.state);
+      setMessage(`Invoice kekurangan Rp ${Number(data.invoice.amount).toLocaleString("id-ID")} dibuat. Label dapat membayarnya di menu Invoice.`);
+    } catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); }
+    finally { setShortfallBusy(false); }
+  };
+
   const action = async (name, extra = {}) => {
     setBusy(true); setError("");
     try {
@@ -43,6 +68,25 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
         <label><span className="rm-label">Alasan koreksi (wajib)</span><input className="rm-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Contoh: salah pilih status" data-testid="admin-release-override-note" /></label>
         <div className="md:col-span-2 flex justify-end"><button className="rm-btn-primary inline-flex items-center gap-2" disabled={busy || !targetStatus || !note.trim()} onClick={() => action("override_status", { target_status: targetStatus })} data-testid="admin-release-override-apply"><History className="h-4 w-4" /> Terapkan Perubahan Status</button></div>
         <p className="md:col-span-2 text-xs text-zinc-500">Koreksi manual tidak memicu pembayaran/pengiriman otomatis. Gunakan hanya untuk memperbaiki status yang salah dipilih.</p>
+      </div>}
+    </div>
+    <div className="mt-5 border-t border-white/10 pt-4" data-testid="admin-release-shortfall-section">
+      <button type="button" className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white" onClick={toggleShortfall} data-testid="admin-release-shortfall-toggle"><Wallet className="h-4 w-4" /> Invoice Kekurangan Paket Album {showShortfall ? "▲" : "▼"}</button>
+      {showShortfall && <div className="mt-3 space-y-3">
+        {shortfallBusy && !shortfall && <div className="text-sm text-zinc-400" data-testid="admin-release-shortfall-loading">Menghitung kekurangan…</div>}
+        {shortfall && <>
+          <div className="grid gap-2 rounded-lg border border-white/10 bg-white/[0.02] p-4 text-sm" data-testid="admin-release-shortfall-summary">
+            <div className="flex justify-between"><span className="text-zinc-400">Paket Album</span><strong data-testid="admin-release-shortfall-album">{fmtIDR(shortfall.album_package_price_idr)}</strong></div>
+            <div className="flex justify-between"><span className="text-zinc-400">Sudah dibayar</span><strong data-testid="admin-release-shortfall-paid">{fmtIDR(shortfall.already_paid_idr)}</strong></div>
+            <div className="flex justify-between border-t border-white/10 pt-2"><span className="text-zinc-400">Kekurangan</span><strong className="rm-gradient-text" data-testid="admin-release-shortfall-amount">{fmtIDR(shortfall.shortfall_idr)}</strong></div>
+          </div>
+          {shortfall.open_shortfall_invoice_id && <p className="text-xs text-amber-300" data-testid="admin-release-shortfall-pending">Invoice kekurangan masih menunggu pembayaran label.</p>}
+          {!shortfall.is_album && <p className="text-xs text-zinc-500" data-testid="admin-release-shortfall-not-album">Hanya untuk rilisan tipe ALBUM.</p>}
+          {shortfall.is_album && !shortfall.has_prior_payment && <p className="text-xs text-zinc-500" data-testid="admin-release-shortfall-no-payment">Belum ada pembayaran per lagu untuk rilisan ini.</p>}
+          {shortfall.is_album && shortfall.has_prior_payment && !shortfall.eligible && !shortfall.open_shortfall_invoice_id && <p className="text-xs text-zinc-500" data-testid="admin-release-shortfall-none">Tidak ada kekurangan untuk rilisan ini.</p>}
+          <div className="flex justify-end"><button type="button" className="rm-btn-primary inline-flex items-center gap-2" disabled={shortfallBusy || !shortfall.eligible} onClick={createShortfall} data-testid="admin-release-shortfall-create"><Wallet className="h-4 w-4" /> {shortfallBusy ? "Memproses…" : "Buat Invoice Kekurangan"}</button></div>
+        </>}
+        <p className="text-xs text-zinc-500">Gunakan untuk album yang terlanjur dibayar per lagu. Invoice hanya menagih selisih menuju paket album dan tidak mengubah status rilisan.</p>
       </div>}
     </div>
   </aside>;

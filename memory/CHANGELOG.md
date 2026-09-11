@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06-11 — Tarif berjenjang PPR (Single/EP/Album) + Invoice Kekurangan
+- Akun Pay Per Release: SINGLE = 1 track → Rp 35.000; EP = 2–6 track → Rp 35.000 × jumlah track; ALBUM = 7–12 track → flat Rp 200.000. Validasi jumlah track berlaku untuk semua paket (langganan tetap gratis).
+- Harga per-lagu (`pay_per_release_price`) dan paket album (`album_package_price`, default Rp 200.000) dapat diatur admin di CMS → Pricing. Kartu "Paket Album" ditambahkan di landing page.
+- Invoice PPR (saat admin kirim tautan pembayaran) kini otomatis mengikuti tarif berjenjang + label line item Single/EP/Album. Wizard label menampilkan hint jumlah track dan estimasi invoice real-time.
+- Fitur baru "Invoice Kekurangan Paket Album" di panel Admin Release Detail: untuk album yang terlanjur bayar per lagu, admin membuat invoice selisih = Rp 200.000 − total yang sudah dibayar (tipe `release_shortfall`). Tidak mengubah status rilisan. Guard: hanya tipe ALBUM dengan pembayaran sebelumnya; anti-duplikat (409) & tolak bila tidak ada kekurangan (400). Diuji: pytest 4/4 + Playwright (landing/CMS/admin) + curl siklus penuh.
+
+
 ## 2026-06-11 — Edit tanggal riwayat withdraw legacy
 - Admin keuangan kini dapat memperbaiki Tanggal Pengajuan & Tanggal Pencairan pada riwayat withdraw legacy yang sudah tersimpan (sebelumnya hanya bisa saat pembuatan).
 - Endpoint baru `POST /api/withdraw/admin/{wd_id}/legacy-dates`: validasi format & urutan tanggal, memperbarui `manual_legacy_key` untuk entri manual (cegah duplikat), dan menyinkronkan `created_at` transaksi saldo. Perubahan tanggal tidak menghitung ulang saldo (hanya cutoff `period_to` yang berdampak).

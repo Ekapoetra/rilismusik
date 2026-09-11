@@ -28,10 +28,17 @@ LOCAL_STATUS = {
 }
 DEFAULT_PRICES = {
     "pay_per_release": 35_000,
+    "album_package": 200_000,
     "annual_normal": 350_000,
     "annual_vip": 500_000,
     "wami_addon": 100_000,
 }
+
+# Pay Per Release track-count tiers (validation applies to every package; cost only for PPR)
+EP_MIN_TRACKS = 2
+EP_MAX_TRACKS = 6
+ALBUM_MIN_TRACKS = 7
+ALBUM_MAX_TRACKS = 12
 
 
 async def admin_user_ids(roles: tuple[str, ...]) -> list[str]:
@@ -49,6 +56,7 @@ async def label_user_ids(label_id: str) -> list[str]:
 
 ADMIN_PAYMENT_ROLES = {
     "pay_per_release": ("super_admin", "admin_finance", "admin_release"),
+    "release_shortfall": ("super_admin", "admin_finance", "admin_release"),
     "annual_subscription": ("super_admin", "admin_finance"),
     "wami_addon": ("super_admin", "admin_finance", "admin_release"),
     "custom_service": ("super_admin", "admin_finance", "admin_support"),
@@ -58,6 +66,7 @@ ADMIN_PAYMENT_ROLES = {
 def _admin_payment_instruction(payment_type: str) -> str:
     return {
         "pay_per_release": "Buka release dan lanjutkan proses distribusi.",
+        "release_shortfall": "Kekurangan paket album telah lunas; tidak ada tindakan tambahan.",
         "custom_service": "Tandai layanan sedang dikerjakan, lalu selesai setelah pekerjaan tuntas.",
         "wami_addon": "Buka WAMI dan lanjutkan proses pendaftaran.",
         "annual_subscription": "Langganan sudah aktif otomatis; tidak ada tindakan manual.",
@@ -65,7 +74,7 @@ def _admin_payment_instruction(payment_type: str) -> str:
 
 
 def _admin_payment_link(payment: Dict[str, Any]) -> str:
-    if payment.get("type") == "pay_per_release" and payment.get("release_id"):
+    if payment.get("type") in ("pay_per_release", "release_shortfall") and payment.get("release_id"):
         return f"/admin/releases/{payment['release_id']}"
     if payment.get("type") == "wami_addon":
         return "/admin/wami"
@@ -153,12 +162,37 @@ async def payment_price(code: str) -> int:
     values = (pricing or {}).get("value") or {}
     key_map = {
         "pay_per_release": "pay_per_release_price",
+        "album_package": "album_package_price",
         "annual_normal": "annual_normal_price",
         "annual_vip": "annual_subscription_price",
         "wami_addon": "wami_addon_price",
     }
     configured = values.get(key_map.get(code))
     return int(configured or DEFAULT_PRICES[code])
+
+
+async def ppr_pricing() -> Dict[str, int]:
+    """Current Pay Per Release tier prices from CMS (per-track and album package)."""
+    return {
+        "per_track": await payment_price("pay_per_release"),
+        "album": await payment_price("album_package"),
+    }
+
+
+def ppr_base_amount(release_type: Optional[str], track_count: int, pricing: Dict[str, int]) -> int:
+    """SINGLE/EP = per-track price × track count; ALBUM = flat album package price."""
+    if (release_type or "single").lower() == "album":
+        return int(pricing["album"])
+    return int(pricing["per_track"]) * max(1, int(track_count or 1))
+
+
+def ppr_line_item_text(release_type: Optional[str], track_count: int) -> tuple[str, str]:
+    rt = (release_type or "single").lower()
+    if rt == "album":
+        return "Paket Album Pay Per Release", f"Album {track_count} lagu — paket flat"
+    if rt == "ep":
+        return "Biaya Distribusi EP Pay Per Release", f"EP {track_count} lagu × biaya per lagu"
+    return "Biaya Distribusi Single Pay Per Release", "Single 1 lagu"
 
 
 async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
@@ -514,8 +548,18 @@ async def _fulfill_custom_service(payment: Dict[str, Any]) -> None:
     )
 
 
+async def _fulfill_release_shortfall(payment: Dict[str, Any]) -> None:
+    """Top-up payment for an album already paid per-song. Never changes release status."""
+    await db.releases.update_one(
+        {"id": payment.get("release_id"), "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"$set": {"ppr_album_shortfall_settled_at": now_iso(), "updated_at": now_iso()},
+         "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+    )
+
+
 FULFILLMENT_HANDLERS = {
     "pay_per_release": _fulfill_release,
+    "release_shortfall": _fulfill_release_shortfall,
     "annual_subscription": _fulfill_subscription,
     "wami_addon": _fulfill_wami,
     "custom_service": _fulfill_custom_service,
