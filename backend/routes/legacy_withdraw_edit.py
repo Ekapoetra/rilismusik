@@ -290,6 +290,49 @@ async def _chunk_restore(*, label_id: str, after: str, through: str, job_id: str
     return total
 
 
+async def update_legacy_withdraw_dates(withdrawal_id: str, request_date: str, paid_date: str, user: dict) -> Dict[str, Any]:
+    from datetime import date
+
+    try:
+        requested = date.fromisoformat(request_date)
+        paid = date.fromisoformat(paid_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Tanggal harus valid") from exc
+    if paid < requested:
+        raise HTTPException(status_code=400, detail="Tanggal pencairan tidak boleh sebelum tanggal pengajuan")
+
+    withdrawal = await db_bg.withdraw_requests.find_one({"id": withdrawal_id}, {"_id": 0})
+    if not withdrawal:
+        raise HTTPException(status_code=404, detail="Riwayat withdrawal tidak ditemukan")
+    if withdrawal.get("legacy_import") is not True or withdrawal.get("status") != "paid":
+        raise HTTPException(status_code=400, detail="Hanya withdrawal legacy berstatus dibayar yang dapat diedit")
+
+    update_set: Dict[str, Any] = {
+        "request_date": request_date, "paid_date": paid_date,
+        "legacy_dates_edited_at": now_iso(), "legacy_dates_edited_by": user["id"],
+        "updated_at": now_iso(),
+    }
+    if withdrawal.get("manual_legacy"):
+        new_key = f"{withdrawal['label_id']}:{withdrawal.get('period_from')}:{withdrawal.get('period_to')}:{request_date}:{paid_date}"
+        duplicate = await db_bg.withdraw_requests.find_one(
+            {"id": {"$ne": withdrawal_id}, "manual_legacy_key": new_key}, {"_id": 0, "id": 1},
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Riwayat legacy dengan tanggal yang sama sudah ada")
+        update_set["manual_legacy_key"] = new_key
+
+    await db_bg.withdraw_requests.update_one({"id": withdrawal_id}, {"$set": update_set})
+    await db_bg.balance_transactions.update_many(
+        {"reference_id": withdrawal_id, "legacy_import": True},
+        {"$set": {"created_at": paid_date, "updated_at": now_iso()}},
+    )
+    await log_activity(user["id"], "legacy_withdraw_dates_edit", "withdraw", withdrawal_id, before={
+        "request_date": withdrawal.get("request_date"), "paid_date": withdrawal.get("paid_date"),
+    }, after={"request_date": request_date, "paid_date": paid_date})
+    return {"withdrawal_id": withdrawal_id, "request_date": request_date, "paid_date": paid_date}
+
+
+
 async def queue_legacy_withdraw_edit(withdrawal_id: str, preview_id: str, user: dict) -> Dict[str, Any]:
     preview = await db_bg.legacy_withdraw_edit_previews.find_one(
         {"id": preview_id, "withdrawal_id": withdrawal_id, "created_by": user["id"], "consumed_at": None},

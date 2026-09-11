@@ -337,6 +337,11 @@ class LegacyWithdrawPeriodCommitIn(BaseModel):
     preview_id: str = Field(min_length=1, max_length=100)
 
 
+class LegacyWithdrawDatesIn(BaseModel):
+    request_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    paid_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 # ============ SUPPORT TICKETING ============
 TicketCategory = Literal[
     "takedown",

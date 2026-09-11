@@ -177,7 +177,7 @@ export default function AdminWithdraw() {
               {canManage && w.status === "approved" && (
                 <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
               )}
-              {w.legacy_editable && canManage && <button type="button" title="Edit bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
+              {w.legacy_editable && canManage && <button type="button" title="Edit tanggal / bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
               {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
             </div>
           </div>
@@ -216,7 +216,7 @@ export default function AdminWithdraw() {
           </div>
         </div>
       )}
-      <LegacyWithdrawEditDialog withdrawal={legacyEdit} onClose={() => setLegacyEdit(null)} onComplete={async (result) => { setMsg(`Bulan laporan legacy diperbarui ke ${result.new_period_to}. Saldo tersedia kini ${fmtIDR(result.balance_available_idr)}.`); await load(); }} />
+      {legacyEdit && <LegacyWithdrawEditDialog withdrawal={legacyEdit} onClose={() => setLegacyEdit(null)} onComplete={async (result) => { if (result?.dates_only) { setMsg(`Tanggal riwayat legacy diperbarui. Pencairan ${result.paid_date}.`); } else { setMsg(`Bulan laporan legacy diperbarui ke ${result.new_period_to}. Saldo tersedia kini ${fmtIDR(result.balance_available_idr)}.`); } await load(); }} />}
     </div>
   );
 }

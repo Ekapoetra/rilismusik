@@ -26,7 +26,7 @@ from models import (
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
     WithdrawRequestIn, WithdrawAdminAction, ManualLegacyWithdrawIn,
-    LegacyWithdrawPeriodPreviewIn, LegacyWithdrawPeriodCommitIn,
+    LegacyWithdrawPeriodPreviewIn, LegacyWithdrawPeriodCommitIn, LegacyWithdrawDatesIn,
     TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
@@ -310,6 +310,15 @@ async def admin_commit_legacy_withdraw_edit(
     _require_finance_admin(user)
     from .legacy_withdraw_edit import queue_legacy_withdraw_edit
     return await queue_legacy_withdraw_edit(wd_id, body.preview_id, user)
+
+
+@withdraw_r.post("/admin/{wd_id}/legacy-dates")
+async def admin_update_legacy_withdraw_dates(
+    wd_id: str, body: LegacyWithdrawDatesIn, user: dict = Depends(require_admin),
+):
+    _require_finance_admin(user)
+    from .legacy_withdraw_edit import update_legacy_withdraw_dates
+    return await update_legacy_withdraw_dates(wd_id, body.request_date, body.paid_date, user)
 
 
 @withdraw_r.post("/admin/{wd_id}/action")

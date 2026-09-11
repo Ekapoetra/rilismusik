@@ -1,5 +1,11 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06-11 — Edit tanggal riwayat withdraw legacy
+- Admin keuangan kini dapat memperbaiki Tanggal Pengajuan & Tanggal Pencairan pada riwayat withdraw legacy yang sudah tersimpan (sebelumnya hanya bisa saat pembuatan).
+- Endpoint baru `POST /api/withdraw/admin/{wd_id}/legacy-dates`: validasi format & urutan tanggal, memperbarui `manual_legacy_key` untuk entri manual (cegah duplikat), dan menyinkronkan `created_at` transaksi saldo. Perubahan tanggal tidak menghitung ulang saldo (hanya cutoff `period_to` yang berdampak).
+- Dialog "Edit Riwayat Legacy" menampilkan kolom tanggal terisi otomatis + tombol "Simpan Tanggal"; dialog kini di-mount kondisional agar nilai awal (tanggal & bulan laporan) selalu benar. Diuji: curl (valid/invalid/persist) + screenshot UI.
+
+
 ## 2026-09-10 — Penutupan P0 dokumentasi
 - Pengguna memilih `p0` saja: menyelesaikan pembaruan ROADMAP yang gagal pada akhir sesi sebelumnya, tanpa mengubah kode aplikasi, akun, integrasi, atau data bisnis.
 - ROADMAP kini mencatat lima fitur Iter70 sebagai selesai secara implementasi, dengan verifikasi pengguna masih menunggu; timeout SMTP tetap P1 belum ditangani dan backlog P2 tetap ditunda. Email royalti bulanan/notifikasi background serta pengelolaan add-on tidak dikembalikan ke backlog karena sudah tercatat selesai.

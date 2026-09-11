@@ -15,11 +15,28 @@ function ChangeRow({ label, before, after, testId }) {
 
 export const LegacyWithdrawEditDialog = ({ withdrawal, onClose, onComplete }) => {
   const [periodTo, setPeriodTo] = useState(withdrawal?.period_to || "");
+  const [requestDate, setRequestDate] = useState(withdrawal?.request_date?.slice(0, 10) || "");
+  const [paidDate, setPaidDate] = useState(withdrawal?.paid_date?.slice(0, 10) || "");
+  const [datesBusy, setDatesBusy] = useState(false);
+  const [datesSaved, setDatesSaved] = useState(false);
+  const [datesError, setDatesError] = useState("");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState(null);
   const pollRef = useRef(null);
+
+  const datesChanged = requestDate !== (withdrawal?.request_date?.slice(0, 10) || "") || paidDate !== (withdrawal?.paid_date?.slice(0, 10) || "");
+
+  const saveDates = async () => {
+    setDatesBusy(true); setDatesError(""); setDatesSaved(false);
+    try {
+      await api.post(`/withdraw/admin/${withdrawal.id}/legacy-dates`, { request_date: requestDate, paid_date: paidDate });
+      setDatesSaved(true);
+      await onComplete({ dates_only: true, request_date: requestDate, paid_date: paidDate });
+    } catch (requestError) { setDatesError(formatApiError(requestError.response?.data?.detail)); }
+    finally { setDatesBusy(false); }
+  };
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
   useEffect(() => {
@@ -67,7 +84,21 @@ export const LegacyWithdrawEditDialog = ({ withdrawal, onClose, onComplete }) =>
   const changedLines = (preview?.lines_to_restore || 0) + (preview?.lines_to_settle || 0);
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
     <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto border-white/10 bg-zinc-950 text-white" closeTestId="legacy-withdraw-edit-close-button" data-testid="legacy-withdraw-edit-dialog">
-      <DialogHeader><DialogTitle className="font-display text-2xl font-extrabold">Edit Bulan Laporan Legacy</DialogTitle><DialogDescription className="text-zinc-400">Hanya cutoff riwayat legacy yang berubah. Withdrawal melalui web tetap dikunci.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle className="font-display text-2xl font-extrabold">Edit Riwayat Legacy</DialogTitle><DialogDescription className="text-zinc-400">Perbaiki tanggal pencairan atau bulan laporan. Withdrawal melalui web tetap dikunci.</DialogDescription></DialogHeader>
+
+      <div className="rounded-md border border-white/10 bg-white/[0.02] p-4 space-y-3" data-testid="legacy-withdraw-dates-section">
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Tanggal Riwayat</div>
+        {datesError && <div className="rounded-md bg-red-500/15 px-3 py-2 text-sm text-red-300" role="alert" data-testid="legacy-withdraw-dates-error">{datesError}</div>}
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="rm-label" htmlFor="legacy-withdraw-request-date">Tanggal Pengajuan</label><input id="legacy-withdraw-request-date" type="date" className="rm-input" value={requestDate} onChange={(event) => { setRequestDate(event.target.value); setDatesSaved(false); }} disabled={datesBusy} data-testid="legacy-withdraw-edit-request-date" /></div>
+          <div><label className="rm-label" htmlFor="legacy-withdraw-paid-date">Tanggal Pencairan</label><input id="legacy-withdraw-paid-date" type="date" className="rm-input" value={paidDate} onChange={(event) => { setPaidDate(event.target.value); setDatesSaved(false); }} disabled={datesBusy} data-testid="legacy-withdraw-edit-paid-date" /></div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          {datesSaved ? <span className="flex items-center gap-1.5 text-sm text-emerald-300" data-testid="legacy-withdraw-dates-saved"><CheckCircle2 className="h-4 w-4" /> Tanggal tersimpan.</span> : <span className="text-xs text-zinc-500">Hanya mengubah tampilan tanggal, tidak menghitung ulang saldo.</span>}
+          <button type="button" className="rm-btn-primary text-sm" disabled={!datesChanged || datesBusy || !requestDate || !paidDate} onClick={saveDates} data-testid="legacy-withdraw-dates-save-button">{datesBusy ? "Menyimpan…" : "Simpan Tanggal"}</button>
+        </div>
+      </div>
+
       <div className="rounded-md border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100" data-testid="legacy-withdraw-edit-warning"><AlertTriangle className="mr-2 inline h-4 w-4" />Perubahan ini menghitung ulang saldo berdasarkan royalty lines.</div>
       {error && <div className="rounded-md bg-red-500/15 px-4 py-3 text-sm text-red-300" role="alert" data-testid="legacy-withdraw-edit-error">{error}</div>}
       <div><label className="rm-label" htmlFor="legacy-withdraw-period-to">Bulan Laporan Terakhir</label><input id="legacy-withdraw-period-to" type="month" className="rm-input" value={periodTo} min={withdrawal.period_from || undefined} onChange={(event) => setPeriodTo(event.target.value)} disabled={busy || job?.status === "done"} data-testid="legacy-withdraw-edit-period-to" /></div>
