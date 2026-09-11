@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CreditCard } from "lucide-react";
+import { ArrowLeft, CreditCard, Package, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { api, formatApiError } from "@/api/client";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
@@ -24,6 +25,26 @@ export default function AdminReleaseDetail() {
   }, [id]);
   useEffect(() => { setRelease(null); load(); }, [load]);
   const canMutate = hasPermission("releases.review");
+  const [downloading, setDownloading] = useState(false);
+  const downloadPackage = async () => {
+    setDownloading(true);
+    try {
+      const response = await api.get(`/releases/${id}/admin/export-package`, { responseType: "blob" });
+      const disposition = response.headers?.["content-disposition"] || "";
+      const match = /filename="?([^"]+)"?/.exec(disposition);
+      const fallback = `${(release?.id || "").replace(/-/g, "").slice(0, 8)}_${release?.artist_name || "artist"}_${release?.release_title || "release"}.zip`;
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = match ? match[1] : fallback;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success("Paket rilisan berhasil diunduh");
+    } catch (requestError) {
+      let detail = requestError.response?.data?.detail;
+      if (requestError.response?.data instanceof Blob) { try { detail = JSON.parse(await requestError.response.data.text())?.detail; } catch { /* ignore */ } }
+      toast.error(formatApiError(detail) || "Gagal mengunduh paket rilisan");
+    } finally { setDownloading(false); }
+  };
 
   return (
     <div className="min-w-0 max-w-7xl space-y-8 pb-28" data-testid="admin-release-detail-page">
@@ -40,6 +61,7 @@ export default function AdminReleaseDetail() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
+            {canMutate && release.status !== "draft" && <button type="button" onClick={downloadPackage} disabled={downloading} className="rm-btn-ghost inline-flex items-center gap-2" data-testid="admin-release-download-package" title="Unduh WAV, cover, dan metadata+lirik dalam 1 file ZIP untuk Believe">{downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}{downloading ? "Menyiapkan…" : "Download Paket Rilisan"}</button>}
             <WhatsAppFollowUpButton release={release} />
             <span data-testid="admin-release-detail-status"><StatusBadge status={release.status} /></span>
             <AdminDeleteReleaseButton release={release} onDeleted={() => navigate("/admin/releases", { replace: true })} />
@@ -54,7 +76,7 @@ export default function AdminReleaseDetail() {
         {release.payment && <section className="flex flex-wrap items-center justify-between gap-4 border border-white/10 p-4" data-testid="admin-release-payment">
           <div className="flex min-w-0 items-center gap-3"><CreditCard className="h-5 w-5 shrink-0 text-zinc-500" /><div className="min-w-0"><div className="break-all font-bold">Invoice {release.payment.id}</div><div className="text-xs text-zinc-500">{release.payment.status} · Rp {Number(release.payment.amount || 0).toLocaleString("id-ID")}</div></div></div>
         </section>}
-        <ReleaseMetadataView release={release} />
+        <ReleaseMetadataView release={release} allowCopyLyrics />
         {canMutate ? <AdminReleaseWorkflow release={release} onUpdated={load} setMessage={setMessage} setError={setError} /> : <div className="border border-white/10 px-4 py-3 text-sm text-zinc-400" data-testid="admin-release-readonly-notice">Akses baca-saja. Tindakan alur kerja memerlukan izin Review dan ubah status.</div>}
       </>}
     </div>

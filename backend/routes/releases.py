@@ -1,11 +1,17 @@
 """Releases & track upload router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta, date
 import os
 import csv
 import io
+import json
+import re
 import shutil
+import tempfile
+import zipfile
 import secrets
 import asyncio
 import wave
@@ -836,3 +842,188 @@ async def admin_create_shortfall_invoice(release_id: str, user: dict = Depends(r
             payment_id=invoice_doc["id"], release_id=release_id,
         ))
     return {"invoice": invoice_doc, "state": await _shortfall_state(release_id)}
+
+
+def _safe_name(text: str, fallback: str = "untitled") -> str:
+    text = (text or "").strip() or fallback
+    text = re.sub(r'[\\/:*?"<>|\r\n\t]+', "_", text)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return (text[:80] or fallback)
+
+
+def _artist_names(credits) -> str:
+    if not credits:
+        return ""
+    return ", ".join([c.get("name") for c in credits if c.get("name")])
+
+
+def _release_metadata_json(rel: dict, tracks: list) -> dict:
+    return {
+        "release_id": rel.get("id"),
+        "release_title": rel.get("release_title"),
+        "release_type": rel.get("release_type"),
+        "primary_artist": rel.get("artist_name"),
+        "primary_artists": [c.get("name") for c in (rel.get("primary_artists") or []) if c.get("name")],
+        "featured_artists": [c.get("name") for c in (rel.get("featured_artists") or []) if c.get("name")],
+        "label": rel.get("label_name_snapshot"),
+        "genre": rel.get("genre"),
+        "subgenre": rel.get("subgenre"),
+        "language": rel.get("language"),
+        "release_date": rel.get("release_date"),
+        "year": rel.get("year"),
+        "copyright_line": rel.get("copyright_line"),
+        "p_line": rel.get("p_line"),
+        "upc": rel.get("upc"),
+        "explicit": rel.get("explicit"),
+        "status": rel.get("status"),
+        "responsible_name": rel.get("responsible_name"),
+        "artist_web_url": rel.get("artist_web_url"),
+        "tracks": [{
+            "track_number": t.get("track_number"),
+            "track_title": t.get("track_title"),
+            "artist_name": t.get("artist_name"),
+            "featured_artists": [c.get("name") for c in (t.get("featured_artists") or []) if c.get("name")],
+            "isrc": t.get("isrc"),
+            "composer": t.get("composer"),
+            "lyricist": t.get("lyricist"),
+            "arranger": t.get("arranger"),
+            "producer": t.get("producer"),
+            "performer": t.get("performer"),
+            "genre": t.get("genre"),
+            "title_language": t.get("title_language"),
+            "lyric_language": t.get("lyric_language"),
+            "vocal_type": t.get("vocal_type"),
+            "explicit": t.get("explicit"),
+            "preview_start_seconds": t.get("preview_start_seconds"),
+            "audio_filename": t.get("audio_filename"),
+            "audio_sample_rate": t.get("audio_sample_rate"),
+            "lyrics": t.get("lyrics"),
+        } for t in tracks],
+    }
+
+
+def _release_metadata_txt(rel: dict, tracks: list) -> str:
+    lines = []
+    add = lines.append
+    add("=" * 60)
+    add("INFORMASI RILISAN — RILIS MUSIK")
+    add("=" * 60)
+    add(f"Kode Submit      : {(rel.get('id') or '').replace('-', '')[:8]}")
+    add(f"ID Rilisan       : {rel.get('id')}")
+    add(f"Judul            : {rel.get('release_title')}")
+    add(f"Tipe             : {str(rel.get('release_type') or '').upper()}")
+    add(f"Artis Utama      : {rel.get('artist_name')}")
+    prim = _artist_names(rel.get("primary_artists"))
+    if prim:
+        add(f"Artis Utama (rinci): {prim}")
+    feat = _artist_names(rel.get("featured_artists"))
+    if feat:
+        add(f"Artis Featuring  : {feat}")
+    add(f"Label            : {rel.get('label_name_snapshot')}")
+    add(f"Genre / Subgenre : {' / '.join([x for x in [rel.get('genre'), rel.get('subgenre')] if x])}")
+    add(f"Bahasa           : {rel.get('language') or '-'}")
+    add(f"Tanggal Rilis    : {rel.get('release_date')}")
+    add(f"Tahun Produksi   : {rel.get('year') or '-'}")
+    add(f"C Line           : {rel.get('copyright_line') or '-'}")
+    add(f"P Line           : {rel.get('p_line') or '-'}")
+    add(f"UPC              : {rel.get('upc') or '-'}")
+    add(f"Explicit         : {'YA' if rel.get('explicit') else 'TIDAK'}")
+    add(f"Status           : {rel.get('status')}")
+    add(f"Penanggung Jawab : {rel.get('responsible_name') or '-'}")
+    add(f"Web Artis        : {rel.get('artist_web_url') or '-'}")
+    add("")
+    add("=" * 60)
+    add(f"TRACK ({len(tracks)})")
+    add("=" * 60)
+    for index, t in enumerate(tracks, 1):
+        num = t.get("track_number") or index
+        add("")
+        add(f"[{num:02d}] {t.get('track_title')}")
+        add("-" * 60)
+        add(f"  Artis            : {t.get('artist_name') or rel.get('artist_name')}")
+        tfeat = _artist_names(t.get("featured_artists"))
+        if tfeat:
+            add(f"  Featuring        : {tfeat}")
+        add(f"  ISRC             : {t.get('isrc') or '-'}")
+        add(f"  Vokal            : {'Instrumental' if t.get('vocal_type') == 'instrumental' else 'Ada Vokal'}")
+        add(f"  Writer/Lyricist  : {t.get('lyricist') or '-'}")
+        add(f"  Komposer         : {t.get('composer') or '-'}")
+        add(f"  Arranger         : {t.get('arranger') or '-'}")
+        add(f"  Produser         : {t.get('producer') or '-'}")
+        add(f"  Performer        : {t.get('performer') or '-'}")
+        add(f"  Genre            : {t.get('genre') or '-'}")
+        add(f"  Bahasa Judul     : {t.get('title_language') or '-'}")
+        add(f"  Bahasa Lirik     : {t.get('lyric_language') or '-'}")
+        add(f"  Explicit         : {'YA' if t.get('explicit') else 'TIDAK'}")
+        add(f"  Preview          : {t.get('preview_start_seconds') or 0} detik")
+        sr = t.get("audio_sample_rate")
+        add(f"  Audio            : {('WAV ' + str(round(sr / 1000, 1)) + ' kHz') if sr else '-'}")
+        add(f"  File Audio Asli  : {t.get('audio_filename') or '-'}")
+        add("")
+        add("  LIRIK:")
+        lyrics = (t.get("lyrics") or "").strip()
+        if lyrics:
+            for line in lyrics.splitlines():
+                add(f"    {line}")
+        else:
+            add("    (Tidak ada lirik)")
+    add("")
+    add("=" * 60)
+    add(f"Diekspor: {now_iso()}")
+    return "\n".join(lines)
+
+
+@release_r.get("/{release_id}/admin/export-package")
+async def admin_export_release_package(release_id: str, user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    if rel.get("status") == "draft":
+        raise HTTPException(status_code=400, detail="Paket hanya tersedia untuk rilisan yang sudah dikirim")
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
+
+    import storage_service
+    short_code = (release_id or "").replace("-", "")[:8]
+    base_name = f"{short_code}_{_safe_name(rel.get('artist_name'), 'artist')}_{_safe_name(rel.get('release_title'), 'release')}"
+
+    tmp_dir = tempfile.mkdtemp(prefix="rlspkg_")
+    zip_path = os.path.join(tmp_dir, f"{base_name}.zip")
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+            zf.writestr("metadata.txt", _release_metadata_txt(rel, tracks))
+            zf.writestr("metadata.json", json.dumps(_release_metadata_json(rel, tracks), ensure_ascii=False, indent=2))
+            if rel.get("cover_url"):
+                cover_key = rel["cover_url"].split("/api/files/", 1)[-1]
+                cover_ext = cover_key.rsplit(".", 1)[-1].lower() if "." in cover_key else "jpg"
+                cover_local = os.path.join(tmp_dir, f"cover.{cover_ext}")
+                try:
+                    await storage_service.download_to_file(key=cover_key, local_path=cover_local)
+                    zf.write(cover_local, f"cover.{cover_ext}")
+                    os.remove(cover_local)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("[export] cover download failed release=%s: %s", release_id, exc)
+            for index, t in enumerate(tracks, 1):
+                if not t.get("audio_url"):
+                    continue
+                num = t.get("track_number") or index
+                audio_key = f"audio/{t['id']}.wav"
+                local = os.path.join(tmp_dir, f"track_{num:02d}.wav")
+                try:
+                    await storage_service.download_to_file(key=audio_key, local_path=local)
+                    zf.write(local, f"audio/{num:02d} - {_safe_name(t.get('track_title'), f'track{num}')}.wav")
+                    os.remove(local)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("[export] audio download failed track=%s: %s", t.get("id"), exc)
+    except Exception as exc:  # noqa: BLE001
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        logger.exception("[export] package build failed release=%s: %s", release_id, exc)
+        raise HTTPException(status_code=500, detail="Gagal membuat paket rilisan")
+
+    await log_activity(user["id"], "admin_export_release_package", "release", release_id, after={"file": f"{base_name}.zip"})
+    return FileResponse(
+        zip_path, media_type="application/zip", filename=f"{base_name}.zip",
+        background=BackgroundTask(shutil.rmtree, tmp_dir, ignore_errors=True),
+    )
+

@@ -1,6 +1,11 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Fix: label tidak melihat tagihan sisa bayar (kekurangan album)
+## 2026-06-11 — Salin lirik + Download paket rilisan (migrasi Believe)
+- **Salin lirik** (Admin): tombol "Salin Lirik" per track dan "Salin Semua Lirik" di halaman detail rilisan admin (`ReleaseMetadataView` prop `allowCopyLyrics`). Pakai clipboard + toast.
+- **Download Paket Rilisan** (Admin, super_admin/admin_release): endpoint `GET /releases/{id}/admin/export-package` membangun ZIP di disk (ZIP_STORED, allowZip64, stream via FileResponse + cleanup temp) berisi semua WAV (`audio/{nomor} - {judul}.wav`), cover, `metadata.txt` (rapi, semua info+kredit+lirik) dan `metadata.json` (terstruktur). Nama file `{kode8}_{nama artis}_{judul}.zip`. Diblokir untuk status draft; download file yang hilang di-skip aman.
+- Diuji: curl (ZIP metadata-only + ZIP penuh dengan WAV/cover dari R2, nama file & isi benar) + screenshot admin (tombol tampil, selector count ok).
+
+
 - Root cause: notifikasi in-app SUDAH terkirim ke label (terverifikasi), tetapi tautannya menuju halaman rilisan yang hanya menampilkan invoice rilisan asli (`payment_status === "pending"`). Karena album sudah "paid/live", halaman menampilkan "Pembayaran sudah dikonfirmasi" dan invoice kekurangan (payment id terpisah) tidak terlihat/tidak bisa dibayar.
 - Fix: GET `/releases/{id}` kini melampirkan objek `shortfall_invoice`. Halaman rilisan label menampilkan blok menonjol "Sisa Pembayaran Paket Album" (jumlah + rincian + tombol "Bayar Kekurangan via Xendit") selama invoice kekurangan berstatus pending, terlepas dari status rilisan.
 - Perbaikan format Rupiah pada body notifikasi (Rp 165.000, bukan 165,000) dan teks mengarahkan ke halaman rilisan / menu Invoice.
