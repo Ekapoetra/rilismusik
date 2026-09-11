@@ -51,6 +51,14 @@ export default function ReleaseDetail() {
     } catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); }
     finally { setPaying(false); }
   };
+  const payShortfall = async () => {
+    if (!data?.shortfall_invoice) return;
+    setPaying(true);
+    try {
+      await openXenditCheckout(data.shortfall_invoice.id);
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); }
+    finally { setPaying(false); }
+  };
   const downloadCopyright = async () => {
     setErr("");
     try {
@@ -122,6 +130,23 @@ export default function ReleaseDetail() {
         </div>
       )}
       {data.status === "paid" && <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-5 text-sm text-emerald-200" data-testid="release-detail-payment-confirmed">Pembayaran sudah dikonfirmasi. Admin akan menyetujui dan melanjutkan distribusi ke Believe.</div>}
+
+      {data.shortfall_invoice && data.shortfall_invoice.status === "pending" && (
+        <div className="rm-glass-strong rounded-3xl p-6 border border-amber-300/60" data-testid="release-detail-shortfall-block">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 grid place-items-center"><CreditCard className="w-5 h-5" /></div>
+            <div>
+              <div className="font-display font-bold text-lg">Sisa Pembayaran Paket Album</div>
+              <div className="text-sm text-zinc-400">Kekurangan biaya paket album sebesar <strong className="text-amber-300" data-testid="release-detail-shortfall-amount">Rp {Number(data.shortfall_invoice.amount || 0).toLocaleString("id-ID")}</strong>. Selesaikan pembayaran via Xendit.</div>
+            </div>
+          </div>
+          {data.shortfall_invoice.line_items?.length > 0 && <div className="mb-4 divide-y divide-white/5 rounded-lg border border-white/10 px-3" data-testid="release-detail-shortfall-lines">{data.shortfall_invoice.line_items.map((item) => <div key={item.reference_id} className="flex justify-between gap-4 py-2 text-xs"><span className="text-zinc-400">{item.name}</span><span>Rp {Number(item.amount || 0).toLocaleString("id-ID")}</span></div>)}</div>}
+          <button className="rm-btn-primary" onClick={payShortfall} disabled={paying} data-testid="release-detail-shortfall-pay">
+            {paying ? "Mengonfirmasi…" : "Bayar Kekurangan via Xendit"}
+          </button>
+          <div className="text-[11px] text-zinc-600 mt-2">Status pembayaran dikonfirmasi langsung ke Xendit setelah Anda kembali.</div>
+        </div>
+      )}
 
       {data.admin_note && (
         <div className="rounded-2xl bg-yellow-500/15 text-yellow-200 px-4 py-3 text-sm border border-yellow-100">

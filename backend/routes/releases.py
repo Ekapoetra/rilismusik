@@ -123,8 +123,11 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
     payment = None
     if rel.get("payment_id"):
         payment = await db.payments.find_one({"id": rel["payment_id"]}, {"_id": 0})
+    shortfall_invoice = None
+    if rel.get("ppr_shortfall_payment_id"):
+        shortfall_invoice = await db.payments.find_one({"id": rel["ppr_shortfall_payment_id"]}, {"_id": 0})
     label_doc = await db.labels.find_one({"id": rel.get("label_id")}, {"_id": 0, "whatsapp": 1})
-    return {**rel, "tracks": tracks, "payment": payment, "label_whatsapp": rel.get("label_whatsapp_snapshot") or (label_doc or {}).get("whatsapp")}
+    return {**rel, "tracks": tracks, "payment": payment, "shortfall_invoice": shortfall_invoice, "label_whatsapp": rel.get("label_whatsapp_snapshot") or (label_doc or {}).get("whatsapp")}
 
 
 @release_r.get("/{release_id}/copyright-letter")
@@ -818,9 +821,10 @@ async def admin_create_shortfall_invoice(release_id: str, user: dict = Depends(r
         "payment_id": invoice_doc["id"], "amount": amount,
         "album_price": state["album_package_price_idr"], "already_paid": state["already_paid_idr"],
     })
+    amount_label = f"{amount:,}".replace(",", ".")
     await notify_many(
         await label_user_ids(rel["label_id"]), "release_shortfall_invoice", "Invoice kekurangan paket album",
-        f"Rilisan '{rel.get('release_title')}' kurang Rp {amount:,.0f} untuk paket album. Selesaikan pembayaran di menu Invoice.",
+        f"Rilisan '{rel.get('release_title')}' kurang Rp {amount_label} untuk paket album. Selesaikan pembayaran di halaman rilisan atau menu Invoice.",
         f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
     )
     label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})

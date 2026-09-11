@@ -1,6 +1,12 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Tarif berjenjang PPR (Single/EP/Album) + Invoice Kekurangan
+## 2026-06-11 — Fix: label tidak melihat tagihan sisa bayar (kekurangan album)
+- Root cause: notifikasi in-app SUDAH terkirim ke label (terverifikasi), tetapi tautannya menuju halaman rilisan yang hanya menampilkan invoice rilisan asli (`payment_status === "pending"`). Karena album sudah "paid/live", halaman menampilkan "Pembayaran sudah dikonfirmasi" dan invoice kekurangan (payment id terpisah) tidak terlihat/tidak bisa dibayar.
+- Fix: GET `/releases/{id}` kini melampirkan objek `shortfall_invoice`. Halaman rilisan label menampilkan blok menonjol "Sisa Pembayaran Paket Album" (jumlah + rincian + tombol "Bayar Kekurangan via Xendit") selama invoice kekurangan berstatus pending, terlepas dari status rilisan.
+- Perbaikan format Rupiah pada body notifikasi (Rp 165.000, bukan 165,000) dan teks mengarahkan ke halaman rilisan / menu Invoice.
+- Catatan: perubahan perlu di-deploy ulang ke rilismusik.com; label juga harus lolos verifikasi KYC untuk membuka menu Invoice (halaman rilisan tetap menampilkan blok kekurangan).
+
+
 - Akun Pay Per Release: SINGLE = 1 track → Rp 35.000; EP = 2–6 track → Rp 35.000 × jumlah track; ALBUM = 7–12 track → flat Rp 200.000. Validasi jumlah track berlaku untuk semua paket (langganan tetap gratis).
 - Harga per-lagu (`pay_per_release_price`) dan paket album (`album_package_price`, default Rp 200.000) dapat diatur admin di CMS → Pricing. Kartu "Paket Album" ditambahkan di landing page.
 - Invoice PPR (saat admin kirim tautan pembayaran) kini otomatis mengikuti tarif berjenjang + label line item Single/EP/Album. Wizard label menampilkan hint jumlah track dan estimasi invoice real-time.
