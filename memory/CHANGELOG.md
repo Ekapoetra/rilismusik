@@ -1,6 +1,11 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Dokumen Believe: Indemnification Letter & DMCA Counter Notification (Admin)
+## 2026-06-11 — Kredit track multi-nama (pencipta, komposer, arranger, produser)
+- Form track (langkah upload rilisan) kini mendukung LEBIH DARI SATU nama untuk Pencipta/Writer, Komposer, Arranger, dan Produser via input berulang (tombol "Tambah nama" + hapus per baris).
+- Komponen `MultiNameInput` menserialkan daftar nama menjadi string dipisah koma pada field yang sudah ada (`lyricist`, `composer`, `arranger`, `producer`) — tanpa perubahan model/DB/PDF; data lama tetap kompatibel (1 nama tampil sebagai 1 baris).
+- Tampilan (metadata admin, ekspor ZIP, surat) otomatis menampilkan nama dipisah koma. Validasi tetap (minimal 1 nama untuk writer & komposer). Frontend compiled OK; UI langkah track tidak bisa di-screenshot karena akun demo terkunci KYC.
+
+
 - Dua PDF output final untuk dikirim ke Believe, tombol di header detail rilisan admin (izin `releases.review`, non-draft). Isi teks **sama persis** dengan form resmi Believe.
 - **Indemnification Letter** (`POST /releases/{id}/admin/indemnification-letter`): teks legal Inggris statis + ISRC (bisa pilih sebagian / default semua) + UPC dari rilisan; "FOR THE CONTRACTOR" = RILIS MUSIK (Company/signatory/Function + tanda tangan + stempel dari CMS Legal Entity & Documents, sama seperti Surat Hak Cipta). Butuh tanda tangan CMS terpasang.
 - **DMCA Counter Notification** (`POST /releases/{id}/admin/dmca-letter`): form modal — pilih track (per track / per rilisan), penjelasan Section 2 template auto (judul+artis) & editable, data kontak (nama legal, telp, email, negara, alamat, kota, kode pos) di-prefill dari profil label & bisa diedit, Section 4 tiga kotak otomatis tercentang, Section 5 tanda tangan ketik nama legal. GET `/releases/{id}` kini menyertakan `label_contact` untuk prefill.
