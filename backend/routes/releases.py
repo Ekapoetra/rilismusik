@@ -37,6 +37,7 @@ from models import (
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
     CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
+    IndemnificationLetterIn, DmcaLetterIn,
     now_iso, new_id,
 )
 from auth_utils import (
@@ -133,8 +134,18 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
     shortfall_invoice = None
     if rel.get("ppr_shortfall_payment_id"):
         shortfall_invoice = await db.payments.find_one({"id": rel["ppr_shortfall_payment_id"]}, {"_id": 0})
-    label_doc = await db.labels.find_one({"id": rel.get("label_id")}, {"_id": 0, "whatsapp": 1})
-    return {**rel, "tracks": tracks, "payment": payment, "shortfall_invoice": shortfall_invoice, "label_whatsapp": rel.get("label_whatsapp_snapshot") or (label_doc or {}).get("whatsapp")}
+    label_doc = await db.labels.find_one({"id": rel.get("label_id")}, {"_id": 0, "whatsapp": 1, "pic_name": 1, "email": 1, "address": 1, "city": 1, "country": 1, "postcode": 1})
+    label_doc = label_doc or {}
+    label_contact = {
+        "legal_name": label_doc.get("pic_name") or "",
+        "phone": label_doc.get("whatsapp") or "",
+        "email": label_doc.get("email") or "",
+        "street": label_doc.get("address") or "",
+        "city": label_doc.get("city") or "",
+        "country": label_doc.get("country") or "Indonesia",
+        "postcode": label_doc.get("postcode") or "",
+    }
+    return {**rel, "tracks": tracks, "payment": payment, "shortfall_invoice": shortfall_invoice, "label_contact": label_contact, "label_whatsapp": rel.get("label_whatsapp_snapshot") or label_doc.get("whatsapp")}
 
 
 @release_r.get("/{release_id}/copyright-letter")
@@ -1026,4 +1037,72 @@ async def admin_export_release_package(release_id: str, user: dict = Depends(req
         zip_path, media_type="application/zip", filename=f"{base_name}.zip",
         background=BackgroundTask(shutil.rmtree, tmp_dir, ignore_errors=True),
     )
+
+
+
+async def _believe_signature_assets():
+    document_setting = await db.landing_settings.find_one({"key": "documents"}, {"_id": 0, "value": 1})
+    legal_setting = await db.landing_settings.find_one({"key": "legal_entity"}, {"_id": 0, "value": 1})
+    documents = (document_setting or {}).get("value") or {}
+    legal_entity = (legal_setting or {}).get("value") or {}
+    signature_url = documents.get("signature_url")
+    if not signature_url or "/api/files/" not in signature_url:
+        raise HTTPException(status_code=400, detail="Tanda tangan penanggung jawab belum diunggah di CMS")
+    import storage_service
+    signature_bytes = await storage_service.download_bytes(key=signature_url.split("/api/files/", 1)[1])
+    stamp_bytes = None
+    stamp_url = documents.get("stamp_url")
+    if stamp_url and "/api/files/" in stamp_url:
+        stamp_bytes = await storage_service.download_bytes(key=stamp_url.split("/api/files/", 1)[1])
+    return documents, legal_entity, signature_bytes, stamp_bytes
+
+
+def _pdf_response(pdf_bytes: bytes, filename: str) -> Response:
+    safe = "".join(c for c in filename if c.isalnum() or c in "-_ ").strip().replace(" ", "-") or "dokumen"
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{safe}.pdf"'})
+
+
+@release_r.post("/{release_id}/admin/indemnification-letter")
+async def admin_indemnification_letter(release_id: str, body: IndemnificationLetterIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
+    all_isrcs = [t.get("isrc") for t in tracks if t.get("isrc")]
+    isrcs = [i for i in body.isrcs if i in all_isrcs] if body.isrcs else all_isrcs
+    if not isrcs or not rel.get("upc"):
+        raise HTTPException(status_code=400, detail="ISRC dan UPC rilisan harus terisi (rilisan sudah tayang) sebelum membuat surat")
+    documents, legal_entity, signature_bytes, stamp_bytes = await _believe_signature_assets()
+    from .believe_letters_generator import generate_indemnification_pdf_bytes
+    pdf_bytes = generate_indemnification_pdf_bytes(
+        isrcs=isrcs, upc=rel.get("upc"), legal_entity=legal_entity, document_settings=documents,
+        signature_bytes=signature_bytes, stamp_bytes=stamp_bytes,
+    )
+    await log_activity(user["id"], "admin_generate_indemnification", "release", release_id, after={"isrcs": isrcs})
+    return _pdf_response(pdf_bytes, f"Indemnification-Letter-{rel.get('release_title') or release_id}")
+
+
+@release_r.post("/{release_id}/admin/dmca-letter")
+async def admin_dmca_letter(release_id: str, body: DmcaLetterIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
+    selected = [t for t in tracks if t.get("id") in body.track_ids] if body.track_ids else tracks
+    if not selected:
+        raise HTTPException(status_code=400, detail="Pilih minimal satu track")
+    items = [{
+        "isrc": t.get("isrc") or "",
+        "title": t.get("track_title") or rel.get("release_title") or "",
+        "artist": t.get("artist_name") or rel.get("artist_name") or "",
+    } for t in selected]
+    contact = body.contact.model_dump()
+    from .believe_letters_generator import generate_dmca_pdf_bytes
+    pdf_bytes = generate_dmca_pdf_bytes(
+        items=items, explanation=body.explanation, contact=contact, signature_name=body.signature_name,
+    )
+    await log_activity(user["id"], "admin_generate_dmca", "release", release_id, after={"track_ids": [t.get("id") for t in selected]})
+    return _pdf_response(pdf_bytes, f"DMCA-Counter-Notification-{rel.get('release_title') or release_id}")
 

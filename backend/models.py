@@ -342,6 +342,27 @@ class LegacyWithdrawDatesIn(BaseModel):
     paid_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class IndemnificationLetterIn(BaseModel):
+    isrcs: List[str] = Field(default_factory=list, max_length=50)
+
+
+class DmcaContactIn(BaseModel):
+    legal_name: str = Field(min_length=1, max_length=160)
+    phone: str = Field(default="", max_length=40)
+    email: str = Field(default="", max_length=160)
+    country: str = Field(default="", max_length=80)
+    street: str = Field(default="", max_length=250)
+    city: str = Field(default="", max_length=120)
+    postcode: str = Field(default="", max_length=20)
+
+
+class DmcaLetterIn(BaseModel):
+    track_ids: List[str] = Field(default_factory=list, max_length=50)
+    explanation: str = Field(min_length=1, max_length=5000)
+    contact: DmcaContactIn
+    signature_name: str = Field(min_length=1, max_length=160)
+
+
 # ============ SUPPORT TICKETING ============
 TicketCategory = Literal[
     "takedown",

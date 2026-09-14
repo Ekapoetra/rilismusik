@@ -1,6 +1,12 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Salin lirik + Download paket rilisan (migrasi Believe)
+## 2026-06-11 — Dokumen Believe: Indemnification Letter & DMCA Counter Notification (Admin)
+- Dua PDF output final untuk dikirim ke Believe, tombol di header detail rilisan admin (izin `releases.review`, non-draft). Isi teks **sama persis** dengan form resmi Believe.
+- **Indemnification Letter** (`POST /releases/{id}/admin/indemnification-letter`): teks legal Inggris statis + ISRC (bisa pilih sebagian / default semua) + UPC dari rilisan; "FOR THE CONTRACTOR" = RILIS MUSIK (Company/signatory/Function + tanda tangan + stempel dari CMS Legal Entity & Documents, sama seperti Surat Hak Cipta). Butuh tanda tangan CMS terpasang.
+- **DMCA Counter Notification** (`POST /releases/{id}/admin/dmca-letter`): form modal — pilih track (per track / per rilisan), penjelasan Section 2 template auto (judul+artis) & editable, data kontak (nama legal, telp, email, negara, alamat, kota, kode pos) di-prefill dari profil label & bisa diedit, Section 4 tiga kotak otomatis tercentang, Section 5 tanda tangan ketik nama legal. GET `/releases/{id}` kini menyertakan `label_contact` untuk prefill.
+- Generator baru `believe_letters_generator.py` (ReportLab). Diuji: teks kedua PDF verbatim vs sumber (curl + pdfminer), DMCA endpoint 200, indemnification butuh signature CMS (400 tanpa), screenshot modal DMCA dengan prefill.
+
+
 - **Salin lirik** (Admin): tombol "Salin Lirik" per track dan "Salin Semua Lirik" di halaman detail rilisan admin (`ReleaseMetadataView` prop `allowCopyLyrics`). Pakai clipboard + toast.
 - **Download Paket Rilisan** (Admin, super_admin/admin_release): endpoint `GET /releases/{id}/admin/export-package` membangun ZIP di disk (ZIP_STORED, allowZip64, stream via FileResponse + cleanup temp) berisi semua WAV (`audio/{nomor} - {judul}.wav`), cover, `metadata.txt` (rapi, semua info+kredit+lirik) dan `metadata.json` (terstruktur). Nama file `{kode8}_{nama artis}_{judul}.zip`. Diblokir untuk status draft; download file yang hilang di-skip aman.
 - Diuji: curl (ZIP metadata-only + ZIP penuh dengan WAV/cover dari R2, nama file & isi benar) + screenshot admin (tombol tampil, selector count ok).
