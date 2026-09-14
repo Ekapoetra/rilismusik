@@ -325,3 +325,13 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 ## Update 2026-06 — Banner dashboard label tidak muncul lagi setelah ditutup
 - Banner Klaim Label: dismissal kini di-persist ke localStorage `rm:claim_dismissed:{labelId}` (sebelumnya hanya useState, muncul lagi tiap reload). Tetap auto-hide bila claim_status==='linked'.
 - Banner "Selamat! Akun Anda Terverifikasi": sudah persist via `rm:verified_seen:{labelId}`; tombol tutup diperjelas jadi × di pojok kanan atas.
+
+## Update 2026-06 — Order Add-on Berbayar (Layanan Tambahan) — Iter76 100% pass
+- Masalah: add-on yang dibeli saat submit rilisan (visualizer landscape/portrait, link preset) sudah dibayar tapi tak jadi task berstatus. Kini dibuat skema Order Add-on.
+- Koleksi baru `addon_orders` (1 baris per add-on; tautan label/rilisan/produk/pembayaran; dedupe {release_id}:{product_id} → idempotent).
+- Lifecycle: Menunggu(pending) → Diproses(in_progress) → Terkirim(delivered) → Selesai(completed) + Dibatalkan(cancelled). Transisi forward-only; terminal ditolak (409).
+- Otomatis dibuat saat pembayaran rilisan lunas (`payment_service._fulfill_release` → `sync_release_addon_orders`). Backfill dari pembayaran lunas via `POST /admin/addon-orders/backfill` (idempotent).
+- Admin: halaman `/admin/addon-orders` (`pages/admin/AddonOrders.jsx`) — filter status, ubah status, lampirkan hasil (URL http/https + catatan; auto ke Terkirim + notif label). Izin `releases.review`. Nav item baru `addon_orders` (di-merge ke config nav tersimpan via `_merge_default_nav`).
+- Label: komponen `LabelAddonOrders` di Detail Rilisan (per-rilisan) + Dashboard (ringkasan). Endpoint `GET /label/addon-orders` (+release_id). Ditambahkan ke KYC whitelist (`KYC_ALLOWED_LABEL_PREFIXES`) agar label bisa lihat status tanpa harus KYC selesai.
+- Work Queue: `addon_processing` kini membaca `addon_orders` (pending/in_progress) + tetap wami/service_orders; link → `/admin/addon-orders`; `_MODULE_MAP` addon.
+- Endpoints: GET/PATCH `/admin/addon-orders`, `/{id}/status`, `/{id}/delivery`, POST `/backfill`; GET `/label/addon-orders`.

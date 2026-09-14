@@ -6,6 +6,7 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { LabelHero } from "@/components/label/LabelHero";
+import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
 import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle } from "lucide-react";
@@ -248,6 +249,8 @@ export default function LabelDashboardHome() {
       </div>
 
       {/* Recent releases */}
+      <LabelAddonOrders title="Layanan Tambahan" showRelease hideWhenEmpty />
+
       <div className="rm-card p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-bold tracking-tight">Rilisan Terbaru</h3>

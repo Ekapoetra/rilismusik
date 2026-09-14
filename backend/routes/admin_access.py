@@ -24,6 +24,21 @@ def _validate_permissions(values: List[str]) -> List[str]:
     return unique
 
 
+def _merge_default_nav(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Append any DEFAULT_NAV_ITEMS missing from a stored config so new tabs appear."""
+    items = list(config.get("items", []))
+    present = {item.get("key") for item in items}
+    max_order = max((item.get("order", 0) for item in items), default=-1)
+    for key, route, icon, permission, label_id, label_en, parent in DEFAULT_NAV_ITEMS:
+        if key not in present:
+            max_order += 1
+            items.append({"key": key, "route": route, "icon": icon, "permission": permission,
+                          "labels": {"id": label_id, "en": label_en}, "parent_key": parent,
+                          "visible": True, "order": max_order})
+    config["items"] = items
+    return config
+
+
 @access_r.get("/access/catalog")
 async def access_catalog(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.roles.view")
@@ -115,6 +130,7 @@ async def delete_role(role_id: str, user: dict = Depends(require_admin)):
 @access_r.get("/navigation")
 async def admin_navigation(user: dict = Depends(require_admin)):
     config = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    config = _merge_default_nav(config)
     enriched = await enrich_admin_user(db, user)
     allowed = set(enriched.get("permissions") or [])
     if enriched.get("role") == "super_admin": allowed = set(ALL_PERMISSIONS)
@@ -127,6 +143,7 @@ async def admin_navigation(user: dict = Depends(require_admin)):
 async def get_ui_settings(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "ui.settings.view")
     config = await db.admin_ui_settings.find_one({"key": "admin_navigation"}, {"_id": 0}) or default_navigation()
+    config = _merge_default_nav(config)
     return {**config, "items": [item for item in config.get("items", []) if item.get("key") != "label_rates"]}
 
 

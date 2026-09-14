@@ -505,6 +505,15 @@ async def _fulfill_release(payment: Dict[str, Any]) -> None:
              "changed_at": now_iso(), "note": "Pembayaran dikonfirmasi Xendit",
          }}},
     )
+    # Turn paid add-ons into trackable orders (idempotent).
+    if payment.get("addon_product_ids"):
+        try:
+            from routes.addon_orders import sync_release_addon_orders
+            release = await db.releases.find_one({"id": payment["release_id"]}, {"_id": 0})
+            if release:
+                await sync_release_addon_orders(release, payment)
+        except Exception as exc:  # never block release fulfillment on add-on tracking
+            logger.exception("[ADDON] failed to sync addon orders for payment=%s: %s", payment.get("id"), exc)
 
 
 def _subscription_expiry(label: Optional[Dict[str, Any]]) -> datetime:

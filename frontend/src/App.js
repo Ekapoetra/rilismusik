@@ -37,6 +37,7 @@ import AdminReleases from "@/pages/admin/Releases";
 import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
 import AdminArtists from "@/pages/admin/Artists";
 import AdminPayments from "@/pages/admin/Payments";
+import AdminAddonOrders from "@/pages/admin/AddonOrders";
 import AdminCMS from "@/pages/admin/CMS";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminActivityLogs from "@/pages/admin/ActivityLogs";
@@ -115,6 +116,7 @@ function AppRoutes() {
             <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />
             <Route path="/admin/releases/:id" element={guard("releases.view", <AdminReleaseDetail />)} />
             <Route path="/admin/payments" element={guard("payments.view", <AdminPayments />)} />
+            <Route path="/admin/addon-orders" element={guard("releases.review", <AdminAddonOrders />)} />
             <Route path="/admin/cms" element={guard("cms.view", <AdminCMS />)} />
             <Route path="/admin/admin-users" element={guard("access.users.view", <AdminUsers />)} />
             <Route path="/admin/access" element={guard("access.roles.view", <AdminAccessControl />)} />

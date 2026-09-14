@@ -134,6 +134,7 @@ DEFAULT_NAV_ITEMS = [
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
     ("payments", "/admin/payments", "CreditCard", "payments.view", "Pembayaran", "Payments", None),
+    ("addon_orders", "/admin/addon-orders", "Sparkles", "releases.review", "Layanan Tambahan", "Add-on Services", None),
     ("royalty", "/admin/royalty", "FileSpreadsheet", "royalty.view", "Impor Royalti", "Royalty Import", None),
     ("royalty_adjustments", "/admin/royalty-adjustments", "Wallet", "royalty.manage", "Inject Saldo", "Royalty Adjustments", None),
     ("withdraw", "/admin/withdraw", "Banknote", "withdraw.view", "Penarikan Dana", "Withdrawals", None),

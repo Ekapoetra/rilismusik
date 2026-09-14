@@ -35,7 +35,7 @@ WORK_TYPES: List[Dict[str, Any]] = [
     {"key": "legacy_claim", "label_id": "Klaim Akun Lama", "label_en": "Legacy Account Claims", "icon": "DatabaseZap",
      "link": "/admin/migrate?tab=claims", "permission": "migration.view", "priority": "normal", "sla_days_default": 3},
     {"key": "addon_processing", "label_id": "Proses Add-on", "label_en": "Add-on Processing", "icon": "Sparkles",
-     "link": "/admin/wami", "permission": "releases.review", "priority": "normal", "sla_days_default": 3},
+     "link": "/admin/addon-orders", "permission": "releases.review", "priority": "normal", "sla_days_default": 3},
     {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
      "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
 ]
@@ -50,7 +50,8 @@ DEFAULT_RESPONSIBILITY = {
 DEFAULT_SLA_DAYS = {w["key"]: w["sla_days_default"] for w in WORK_TYPES}
 
 _MODULE_MAP = {"releases": "release", "withdraw_requests": "withdraw", "kyc_documents": "kyc",
-               "support_tickets": "support", "payments": "payment", "wami_orders": "wami", "service_orders": "service"}
+               "support_tickets": "support", "payments": "payment", "wami_orders": "wami", "service_orders": "service",
+               "addon_orders": "addon"}
 _RECON = {"at": 0.0}
 
 
@@ -109,6 +110,8 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
     elif work_type == "addon_processing":
         async for d in db.wami_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
             add("wami_orders", d, "created_at", "WAMI", d.get("label_id"), d.get("label_name"))
+        async for d in db.addon_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "product_name": 1}):
+            add("addon_orders", d, "created_at", d.get("product_name") or "Add-on", d.get("label_id"), d.get("label_name"))
         async for d in db.service_orders.find({"status": {"$in": ["paid", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "service_name": 1}):
             add("service_orders", d, "created_at", d.get("service_name") or "Layanan", d.get("label_id"), d.get("label_name"))
     elif work_type == "sensitive_approval":

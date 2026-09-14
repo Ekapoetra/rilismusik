@@ -7,6 +7,7 @@ import { CreditCard, Music, Download, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
+import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -153,6 +154,8 @@ export default function ReleaseDetail() {
           <b>Catatan Admin:</b> {data.admin_note}
         </div>
       )}
+
+      <LabelAddonOrders releaseId={id} title="Layanan Tambahan Rilisan" />
 
       <ReleaseMetadataView release={data} />
     </div>
