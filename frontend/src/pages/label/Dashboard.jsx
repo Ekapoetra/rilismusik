@@ -26,6 +26,7 @@ export default function LabelDashboardHome() {
   const [releases, setReleases] = useState([]);
   const [kyc, setKyc] = useState(null);
   const [hero, setHero] = useState(null);
+  const [withdraws, setWithdraws] = useState([]);
   const [claimDismissed, setClaimDismissed] = useState(false);
   const analytics = useLabelAnalytics();
   const { balance: liveBalance } = useRoyaltyBalance(Boolean(kyc?.is_verified));
@@ -35,6 +36,7 @@ export default function LabelDashboardHome() {
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
     api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
     api.get("/cms/landing").then((r) => setHero(r.data?.label_dashboard_hero || {})).catch(() => setHero({}));
+    api.get("/withdraw/label").then((r) => setWithdraws(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   const [trend, setTrend] = useState(null);
@@ -57,6 +59,7 @@ export default function LabelDashboardHome() {
   const stepsDone = checks.filter((c) => c.complete).length;
   const stepsTotal = checks.length || 1;
   const showOnboarding = (stats.active_releases || 0) === 0 && releases.length === 0;
+  const lastWithdraw = withdraws[0] || null;
 
   const identitySub = [
     "Label Musik • Indonesia",
@@ -160,12 +163,8 @@ export default function LabelDashboardHome() {
         <StatCard testId={LABEL_DASHBOARD.totalReleases} label="Rilisan Aktif" value={`${fmtNum(stats.active_releases)}`} sub={`${fmtNum(stats.total_tracks)} track`} icon={Disc3} accent="violet" />
       </div>
 
-      {/* Secondary wallet status */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-        <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} sub="Menunggu pembayaran platform" icon={Receipt} accent="amber" locked={locked} mini />
-        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} sub="Sedang dalam proses pencairan" icon={Receipt} accent="blue" locked={locked} mini />
-        <StatCard testId="label-dashboard-unwithdrawn-total" label="Total Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" locked={locked} mini />
-      </div>
+      {/* Wallet & Penarikan */}
+      <WalletCard stats={stats} totalUnwithdrawn={totalUnwithdrawn} lastWithdraw={lastWithdraw} locked={locked} />
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="label-dashboard-quick-actions">
@@ -276,8 +275,68 @@ export default function LabelDashboardHome() {
   );
 }
 
-function ReleaseCover({ url }) {
-  const [failed, setFailed] = useState(false);
+const WITHDRAW_STATUS = {
+  requested: { label: "Diminta", cls: "bg-amber-500/15 text-amber-300", dateKey: "request_date" },
+  approved: { label: "Disetujui", cls: "bg-sky-500/15 text-sky-300", dateKey: "approved_date" },
+  paid: { label: "Dibayar", cls: "bg-emerald-500/15 text-emerald-300", dateKey: "paid_date" },
+  rejected: { label: "Ditolak", cls: "bg-red-500/15 text-red-300", dateKey: "request_date" },
+  cancelled: { label: "Dibatalkan", cls: "bg-zinc-500/15 text-zinc-300", dateKey: "request_date" },
+};
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function WalletCard({ stats, totalUnwithdrawn, lastWithdraw, locked }) {
+  const meta = lastWithdraw ? (WITHDRAW_STATUS[lastWithdraw.status] || WITHDRAW_STATUS.requested) : null;
+  const lastDate = lastWithdraw ? (lastWithdraw[meta.dateKey] || lastWithdraw.request_date || lastWithdraw.created_at) : null;
+  return (
+    <section className="rm-card p-5" data-testid="label-dashboard-wallet">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Saldo Siap Ditarik</div>
+          {locked ? (
+            <div className="mt-1 flex items-center gap-2"><span className="select-none font-display text-2xl font-extrabold tabular-nums blur-[6px] md:text-3xl">{fmtIDR(stats.balance_available_idr)}</span><Lock className="h-5 w-5 text-zinc-500" /></div>
+          ) : (
+            <div className="mt-1 font-display text-2xl font-extrabold tabular-nums md:text-3xl" data-testid="label-wallet-available">{fmtIDR(stats.balance_available_idr)}</div>
+          )}
+        </div>
+        <Link to="/label/withdraw" className="rm-btn-primary inline-flex items-center gap-2" data-testid="label-wallet-withdraw-cta"><Wallet className="h-4 w-4" /> Tarik Dana</Link>
+      </div>
+
+      <div className="mt-5 grid gap-4 border-t border-white/5 pt-4 sm:grid-cols-3">
+        <div data-testid={LABEL_DASHBOARD.balancePending}>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Pending</div>
+          <div className={`mt-1 font-display text-lg font-extrabold tabular-nums ${locked ? "select-none blur-[5px]" : ""}`}>{fmtIDR(stats.balance_pending_idr)}</div>
+          <div className="text-[11px] text-zinc-500">Menunggu pembayaran platform</div>
+        </div>
+        <div data-testid="label-dashboard-withdraw-processing">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Withdraw Diproses</div>
+          <div className={`mt-1 font-display text-lg font-extrabold tabular-nums ${locked ? "select-none blur-[5px]" : ""}`}>{fmtIDR(stats.balance_withdraw_requested_idr)}</div>
+          <div className="text-[11px] text-zinc-500">Sedang dalam proses pencairan</div>
+        </div>
+        <div data-testid="label-dashboard-last-withdraw">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Terakhir Ditarik</div>
+          {lastWithdraw ? (
+            <>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="font-display text-lg font-extrabold tabular-nums" data-testid="label-last-withdraw-amount">{fmtIDR(lastWithdraw.amount_idr)}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.cls}`} data-testid="label-last-withdraw-status">{meta.label}</span>
+              </div>
+              <div className="text-[11px] text-zinc-500" data-testid="label-last-withdraw-date">{fmtDate(lastDate)}</div>
+            </>
+          ) : (
+            <div className="mt-1 text-sm text-zinc-500" data-testid="label-last-withdraw-empty">Belum ada penarikan</div>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 text-[11px] text-zinc-500">Total belum ditarik: <span className={locked ? "select-none blur-[4px]" : "font-semibold text-zinc-300"} data-testid="label-dashboard-unwithdrawn-total">{fmtIDR(totalUnwithdrawn)}</span></div>
+    </section>
+  );
+}
+
+function ReleaseCover({ url }) {  const [failed, setFailed] = useState(false);
   if (url && !failed) {
     return <img src={fileUrl(url)} alt="" loading="lazy" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={() => setFailed(true)} />;
   }
