@@ -721,6 +721,8 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         upd["review_started_by"] = user["id"]
     if body.action == "deliver":
         upd["delivered_to_believe_at"] = now_iso()
+    if body.action in ("deliver", "mark_live") and body.release_date:
+        upd["release_date"] = body.release_date  # admin may set any date (no H+7)
     if body.action == "mark_live":
         upd["live_at"] = now_iso()
     await db.releases.update_one({"id": release_id}, {"$set": upd, "$push": {"status_history": {

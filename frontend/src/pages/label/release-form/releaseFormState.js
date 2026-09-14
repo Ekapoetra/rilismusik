@@ -24,8 +24,10 @@ export const defaultReleaseForm = () => ({
 
 const withClientId = (item) => ({ ...item, client_id: item.client_id || crypto.randomUUID() });
 const mapArtistCredit = (item) => {
-  const socialLinks = item.social_links?.length ? item.social_links : item.spotify_url ? [{ platform: "spotify", url: item.spotify_url }] : [];
-  return withClientId({ ...item, artist_id: item.artist_id || null, social_links: socialLinks.map(withClientId) });
+  const rawLinks = item.social_links || [];
+  const spotify = item.spotify_url || rawLinks.find((link) => link.platform === "spotify")?.url || "";
+  const socialLinks = rawLinks.filter((link) => link.platform !== "spotify");
+  return withClientId({ ...item, artist_id: item.artist_id || null, spotify_url: spotify, social_links: socialLinks.map(withClientId) });
 };
 export const mapReleaseToForm = (release) => ({
   ...defaultReleaseForm(), ...release,
@@ -38,8 +40,8 @@ export const mapReleaseToForm = (release) => ({
 
 export const serializeReleaseForm = (form) => {
   const serializeArtist = ({ client_id, social_links, ...item }) => {
-    const links = (social_links || []).map(({ client_id: linkClientId, ...link }) => link);
-    return { ...item, social_links: links, spotify_url: links.find((link) => link.platform === "spotify")?.url || null };
+    const links = (social_links || []).map(({ client_id: linkClientId, ...link }) => link).filter((link) => link.platform !== "spotify");
+    return { ...item, social_links: links, spotify_url: (item.spotify_url || "").trim() || null };
   };
   const primary = form.primary_artists.map(serializeArtist);
   const featured = form.featured_artists.map(serializeArtist).filter((item) => item.name.trim());

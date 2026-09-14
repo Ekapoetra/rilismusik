@@ -177,6 +177,7 @@ class AdminReleaseAction(BaseModel):
     upc: Optional[str] = None
     note: Optional[str] = None
     target_status: Optional[str] = None
+    release_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 # ============ ARTIST ============

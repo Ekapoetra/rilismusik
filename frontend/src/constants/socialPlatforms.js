@@ -4,7 +4,6 @@ export const SOCIAL_PLATFORM_OPTIONS = [
   { value: "facebook", label: "Facebook", placeholder: "https://facebook.com/namaartis" },
   { value: "youtube", label: "YouTube", placeholder: "https://youtube.com/@namaartis" },
   { value: "x", label: "X / Twitter", placeholder: "https://x.com/namaartis" },
-  { value: "spotify", label: "Spotify", placeholder: "https://open.spotify.com/artist/…" },
   { value: "website", label: "Situs Web", placeholder: "https://namaartis.com" },
   { value: "other", label: "Lainnya", placeholder: "https://…" },
 ];

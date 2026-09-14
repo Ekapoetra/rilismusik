@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
+import { formatReleaseDate } from "@/utils/releaseDate";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
 import { Calendar, TrendingUp } from "lucide-react";
@@ -143,7 +144,7 @@ export default function AdminReleases() {
             <div className="col-span-12 min-w-0 break-words text-sm xl:col-auto" translate="no" data-testid={`admin-release-label-${r.id}`}>{r.label_name || "—"}</div>
             <div className="min-w-0 col-span-6 xl:col-auto"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">UPC</div><code className="break-all text-xs" translate="no" data-testid={`admin-release-upc-${r.id}`}>{r.upc || "—"}</code></div>
             <div className="min-w-0 col-span-6 xl:col-auto"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">ISRC</div><ReleaseIsrcToggle release={r} open={expandedIsrc === r.id} onToggle={() => setExpandedIsrc((value) => value === r.id ? null : r.id)} /></div>
-            <div className="min-w-0 col-span-6 xl:col-auto text-sm break-words" data-testid={`admin-release-date-${r.id}`}>{r.release_date || "—"}</div>
+            <div className="min-w-0 col-span-6 xl:col-auto text-sm break-words" data-testid={`admin-release-date-${r.id}`}>{formatReleaseDate(r.release_date)}</div>
             <div className="min-w-0 col-span-6 xl:col-auto text-right break-words">
               <div className={`font-mono font-bold ${r.revenue_idr > 0 ? "text-emerald-300" : "text-zinc-600"}`}>{fmtIDR(r.revenue_idr)}</div>
               <div className="text-[10px] text-zinc-500">{fmtInt(r.royalty_lines_count)} baris</div>

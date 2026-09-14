@@ -2,6 +2,7 @@ import React from "react";
 import { ExternalLink, FileAudio, Mic2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { fileUrl } from "@/api/client";
+import { formatReleaseDate } from "@/utils/releaseDate";
 import { SocialLinksList } from "@/components/artists/SocialLinksList";
 import { AudioPreviewButton } from "./AudioPreviewButton";
 
@@ -27,7 +28,7 @@ export const ReleaseMetadataView = ({ release, allowCopyLyrics = false }) => {
       <Row label="Nama Label" value={release.label_name_snapshot} testId="release-metadata-label" />
       <Row label="Tipe" value={String(release.release_type || "").toUpperCase()} testId="release-metadata-type" />
       <Row label="Genre / Sub Genre" value={[release.genre, release.subgenre].filter(Boolean).join(" / ")} testId="release-metadata-genre" />
-      <Row label="Tanggal Rilis Digital" value={release.release_date} testId="release-metadata-release-date" />
+      <Row label="Tanggal Rilis Digital" value={formatReleaseDate(release.release_date)} testId="release-metadata-release-date" />
       <Row label="Tahun Produksi" value={release.year} testId="release-metadata-year" />
       <Row label="C Line" value={release.copyright_line} mono testId="release-metadata-c-line" />
       <Row label="P Line" value={release.p_line} mono testId="release-metadata-p-line" />

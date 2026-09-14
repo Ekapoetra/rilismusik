@@ -1,6 +1,13 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Kredit track multi-nama (pencipta, komposer, arranger, produser)
+## 2026-06-11 — Batch UX rilisan (bagian 1/2)
+- **#1 Spotify dipisah**: URL Spotify kini field khusus opsional (artis utama & featuring), terpisah dari daftar Media Sosial; Spotify dihapus dari opsi media sosial. Media sosial non-Spotify tetap wajib min 1 untuk artis utama. Serialize/deserialize di `releaseFormState.js` disesuaikan (kompatibel data lama).
+- **#2 Rename**: label preview di form track → "Detik Mulai Preview (Khusus iTunes, Tiktok)".
+- **#4 Tanggal rilis saat kirim ke Believe**: `AdminReleaseAction.release_date` baru; aksi deliver & mark_live bisa set tanggal bebas (tanpa H+7) — input di panel workflow admin. Diuji curl (deliver→delivered, release_date terupdate).
+- **#8 Format tanggal**: util `formatReleaseDate` (hari-bulan-tahun, mis. "1 Juni 2026") dipakai di Manajemen Rilisan & metadata rilisan. Diverifikasi screenshot.
+- BELUM (batch 2): #3 menu/notif reminder add-on ke admin, #5 bulk select→aksi di tiket, #6 upload bukti izin remix (+ttd 2 pihak & materai 10rb), #7 upload/revisi audio+cover di admin (semua status kecuali live).
+
+
 - Form track (langkah upload rilisan) kini mendukung LEBIH DARI SATU nama untuk Pencipta/Writer, Komposer, Arranger, dan Produser via input berulang (tombol "Tambah nama" + hapus per baris).
 - Komponen `MultiNameInput` menserialkan daftar nama menjadi string dipisah koma pada field yang sudah ada (`lyricist`, `composer`, `arranger`, `producer`) — tanpa perubahan model/DB/PDF; data lama tetap kompatibel (1 nama tampil sebagai 1 baris).
 - Tampilan (metadata admin, ekspor ZIP, surat) otomatis menampilkan nama dipisah koma. Validasi tetap (minimal 1 nama untuk writer & komposer). Frontend compiled OK; UI langkah track tidak bisa di-screenshot karena akun demo terkunci KYC.
