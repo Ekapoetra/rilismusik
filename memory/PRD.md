@@ -321,3 +321,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - `pages/label/Dashboard.jsx`: baris 3 kartu status wallet diganti menjadi 1 kartu "Wallet & Penarikan" (`WalletCard`) berisi Saldo Siap Ditarik + tombol Tarik Dana, Pending, Withdraw Diproses, dan **Terakhir Ditarik (jumlah + tanggal + badge status)** serta total belum ditarik.
 - Data penarikan dari `GET /api/withdraw/label` (terbaru dulu, non-legacy; butuh KYC verified). Field: amount_idr, status (requested/approved/paid/rejected/cancelled), request_date/approved_date/paid_date. Empty-state "Belum ada penarikan" untuk label tanpa riwayat/belum KYC.
 - Balances tetap ter-blur saat KYC belum verified; testid lama dipertahankan (label-dashboard-balance-pending, label-dashboard-withdraw-processing, label-dashboard-unwithdrawn-total). Baru: label-dashboard-wallet, label-dashboard-last-withdraw, label-last-withdraw-amount/-date/-status/-empty, label-wallet-withdraw-cta.
+
+## Update 2026-06 — Banner dashboard label tidak muncul lagi setelah ditutup
+- Banner Klaim Label: dismissal kini di-persist ke localStorage `rm:claim_dismissed:{labelId}` (sebelumnya hanya useState, muncul lagi tiap reload). Tetap auto-hide bila claim_status==='linked'.
+- Banner "Selamat! Akun Anda Terverifikasi": sudah persist via `rm:verified_seen:{labelId}`; tombol tutup diperjelas jadi × di pojok kanan atas.

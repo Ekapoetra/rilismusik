@@ -39,6 +39,12 @@ export default function LabelDashboardHome() {
     api.get("/withdraw/label").then((r) => setWithdraws(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
+  // Persist claim-banner dismissal per label so it never reappears after closing.
+  useEffect(() => {
+    if (data?.label?.id && localStorage.getItem(`rm:claim_dismissed:${data.label.id}`)) setClaimDismissed(true);
+  }, [data?.label?.id]);
+  const dismissClaim = () => { if (data?.label?.id) localStorage.setItem(`rm:claim_dismissed:${data.label.id}`, "1"); setClaimDismissed(true); };
+
   const [trend, setTrend] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   useEffect(() => {
@@ -116,7 +122,7 @@ export default function LabelDashboardHome() {
                 <h2 className="font-display text-lg font-extrabold tracking-tight text-emerald-100">Selamat! Akun Anda Terverifikasi 🎉</h2>
                 <p className="mt-0.5 text-sm text-emerald-200/80">Saldo dan jumlah royalti Anda kini terbuka penuh. Selamat berkarya bersama RILIS MUSIK!</p>
               </div>
-              <button onClick={dismissCelebrate} className="text-emerald-200/70 hover:text-white" data-testid="label-dashboard-celebrate-close"><CheckCircle2 className="h-5 w-5" /></button>
+              <button onClick={dismissCelebrate} title="Tutup" className="absolute right-3 top-3 text-emerald-200/70 hover:text-white" data-testid="label-dashboard-celebrate-close"><span className="text-lg leading-none">×</span></button>
             </div>
           </motion.div>
         )}
@@ -141,7 +147,7 @@ export default function LabelDashboardHome() {
         </div>
       )}
 
-      {!claimDismissed && <ClaimBanner claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} onDismiss={() => setClaimDismissed(true)} />}
+      {!claimDismissed && <ClaimBanner claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} onDismiss={dismissClaim} />}
 
       {showOnboarding && (
         <div className="rm-card p-5" data-testid="label-dashboard-onboarding">
