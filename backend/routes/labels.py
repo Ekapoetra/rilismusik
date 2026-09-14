@@ -147,9 +147,27 @@ async def label_dashboard(user: dict = Depends(require_label)):
         last_period = row.get("_id")
         break
 
+    # Release pipeline counts (additive, non-destructive) for dashboard funnel.
+    pipeline_counts = {"draft": 0, "review": 0, "delivered": 0, "live": 0}
+    _bucket = {
+        "draft": "draft",
+        "submitted": "review", "under_review": "review", "awaiting_payment": "review",
+        "paid": "review", "approved": "review", "need_revision": "review",
+        "delivered": "delivered",
+        "live": "live",
+    }
+    async for row in db.releases.aggregate([
+        {"$match": {"label_id": label["id"]}},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    ]):
+        bucket = _bucket.get(row.get("_id"))
+        if bucket:
+            pipeline_counts[bucket] += int(row.get("count") or 0)
+
     from .kyc_service import compute_kyc_state
     return {
         "label": {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)},
+        "pipeline": pipeline_counts,
         "stats": {
             "balance_available_idr": balance["balance_available_idr"],
             "balance_pending_idr": balance["balance_pending_idr"],

@@ -7,6 +7,7 @@ const TABS = [
   ["general", "General"], ["hero", "Hero"], ["benefits", "Benefits"],
   ["pricing", "Pricing"], ["faq", "FAQ"], ["seo", "SEO"],
   ["footer", "Footer"], ["legal_entity", "Legal Entity"], ["documents", "Dokumen"],
+  ["label_dashboard", "Dashboard Label"],
 ].map(([id, label]) => ({ id, label }));
 
 function withEditorIds(settings) {

@@ -113,7 +113,107 @@ function DocumentsPanel({ settings, setValue }) {
   </div>;
 }
 
-const PANELS = { general: GeneralPanel, hero: HeroPanel, benefits: BenefitsPanel, pricing: PricingPanel, faq: FaqPanel, seo: SeoPanel, footer: FooterPanel, legal_entity: LegalPanel, documents: DocumentsPanel };
+const LABEL_HERO_CTA_ROUTES = [
+  ["/label/releases/upload", "Ajukan Rilisan"],
+  ["/label/releases", "Rilisan"],
+  ["/label/royalty", "Royalti"],
+  ["/label/withdraw", "Penarikan Dana"],
+  ["/label/artists", "Artis"],
+];
+
+function isUnsafeCta(value) {
+  return /^\s*javascript:/i.test(value || "");
+}
+
+function LabelHeroPreview({ hero, variant }) {
+  const src = variant === "mobile"
+    ? (fileUrl(hero.mobile_image) || fileUrl(hero.desktop_image) || "/hero/label-hero-mobile.webp")
+    : (fileUrl(hero.desktop_image) || "/hero/label-hero-desktop.webp");
+  const overlay = Math.min(Math.max(Number(hero.overlay_opacity ?? 55), 0), 90) / 100;
+  return (
+    <div className={`relative overflow-hidden rounded-xl border border-white/10 ${variant === "mobile" ? "aspect-[9/14] max-w-[220px]" : "aspect-[21/9]"}`} data-testid={`admin-cms-label-hero-preview-${variant}`}>
+      <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, rgba(11,13,18,${overlay + 0.25}) 0%, rgba(11,13,18,${overlay}) 45%, rgba(11,13,18,0.15) 100%)` }} />
+      <div className={`relative flex h-full flex-col justify-end gap-2 ${variant === "mobile" ? "p-4" : "p-6"}`}>
+        <h3 className={`font-display font-extrabold leading-tight text-white ${variant === "mobile" ? "text-lg" : "text-2xl md:text-3xl"}`}>{hero.headline || "Musik menghubungkan lebih banyak cerita"}</h3>
+        {hero.subheadline && <p className="max-w-md text-xs text-zinc-300">{hero.subheadline}</p>}
+        {hero.cta_text && <span className="mt-1 inline-flex w-fit items-center rounded-full bg-gradient-to-r from-[#FF1F8E] to-[#A24EFF] px-4 py-2 text-xs font-bold text-white">{hero.cta_text}</span>}
+      </div>
+    </div>
+  );
+}
+
+function LabelDashboardPanel({ settings, setValue }) {
+  const hero = settings.label_dashboard_hero || {};
+  const [uploading, setUploading] = useState("");
+  const [error, setError] = useState("");
+  const upload = async (event, key) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    setUploading(key); setError("");
+    try {
+      const data = new FormData(); data.append("file", file);
+      const response = await api.post("/cms/landing/upload-image", data, { headers: { "Content-Type": "multipart/form-data" } });
+      setValue(`label_dashboard_hero.${key}`, response.data.url);
+    } catch (err) { setError(formatApiError(err.response?.data?.detail)); }
+    finally { setUploading(""); event.target.value = ""; }
+  };
+  const ctaUnsafe = isUnsafeCta(hero.cta_target);
+  return <div className="space-y-5" data-testid="admin-cms-label-dashboard-panel">
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+      <div>
+        <div className="text-sm font-bold">Hero Banner Dashboard Label</div>
+        <p className="mt-0.5 text-xs text-zinc-400">Banner ini tampil di dashboard semua akun label. Jika nonaktif, sistem memakai gambar default bawaan.</p>
+      </div>
+      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" checked={!!hero.is_active} onChange={(e) => setValue("label_dashboard_hero.is_active", e.target.checked)} data-testid="admin-cms-label-hero-active" className="h-4 w-4 accent-[#FF1F8E]" />
+        {hero.is_active ? "Aktif" : "Nonaktif"}
+      </label>
+    </div>
+    {error && <div role="alert" className="text-sm text-red-300" data-testid="admin-cms-label-hero-error">{error}</div>}
+
+    <div className="grid gap-4 md:grid-cols-2">
+      {[["desktop_image", "Gambar Desktop (rasio lebar, mis. 1600×685)"], ["mobile_image", "Gambar Mobile (potrait, opsional)"]].map(([key, label]) => (
+        <div key={key} className="rounded-lg border border-white/10 p-4">
+          <div className="mb-3 text-sm font-bold">{label}</div>
+          {hero[key] && <img src={fileUrl(hero[key])} alt={label} className="mb-3 h-28 w-full rounded-md object-cover" data-testid={`admin-cms-label-hero-${key}-preview`} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="rm-btn-ghost inline-flex cursor-pointer text-sm"><input type="file" className="sr-only" accept=".png,.jpg,.jpeg,.webp" onChange={(e) => upload(e, key)} data-testid={`admin-cms-label-hero-${key}-upload`} />{uploading === key ? "Mengunggah…" : `Upload ${key === "mobile_image" ? "Mobile" : "Desktop"}`}</label>
+            {hero[key] && <button type="button" className="text-xs font-semibold text-zinc-400 hover:text-red-300" onClick={() => setValue(`label_dashboard_hero.${key}`, "")} data-testid={`admin-cms-label-hero-${key}-clear`}>Hapus</button>}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <Field label="Headline">{textInput(hero.headline, (e) => setValue("label_dashboard_hero.headline", e.target.value), "admin-cms-label-hero-headline")}</Field>
+    <Field label="Subheadline"><textarea data-testid="admin-cms-label-hero-subheadline" className="rm-input min-h-[70px]" value={hero.subheadline || ""} onChange={(e) => setValue("label_dashboard_hero.subheadline", e.target.value)} /></Field>
+    <div className="grid gap-3 md:grid-cols-2">
+      <Field label="CTA Text">{textInput(hero.cta_text, (e) => setValue("label_dashboard_hero.cta_text", e.target.value), "admin-cms-label-hero-cta-text")}</Field>
+      <Field label="CTA Target (route internal)">
+        <select className="rm-input" value={LABEL_HERO_CTA_ROUTES.some(([r]) => r === hero.cta_target) ? hero.cta_target : ""} onChange={(e) => setValue("label_dashboard_hero.cta_target", e.target.value)} data-testid="admin-cms-label-hero-cta-target">
+          <option value="">— Pilih tujuan —</option>
+          {LABEL_HERO_CTA_ROUTES.map(([route, name]) => <option key={route} value={route}>{`${name} (${route})`}</option>)}
+        </select>
+      </Field>
+    </div>
+    {ctaUnsafe && <p className="text-xs text-red-300" data-testid="admin-cms-label-hero-cta-unsafe">Target CTA tidak aman (javascript:) dan akan diabaikan.</p>}
+    <div className="grid gap-3 md:grid-cols-2">
+      <Field label={`Overlay Gelap (${hero.overlay_opacity ?? 55}%)`}>
+        <input type="range" min="0" max="90" value={hero.overlay_opacity ?? 55} onChange={(e) => setValue("label_dashboard_hero.overlay_opacity", Number(e.target.value))} className="w-full accent-[#FF1F8E]" data-testid="admin-cms-label-hero-overlay" />
+      </Field>
+      <Field label="Alt Text (aksesibilitas)">{textInput(hero.alt_text, (e) => setValue("label_dashboard_hero.alt_text", e.target.value), "admin-cms-label-hero-alt")}</Field>
+    </div>
+
+    <div>
+      <div className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-500">Preview</div>
+      <div className="flex flex-wrap items-start gap-6">
+        <div className="min-w-0 flex-1"><div className="mb-2 text-[11px] font-semibold text-zinc-500">Desktop</div><LabelHeroPreview hero={hero} variant="desktop" /></div>
+        <div><div className="mb-2 text-[11px] font-semibold text-zinc-500">Mobile</div><LabelHeroPreview hero={hero} variant="mobile" /></div>
+      </div>
+    </div>
+  </div>;
+}
+
+const PANELS = { general: GeneralPanel, hero: HeroPanel, benefits: BenefitsPanel, pricing: PricingPanel, faq: FaqPanel, seo: SeoPanel, footer: FooterPanel, legal_entity: LegalPanel, documents: DocumentsPanel, label_dashboard: LabelDashboardPanel };
 
 export const CMSPanel = ({ tab, settings, setValue }) => {
   const Panel = PANELS[tab];

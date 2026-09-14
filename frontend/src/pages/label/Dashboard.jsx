@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "@/api/client";
+import { api, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
+import { LabelHero } from "@/components/label/LabelHero";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp } from "lucide-react";
-import { LabelLogo } from "@/components/shared/LabelLogo";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle } from "lucide-react";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -16,12 +16,16 @@ import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 }
+function fmtNum(n) {
+  return new Intl.NumberFormat("id-ID").format(n || 0);
+}
 
 export default function LabelDashboardHome() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
   const [kyc, setKyc] = useState(null);
+  const [hero, setHero] = useState(null);
   const [claimDismissed, setClaimDismissed] = useState(false);
   const analytics = useLabelAnalytics();
   const { balance: liveBalance } = useRoyaltyBalance(Boolean(kyc?.is_verified));
@@ -30,6 +34,7 @@ export default function LabelDashboardHome() {
     api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
     api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
     api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
+    api.get("/cms/landing").then((r) => setHero(r.data?.label_dashboard_hero || {})).catch(() => setHero({}));
   }, []);
 
   const [trend, setTrend] = useState(null);
@@ -42,8 +47,9 @@ export default function LabelDashboardHome() {
   }, [kyc?.is_verified, data?.label?.id]);
   const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
-  if (!data) return <div className="text-zinc-500">Memuat…</div>;
+  if (!data) return <DashboardSkeleton />;
   const { label } = data;
+  const pipeline = data.pipeline || { draft: 0, review: 0, delivered: 0, live: 0 };
   const stats = { ...data.stats, ...(liveBalance || {}) };
   const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
   const locked = kyc ? !kyc.is_verified : false;
@@ -52,30 +58,53 @@ export default function LabelDashboardHome() {
   const stepsTotal = checks.length || 1;
   const showOnboarding = (stats.active_releases || 0) === 0 && releases.length === 0;
 
+  const identitySub = [
+    "Label Musik • Indonesia",
+    stats.payment_type === "annual_subscription" ? "Annual" : "Pay Per Release",
+  ].filter(Boolean).join(" • ");
+
+  // Derive "Yang Perlu Diperhatikan" from existing data only.
+  const attention = [];
+  if (pipeline.draft > 0) attention.push({ tone: "info", icon: UploadCloud, text: `${pipeline.draft} rilisan draft belum diajukan`, to: "/label/releases", cta: "Lengkapi" });
+  if ((stats.pending_invoices || 0) > 0) attention.push({ tone: "warn", icon: Receipt, text: `${stats.pending_invoices} tagihan menunggu pembayaran`, to: "/label/invoices", cta: "Bayar" });
+  if (!stats.bank_verified) attention.push({ tone: "warn", icon: AlertCircle, text: "Rekening bank belum diverifikasi", to: "/label/profile", cta: "Verifikasi" });
+  if (stats.contract_status && stats.contract_status !== "contract_active") attention.push({ tone: "warn", icon: FileSignature, text: "Kontrak belum aktif", to: "/label/contract", cta: "Lihat" });
+  if ((stats.active_tickets || 0) > 0) attention.push({ tone: "info", icon: Ticket, text: `${stats.active_tickets} tiket bantuan aktif`, to: "/label/support", cta: "Buka" });
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="mx-auto max-w-6xl space-y-6 md:space-y-7">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-4 min-w-0">
-          <LabelLogo src={label.logo_url} labelName={label.label_name} className="h-16 w-16 md:h-20 md:w-20" testId="label-dashboard-logo" />
-          <div className="min-w-0">
-            <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Dashboard</div>
-            <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter truncate" data-testid="label-dashboard-name">Halo, {label.label_name}</h1>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Dasbor Label</div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight md:text-3xl" data-testid="label-dashboard-name" translate="no">Halo, {label.label_name}</h1>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Link to="/label/releases/upload" data-testid={LABEL_DASHBOARD.uploadReleaseButton} className="rm-btn-primary">+ Submit Rilisan</Link>
-          <Link to="/label/withdraw" data-testid={LABEL_DASHBOARD.withdrawButton} className="rm-btn-ghost">Withdraw</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/label/releases/upload" data-testid={LABEL_DASHBOARD.uploadReleaseButton} className="rm-btn-primary">+ Ajukan Rilisan</Link>
+          <Link to="/label/withdraw" data-testid={LABEL_DASHBOARD.withdrawButton} className="rm-btn-ghost">Tarik Dana</Link>
         </div>
       </div>
 
+      {/* Hero (CMS-managed) */}
+      <LabelHero hero={hero} label={label} verified={kyc?.is_verified} subline={identitySub} />
+
       {!locked && <SubmissionQuota prefix="label-dashboard" />}
+
+      {/* Status row */}
+      <div className="flex flex-wrap gap-2">
+        <StatusPill icon={Crown} label={`Subscription: ${stats.subscription_status === "active" ? "Aktif" : "Tidak Aktif"}`} active={stats.subscription_status === "active"} />
+        <StatusPill icon={ShieldCheck} label={`Kontrak: ${stats.contract_status === "contract_active" ? "Aktif" : stats.contract_status?.replace("_", " ") || "—"}`} active={stats.contract_status === "contract_active"} />
+        <StatusPill icon={Receipt} label={`Tipe: ${stats.payment_type === "annual_subscription" ? "Annual" : "Pay Per Release"}`} active />
+        {!stats.bank_verified && <StatusPill icon={AlertCircle} label="Rekening belum diverifikasi" warn />}
+      </div>
+
+      {/* Aktivitas & Tindakan */}
       <AnimatePresence>
         {celebrate && (
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            className="relative overflow-hidden rounded-lg border border-emerald-400/40 bg-gradient-to-r from-emerald-500/[0.12] to-[#FF1F8E]/[0.1] p-5"
+            className="relative overflow-hidden rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/[0.12] to-[#FF1F8E]/[0.1] p-5"
             data-testid="label-dashboard-verified-celebrate"
           >
             <div className="flex items-start gap-3">
@@ -90,21 +119,8 @@ export default function LabelDashboardHome() {
         )}
       </AnimatePresence>
 
-      {/* Mobile summary card */}
-      <div className="md:hidden rm-card p-5" data-testid="label-dashboard-mobile-summary">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">Total Belum Ditarik</div>
-          <div className={`grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${locked ? "from-zinc-500/15 to-zinc-500/5 text-zinc-500" : "from-emerald-500/15 to-emerald-500/5 text-emerald-300"}`}>{locked ? <Lock className="h-4 w-4" /> : <Wallet className="h-4 w-4" />}</div>
-        </div>
-        {locked ? (
-          <div className="mt-1 flex items-center gap-2"><span className="font-display text-3xl font-extrabold tracking-tight tabular-nums blur-[6px] select-none" data-testid="label-dashboard-mobile-summary-locked">{fmtIDR(totalUnwithdrawn || 1234567)}</span><Lock className="h-5 w-5 text-zinc-500" /></div>
-        ) : (
-          <div className="mt-1 font-display text-3xl font-extrabold tracking-tight tabular-nums break-words">{fmtIDR(totalUnwithdrawn)}</div>
-        )}
-      </div>
-
       {locked && (
-        <div className="rounded-lg border border-amber-400/40 bg-amber-400/[0.08] p-5" data-testid="label-dashboard-verify-warning">
+        <div className="rounded-xl border border-amber-400/40 bg-amber-400/[0.08] p-5" data-testid="label-dashboard-verify-warning">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-400/15 text-amber-300"><ShieldCheck className="h-5 w-5" /></div>
@@ -136,24 +152,30 @@ export default function LabelDashboardHome() {
         </div>
       )}
 
-      {/* Status row */}
-      <div className="flex flex-wrap gap-2">
-        <StatusPill icon={Crown} label={`Subscription: ${stats.subscription_status === "active" ? "Aktif" : "Tidak Aktif"}`} active={stats.subscription_status === "active"} />
-        <StatusPill icon={ShieldCheck} label={`Kontrak: ${stats.contract_status === "contract_active" ? "Aktif" : stats.contract_status?.replace("_", " ") || "—"}`} active={stats.contract_status === "contract_active"} />
-        <StatusPill icon={Receipt} label={`Tipe: ${stats.payment_type === "annual_subscription" ? "Annual" : "Pay Per Release"}`} active />
-        {!stats.bank_verified && <StatusPill icon={AlertCircle} label="Rekening belum diverifikasi" warn />}
-      </div>
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-        <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Tersedia" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" locked={locked} />
-        <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} icon={Receipt} accent="amber" locked={locked} />
-        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} icon={Receipt} accent="blue" locked={locked} />
-        <StatCard testId="label-dashboard-unwithdrawn-total" label="Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" locked={locked} />
-        <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={(analytics.data?.latest_report?.streams || 0).toLocaleString("id-ID")} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
+      {/* KPI primary — mobile 2x2 */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Siap Ditarik" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" locked={locked} />
         <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" locked={locked} />
+        <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={fmtNum(analytics.data?.latest_report?.streams)} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
+        <StatCard testId={LABEL_DASHBOARD.totalReleases} label="Rilisan Aktif" value={`${fmtNum(stats.active_releases)}`} sub={`${fmtNum(stats.total_tracks)} track`} icon={Disc3} accent="violet" />
       </div>
 
+      {/* Secondary wallet status */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+        <StatCard testId={LABEL_DASHBOARD.balancePending} label="Saldo Pending" value={fmtIDR(stats.balance_pending_idr)} sub="Menunggu pembayaran platform" icon={Receipt} accent="amber" locked={locked} mini />
+        <StatCard testId="label-dashboard-withdraw-processing" label="Withdraw Diproses" value={fmtIDR(stats.balance_withdraw_requested_idr)} sub="Sedang dalam proses pencairan" icon={Receipt} accent="blue" locked={locked} mini />
+        <StatCard testId="label-dashboard-unwithdrawn-total" label="Total Belum Ditarik" value={fmtIDR(totalUnwithdrawn)} icon={Wallet} accent="rose" locked={locked} mini />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="label-dashboard-quick-actions">
+        <QuickAction to="/label/releases/upload" icon={UploadCloud} label="Ajukan Rilisan" />
+        <QuickAction to="/label/royalty" icon={BarChart3} label="Lihat Royalti" />
+        <QuickAction to="/label/withdraw" icon={Wallet} label="Tarik Dana" />
+        <QuickAction to="/label/artists" icon={Users} label="Kelola Artis" />
+      </div>
+
+      {/* Performa Royalti — trend */}
       {!locked && trend && trend.length > 0 && (
         <section className="rm-card p-5" data-testid="label-dashboard-trend">
           <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500"><TrendingUp className="h-4 w-4" /> Tren Stream 6 Bulan Terakhir</div>
@@ -179,36 +201,66 @@ export default function LabelDashboardHome() {
         </section>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard testId={LABEL_DASHBOARD.totalReleases} label="Total Rilisan Aktif" value={stats.active_releases} icon={Disc3} mini />
-        <StatCard label="Total Track" value={stats.total_tracks} icon={Disc3} mini />
-        <StatCard testId={LABEL_DASHBOARD.totalArtists} label="Total Artist" value={stats.total_artists} icon={Users} mini />
-        <StatCard label="Tiket Aktif" value={stats.active_tickets} icon={AlertCircle} mini />
-      </div>
-
+      {/* Insight Utama */}
       <LabelAnalyticsOverview analytics={analytics} />
+
+      {/* Operations grid: Attention + Pipeline */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rm-card p-5" data-testid="label-dashboard-attention">
+          <h3 className="mb-4 font-display text-lg font-bold tracking-tight">Yang Perlu Diperhatikan</h3>
+          {attention.length === 0 ? (
+            <div className="flex items-center gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.05] px-4 py-5 text-sm text-emerald-200" data-testid="label-dashboard-attention-empty">
+              <CheckCircle className="h-5 w-5 shrink-0 text-emerald-400" /> Semua aman. Tidak ada yang perlu ditindak saat ini.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {attention.map((item, i) => (
+                <div key={i} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${item.tone === "warn" ? "border-amber-400/25 bg-amber-400/[0.06]" : "border-white/10 bg-white/[0.02]"}`} data-testid={`label-dashboard-attention-item-${i}`}>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <item.icon className={`h-4 w-4 shrink-0 ${item.tone === "warn" ? "text-amber-300" : "text-sky-300"}`} />
+                    <span className="truncate text-sm text-zinc-200">{item.text}</span>
+                  </div>
+                  <Link to={item.to} className="shrink-0 text-xs font-semibold rm-gradient-text">{item.cta} →</Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rm-card p-5" data-testid="label-dashboard-pipeline">
+          <h3 className="mb-4 font-display text-lg font-bold tracking-tight">Pipeline Rilisan</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <PipelineStep label="Draft" value={pipeline.draft} tone="zinc" />
+            <PipelineStep label="Review" value={pipeline.review} tone="amber" />
+            <PipelineStep label="Dikirim" value={pipeline.delivered} tone="blue" />
+            <PipelineStep label="Tayang" value={pipeline.live} tone="emerald" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <MiniStat label="Total Artist" value={fmtNum(stats.total_artists)} icon={Users} testId={LABEL_DASHBOARD.totalArtists} />
+            <MiniStat label="Tiket Aktif" value={fmtNum(stats.active_tickets)} icon={AlertCircle} />
+          </div>
+        </section>
+      </div>
 
       {/* Recent releases */}
       <div className="rm-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-bold text-lg tracking-tight">Rilisan Terbaru</h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-bold tracking-tight">Rilisan Terbaru</h3>
           <Link to="/label/releases" className="text-sm font-semibold rm-gradient-text">Lihat semua →</Link>
         </div>
         {releases.length === 0 ? (
-          <div className="text-center py-8 text-zinc-500 text-sm">
-            Belum ada rilisan. <Link to="/label/releases/upload" className="font-semibold rm-gradient-text">Upload sekarang</Link>
+          <div className="py-8 text-center text-sm text-zinc-500">
+            Belum ada rilisan. <Link to="/label/releases/upload" className="font-semibold rm-gradient-text">Ajukan sekarang</Link>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
             {releases.map((r) => (
-              <div key={r.id} className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] grid place-items-center text-white">
-                    <Disc3 className="w-5 h-5" />
-                  </div>
+              <div key={r.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <ReleaseCover url={r.display_cover_url || r.cover_url} />
                   <div className="min-w-0">
-                    <div className="font-semibold text-sm truncate">{r.release_title}</div>
-                    <div className="text-xs text-zinc-500">{r.artist_name} • {r.release_date}</div>
+                    <div className="truncate text-sm font-semibold">{r.release_title}</div>
+                    <div className="truncate text-xs text-zinc-500">{(r.display_primary_artists?.[0]) || r.artist_name} • {r.release_date}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -224,31 +276,73 @@ export default function LabelDashboardHome() {
   );
 }
 
+function ReleaseCover({ url }) {
+  const [failed, setFailed] = useState(false);
+  if (url && !failed) {
+    return <img src={fileUrl(url)} alt="" loading="lazy" className="h-11 w-11 shrink-0 rounded-lg object-cover" onError={() => setFailed(true)} />;
+  }
+  return <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white"><Disc3 className="h-5 w-5" /></div>;
+}
+
+function QuickAction({ to, icon: Icon, label }) {
+  return (
+    <Link to={to} className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4 transition-colors hover:border-[#FF1F8E]/40 hover:bg-white/[0.04]" data-testid={`label-quick-action-${to.split("/").pop()}`}>
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#FF1F8E]/15 to-[#A24EFF]/10 text-[#FF7FC0]"><Icon className="h-5 w-5" /></div>
+      <span className="min-w-0 truncate text-sm font-semibold text-zinc-200">{label}</span>
+    </Link>
+  );
+}
+
+function PipelineStep({ label, value, tone }) {
+  const tones = {
+    zinc: "text-zinc-300", amber: "text-amber-300", blue: "text-sky-300", emerald: "text-emerald-300",
+  };
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-center" data-testid={`label-pipeline-${label.toLowerCase()}`}>
+      <div className={`font-display text-2xl font-extrabold tabular-nums ${tones[tone]}`}>{value}</div>
+      <div className="mt-1 text-[11px] font-bold uppercase tracking-widest text-zinc-500">{label}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, icon: Icon, testId }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-3" data-testid={testId}>
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">{label}</div>
+        <div className="mt-0.5 font-display text-xl font-extrabold tabular-nums">{value}</div>
+      </div>
+      <Icon className="h-4 w-4 text-zinc-500" />
+    </div>
+  );
+}
+
 function StatCard({ label, value, sub, icon: Icon, accent, mini, testId, locked }) {
   const colors = {
     emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300",
     amber: "from-amber-500/15 to-amber-500/5 text-amber-300",
     blue: "from-sky-500/15 to-sky-500/5 text-sky-300",
     rose: "from-rose-500/15 to-rose-500/5 text-rose-300",
+    violet: "from-[#A24EFF]/15 to-[#A24EFF]/5 text-[#C79BFF]",
   };
   const cl = colors[accent] || "from-slate-50 to-slate-100 text-zinc-400";
   return (
     <div className={`rm-card min-w-0 ${mini ? "p-4" : "p-4 sm:p-5"}`} data-testid={testId}>
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-[10px] sm:text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
-        <div className={`w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br ${locked ? "from-zinc-500/15 to-zinc-500/5 text-zinc-500" : cl} grid place-items-center`}>
-          {locked ? <Lock className="w-4 h-4" /> : (Icon && <Icon className="w-4 h-4" />)}
+        <div className="min-w-0 truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[11px]">{label}</div>
+        <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${locked ? "from-zinc-500/15 to-zinc-500/5 text-zinc-500" : cl}`}>
+          {locked ? <Lock className="h-4 w-4" /> : (Icon && <Icon className="h-4 w-4" />)}
         </div>
       </div>
       {locked ? (
         <div className="mt-2 flex items-center gap-2" data-testid={testId ? `${testId}-locked` : undefined}>
-          <span className={`font-display font-extrabold tracking-tight leading-tight tabular-nums blur-[6px] select-none ${mini ? "text-2xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</span>
+          <span className={`select-none font-display font-extrabold leading-tight tabular-nums blur-[6px] ${mini ? "text-xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</span>
           <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
         </div>
       ) : (
-        <div className={`font-display font-extrabold tracking-tight leading-tight tabular-nums break-words mt-2 ${mini ? "text-2xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</div>
+        <div className={`mt-2 break-words font-display font-extrabold leading-tight tabular-nums ${mini ? "text-xl" : "text-lg sm:text-xl md:text-2xl"}`}>{value}</div>
       )}
-      {sub && !locked && <div className="text-xs text-zinc-500 mt-1 truncate">{sub}</div>}
+      {sub && !locked && <div className="mt-1 truncate text-xs text-zinc-500">{sub}</div>}
     </div>
   );
 }
@@ -257,7 +351,7 @@ function ClaimBanner({ claimStatus, rejectReason, onDismiss }) {
   if (claimStatus === "linked") return null;
   if (claimStatus === "pending_link") {
     return (
-      <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.08] p-4 flex items-start gap-3" data-testid="label-dashboard-claim-pending">
+      <div className="flex items-start gap-3 rounded-xl border border-sky-400/30 bg-sky-400/[0.08] p-4" data-testid="label-dashboard-claim-pending">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-400/15 text-sky-300"><ShieldCheck className="h-5 w-5" /></div>
         <div className="flex-1 text-sm"><div className="font-display font-bold text-sky-100">Permintaan klaim label sedang ditinjau</div><p className="mt-0.5 text-sky-200/80">Admin sedang memproses klaim label lama Anda. Royalti periode sebelumnya akan muncul setelah disetujui.</p></div>
       </div>
@@ -265,7 +359,7 @@ function ClaimBanner({ claimStatus, rejectReason, onDismiss }) {
   }
   const rejected = claimStatus === "rejected";
   return (
-    <div className="relative rounded-lg border border-[#FF1F8E]/30 bg-gradient-to-r from-[#FF1F8E]/[0.1] to-[#A24EFF]/[0.08] p-5" data-testid="label-dashboard-claim-banner">
+    <div className="relative rounded-xl border border-[#FF1F8E]/30 bg-gradient-to-r from-[#FF1F8E]/[0.1] to-[#A24EFF]/[0.08] p-5" data-testid="label-dashboard-claim-banner">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#FF1F8E]/15 text-[#FF7FC0]"><Sparkles className="h-5 w-5" /></div>
@@ -281,13 +375,12 @@ function ClaimBanner({ claimStatus, rejectReason, onDismiss }) {
   );
 }
 
-
 function OnboardStep({ n, title, done, to, cta, locked }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3" data-testid={`label-onboard-step-${n}`}>
       {done ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" /> : locked ? <Lock className="h-5 w-5 shrink-0 text-zinc-600" /> : <Circle className="h-5 w-5 shrink-0 text-[#FF1F8E]" />}
       <span className={`flex-1 text-sm font-semibold ${done ? "text-zinc-400 line-through" : locked ? "text-zinc-500" : "text-white"}`}>{title}</span>
-      {!done && !locked && <Link to={to} className="rm-btn-ghost shrink-0 text-xs py-1.5" data-testid={`label-onboard-cta-${n}`}>{cta}</Link>}
+      {!done && !locked && <Link to={to} className="rm-btn-ghost shrink-0 py-1.5 text-xs" data-testid={`label-onboard-cta-${n}`}>{cta}</Link>}
     </div>
   );
 }
@@ -297,9 +390,20 @@ function StatusPill({ icon: Icon, label, active, warn }) {
   if (active) cls = "bg-emerald-500/15 text-emerald-300";
   if (warn) cls = "bg-amber-500/15 text-amber-300";
   return (
-    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${cls}`}>
-      <Icon className="w-3.5 h-3.5" />
+    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${cls}`}>
+      <Icon className="h-3.5 w-3.5" />
       {label}
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto max-w-6xl space-y-6" data-testid="label-dashboard-loading">
+      <div className="h-10 w-64 animate-pulse rounded-lg bg-zinc-800" />
+      <div className="h-64 w-full animate-pulse rounded-2xl bg-zinc-800" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-zinc-800" />)}</div>
+      <div className="h-72 w-full animate-pulse rounded-xl bg-zinc-800" />
     </div>
   );
 }

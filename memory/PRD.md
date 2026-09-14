@@ -309,3 +309,10 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - AdminReleaseWorkflow.jsx: panel diubah dari floating/draggable menjadi bottom-dock bar selebar area konten (fixed bottom-0 left-0 right-0, md:left via --rm-dock-left).
 - Drag & posisi tersimpan (localStorage pos) dihapus dan dibersihkan otomatis; minimize + quick-action header tetap.
 - AdminLayout.jsx: set CSS var --rm-dock-left (72px collapsed / 256px expanded) agar panel mengikuti lebar sidebar.
+
+## Update 2026-06 — PRD v4: Redesign Dashboard Label + Mobile + CMS Hero Banner (Iter75, 100% pass)
+- CMS Hero Banner: tab CMS baru "Dashboard Label" (`CMSPanels.jsx` LabelDashboardPanel + `CMS.jsx` TABS). Disimpan sebagai 1 key `label_dashboard_hero` di `landing_settings` existing (TANPA tabel/migration baru). Fields: desktop_image, mobile_image, headline, subheadline, cta_text, cta_target (route internal), is_active, overlay_opacity, alt_text + preview desktop/mobile. Upload via `/cms/landing/upload-image` (R2).
+- Hero di Dashboard Label: `components/label/LabelHero.jsx` — fallback CMS aktif -> default bundled (`/public/hero/label-hero-desktop.webp` & mobile, hasil image-gen, ~27-34KB webp) -> gradient. `safeTarget()` memblokir CTA non-internal (anti javascript:).
+- Redesign `pages/label/Dashboard.jsx`: hierarki premium (Header, Hero+Identity, KPI 4 primer + 3 sekunder, Quick Actions, Performa Royalti/tren, Insight Utama, Yang Perlu Diperhatikan, Pipeline Rilisan, Rilisan Terbaru dgn artwork). Semua data existing; loading skeleton; mobile 2x2 via kelas responsif; bottom nav existing dipertahankan. Semua business logic/KYC-lock/claim/onboarding tetap.
+- Backend additive: `labels.py` GET /dashboard menambah field `pipeline` {draft, review, delivered, live} via agregasi status releases. Tidak mengubah stats/logic lain.
+- Catatan: state akhir CMS `label_dashboard_hero.is_active=false` (label lihat hero default).
