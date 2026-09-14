@@ -349,3 +349,9 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Banner "rilis hari ini": `/label/dashboard` mengembalikan `live_today` (status=live & live_at tanggal WIB == hari ini). Komponen `LiveTodayBanner.jsx` menampilkan cover/judul/artis + ucapan selamat, dismissible per hari (localStorage).
 - CTA "Rilismu tidak ada di platform tertentu? Laporkan ke admin" → modal → `POST /tickets/label/create` kategori baru `not_live` ("Rilisan Tidak Tersedia/Live", ditambah di ticket_workflow_service + models Literal, AUTO_SUBJECT). Tiket tampil di Work Queue support_ticket + Action Center tickets + halaman Support untuk di-follow up ke Believe.
 - Files: work_service.py, cron_jobs.py, labels.py (dashboard live_today; catatan: pakai `for ... in await cursor.to_list()` bukan async for), admin.py action-center, ticket_workflow_service.py, models.py, components/label/LiveTodayBanner.jsx, pages/label/Dashboard.jsx.
+
+## Update 2026-06 — Email otomatis "Rilisanmu Sudah Tayang" (Live)
+- Fungsi baru `email_service.send_release_live_email` — desain perayaan: logo RILIS MUSIK (aset baru `frontend/public/brand/email-logo.png`, versi kecil ~4.5KB dari logo-full, terang untuk background gelap), cover lagu (via {FRONTEND_URL}/api/files/{key}, endpoint publik), judul + artis + CTA "Lihat Rilisan". Via SMTP Hostinger (existing).
+- Header shared `_wrap` kini menampilkan logo gambar (EMAIL_LOGO_URL) menggantikan wordmark teks → semua email transaksional ikut ter-branding.
+- Hook: `routes/releases.py` aksi `mark_live` → setelah status jadi live, kirim email ke email label (db.labels.email) secara best-effort (asyncio task). Cover memakai internal_cover_url (legacy) atau cover_url.
+- Diuji: 2 email uji terkirim ke easybnd@gmail.com (message-id: sent). Aset logo & cover terverifikasi 200 publik.

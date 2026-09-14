@@ -40,6 +40,9 @@ def _from_header() -> str:
     return f"{SENDER_NAME} <{SENDER_EMAIL}>"
 
 
+EMAIL_LOGO_URL = f"{FRONTEND_URL}/brand/email-logo.png"
+
+
 def _smtp_send_sync(*, to: str, subject: str, html: str, attachments: Optional[list] = None) -> str:
     """Synchronous SMTP send. Called from a worker thread via asyncio.to_thread.
     Returns the SMTP message-id on success; raises on failure.
@@ -84,7 +87,7 @@ def _wrap(title: str, body_html: str, cta_label: Optional[str] = None, cta_url: 
         <tr><td align="center">
           <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#141414;border-radius:24px;overflow:hidden;border:1px solid #262626;">
             <tr><td style="padding:32px 32px 0 32px;">
-              <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#a855f7;font-weight:800;">RILIS MUSIK</div>
+              <img src="{EMAIL_LOGO_URL}" alt="RILIS MUSIK" height="30" style="display:block;height:30px;margin-bottom:14px;border:0;outline:none;text-decoration:none;" />
               <h1 style="margin:8px 0 0 0;color:#fff;font-size:28px;font-weight:800;line-height:1.2;letter-spacing:-0.5px;">{title}</h1>
             </td></tr>
             <tr><td style="padding:24px 32px;color:#d4d4d8;font-size:15px;line-height:1.6;">
@@ -334,3 +337,40 @@ async def send_monthly_royalty_summary_email(
     """
     html = _wrap("Ringkasan Royalti Bulanan", body, "Buka Analytics", f"{FRONTEND_URL}/label/royalty")
     return await send_email(to=to, subject=f"Ringkasan royalti {period} — {h(label_name)}", html=html)
+
+
+def _abs_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return f"{FRONTEND_URL}{url if url.startswith('/') else '/' + url}"
+
+
+async def send_release_live_email(
+    *, to: str, label_name: str, release_title: str, artist_name: Optional[str],
+    release_id: str, cover_url: Optional[str],
+) -> Optional[str]:
+    """Celebratory 'your release is now live' email with cover artwork + RILIS MUSIK logo."""
+    cover = _abs_url(cover_url)
+    artist_txt = h(artist_name) if artist_name else "—"
+    cover_block = (
+        f'<tr><td align="center" style="padding:8px 0 20px 0;">'
+        f'<img src="{cover}" alt="{h(release_title)}" width="220" height="220" '
+        f'style="width:220px;height:220px;border-radius:18px;object-fit:cover;display:block;border:1px solid #262626;" />'
+        f'</td></tr>'
+    ) if cover else ""
+    body = f"""
+    <p style="text-align:center;margin:0 0 4px 0;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#10b981;font-weight:800;">🎉 Sudah Tayang</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      {cover_block}
+      <tr><td align="center" style="padding-bottom:4px;">
+        <div style="color:#ffffff;font-size:22px;font-weight:800;line-height:1.3;">{h(release_title)}</div>
+        <div style="color:#a1a1aa;font-size:14px;margin-top:4px;">{artist_txt}</div>
+      </td></tr>
+    </table>
+    <p style="text-align:center;margin-top:18px;">Halo <strong>{h(label_name)}</strong>, selamat! Rilisanmu kini <strong style="color:#10b981;">tayang di platform digital</strong>. 🎧</p>
+    <p style="text-align:center;color:#a1a1aa;font-size:13px;">Butuh beberapa jam agar muncul merata di semua platform. Jika ada platform tertentu yang belum tersedia, laporkan lewat dashboard.</p>
+    """
+    html = _wrap("Rilisanmu sudah tayang! 🎉", body, "Lihat Rilisan", f"{FRONTEND_URL}/label/releases/{release_id}")
+    return await send_email(to=to, subject=f"🎉 {h(release_title)} sudah tayang di platform!", html=html)
