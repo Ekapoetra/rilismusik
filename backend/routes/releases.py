@@ -1108,3 +1108,114 @@ async def admin_dmca_letter(release_id: str, body: DmcaLetterIn, user: dict = De
     await log_activity(user["id"], "admin_generate_dmca", "release", release_id, after={"track_ids": [t.get("id") for t in selected]})
     return _pdf_response(pdf_bytes, f"DMCA-Counter-Notification-{rel.get('release_title') or release_id}")
 
+
+
+@release_r.post("/{release_id}/admin/upload-cover")
+async def admin_upload_cover(release_id: str, file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    if rel.get("status") == "live":
+        raise HTTPException(status_code=400, detail="Cover tidak bisa diubah saat rilisan sudah tayang (live)")
+    ext = (file.filename or "").lower().split(".")[-1]
+    if ext not in ("jpg", "jpeg", "png"):
+        raise HTTPException(status_code=400, detail="Format cover harus JPG/PNG")
+    file_bytes = await file.read()
+    try:
+        from PIL import Image
+        from io import BytesIO
+        w, h = Image.open(BytesIO(file_bytes)).size
+        if w != 3000 or h != 3000:
+            raise HTTPException(status_code=400, detail="Cover harus tepat 3000x3000 px")
+    except ImportError:
+        pass
+    import storage_service
+    content_type = "image/png" if ext == "png" else "image/jpeg"
+    key = f"cover/{release_id}.{ext}"
+    await storage_service.upload_bytes(key=key, data=file_bytes, content_type=content_type)
+    url = f"/api/files/{key}"
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "cover_url": url, "cover_width": 3000, "cover_height": 3000, "cover_content_type": content_type, "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "admin_upload_cover", "release", release_id)
+    return {"cover_url": url, "width": 3000, "height": 3000}
+
+
+@release_r.post("/{release_id}/admin/upload-audio")
+async def admin_upload_audio(release_id: str, track_id: str = Form(...), file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    if rel.get("status") == "live":
+        raise HTTPException(status_code=400, detail="Audio tidak bisa diubah saat rilisan sudah tayang (live)")
+    track = await db.tracks.find_one({"id": track_id, "release_id": release_id})
+    if not track:
+        raise HTTPException(status_code=404, detail="Track tidak ditemukan")
+    if not (file.filename or "").lower().endswith(".wav"):
+        raise HTTPException(status_code=400, detail="Audio harus berformat WAV")
+    try:
+        file.file.seek(0)
+        with wave.open(file.file, "rb") as wav:
+            sample_rate = int(wav.getframerate())
+            if sample_rate not in (44100, 48000):
+                raise HTTPException(status_code=400, detail="Sample rate audio harus 44,1 kHz atau 48 kHz")
+    except HTTPException:
+        raise
+    except (wave.Error, EOFError):
+        raise HTTPException(status_code=400, detail="File WAV tidak valid")
+    finally:
+        file.file.seek(0)
+    import storage_service
+    key = f"audio/{track_id}.wav"
+    await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type="audio/wav")
+    url = f"/api/files/{key}"
+    await db.tracks.update_one({"id": track_id}, {"$set": {
+        "audio_url": url, "audio_filename": file.filename, "audio_sample_rate": sample_rate, "updated_at": now_iso(),
+    }})
+    await log_activity(user["id"], "admin_upload_audio", "release", release_id, after={"track_id": track_id})
+    return {"audio_url": url, "sample_rate": sample_rate}
+
+
+async def _store_remix_permission(release_id: str, file: UploadFile, actor_id: str):
+    ext = (file.filename or "").lower().split(".")[-1]
+    if ext not in ("pdf", "jpg", "jpeg", "png"):
+        raise HTTPException(status_code=400, detail="Bukti izin remix harus PDF/JPG/PNG")
+    data = await file.read()
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Ukuran file maksimal 15 MB")
+    content_type = {"pdf": "application/pdf", "png": "image/png"}.get(ext, "image/jpeg")
+    import storage_service
+    key = f"remix-permission/{release_id}.{ext}"
+    await storage_service.upload_bytes(key=key, data=data, content_type=content_type)
+    url = f"/api/files/{key}"
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "remix_permission_url": url, "remix_permission_filename": file.filename,
+        "remix_permission_uploaded_at": now_iso(), "updated_at": now_iso(),
+    }})
+    await log_activity(actor_id, "upload_remix_permission", "release", release_id)
+    return {"remix_permission_url": url, "filename": file.filename}
+
+
+@release_r.post("/{release_id}/admin/upload-remix-permission")
+async def admin_upload_remix_permission(release_id: str, file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0, "id": 1})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    return await _store_remix_permission(release_id, file, user["id"])
+
+
+@release_r.post("/{release_id}/upload-remix-permission")
+async def label_upload_remix_permission(release_id: str, file: UploadFile = File(...), user: dict = Depends(require_label)):
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0, "label_id": 1, "status": 1})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    label = await get_label_by_user(user)
+    if rel["label_id"] != label["id"]:
+        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
+    if rel.get("status") == "live":
+        raise HTTPException(status_code=400, detail="Tidak bisa mengubah saat rilisan sudah tayang")
+    return await _store_remix_permission(release_id, file, user["id"])
+

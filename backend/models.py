@@ -423,6 +423,11 @@ class TicketAdminUpdateIn(BaseModel):
     internal_note: Optional[str] = None
 
 
+class TicketBulkStatusIn(BaseModel):
+    ticket_ids: List[str] = Field(min_length=1, max_length=200)
+    status: TicketStatus
+
+
 # ============ CONTRACTS ============
 ContractStatus = Literal["active", "expiring_soon", "expired", "terminated"]
 

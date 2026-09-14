@@ -21,6 +21,8 @@ async def build_admin_dashboard() -> dict:
         db.labels.count_documents({"subscription_status": "active"}),
         db.labels.count_documents({"account_status": "suspended"}),
         db.kyc_documents.count_documents({"status": "pending_review", "is_current": True}),
+        db.wami_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
+        db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
     ]
     values, revenue, last_csv, actionable_payments = await asyncio.gather(
         asyncio.gather(*count_queries),
@@ -33,8 +35,10 @@ async def build_admin_dashboard() -> dict:
         "delivered", "live", "pending_invoices", "paid_invoices",
         "pending_withdraws", "active_tickets", "active_subscriptions", "suspended_labels",
         "pending_kyc",
+        "pending_wami", "pending_custom_services",
     ]
     result = dict(zip(keys, values))
+    result["pending_addons"] = result.get("pending_wami", 0) + result.get("pending_custom_services", 0)
     result.update({
         "total_revenue_eur": revenue["total_eur"],
         "total_revenue_idr": revenue["total_idr"],

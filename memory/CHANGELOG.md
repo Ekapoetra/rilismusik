@@ -1,6 +1,13 @@
 # RILIS MUSIK — Changelog
 
-## 2026-06-11 — Batch UX rilisan (bagian 1/2)
+## 2026-06-11 — Batch UX rilisan (bagian 2/2)
+- **#3 Reminder add-on (admin)**: Action Center dashboard kini punya item "Konten tambahan menunggu dikerjakan" (WAMI status pending/in_progress + layanan kustom paid/in_progress), link ke /admin/wami. Ditambah ke `admin_dashboard_service` (`pending_addons`). Diuji: item muncul saat ada order pending.
+- **#5 Bulk tiket**: checkbox per baris + pilih-semua + bar aksi "Tandai Selesai / Sedang Diproses" di Tiket Bantuan admin. Endpoint `POST /tickets/admin/bulk-status` (izin support.manage, handle takedown, komentar sistem + notifikasi). Diuji curl + screenshot.
+- **#6 Upload bukti izin remix**: endpoint admin `POST /releases/{id}/admin/upload-remix-permission` + label `POST /releases/{id}/upload-remix-permission` (PDF/JPG/PNG ≤15MB, R2). UI di panel admin + catatan wajib ttd 2 pihak & materai Rp 10.000; tautan lihat file. `remix_permission_url` tampil di GET rilisan.
+- **#7 Revisi audio/cover di admin**: endpoint `POST /releases/{id}/admin/upload-cover` & `.../upload-audio` (izin releases.review, diblokir status live). UI "Revisi Aset (Admin)" — ganti cover 3000×3000 & ganti WAV per track. Diuji: blok live 400 (curl) + screenshot UI.
+- Catatan: UI upload izin remix sisi LABEL belum ditambahkan (endpoint sudah ada). Akun demo terkunci KYC sehingga flow label upload belum di-screenshot.
+
+
 - **#1 Spotify dipisah**: URL Spotify kini field khusus opsional (artis utama & featuring), terpisah dari daftar Media Sosial; Spotify dihapus dari opsi media sosial. Media sosial non-Spotify tetap wajib min 1 untuk artis utama. Serialize/deserialize di `releaseFormState.js` disesuaikan (kompatibel data lama).
 - **#2 Rename**: label preview di form track → "Detik Mulai Preview (Khusus iTunes, Tiktok)".
 - **#4 Tanggal rilis saat kirim ke Believe**: `AdminReleaseAction.release_date` baru; aksi deliver & mark_live bisa set tanggal bebas (tanpa H+7) — input di panel workflow admin. Diuji curl (deliver→delivered, release_date terupdate).

@@ -82,6 +82,8 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         count_actionable_payments(),
         db.support_tickets.count_documents({"status": {"$nin": ["done", "rejected"]}}),
         db.users.count_documents({"role": "label", "claim_status": "pending_link"}),
+        db.wami_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
+        db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
     )
     oldest = await asyncio.gather(
         _oldest("releases", {"status": "under_review"}, "submitted_at"),
@@ -90,8 +92,9 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         _oldest("support_tickets", {"status": {"$nin": ["done", "rejected"]}}, "created_at"),
         _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
     )
-    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim = counts
+    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service = counts
     o_rel, o_kyc, o_wd, o_tk, o_claim = oldest
+    c_addon = (c_wami or 0) + (c_service or 0)
     defs = [
         {"key": "withdrawals", "count": c_wd, "priority": "high", "permission": "withdraw.manage", "oldest_at": o_wd,
          "title": "Penarikan menunggu verifikasi", "cta": "Tinjau", "link": "/admin/withdraw", "icon": "Banknote",
@@ -111,6 +114,9 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         {"key": "claims", "count": c_claim, "priority": "normal", "permission": "migration.view", "oldest_at": o_claim,
          "title": "Klaim akun lama", "cta": "Tinjau", "link": "/admin/migrate?tab=claims", "icon": "DatabaseZap",
          "description": f"{c_claim} permintaan klaim label lama menunggu dihubungkan."},
+        {"key": "addons", "count": c_addon, "priority": "normal", "permission": "releases.review", "oldest_at": None,
+         "title": "Konten tambahan menunggu dikerjakan", "cta": "Kerjakan", "link": "/admin/wami", "icon": "Sparkles",
+         "description": f"{c_addon} add-on dari label (WAMI {c_wami} · layanan {c_service}) sudah dibayar dan menunggu diproses."},
     ]
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
     items = [d for d in defs if (d["count"] or 0) > 0]

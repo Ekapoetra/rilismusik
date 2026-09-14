@@ -10,7 +10,7 @@ import {
   Sparkles, UserPlus, Upload, Clock,
 } from "lucide-react";
 
-const ICONS = { Banknote, CreditCard, Disc3, ShieldCheck, MessageSquare, DatabaseZap, Activity };
+const ICONS = { Banknote, CreditCard, Disc3, ShieldCheck, MessageSquare, DatabaseZap, Activity, Sparkles };
 const PRIORITY = {
   critical: { label: "Kritis", cls: "border-rose-500/40 bg-rose-500/[0.08]", chip: "bg-rose-500/20 text-rose-200", icon: "text-rose-300" },
   high: { label: "Penting", cls: "border-amber-400/40 bg-amber-400/[0.07]", chip: "bg-amber-400/20 text-amber-200", icon: "text-amber-300" },

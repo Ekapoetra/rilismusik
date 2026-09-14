@@ -26,7 +26,7 @@ from models import (
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
     WithdrawRequestIn, WithdrawAdminAction,
-    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn,
+    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn, TicketBulkStatusIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
     CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
@@ -387,6 +387,41 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
     # Notify label about status change / admin reply
     await _notify_ticket_event(ticket_id, actor=user, kind=("status" if body.status else "note"))
     return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
+
+
+@ticket_r.post("/admin/bulk-status")
+async def admin_bulk_update_tickets(body: TicketBulkStatusIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "support.manage")
+    status_labels = {
+        "open": "Open", "waiting_admin": "Menunggu Admin", "waiting_label": "Menunggu Label",
+        "in_progress": "Sedang Diproses", "submitted_to_believe": "Disubmit ke Believe",
+        "done": "Selesai", "rejected": "Ditolak", "cancelled": "Dibatalkan",
+    }
+    updated, skipped = [], []
+    for ticket_id in body.ticket_ids:
+        ticket = await db.support_tickets.find_one({"id": ticket_id})
+        if not ticket or ticket.get("status") == body.status:
+            skipped.append(ticket_id)
+            continue
+        upd: Dict[str, Any] = {"status": body.status, "updated_at": now_iso(), "assigned_admin_id": user["id"]}
+        if body.status == "submitted_to_believe":
+            upd["submitted_to_believe_at"] = now_iso()
+        if body.status in ("done", "rejected"):
+            upd["resolved_at"] = now_iso()
+        if ticket.get("category") == "takedown" and body.status == "done":
+            from .ticket_takedown_service import complete_takedown_ticket
+            await complete_takedown_ticket(ticket, upd, user)
+        else:
+            await db.support_tickets.update_one({"id": ticket_id}, {"$set": upd})
+        await db.ticket_comments.insert_one({
+            "id": new_id(), "ticket_id": ticket_id, "user_id": user["id"], "user_name": user.get("name"),
+            "role": user["role"], "body": f"Status diubah ke: {status_labels.get(body.status, body.status)}",
+            "attachments": [], "is_system": True, "created_at": now_iso(),
+        })
+        await _notify_ticket_event(ticket_id, actor=user, kind="status")
+        updated.append(ticket_id)
+    await log_activity(user["id"], "ticket_bulk_update", "support", ",".join(updated)[:200], after={"status": body.status, "count": len(updated)})
+    return {"updated": updated, "skipped": skipped, "updated_count": len(updated)}
 
 
 

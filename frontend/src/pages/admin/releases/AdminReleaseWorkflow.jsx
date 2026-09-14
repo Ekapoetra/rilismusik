@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet } from "lucide-react";
+import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet, Upload, Image as ImageIcon, FileAudio, FileCheck2 } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { releaseStatusLabel } from "@/utils/releasePresentation";
 
@@ -49,6 +49,21 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
     finally { setBusy(false); }
   };
   const status = release.status;
+  const [assetBusy, setAssetBusy] = useState("");
+  const uploadAsset = async (key, url, formData, okMsg) => {
+    setAssetBusy(key); setError("");
+    try {
+      const { data } = await api.post(url, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      setMessage(okMsg);
+      const { data: fresh } = await api.get(`/releases/${release.id}`);
+      onUpdated(fresh);
+      return data;
+    } catch (requestError) { setError(formatApiError(requestError.response?.data?.detail)); }
+    finally { setAssetBusy(""); }
+  };
+  const onCoverChange = (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("file", file); uploadAsset("cover", `/releases/${release.id}/admin/upload-cover`, fd, "Cover berhasil diperbarui."); event.target.value = ""; };
+  const onAudioChange = (trackId) => (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("track_id", trackId); fd.append("file", file); uploadAsset(`audio-${trackId}`, `/releases/${release.id}/admin/upload-audio`, fd, "Audio track berhasil diperbarui."); event.target.value = ""; };
+  const onRemixChange = (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("file", file); uploadAsset("remix", `/releases/${release.id}/admin/upload-remix-permission`, fd, "Bukti izin remix diunggah."); event.target.value = ""; };
   return <aside className="sticky bottom-4 border border-white/15 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur" data-testid="admin-release-workflow"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">Tindakan Berikutnya</div><div className="mt-1 text-sm text-zinc-300" data-testid="admin-release-workflow-status">Status saat ini: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div>
     {["submitted", "under_review", "need_revision", "live"].includes(status) && <label className="min-w-72 flex-1 lg:max-w-xl"><span className="rm-label">Catatan / alasan</span><textarea className="rm-input min-h-20" value={note} onChange={(event) => setNote(event.target.value)} data-testid="admin-release-note-input" /></label>}
     <div className="flex flex-wrap gap-2">
@@ -90,5 +105,23 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
         <p className="text-xs text-zinc-500">Gunakan untuk album yang terlanjur dibayar per lagu. Invoice hanya menagih selisih menuju paket album dan tidak mengubah status rilisan.</p>
       </div>}
     </div>
+
+    {status !== "live" && <div className="mt-5 border-t border-white/10 pt-4 space-y-3" data-testid="admin-release-assets-section">
+      <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Revisi Aset (Admin)</div>
+      <div className="flex flex-wrap gap-2">
+        <label className="rm-btn-ghost inline-flex cursor-pointer items-center gap-2 text-sm" data-testid="admin-release-upload-cover-label"><ImageIcon className="h-4 w-4" />{assetBusy === "cover" ? "Mengunggah…" : "Ganti Cover (3000×3000)"}<input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onCoverChange} disabled={!!assetBusy} data-testid="admin-release-upload-cover-input" /></label>
+        <label className="rm-btn-ghost inline-flex cursor-pointer items-center gap-2 text-sm" data-testid="admin-release-upload-remix-label"><FileCheck2 className="h-4 w-4" />{assetBusy === "remix" ? "Mengunggah…" : (release.remix_permission_url ? "Ganti Bukti Izin Remix" : "Upload Bukti Izin Remix")}<input type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" onChange={onRemixChange} disabled={!!assetBusy} data-testid="admin-release-upload-remix-input" /></label>
+      </div>
+      {release.remix_permission_url && <a href={release.remix_permission_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-sky-300 hover:text-sky-200" data-testid="admin-release-remix-link"><FileCheck2 className="h-3.5 w-3.5" /> Lihat bukti izin remix ({release.remix_permission_filename || "file"})</a>}
+      <p className="text-[11px] text-zinc-500">Surat izin remix wajib ditandatangani kedua belah pihak (pencipta asli & label) serta dibubuhi materai Rp 10.000.</p>
+      <div className="space-y-2">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Ganti Audio per Track</div>
+        {(release.tracks || []).map((track) => <div key={track.id} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-sm">
+          <span className="min-w-0 truncate text-zinc-300">{track.track_number}. {track.track_title}</span>
+          <label className="shrink-0 cursor-pointer rounded-md border border-white/15 px-2.5 py-1 text-xs font-semibold text-zinc-200 transition-colors hover:bg-white/10" data-testid={`admin-release-upload-audio-label-${track.id}`}><FileAudio className="mr-1 inline h-3.5 w-3.5" />{assetBusy === `audio-${track.id}` ? "Mengunggah…" : "Ganti WAV"}<input type="file" accept=".wav,audio/wav" className="hidden" onChange={onAudioChange(track.id)} disabled={!!assetBusy} data-testid={`admin-release-upload-audio-input-${track.id}`} /></label>
+        </div>)}
+      </div>
+      <p className="text-[11px] text-zinc-600">Aset tidak dapat diubah setelah rilisan berstatus tayang (live).</p>
+    </div>}
   </aside>;
 };
