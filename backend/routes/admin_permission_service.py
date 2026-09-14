@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
+    {"key": "work", "label_id": "Pekerjaan", "label_en": "Work", "actions": [("work.view", "Lihat Pekerjaan", "View Work queue"), ("work.manage", "Kelola Tanggung Jawab & SLA", "Manage Responsibility & SLA")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
     {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
@@ -125,6 +126,7 @@ BUILTIN_ROLE_NAMES = {
 
 DEFAULT_NAV_ITEMS = [
     ("dashboard", "/admin/dashboard", "LayoutDashboard", "dashboard.view", "Dashboard", "Dashboard", None),
+    ("work", "/admin/work", "ClipboardList", "work.view", "Pekerjaan", "Work", None),
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
     ("rate_changes", "/admin/rate-changes", "ShieldCheck", "labels.rate.request.view", "Persetujuan Sensitif", "Sensitive Approvals", "labels"),
@@ -234,6 +236,15 @@ async def ensure_admin_access_defaults(db) -> None:
         {"$addToSet": {"permissions": {"$each": ["labels.package.request", "labels.package.request.view"]}},
          "$set": {"rbac_schema_version": 8}},
     )
+    # v9: Work Responsibility layer (PRD-02). Grant work.view to all admin roles, work.manage to Super Admin.
+    await db.admin_roles.update_many(
+        {"rbac_schema_version": {"$lt": 9}},
+        {"$addToSet": {"permissions": "work.view"}, "$set": {"rbac_schema_version": 9}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "super_admin"},
+        {"$addToSet": {"permissions": {"$each": ["work.view", "work.manage"]}}},
+    )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -325,6 +336,8 @@ def legacy_role_for_permission(permission: Optional[str], current_role: str) -> 
 def permission_for_request(path: str, method: str) -> Optional[str]:
     method = method.upper(); mutate = method not in {"GET", "HEAD", "OPTIONS"}
     if "/admin/navigation" in path:
+        return None
+    if "/admin/work" in path:
         return None
     if "/admin/access/roles" in path:
         return "access.roles.manage" if mutate else "access.roles.view"

@@ -51,6 +51,7 @@ import AdminMigrate from "@/pages/admin/Migrate";
 import AdminKycReviews from "@/pages/admin/KycReviews";
 import AdminAccessControl from "@/pages/admin/AccessControl";
 import RateChangeQueue from "@/pages/admin/RateChangeQueue";
+import WorkQueue from "@/pages/admin/WorkQueue";
 import AdminUiSettings from "@/pages/admin/UiSettings";
 import AdminNotifications from "@/pages/admin/Notifications";
 import { Toaster } from "@/components/ui/sonner";
@@ -108,6 +109,7 @@ function AppRoutes() {
             <Route path="/admin/labels/rate-import" element={<Navigate to="/admin/labels" replace />} />
             <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
             <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
+            <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
             <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
             <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />
