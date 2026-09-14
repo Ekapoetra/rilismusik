@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — PRD 03 Batch 2: Notification Rules, Sound & Completion, EN, Stale cleanup
+- **Notification Rules** (`routes/notifications.py`): `_priority_for_type` menurunkan prioritas INFO/NORMAL/IMPORTANT/URGENT saat read-time (tanpa migrasi). Bell (`NotificationBell.jsx`) menampilkan dot warna prioritas + **penggabungan tipe sama** (≥3 → 1 baris "N serupa"). Halaman Riwayat (`admin/Notifications.jsx`) menambah tab **Semua/Penting** (filter important+urgent).
+- **Notifikasi basi** (`_flag_stale`): notifikasi yang menunjuk tiket/rilisan terhapus ditandai `stale` + `link` dilepas → klik tidak lagi membuka 404, label "· kedaluwarsa". Item tetap disimpan (PRD: tidak dihapus), unread count konsisten.
+- **Sound & Completion** (`lib/notificationSound.js`, `components/shared/SoundSettings.jsx` dimount di UiSettings): 3 suara terpisah (chat ping / notif chime / urgent double-alert) dengan ON/OFF per jenis, master mute, volume, **Quiet Hours** (urgent bypass), tombol Uji. `lib/completionFeedback.js` `celebrateWork()` menampilkan toast "Yeay 🎉" (ephemeral, bukan notifikasi, tak menaikkan badge) — di-wire ke GoLive & MassGoLive.
+- **Terjemahan EN**: 50 entri baru di `i18n/catalog.en.json` untuk semua teks Dashboard/Notification/Sound.
+- Diuji: testing_agent frontend iter84 **100%** (grouping, prioritas, tab Penting, stale tanpa 404, Sound Settings persist). Backend priority+stale via curl.
+- **Sisa PRD 03**: Activity Center full-page filters lanjutan (opsional), rule notifikasi server-side yang lebih kaya bila diperlukan, dan wiring completion feedback ke titik penyelesaian Work lain (tiket selesai, withdraw dibayar).
+
+
 ## 2026-06 — PRD 03 Batch 1: Dashboard (A) + Notification grouping (B-lite) + Chat dock (C)
 Audit klasifikasi: Dashboard=REFACTOR, Notification=EXTEND, Activity=EXTEND, Chat=REFACTOR(closed-state), Sound/i18n/Work(PRD2)/Permission(PRD1)=KEEP/reuse.
 - **Fase A — Dashboard** (`pages/admin/Dashboard.jsx`, REWRITE): hapus **Aksi Cepat** (sesuai PRD). Tambah Greeting dinamis (template+variabel WIB, bukan AI), **Pekerjaan Saya** & **Monitor Tim** (baca `/admin/work/queue` scope my/team dari PRD2, agregat), **Fokus Hari Ini** (baca state existing: gap/kritis/lewat tempo/persetujuan/lainnya), **Responsibility Gap** alert + CTA konfigurasi, Aktivitas Terbaru (6) + "Lihat semua". Ringkasan Platform & Royalti dipertahankan. Semua string via `t()` (ID native).

@@ -66,9 +66,50 @@ def _notification_filter(user_id: str, read_status: str, search: Optional[str], 
     return filt
 
 
+def _priority_for_type(ntype: str) -> str:
+    """Derive notification priority at read-time (no migration needed)."""
+    t = (ntype or "").lower()
+    urgent = ("urgent", "suspend", "security", "not_live", "reject", "takedown", "expired", "overdue", "fraud", "blacklist")
+    important = ("withdraw", "payment", "kyc", "claim", "rate_change", "need_revision", "contract", "paid", "refund", "invoice")
+    info = ("maintenance", "welcome", "info", "announcement")
+    if any(k in t for k in urgent):
+        return "urgent"
+    if any(k in t for k in important):
+        return "important"
+    if any(k in t for k in info):
+        return "info"
+    return "normal"
+
+
+async def _flag_stale(items: list) -> list:
+    """Flag notifications whose linked ticket/release no longer exists and strip
+    their link so clicking won't open a 'not found' page. Items are kept (PRD:
+    read notifications are not deleted) but marked `stale`."""
+    ticket_ids = {(i.get("meta") or {}).get("ticket_id") for i in items if (i.get("meta") or {}).get("ticket_id")}
+    release_ids = {(i.get("meta") or {}).get("release_id") for i in items if (i.get("meta") or {}).get("release_id")}
+    existing_t, existing_r = set(), set()
+    if ticket_ids:
+        async for d in db.support_tickets.find({"id": {"$in": list(ticket_ids)}}, {"_id": 0, "id": 1}):
+            existing_t.add(d["id"])
+    if release_ids:
+        async for d in db.releases.find({"id": {"$in": list(release_ids)}}, {"_id": 0, "id": 1}):
+            existing_r.add(d["id"])
+    for i in items:
+        m = i.get("meta") or {}
+        stale = bool((m.get("ticket_id") and m["ticket_id"] not in existing_t)
+                     or (m.get("release_id") and m["release_id"] not in existing_r))
+        if stale:
+            i["stale"] = True
+            i["link"] = None
+    return items
+
+
 async def _notification_page(filt: Dict[str, Any], page: int, limit: int) -> Dict[str, Any]:
     total = await db.notifications.count_documents(filt)
     items = await db.notifications.find(filt, {"_id": 0}).sort("created_at", -1).skip((page - 1) * limit).limit(limit).to_list(limit)
+    items = await _flag_stale(items)
+    for i in items:
+        i["priority"] = _priority_for_type(i.get("type"))
     return {"items": items, "total": total, "page": page, "limit": limit, "pages": max(1, (total + limit - 1) // limit)}
 
 

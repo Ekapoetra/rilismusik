@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Rocket, Loader2, Disc3, ListChecks, RefreshCw } from "lucide-react";
 import { api, fileUrl, formatApiError } from "@/api/client";
 import { toast } from "@/components/ui/sonner";
+import { celebrateWork } from "@/lib/completionFeedback";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const isComplete = (rel, draft) => {
@@ -51,6 +52,7 @@ export default function MassGoLiveModal({ open, onClose, onDone }) {
     if (okIds.size) {
       setReleases((cur) => cur.filter((r) => !okIds.has(r.id)));
       toast.success(`${okIds.size} rilisan tayang. Email dikirim ke label.`);
+      celebrateWork("release_go_live");
       onDone?.();
     }
     failed.forEach((f) => toast.error(`Gagal: ${f.error}`));

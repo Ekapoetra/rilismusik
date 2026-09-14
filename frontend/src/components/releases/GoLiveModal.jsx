@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Rocket, Clock, Loader2, Disc3, CalendarClock, ArrowLeft } from "lucide-react";
 import { api, fileUrl, formatApiError } from "@/api/client";
 import { toast } from "@/components/ui/sonner";
+import { celebrateWork } from "@/lib/completionFeedback";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const coverSrc = (r) => (r?.imported_legacy && r?.internal_cover_url) || r?.cover_url || "";
@@ -42,6 +43,7 @@ export default function GoLiveModal({ releaseId, open, onClose, onDone }) {
         release_date: releaseDate || undefined,
       });
       toast.success("Rilisan kini tayang. Email pemberitahuan dikirim ke label.");
+      celebrateWork("release_go_live");
       onDone?.(); onClose?.();
     } catch (e) {
       const msg = formatApiError(e.response?.data?.detail) || "Gagal menandai tayang.";

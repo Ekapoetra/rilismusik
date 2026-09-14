@@ -130,13 +130,13 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
                   data-testid={`notification-item-${n.id}-${instance}`}
                 >
                   <div className="flex items-start gap-3">
-                    {!n.read_at && (
-                      <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#FF1F8E]" />
+                    {(
+                      <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${n.priority === "urgent" ? "bg-red-500" : n.priority === "important" ? "bg-amber-400" : n.priority === "info" ? "bg-zinc-500" : "bg-[#FF1F8E]"} ${n.read_at ? "opacity-40" : ""}`} />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`} data-testid={`notification-title-${n.id}-${instance}`}>{n.type === "chat_message" ? n.title : t(n.title)}</div>
                       <div className="text-xs text-zinc-400 line-clamp-2 mt-0.5" data-testid={`notification-body-${n.id}-${instance}`}>{n.type === "chat_message" ? n.body : t(n.body)}</div>
-                      <div className="text-[10px] text-zinc-600 mt-1">{locale === "id" ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString("en-GB")}</div>
+                      <div className="text-[10px] text-zinc-600 mt-1">{locale === "id" ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString("en-GB")}{n.stale ? ` · ${t("kedaluwarsa")}` : ""}</div>
                     </div>
                   </div>
                 </button>
@@ -151,9 +151,34 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
               return (
                 <>
                   {today.length > 0 && <SectionHeader label={t("Hari Ini")} testid={`notification-section-today-${instance}`} />}
-                  {today.length > 0 ? today.map(renderItem) : (
+                  {today.length === 0 ? (
                     <div className="px-4 py-6 text-center text-xs text-zinc-600" data-testid={`notification-today-empty-${instance}`}>{t("Belum ada notifikasi hari ini.")}</div>
-                  )}
+                  ) : (() => {
+                    const byType = {};
+                    today.forEach((n) => { (byType[n.type] = byType[n.type] || []).push(n); });
+                    const seen = new Set();
+                    return today.map((n) => {
+                      const list = byType[n.type] || [n];
+                      if (list.length >= 3 && n.type !== "chat_message") {
+                        if (seen.has(n.type)) return null;
+                        seen.add(n.type);
+                        const latest = list[0];
+                        const unreadCount = list.filter((x) => !x.read_at).length;
+                        return (
+                          <button key={`grp-${n.type}`} onClick={() => handleClick(latest)} className="block w-full text-left px-4 py-3 border-b border-white/5 transition hover:bg-white/5" data-testid={`notification-group-${n.type}-${instance}`}>
+                            <div className="flex items-center gap-3">
+                              <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#FF1F8E] px-1.5 text-[11px] font-bold text-white">{list.length}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold text-white">{t(latest.title)}</div>
+                                <div className="text-[11px] text-zinc-500">{list.length} {t("serupa")}{unreadCount ? ` · ${unreadCount} ${t("belum dibaca")}` : ""}</div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      }
+                      return renderItem(n);
+                    });
+                  })()}
                   {earlierUnread.length > 0 && <SectionHeader label={t("Sebelumnya · Belum dibaca")} testid={`notification-section-earlier-${instance}`} />}
                   {earlierUnread.map(renderItem)}
                 </>

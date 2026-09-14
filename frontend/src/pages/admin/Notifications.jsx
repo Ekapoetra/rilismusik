@@ -192,6 +192,7 @@ export default function AdminNotifications() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [readStatus, setReadStatus] = useState("all");
+  const [importantOnly, setImportantOnly] = useState(false);
   const [type, setType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -309,6 +310,13 @@ export default function AdminNotifications() {
 
       {error && <div role="alert" className="rounded-md border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200" data-testid="admin-notifications-error">{error}</div>}
 
+      <div className="inline-flex rounded-md border border-white/10 bg-white/[0.03] p-1" data-testid="admin-notifications-priority-tabs">
+        <button type="button" onClick={() => setImportantOnly(false)} className={`rounded px-4 py-1.5 text-sm font-bold transition-colors ${!importantOnly ? "bg-white text-black" : "text-zinc-500 hover:text-white"}`} data-testid="admin-notifications-priority-all">Semua</button>
+        <button type="button" onClick={() => setImportantOnly(true)} className={`rounded px-4 py-1.5 text-sm font-bold transition-colors ${importantOnly ? "bg-amber-400 text-black" : "text-zinc-500 hover:text-white"}`} data-testid="admin-notifications-priority-important">Penting</button>
+      </div>
+
+      {(() => { const visibleItems = importantOnly ? data.items.filter((i) => ["important", "urgent"].includes(i.priority)) : data.items; return (
+      <>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
         <span data-testid="admin-notifications-total">{data.total} notifikasi ditemukan</span>
         {scope === "all" && <span data-testid="admin-notifications-audit-mode">Mode audit Super Admin · baca-saja untuk penerima lain</span>}
@@ -317,12 +325,12 @@ export default function AdminNotifications() {
       <section className="min-w-0 max-w-full divide-y divide-white/10 border-y border-white/10" data-testid="admin-notifications-list">
         {loading ? (
           <div className="py-14 text-center text-sm text-zinc-500" data-testid="admin-notifications-loading">Memuat riwayat…</div>
-        ) : data.items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="py-16 text-center" data-testid="admin-notifications-empty">
             <BellRing className="mx-auto h-8 w-8 text-zinc-700" />
             <p className="mt-3 text-sm text-zinc-500">Tidak ada notifikasi yang cocok.</p>
           </div>
-        ) : data.items.map((item) => (
+        ) : visibleItems.map((item) => (
           <NotificationRow
             key={item.id}
             item={item}
@@ -332,6 +340,8 @@ export default function AdminNotifications() {
           />
         ))}
       </section>
+      </>
+      ); })()}
 
       <NotificationPagination page={data.page || page} pages={pages} onPageChange={setPage} />
     </div>
