@@ -53,7 +53,7 @@ export default function AdminReleaseDetail() {
       {error && <div className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert" data-testid="admin-release-error">{error}</div>}
       {!release ? (!error && <div className="text-zinc-500" data-testid="admin-release-detail-loading">Memuat detail rilisan…</div>) : <>
         <header className="space-y-4 border-b border-white/10 pb-6">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <ReleaseArtwork release={release} prefix="admin-detail" large onUpdated={(patch) => setRelease((current) => ({ ...current, ...patch }))} />
             <div className="min-w-0 flex-1">
             <div className="break-words text-xs font-bold uppercase text-zinc-500" data-testid="admin-release-detail-reference">{release.release_type} · {release.id}</div>
