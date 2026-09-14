@@ -9,6 +9,7 @@ import shutil
 import secrets
 import re
 from pymongo.collation import Collation
+from pydantic import BaseModel, Field
 
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
@@ -328,6 +329,90 @@ async def admin_list_releases(
         it["last_active_period"] = r.get("last_period")
         it["first_active_period"] = r.get("first_period")
     return items
+
+@admin_r.get("/releases/ready-to-live")
+async def admin_releases_ready_to_live(user: dict = Depends(require_admin)):
+    """Releases that are delivered (dikirim ke Believe) with a release_date of today
+    or in the past (WIB) — i.e. ready to go live. Future-dated releases are excluded.
+    Includes per-track ISRC so admins can fill UPC/ISRC in bulk."""
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
+    today_wib = jakarta_now().date().isoformat()
+    items = await db.releases.find(
+        {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}},
+        {"_id": 0},
+    ).sort("release_date", 1).to_list(1000)
+    await enrich_release_list(db, items)
+    rids = [i["id"] for i in items]
+    tracks = await db.tracks.find(
+        {"release_id": {"$in": rids}},
+        {"_id": 0, "id": 1, "release_id": 1, "track_title": 1, "track_number": 1, "isrc": 1, "artist_name": 1},
+    ).sort("track_number", 1).to_list(5000)
+    by_rel: Dict[str, List[Dict[str, Any]]] = {}
+    for t in tracks:
+        by_rel.setdefault(t["release_id"], []).append(t)
+    label_ids = list({i["label_id"] for i in items})
+    labels = await db.labels.find({"id": {"$in": label_ids}}, {"_id": 0, "id": 1, "label_name": 1}).to_list(1000)
+    name_map = {lab["id"]: lab["label_name"] for lab in labels}
+    out = []
+    for it in items:
+        rel_tracks = by_rel.get(it["id"], [])
+        artist = ", ".join(it.get("display_primary_artists") or []) or it.get("artist_name") \
+            or ", ".join(sorted({t.get("artist_name") for t in rel_tracks if t.get("artist_name")})) or "—"
+        out.append({
+            "id": it["id"],
+            "release_title": it.get("release_title"),
+            "release_date": it.get("release_date"),
+            "upc": it.get("upc"),
+            "cover_url": it.get("display_cover_url"),
+            "artist": artist,
+            "label_name": name_map.get(it["label_id"]),
+            "tracks": [
+                {"id": t["id"], "track_title": t.get("track_title"),
+                 "track_number": t.get("track_number"), "isrc": t.get("isrc")}
+                for t in rel_tracks
+            ],
+        })
+    return {"today_wib": today_wib, "releases": out}
+
+
+class BulkGoLiveItem(BaseModel):
+    release_id: str
+    upc: Optional[str] = None
+    track_isrcs: Dict[str, str] = Field(default_factory=dict)
+    release_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class BulkGoLiveIn(BaseModel):
+    items: List[BulkGoLiveItem] = Field(default_factory=list, max_length=200)
+
+
+@admin_r.post("/releases/bulk-go-live")
+async def admin_releases_bulk_go_live(body: BulkGoLiveIn, user: dict = Depends(require_admin)):
+    """Mark multiple releases live at once. Reuses the single mark_live action per
+    release (same validation, notifications, and go-live email). Returns per-release
+    result so partially-complete batches report which succeeded/failed."""
+    from .releases import admin_release_action  # lazy import to avoid circular import
+    results = []
+    for item in body.items:
+        try:
+            action_body = AdminReleaseAction(
+                action="mark_live", upc=item.upc,
+                track_isrcs=item.track_isrcs or {}, release_date=item.release_date,
+            )
+            await admin_release_action(item.release_id, action_body, user)
+            results.append({"release_id": item.release_id, "ok": True})
+        except HTTPException as e:
+            results.append({"release_id": item.release_id, "ok": False, "error": e.detail})
+        except Exception as e:  # noqa: BLE001
+            results.append({"release_id": item.release_id, "ok": False, "error": str(e)})
+    return {
+        "results": results,
+        "success": sum(1 for r in results if r["ok"]),
+        "failed": sum(1 for r in results if not r["ok"]),
+    }
+
+
 
 
 @admin_r.get("/artists")

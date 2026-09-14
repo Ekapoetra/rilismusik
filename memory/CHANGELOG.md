@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Entry Massal UPC/ISRC + pembatasan tombol Tayangkan (WIB)
+- **Backend** (`routes/admin.py`): `GET /admin/releases/ready-to-live` (rilisan delivered dengan `release_date <= hari ini WIB` via `jakarta_now()`, menyertakan tracks + cover + artis) dan `POST /admin/releases/bulk-go-live` (reuse `admin_release_action` mark_live per rilisan → validasi + notif + email tetap jalan, kembalikan hasil per item).
+- **Frontend**: tombol **"Entry Massal UPC/ISRC"** di header Manajemen Rilisan membuka `MassGoLiveModal.jsx` — daftar rilisan siap tayang dengan input UPC + ISRC per track inline, tombol per baris **"Simpan & Tayangkan"** (aktif hanya bila UPC+semua ISRC terisi) + tombol atas **"Tayangkan Semua yang Lengkap (n)"**. Tanpa buka satu per satu.
+- **Pembatasan tombol Tayangkan** (`Releases.jsx` `isReadyToLive`): hanya muncul untuk rilisan delivered dengan `release_date <= hari ini WIB`. Rilisan bertanggal masa depan tidak menampilkan tombol (tanpa label terjadwal).
+- **WIB**: perhitungan "hari ini" konsisten WIB (backend `jakarta_now`, frontend `todayWIB = now+7h`). Catatan: penyimpanan timestamp log/notifikasi tetap UTC (standar); tampilan WIB diterapkan pada logika fitur ini.
+- Diuji: curl backend (ready-to-live 1 rilisan; bulk tanpa UPC → error per item, tidak menayangkan) + testing_agent frontend iter82 100% (modal, enable/disable, count, go-live massal end-to-end, tombol tersembunyi setelah live).
+
+
 ## 2026-06 — Modal Finalisasi Tayang (Go-Live) + aksi Tunda
 - **Modal Go-Live** (`components/releases/GoLiveModal.jsx`): dibuka dari tombol "Tayangkan" pada baris rilisan berstatus `delivered` di Manajemen Rilisan admin. Menampilkan cover, judul, artis (fallback ke `track.artist_name` untuk rilisan legacy), form UPC + ISRC per track (prefilled bila ada), input tanggal.
   - **Simpan & Buat Live** → aksi `mark_live` (validasi UPC + ISRC semua track) → status `live` + email otomatis "sudah tayang" ke label.

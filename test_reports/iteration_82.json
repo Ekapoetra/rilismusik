@@ -1,0 +1,15 @@
+{
+  "summary": "E2E frontend test of Mass Go-Live modal on /admin/releases. All acceptance criteria pass: (1) mass-golive-open-btn opens mass-golive-modal, (2) summary shows '1 siap tayang · 0 lengkap' with row for 'Cinta Sederhana' and 1 ISRC input, (3) row button disabled when UPC empty, (4) after filling UPC + ISRC row becomes complete, row btn enabled, all-btn shows '(1)' and is enabled, summary flips to '1 lengkap', (5) clicking mass-golive-all-btn removes the row (list refreshed to 0), toast success, and after closing modal the table shows status 'Tayang' for Cinta Sederhana and the row Tayangkan button is no longer rendered (isReadyToLive returns false because status transitioned to live). Row Tayangkan button was correctly visible pre-golive for the fixture (release_date 2026-09-15 == today WIB).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/test_reports/screenshots/mass_golive_final.png"],
+  "action_items": [],
+  "critical_code_review_comments": ["MassGoLiveModal.jsx is compact and DRY. isComplete() correctly requires UPC + all track ISRCs. onDone refreshes admin list post go-live. Consider client-side ISRC/UPC format validation (currently backend-only), but not a blocker."],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026",
+  "seed_data_creation": "None. Consumed fixture 'Cinta Sederhana' (delivered→live) as sanctioned by request.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Cinta Sederhana fixture is now 'live'. To re-run this flow a new delivered fixture with release_date<=today WIB is required."
+}

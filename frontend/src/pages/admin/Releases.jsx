@@ -4,11 +4,15 @@ import { api, formatApiError } from "@/api/client";
 import { formatReleaseDate } from "@/utils/releaseDate";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
-import { Calendar, TrendingUp, Rocket } from "lucide-react";
+import { Calendar, TrendingUp, Rocket, ListChecks } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 import { ReleaseIsrcPanel, ReleaseIsrcToggle } from "@/components/releases/ReleaseIdentifiers";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import GoLiveModal from "@/components/releases/GoLiveModal";
+import MassGoLiveModal from "@/components/releases/MassGoLiveModal";
+
+const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtInt(n) { return Number(n || 0).toLocaleString("id-ID"); }
@@ -25,6 +29,7 @@ export default function AdminReleases() {
   const [expandedIsrc, setExpandedIsrc] = useState(null);
   const [status, setStatus] = useState(searchParams.get("status") || "");
   const [goLiveId, setGoLiveId] = useState(null);
+  const [massOpen, setMassOpen] = useState(false);
   const [q, setQ] = useState("");
   const [periods, setPeriods] = useState([]);
   const [periodFrom, setPeriodFrom] = useState("");
@@ -72,10 +77,13 @@ export default function AdminReleases() {
 
   return (
     <div className="space-y-5" data-testid="admin-releases-page">
-      <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operasional Rilisan</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Rilisan</h1>
-        <p className="text-sm text-zinc-400 mt-1">Total pendapatan dan bulan laporan aktif dihitung dari data royalti.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Operasional Rilisan</div>
+          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Rilisan</h1>
+          <p className="text-sm text-zinc-400 mt-1">Total pendapatan dan bulan laporan aktif dihitung dari data royalti.</p>
+        </div>
+        <button type="button" onClick={() => setMassOpen(true)} className="rm-btn-primary inline-flex items-center gap-2 self-start text-sm" data-testid="mass-golive-open-btn"><ListChecks className="h-4 w-4" /> Entry Massal UPC/ISRC</button>
       </div>
 
       <div className="rm-card p-4 grid md:grid-cols-6 gap-3 items-end">
@@ -163,7 +171,7 @@ export default function AdminReleases() {
               ) : <span className="text-zinc-600">—</span>}
             </div>
             <div className="min-w-0 col-span-6 xl:col-auto relative z-10 flex flex-wrap items-center justify-end gap-2" data-testid={`admin-release-status-actions-${r.id}`}>
-              {r.status === "delivered" && (
+              {isReadyToLive(r) && (
                 <button type="button" onClick={() => setGoLiveId(r.id)} className="inline-flex items-center gap-1.5 rounded-full bg-pink-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-pink-400" data-testid={`admin-release-golive-btn-${r.id}`}><Rocket className="h-3.5 w-3.5" /> Tayangkan</button>
               )}
               <span data-testid={`admin-release-status-${r.id}`}><StatusBadge status={r.status} /></span>
@@ -174,6 +182,7 @@ export default function AdminReleases() {
         ))}
       </div>
       <GoLiveModal releaseId={goLiveId} open={!!goLiveId} onClose={() => setGoLiveId(null)} onDone={load} />
+      <MassGoLiveModal open={massOpen} onClose={() => setMassOpen(false)} onDone={load} />
     </div>
   );
 }
