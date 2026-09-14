@@ -2,11 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { PermissionMatrix } from "./PermissionMatrix";
-import { RoleNavPreview } from "./RoleNavPreview";
 import { RoleValidationPanel } from "./RoleValidationPanel";
 import { RoleBehaviorPreview } from "./RoleBehaviorPreview";
 
-export const RoleEditor = ({ role, modules, navigation, onSave, onDelete, saving, readOnly = false }) => {
+export const RoleEditor = ({ role, modules, onSave, onDelete, saving, readOnly = false }) => {
   const [form, setForm] = useState(role);
   const [warnings, setWarnings] = useState([]);
   const [preview, setPreview] = useState(null);
@@ -41,7 +40,6 @@ export const RoleEditor = ({ role, modules, navigation, onSave, onDelete, saving
     <PermissionMatrix modules={modules} permissions={form.permissions || []} onChange={(permissions) => setForm({ ...form, permissions })} readOnly={readOnly} />
     <RoleValidationPanel warnings={warnings} loading={checking} />
     <RoleBehaviorPreview preview={preview} loading={checking} active={active} />
-    <RoleNavPreview navigation={navigation} permissions={form.permissions || []} roleKey={form.key} roleName={form.name} active={form.active !== false} />
     {!readOnly && <div className="sticky bottom-4 flex justify-end border border-white/10 bg-[var(--ui-surface)] p-4 shadow-xl"><button type="submit" className="rm-btn-primary inline-flex items-center gap-2" disabled={saving || !form.name?.trim()} data-testid="admin-role-save-button"><Save className="h-4 w-4" />{saving ? "Menyimpan…" : "Simpan Role"}</button></div>}
   </form>;
 };
