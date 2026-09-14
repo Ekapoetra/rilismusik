@@ -8,6 +8,8 @@ import io
 import shutil
 import secrets
 from urllib.parse import urlparse
+import asyncio
+from email_service import send_ticket_created_email, send_ticket_status_email
 
 from .deps import (
     db, logger, UPLOAD_DIR,
@@ -226,6 +228,13 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         f"{label.get('label_name')} mengajukan {TICKET_CATEGORY_LABELS[body.category]}.",
         f"/admin/tickets/{ticket_id}", {"ticket_id": ticket_id},
     )
+    # Confirmation email to the label (best-effort).
+    if label.get("email"):
+        asyncio.create_task(send_ticket_created_email(
+            to=label["email"], label_name=label.get("label_name") or "Label",
+            ticket_no=short_no, category_label=TICKET_CATEGORY_LABELS[body.category],
+            ticket_id=ticket_id, subject_line=doc.get("subject"),
+        ))
     doc.pop("_id", None)
     return TicketCreatedOut(**doc)
 
@@ -386,6 +395,8 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
     await log_activity(user["id"], "ticket_update", "support", ticket_id, after=upd)
     # Notify label about status change / admin reply
     await _notify_ticket_event(ticket_id, actor=user, kind=("status" if body.status else "note"))
+    if body.status and body.status != ticket.get("status"):
+        await _email_ticket_status(ticket, body.status)
     return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
 
 
@@ -419,9 +430,23 @@ async def admin_bulk_update_tickets(body: TicketBulkStatusIn, user: dict = Depen
             "attachments": [], "is_system": True, "created_at": now_iso(),
         })
         await _notify_ticket_event(ticket_id, actor=user, kind="status")
+        await _email_ticket_status(ticket, body.status)
         updated.append(ticket_id)
     await log_activity(user["id"], "ticket_bulk_update", "support", ",".join(updated)[:200], after={"status": body.status, "count": len(updated)})
     return {"updated": updated, "skipped": skipped, "updated_count": len(updated)}
+
+
+
+async def _email_ticket_status(ticket: Dict[str, Any], status: str):
+    """Best-effort email to the label on important status changes only."""
+    if status not in ("in_progress", "submitted_to_believe", "done", "rejected"):
+        return
+    label = await db.labels.find_one({"id": ticket["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
+    if label and label.get("email"):
+        asyncio.create_task(send_ticket_status_email(
+            to=label["email"], label_name=label.get("label_name") or "Label",
+            ticket_no=ticket.get("ticket_no") or "-", status=status, ticket_id=ticket["id"],
+        ))
 
 
 

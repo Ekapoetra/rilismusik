@@ -10,7 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .deps import db, db_bg, logger, require_admin, notify, label_user_ids
 from models import now_iso
-from email_service import send_contract_expiry_email, send_subscription_expiry_email
+from email_service import send_contract_expiry_email, send_subscription_expiry_email, send_payment_reminder_email
 from payment_service import poll_payment, xendit_configured
 from .monthly_royalty_email import send_monthly_summaries
 from .background_job_notifications import notify_completed_background_jobs
@@ -57,9 +57,16 @@ async def check_subscription_expiry_job():
                         "Subscription tahunan Anda berakhir hari ini. Beralih ke Pay Per Release atau perpanjang sekarang.",
                         "/label/invoices", {"label_id": lab["id"]},
                     )
+                    user_doc = await db.users.find_one({"id": lab["user_id"]}, {"_id": 0, "email": 1})
+                    if user_doc and user_doc.get("email"):
+                        await send_subscription_expiry_email(
+                            to=user_doc["email"],
+                            label_name=lab.get("label_name") or "Label",
+                            days_left=0,
+                        )
 
-        # 2) Send reminders for active subs expiring in T-7, T-3, T-1 days
-        for days in (7, 3, 1):
+        # 2) Send reminders for active subs expiring in T-30, T-7, T-3, T-1 days
+        for days in (30, 7, 3, 1):
             target_low = now + timedelta(days=days - 1)
             target_high = now + timedelta(days=days)
             async for lab in db.labels.find(
@@ -95,6 +102,58 @@ async def check_subscription_expiry_job():
                     )
     except Exception as e:
         logger.exception("Subscription expiry job failed: %s", e)
+
+
+async def send_payment_reminders_job():
+    """Remind labels about unpaid PPR / add-on (custom_service) invoices.
+
+    Two one-off reminders per invoice: ~24h and ~72h after creation while still
+    unpaid. Idempotent via `payment_reminders` markers stored on the payment doc.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        cursor = db.payments.find(
+            {
+                "status": {"$in": ["pending", "unpaid"]},
+                "type": {"$in": ["pay_per_release", "custom_service"]},
+            },
+            {"_id": 0, "id": 1, "label_id": 1, "type": 1, "description": 1, "amount": 1,
+             "release_id": 1, "created_at": 1, "payment_reminders": 1},
+        )
+        async for p in cursor:
+            raw = p.get("created_at")
+            if not raw:
+                continue
+            try:
+                created = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+            except Exception:
+                continue
+            age_hours = (now - created).total_seconds() / 3600.0
+            sent = set(p.get("payment_reminders") or [])
+            marker = None
+            if age_hours >= 72 and "72h" not in sent:
+                marker, days_pending = "72h", 3
+            elif age_hours >= 24 and "24h" not in sent:
+                marker, days_pending = "24h", 1
+            if not marker:
+                continue
+            label = await db.labels.find_one({"id": p["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
+            if not (label and label.get("email")):
+                # Still record the marker so we don't re-scan forever.
+                await db.payments.update_one({"id": p["id"]}, {"$addToSet": {"payment_reminders": marker}})
+                continue
+            await send_payment_reminder_email(
+                to=label["email"], label_name=label.get("label_name") or "Label",
+                description=p.get("description") or "Tagihan RILIS MUSIK",
+                amount_idr=int(p.get("amount") or 0), payment_id=p["id"],
+                release_id=p.get("release_id"), days_pending=days_pending,
+            )
+            await db.payments.update_one({"id": p["id"]}, {"$addToSet": {"payment_reminders": marker}})
+    except Exception as e:
+        logger.exception("Payment reminder job failed: %s", e)
+
 
 
 async def check_contract_expiry_job():
@@ -235,6 +294,14 @@ async def reconcile_pending_xendit_payments():
                 "[XENDIT POLL] payment=%s failed: %s",
                 payment.get("id"), type(exc).__name__,
             )
+
+
+@cron_r.post("/payment-reminders-check")
+async def trigger_payment_reminders_check(user: dict = Depends(require_admin)):
+    """Manually run the unpaid-invoice reminder sweep."""
+    await send_payment_reminders_job()
+    return {"ok": True, "job": "payment_reminders"}
+
 
 
 @cron_r.post("/subscription-check")
@@ -399,6 +466,11 @@ def start_scheduler():
         kwargs={"reason": "hourly_scheduler"},
         id="label_balance_snapshot_refresh", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
+    )
+    scheduler.add_job(
+        send_payment_reminders_job, "interval", hours=3,
+        id="payment_reminders", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=100),
     )
     scheduler.start()
 

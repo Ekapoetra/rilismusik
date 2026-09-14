@@ -1,5 +1,15 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Email otomatis lengkap ke label (semua event)
+Semua pakai desain terang universal (`_wrap` + `_badge` + `_release_card` + `_kv_table`), isi & CTA menyesuaikan.
+- **Status rilisan → label**: `send_release_status_email` (kind: submitted/under_review/approved/need_revision/rejected/taken_down) + live (celebratory) yang sudah ada. Wiring: `submit_release` (email 'submitted') & `admin_release_action` (mapping aksi→kind).
+- **Pengingat pembayaran**: cron baru `send_payment_reminders_job` (interval 3 jam) menyapu invoice `pending/unpaid` tipe `pay_per_release`+`custom_service`; kirim reminder ~24h & ~72h, idempoten via `payment.payment_reminders` ($addToSet). Endpoint manual `POST /api/admin/cron/payment-reminders-check`. Template `send_payment_reminder_email`.
+- **Subscription**: loop reminder jadi 30/7/3/1 hari + email saat habis (`send_subscription_expiry_email` handle days_left=0).
+- **Tiket support**: `send_ticket_created_email` saat dibuat; `send_ticket_status_email` HANYA status penting (in_progress/submitted_to_believe/done/rejected) via helper `_email_ticket_status` di `admin_update_ticket` & bulk.
+- **Layanan tambahan**: `send_addon_status_email` (in_progress/delivered/completed) via helper `_email_addon` di update-status/delivery/delivery-file.
+- Semua best-effort (asyncio.create_task, dijaga `if label.get('email')`). Diuji: testing_agent iter79 100% backend (7/7), + 14 email uji terkirim ke easybnd@gmail.com. Verifikasi inbox oleh user PENDING.
+
+
 ## 2026-06 — Redesign email tema terang (semua email)
 - `email_service.py` `_wrap()` diubah dari tema gelap ke **tema terang** (bg #eef0f3, kartu putih radius 28px). Header: ikon RM (`email-logo.png`) + "RILIS MUSIK" + divider + "Musik Tanpa Batas"; footer "PT. Jeeres Group Indonesia" + "© {tahun} RILIS MUSIK" (+ alamat/NIB kecil). CTA jadi tombol pill gradient ungu→pink full-width.
 - Semua fungsi email (verifikasi, reset, klaim, kontrak, invoice, pembayaran, penarikan, royalti bulanan, laporan artis) warna inline disesuaikan ke tema terang via helper `_kv_table()` + `_badge()`.

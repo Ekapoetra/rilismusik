@@ -1,0 +1,27 @@
+{
+  "summary": "Iter79 verified additive best-effort email hooks do NOT regress the edited endpoints. Tests (7/7 passed):\n(1) POST /api/admin/cron/payment-reminders-check → 200 {ok:true, job:'payment_reminders'}. Idempotent second call also 200.\n(2) Inserted a synthetic pending pay_per_release invoice created 2024-01-01, ran the reminder cron, verified payment.payment_reminders contains marker '72h' (idempotent via $addToSet).\n(3) POST /api/admin/cron/subscription-check → 200 {ok:true, job:'subscription_expiry'}.\n(4) POST /api/tickets/label/create (category=not_live) as demo_vip → 200; backend log shows [EMAIL] sent 'Tiket … diterima'.\n(5) POST /api/tickets/admin/{id}/status transitions to in_progress, done, rejected all returned 200; [EMAIL] sent logged for each ('Sedang Diproses', 'Selesai', 'Ditolak'). submitted_to_believe path exercised via code review only.\n(6) POST /api/releases/{id}/admin/action for start_review, need_revision, approve, reject, takedown all returned 200 and status transitioned as expected; [EMAIL] sent logged for 'sedang direview', 'perlu revisi', 'disetujui', 'ditolak', 'diturunkan'.\n(7) PATCH /api/admin/addon-orders/{id}/status → in_progress (200) and PATCH …/delivery with link (200, auto-advanced to delivered); [EMAIL] sent logged for 'sedang diproses' and 'terkirim'. delivery-file (multipart) path is covered by iter77 (unchanged upload flow) — the added _email_addon call is same pattern as delivery/status.\n\nBackend log confirms no exceptions in email path (all lines are '[EMAIL] sent …'). Endpoint status is the source of truth (best-effort emails run via asyncio.create_task).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter79_email_hooks.py",
+    "/app/test_reports/pytest/iter79_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "send_payment_reminders_job: uses `days_pending = 1` for the 24h reminder — copy currently reads 'belum diselesaikan' generically so this is fine, but consider surfacing days_pending in the email subject for clarity (e.g., 'Pengingat pembayaran (H+1)').",
+    "send_payment_reminders_job records the marker even when the label has no email (line 145) — good (prevents infinite re-scan). Confirmed via test.",
+    "admin_release_action: send_release_status_email is fired for start_review/need_revision/approve/reject/takedown. mark_live goes through send_release_live_email (celebratory) instead of the status-lifecycle template — intentional, but worth documenting that these two email paths are mutually exclusive per action.",
+    "_email_ticket_status filters to important statuses ('in_progress', 'submitted_to_believe', 'done', 'rejected') — good; guarantees no spam for waiting_admin/waiting_label toggles.",
+    "_email_addon: passes the pre-update `order` doc as `order` argument (status field is stale), but the email function only reads product_name/release_title/release_id from it, and the new status is passed explicitly — correct.",
+    "cron endpoint payment-reminders-check is guarded by require_admin only (any admin). Consider tightening to super_admin or admin_finance to align with the other cron endpoints in this file.",
+    "Unrelated: backend.out.log shows a few transient '/api/label/dashboard 500' entries earlier in the log. Subsequent calls returned 200 and no traceback was captured, so likely a transient boot-time race. Not a blocker for this iteration but worth monitoring."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter79_email_hooks.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (backend-only per request)"},
+  "test_credentials": "Existing seeded accounts only: superadmin@rilismusik.com / SuperAdmin#2026, release1@rilismusik.com / Release#2026, demo_vip@rilismusik.com / DemoVIP#2026. No new permanent credentials added.",
+  "seed_data_creation": "Temporary fixtures only, all cleaned up in fixture teardown: (a) demo_vip label.email was temporarily rewritten to test_iter79_<rand>@example.com and restored to demo_vip@rilismusik.com after tests, so no real inbox delivery; (b) one synthetic release doc (TEST_iter79_rel_*) inserted and deleted for ticket test; (c) one synthetic release for release-action test inserted and deleted; (d) one synthetic pending payment (TEST_iter79_pay_*) inserted and deleted; (e) one synthetic addon_orders doc (TEST_iter79_addon_*) inserted and deleted. All prefixed TEST_iter79_ for grep-ability.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All temp fixtures cleaned. If the /api/label/dashboard transient 500 recurs, capture the stack from /var/log/supervisor/backend.err.log (not visible during this run).",
+  "rca of the issue": "N/A — no bugs found."
+}

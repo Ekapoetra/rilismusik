@@ -53,7 +53,7 @@ from royalty_utils import (
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 from .admin_permission_service import assert_admin_permission
 from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text
-from email_service import send_release_invoice_email, send_release_submission_email, send_release_live_email
+from email_service import send_release_invoice_email, send_release_submission_email, send_release_live_email, send_release_status_email
 from .release_workflow_service import (
     EDITABLE_STATUSES, normalize_artist_credits, require_status,
     validate_artist_web_url, validate_release_date, validate_release_submission,
@@ -575,6 +575,15 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
                 to=admin_doc["email"], label_name=label.get("label_name") or "Label",
                 release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
             ))
+    # Confirmation email to the label (best-effort).
+    if label.get("email"):
+        asyncio.create_task(send_release_status_email(
+            to=label["email"], label_name=label.get("label_name") or "Label",
+            release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
+            kind="submitted",
+            artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
+            cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
+        ))
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -756,6 +765,21 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
                 release_id=release_id,
                 cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
                 release_date=(body.release_date if getattr(body, "release_date", None) else rel.get("release_date")),
+            ))
+    # Lifecycle status emails to the label (best-effort).
+    _status_email_kind = {
+        "start_review": "under_review", "need_revision": "need_revision",
+        "approve": "approved", "reject": "rejected", "takedown": "taken_down",
+    }.get(body.action)
+    if _status_email_kind:
+        label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "email": 1})
+        if label_doc and label_doc.get("email"):
+            asyncio.create_task(send_release_status_email(
+                to=label_doc["email"], label_name=rel.get("label_name") or "Label",
+                release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
+                kind=_status_email_kind, note=body.note,
+                artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
+                cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
             ))
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 

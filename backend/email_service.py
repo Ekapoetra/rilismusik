@@ -233,15 +233,25 @@ async def send_contract_expiry_email(*, to: str, label_name: str, days_left: int
 
 
 async def send_subscription_expiry_email(*, to: str, label_name: str, days_left: int) -> Optional[str]:
+    days = int(days_left)
+    if days <= 0:
+        body = f"""
+        <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
+        <p style="margin:0;">Subscription tahunan Anda telah <strong style="color:#dc2626;">berakhir hari ini</strong>. Akun Anda otomatis beralih ke <strong>Pay Per Release</strong>. Perpanjang sekarang untuk kembali upload rilisan tanpa biaya per release.</p>
+        """
+        html = _wrap("Subscription Anda berakhir", body, "Perpanjang Sekarang", f"{FRONTEND_URL}/label/invoices",
+                     badge_html=_badge("Subscription Berakhir", "#dc2626", "#fef2f2", "#b91c1c"))
+        return await send_email(to=to, subject=f"⏰ Subscription {h(label_name)} sudah berakhir", html=html)
     body = f"""
     <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
-    <p style="margin:0;">Subscription tahunan Anda akan berakhir dalam <strong style="color:#d97706;">{int(days_left)} hari</strong>. Perpanjang sekarang untuk tetap upload rilisan tanpa biaya per release.</p>
+    <p style="margin:0;">Subscription tahunan Anda akan berakhir dalam <strong style="color:#d97706;">{days} hari</strong>. Perpanjang sekarang untuk tetap upload rilisan tanpa biaya per release.</p>
     """
     html = _wrap(
-        f"Subscription berakhir dalam {int(days_left)} hari", body,
+        f"Subscription berakhir dalam {days} hari", body,
         "Perpanjang Sekarang", f"{FRONTEND_URL}/label/invoices",
+        badge_html=_badge("Pengingat Subscription", "#d97706", "#fff7ed", "#b45309"),
     )
-    return await send_email(to=to, subject=f"⏰ Subscription berakhir {int(days_left)} hari lagi", html=html)
+    return await send_email(to=to, subject=f"⏰ Subscription berakhir {days} hari lagi", html=html)
 
 
 def _kv_table(rows: list[tuple[str, str, str]]) -> str:
@@ -479,3 +489,239 @@ async def send_release_live_email(
     title = f"{h(release_title)} sudah resmi dirilis."
     html = _wrap(title, body, badge_html=badge)
     return await send_email(to=to, subject=f"🎉 {h(release_title)} sudah tayang di platform!", html=html)
+
+
+
+# ---------- Reusable pieces ----------
+_BADGE = {
+    "green": ("#059669", "#e7f6ee", "#047857"),
+    "purple": ("#7c3aed", "#f5f3ff", "#6d28d9"),
+    "blue": ("#2563eb", "#eff6ff", "#1d4ed8"),
+    "amber": ("#d97706", "#fff7ed", "#b45309"),
+    "red": ("#dc2626", "#fef2f2", "#b91c1c"),
+    "gray": ("#71717a", "#f4f4f5", "#52525b"),
+}
+
+
+def _badge_c(label: str, color: str) -> str:
+    dot, bg, text = _BADGE.get(color, _BADGE["gray"])
+    return _badge(label, dot, bg, text)
+
+
+def _release_card(cover_url: Optional[str], title: str, subtitle: Optional[str] = None,
+                  date_txt: Optional[str] = None) -> str:
+    cover = _abs_url(cover_url)
+    cover_cell = (
+        f'<td width="92" valign="top" style="width:92px;">'
+        f'<img src="{cover}" alt="{h(title)}" width="80" height="80" '
+        f'style="width:80px;height:80px;border-radius:14px;object-fit:cover;display:block;border:1px solid #e6e7eb;" />'
+        f'</td>'
+    ) if cover else ""
+    sub_line = f'<div style="color:#52525b;font-size:15px;margin-top:3px;">{h(subtitle)}</div>' if subtitle else ""
+    date_line = f'<div style="color:#a1a1aa;font-size:14px;margin-top:3px;">{h(date_txt)}</div>' if date_txt else ""
+    return f"""
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f7;border-radius:20px;margin:4px 0 8px 0;">
+      <tr><td style="padding:18px 20px;">
+        <table cellpadding="0" cellspacing="0"><tr>
+          {cover_cell}
+          <td valign="middle" style="padding-left:{'16' if cover else '0'}px;">
+            <div style="color:#0f1012;font-size:19px;font-weight:800;line-height:1.25;">{h(title)}</div>
+            {sub_line}
+            {date_line}
+          </td>
+        </tr></table>
+      </td></tr>
+    </table>
+    """
+
+
+def _note_box(note: str, color: str = "amber") -> str:
+    _, bg, text = _BADGE.get(color, _BADGE["amber"])
+    return (
+        f'<p style="margin:16px 0 0 0;background:{bg};padding:14px 18px;border-radius:14px;color:{text};font-size:15px;line-height:1.55;">'
+        f'<strong>Catatan:</strong> {h(note)}</p>'
+    )
+
+
+# ---------- Release status → label ----------
+async def send_release_status_email(
+    *, to: str, label_name: str, release_title: str, release_id: str, kind: str,
+    note: Optional[str] = None, cover_url: Optional[str] = None, artist_name: Optional[str] = None,
+) -> Optional[str]:
+    """One email per release lifecycle change to the label. `kind` ∈
+    submitted | under_review | approved | need_revision | rejected | taken_down."""
+    rt = h(release_title)
+    detail = f"{FRONTEND_URL}/label/releases/{release_id}"
+    support = f"{FRONTEND_URL}/label/support"
+    card = _release_card(cover_url, release_title, artist_name)
+
+    cfg = {
+        "submitted": {
+            "badge": ("Rilisan Diterima", "blue"),
+            "title": f"{rt} berhasil dikirim.",
+            "intro": "Rilisanmu telah kami terima dan kini masuk antrean review tim kami. Kami akan mengabari setiap kali statusnya berubah.",
+            "cta": ("Lihat Rilisan", detail),
+            "subject": f"Rilisan diterima — {rt}",
+            "note_color": None,
+        },
+        "under_review": {
+            "badge": ("Sedang Direview", "purple"),
+            "title": f"{rt} sedang direview.",
+            "intro": "Tim kami sedang memeriksa metadata dan aset rilisanmu. Proses ini biasanya memakan waktu 1–3 hari kerja.",
+            "cta": ("Lihat Status", detail),
+            "subject": f"Rilisan sedang direview — {rt}",
+            "note_color": None,
+        },
+        "approved": {
+            "badge": ("Disetujui", "green"),
+            "title": f"{rt} disetujui.",
+            "intro": "Selamat! Rilisanmu lolos review dan siap didistribusikan ke platform digital.",
+            "cta": ("Lihat Rilisan", detail),
+            "subject": f"Rilisan disetujui — {rt}",
+            "note_color": None,
+        },
+        "need_revision": {
+            "badge": ("Perlu Revisi", "amber"),
+            "title": f"{rt} perlu revisi.",
+            "intro": "Ada beberapa hal yang perlu diperbaiki sebelum rilisanmu bisa dilanjutkan. Silakan perbaiki lalu kirim ulang.",
+            "cta": ("Perbaiki Rilisan", detail),
+            "subject": f"Rilisan perlu revisi — {rt}",
+            "note_color": "amber",
+        },
+        "rejected": {
+            "badge": ("Ditolak", "red"),
+            "title": f"{rt} ditolak.",
+            "intro": "Mohon maaf, rilisanmu belum dapat kami distribusikan saat ini.",
+            "cta": ("Hubungi Support", support),
+            "subject": f"Rilisan ditolak — {rt}",
+            "note_color": "red",
+        },
+        "taken_down": {
+            "badge": ("Diturunkan", "gray"),
+            "title": f"{rt} diturunkan.",
+            "intro": "Rilisanmu telah diturunkan dari platform digital. Hubungi support bila ini di luar permintaanmu.",
+            "cta": ("Lihat Rilisan", detail),
+            "subject": f"Rilisan diturunkan — {rt}",
+            "note_color": "gray",
+        },
+    }
+    c = cfg.get(kind)
+    if not c:
+        return None
+    badge = _badge_c(c["badge"][0], c["badge"][1])
+    note_html = _note_box(note, c["note_color"]) if (c["note_color"] and (note or "").strip()) else ""
+    body = f"""
+    <p style="margin:0 0 4px 0;font-size:16px;line-height:1.6;color:#3f3f46;">Halo <strong style="color:#18181b;">{h(label_name)}</strong>, {c['intro']}</p>
+    {card}
+    {note_html}
+    """
+    cta_label, cta_url = c["cta"]
+    html = _wrap(c["title"], body, cta_label, cta_url, badge_html=badge)
+    return await send_email(to=to, subject=c["subject"], html=html)
+
+
+# ---------- Payment reminder → label ----------
+async def send_payment_reminder_email(
+    *, to: str, label_name: str, description: str, amount_idr: int, payment_id: str,
+    release_id: Optional[str] = None, days_pending: int = 1,
+) -> Optional[str]:
+    amt = f"Rp {int(amount_idr):,}".replace(",", ".")
+    cta_url = f"{FRONTEND_URL}/label/releases/{release_id}" if release_id else f"{FRONTEND_URL}/label/invoices"
+    table = _kv_table([
+        ("Invoice", f'<span style="font-family:monospace;font-size:12px;">{h(payment_id)}</span>', ""),
+        ("Tagihan", h(description), ""),
+        ("Total", amt, "color:#dc2626;font-weight:800;font-size:18px;"),
+    ])
+    body = f"""
+    <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
+    <p style="margin:0;">Kami mencatat masih ada pembayaran yang <strong style="color:#d97706;">belum diselesaikan</strong>. Selesaikan sekarang agar prosesnya bisa segera kami lanjutkan.</p>
+    {table}
+    <p style="margin:16px 0 0 0;color:#71717a;font-size:13px;">Abaikan email ini bila Anda sudah menyelesaikan pembayaran.</p>
+    """
+    html = _wrap("Pengingat pembayaran", body, "Selesaikan Pembayaran", cta_url,
+                 badge_html=_badge("Menunggu Pembayaran", "#d97706", "#fff7ed", "#b45309"))
+    return await send_email(to=to, subject=f"⏰ Pengingat pembayaran — {h(description)}", html=html)
+
+
+# ---------- Support ticket → label ----------
+async def send_ticket_created_email(
+    *, to: str, label_name: str, ticket_no: str, category_label: str, ticket_id: str, subject_line: Optional[str] = None,
+) -> Optional[str]:
+    detail = f"{FRONTEND_URL}/label/support/{ticket_id}"
+    subj_html = f'<p style="margin:0 0 14px 0;background:#f4f4f6;padding:14px 18px;border-radius:14px;color:#3f3f46;">{h(subject_line)}</p>' if subject_line else ""
+    table = _kv_table([
+        ("No. Tiket", f'<span style="font-weight:700;">{h(ticket_no)}</span>', ""),
+        ("Kategori", h(category_label), ""),
+    ])
+    body = f"""
+    <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
+    <p style="margin:0;">Tiket bantuanmu telah <strong style="color:#059669;">kami terima</strong>. Tim support akan segera menindaklanjuti dan membalas melalui dashboard.</p>
+    {table}
+    {subj_html}
+    """
+    html = _wrap("Tiket bantuan diterima", body, "Lihat Tiket", detail,
+                 badge_html=_badge("Tiket Diterima", "#059669", "#e7f6ee", "#047857"))
+    return await send_email(to=to, subject=f"Tiket {h(ticket_no)} diterima", html=html)
+
+
+_TICKET_STATUS_META = {
+    "in_progress": ("Sedang Diproses", "purple", "Tiketmu sedang ditangani tim support kami."),
+    "submitted_to_believe": ("Disubmit ke Believe", "blue", "Permintaanmu telah kami teruskan ke Believe untuk diproses lebih lanjut."),
+    "done": ("Selesai", "green", "Tiketmu telah selesai kami tangani. Terima kasih atas kesabaranmu."),
+    "rejected": ("Ditolak", "red", "Mohon maaf, permintaan pada tiket ini belum dapat kami penuhi."),
+}
+
+
+async def send_ticket_status_email(
+    *, to: str, label_name: str, ticket_no: str, status: str, ticket_id: str, note: Optional[str] = None,
+) -> Optional[str]:
+    meta = _TICKET_STATUS_META.get(status)
+    if not meta:
+        return None
+    status_label, color, intro = meta
+    detail = f"{FRONTEND_URL}/label/support/{ticket_id}"
+    note_html = _note_box(note, color if color in _BADGE else "gray") if (note or "").strip() else ""
+    body = f"""
+    <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
+    <p style="margin:0;">Tiket <strong>{h(ticket_no)}</strong> — {intro}</p>
+    {note_html}
+    """
+    html = _wrap(f"Tiket {status_label.lower()}", body, "Lihat Tiket", detail,
+                 badge_html=_badge_c(status_label, color))
+    return await send_email(to=to, subject=f"Tiket {h(ticket_no)} — {status_label}", html=html)
+
+
+# ---------- Add-on order → label ----------
+_ADDON_STATUS_META = {
+    "in_progress": ("Sedang Diproses", "purple", "sedang dikerjakan tim kami"),
+    "delivered": ("Terkirim", "green", "hasilnya sudah tersedia"),
+    "completed": ("Selesai", "green", "telah selesai"),
+}
+
+
+async def send_addon_status_email(
+    *, to: str, label_name: str, product_name: str, release_title: Optional[str], release_id: Optional[str],
+    status: str, delivery_url: Optional[str] = None, delivery_note: Optional[str] = None,
+) -> Optional[str]:
+    meta = _ADDON_STATUS_META.get(status)
+    if not meta:
+        return None
+    status_label, color, phrase = meta
+    has_result = bool(delivery_url) and status in ("delivered", "completed")
+    if has_result:
+        cta_label = "Lihat Hasil"
+        cta_url = _abs_url(delivery_url)
+    elif release_id:
+        cta_label, cta_url = "Lihat Rilisan", f"{FRONTEND_URL}/label/releases/{release_id}"
+    else:
+        cta_label, cta_url = "Buka Dashboard", f"{FRONTEND_URL}/label/dashboard"
+    rel_txt = f' untuk rilisan "<strong>{h(release_title)}</strong>"' if release_title else ""
+    note_html = _note_box(delivery_note, "purple") if (delivery_note or "").strip() else ""
+    body = f"""
+    <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
+    <p style="margin:0;">Layanan tambahan <strong>{h(product_name)}</strong>{rel_txt} kini <strong style="color:#059669;">{h(phrase)}</strong>.</p>
+    {note_html}
+    """
+    html = _wrap(f"Layanan tambahan: {status_label.lower()}", body, cta_label, cta_url,
+                 badge_html=_badge_c(f"Layanan {status_label}", color))
+    return await send_email(to=to, subject=f"Layanan tambahan {status_label.lower()} — {h(product_name)}", html=html)

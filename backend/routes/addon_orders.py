@@ -15,6 +15,24 @@ from .deps import (
     log_activity, notify_many, label_user_ids,
 )
 from .admin_permission_service import assert_admin_permission
+import asyncio
+from email_service import send_addon_status_email
+
+
+async def _email_addon(order: Dict[str, Any], status: str, delivery_url: Optional[str] = None,
+                       delivery_note: Optional[str] = None):
+    """Best-effort email to the label when an add-on is processed/available."""
+    if status not in ("in_progress", "delivered", "completed"):
+        return
+    label = await db.labels.find_one({"id": order["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
+    if label and label.get("email"):
+        asyncio.create_task(send_addon_status_email(
+            to=label["email"], label_name=label.get("label_name") or "Label",
+            product_name=order.get("product_name") or "Layanan Tambahan",
+            release_title=order.get("release_title"), release_id=order.get("release_id"),
+            status=status, delivery_url=delivery_url or order.get("delivery_url"),
+            delivery_note=delivery_note or order.get("delivery_note"),
+        ))
 
 addon_admin_r = APIRouter(prefix="/admin/addon-orders", tags=["addon-orders"])
 addon_label_r = APIRouter(prefix="/label/addon-orders", tags=["addon-orders"])
@@ -157,6 +175,7 @@ async def admin_update_status(order_id: str, body: AddonStatusIn, user: dict = D
             f"{order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" berstatus {STATUS_LABELS[new_status]}.",
             link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
         )
+    await _email_addon(order, new_status)
     return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
 
 
@@ -186,6 +205,7 @@ async def admin_set_delivery(order_id: str, body: AddonDeliveryIn, user: dict = 
             f"Hasil {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" sudah tersedia.",
             link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
         )
+        await _email_addon(order, "delivered", delivery_url=url, delivery_note=note)
     return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
 
 
@@ -218,6 +238,7 @@ async def admin_upload_delivery_file(order_id: str, file: UploadFile = File(...)
         f"Hasil {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" sudah tersedia untuk diunduh.",
         link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
     )
+    await _email_addon(order, "delivered", delivery_url=f"/api/files/{key}")
     return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
 
 
