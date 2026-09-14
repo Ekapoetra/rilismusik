@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Redesign email tema terang (semua email)
+- `email_service.py` `_wrap()` diubah dari tema gelap ke **tema terang** (bg #eef0f3, kartu putih radius 28px). Header: ikon RM (`email-logo.png`) + "RILIS MUSIK" + divider + "Musik Tanpa Batas"; footer "PT. Jeeres Group Indonesia" + "© {tahun} RILIS MUSIK" (+ alamat/NIB kecil). CTA jadi tombol pill gradient ungu→pink full-width.
+- Semua fungsi email (verifikasi, reset, klaim, kontrak, invoice, pembayaran, penarikan, royalti bulanan, laporan artis) warna inline disesuaikan ke tema terang via helper `_kv_table()` + `_badge()`.
+- **Email Go-Live** (`send_release_live_email`) didesain ulang meniru referensi user: badge hijau "RILISAN SUDAH TAYANG", judul besar "{judul} sudah resmi dirilis.", kartu cover+judul+artis+tanggal, tombol "Buka Detail Rilisan", info box ikon jam (`email-clock.png` dibuat via PIL), link "Laporkan kendala melalui dashboard →". Param baru `release_date` diformat Indonesia (`_fmt_date_id`), dikirim dari `routes/releases.py` saat `mark_live`.
+- Diuji: render preview screenshot (cocok referensi) + email uji terkirim ke easybnd@gmail.com (result: sent). Verifikasi tampilan inbox oleh user PENDING.
+
+
 ## 2026-06-11 — Batch UX rilisan (bagian 2/2)
 - **#3 Reminder add-on (admin)**: Action Center dashboard kini punya item "Konten tambahan menunggu dikerjakan" (WAMI status pending/in_progress + layanan kustom paid/in_progress), link ke /admin/wami. Ditambah ke `admin_dashboard_service` (`pending_addons`). Diuji: item muncul saat ada order pending.
 - **#5 Bulk tiket**: checkbox per baris + pilih-semua + bar aksi "Tandai Selesai / Sedang Diproses" di Tiket Bantuan admin. Endpoint `POST /tickets/admin/bulk-status` (izin support.manage, handle takedown, komentar sistem + notifikasi). Diuji curl + screenshot.

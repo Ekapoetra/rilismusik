@@ -755,6 +755,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
                 artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
                 release_id=release_id,
                 cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
+                release_date=(body.release_date if getattr(body, "release_date", None) else rel.get("release_date")),
             ))
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
