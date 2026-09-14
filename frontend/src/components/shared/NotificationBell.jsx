@@ -29,7 +29,7 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
 
   const load = async () => {
     try {
-      const { data } = await api.get("/notifications/me", { params: { limit: 15 } });
+      const { data } = await api.get("/notifications/me", { params: { limit: 25 } });
       const rows = data.items || [];
       if (known.current) { const fresh = rows.find((item) => !known.current.has(item.id) && !item.read_at && !String(item.type || "").includes("chat")); if (fresh) playNotificationSound("notification", `notification:${fresh.id}`); }
       known.current = new Set(rows.map((item) => item.id));
@@ -121,25 +121,44 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
                 <Inbox className="w-8 h-8 mx-auto mb-2 text-zinc-700" />
                 Belum ada notifikasi.
               </div>
-            ) : items.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => handleClick(n)}
-                className={`block w-full text-left px-4 py-3 border-b border-white/5 last:border-0 transition hover:bg-white/5 ${!n.read_at ? "bg-pink-500/[0.04]" : ""}`}
-                data-testid={`notification-item-${n.id}-${instance}`}
-              >
-                <div className="flex items-start gap-3">
-                  {!n.read_at && (
-                    <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#FF1F8E]" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`} data-testid={`notification-title-${n.id}-${instance}`}>{n.type === "chat_message" ? n.title : t(n.title)}</div>
-                    <div className="text-xs text-zinc-400 line-clamp-2 mt-0.5" data-testid={`notification-body-${n.id}-${instance}`}>{n.type === "chat_message" ? n.body : t(n.body)}</div>
-                    <div className="text-[10px] text-zinc-600 mt-1">{locale === "id" ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString("en-GB")}</div>
+            ) : (() => {
+              const renderItem = (n) => (
+                <button
+                  key={n.id}
+                  onClick={() => handleClick(n)}
+                  className={`block w-full text-left px-4 py-3 border-b border-white/5 last:border-0 transition hover:bg-white/5 ${!n.read_at ? "bg-pink-500/[0.04]" : ""}`}
+                  data-testid={`notification-item-${n.id}-${instance}`}
+                >
+                  <div className="flex items-start gap-3">
+                    {!n.read_at && (
+                      <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#FF1F8E]" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-semibold truncate ${!n.read_at ? "text-white" : "text-zinc-300"}`} data-testid={`notification-title-${n.id}-${instance}`}>{n.type === "chat_message" ? n.title : t(n.title)}</div>
+                      <div className="text-xs text-zinc-400 line-clamp-2 mt-0.5" data-testid={`notification-body-${n.id}-${instance}`}>{n.type === "chat_message" ? n.body : t(n.body)}</div>
+                      <div className="text-[10px] text-zinc-600 mt-1">{locale === "id" ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString("en-GB")}</div>
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+              const todayStr = new Date().toDateString();
+              const today = items.filter((n) => new Date(n.created_at).toDateString() === todayStr).slice(0, 8);
+              const todayIds = new Set(today.map((n) => n.id));
+              const earlierUnread = items.filter((n) => !todayIds.has(n.id) && !n.read_at).slice(0, 8);
+              const SectionHeader = ({ label, testid }) => (
+                <div className="sticky top-0 bg-[#101010] px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500" data-testid={testid}>{label}</div>
+              );
+              return (
+                <>
+                  {today.length > 0 && <SectionHeader label={t("Hari Ini")} testid={`notification-section-today-${instance}`} />}
+                  {today.length > 0 ? today.map(renderItem) : (
+                    <div className="px-4 py-6 text-center text-xs text-zinc-600" data-testid={`notification-today-empty-${instance}`}>{t("Belum ada notifikasi hari ini.")}</div>
+                  )}
+                  {earlierUnread.length > 0 && <SectionHeader label={t("Sebelumnya · Belum dibaca")} testid={`notification-section-earlier-${instance}`} />}
+                  {earlierUnread.map(renderItem)}
+                </>
+              );
+            })()}
           </div>
           {historyPath && <Link to={historyPath} onClick={() => setOpen(false)} className="flex items-center justify-center gap-2 border-t border-white/10 px-4 py-3 text-xs font-bold text-zinc-300 transition-colors hover:bg-white/5 hover:text-white" data-testid={`notification-history-link-${instance}`}><History className="h-3.5 w-3.5" /> Lihat Riwayat Notifikasi</Link>}
         </div>

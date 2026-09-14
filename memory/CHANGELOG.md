@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — PRD 03 Batch 1: Dashboard (A) + Notification grouping (B-lite) + Chat dock (C)
+Audit klasifikasi: Dashboard=REFACTOR, Notification=EXTEND, Activity=EXTEND, Chat=REFACTOR(closed-state), Sound/i18n/Work(PRD2)/Permission(PRD1)=KEEP/reuse.
+- **Fase A — Dashboard** (`pages/admin/Dashboard.jsx`, REWRITE): hapus **Aksi Cepat** (sesuai PRD). Tambah Greeting dinamis (template+variabel WIB, bukan AI), **Pekerjaan Saya** & **Monitor Tim** (baca `/admin/work/queue` scope my/team dari PRD2, agregat), **Fokus Hari Ini** (baca state existing: gap/kritis/lewat tempo/persetujuan/lainnya), **Responsibility Gap** alert + CTA konfigurasi, Aktivitas Terbaru (6) + "Lihat semua". Ringkasan Platform & Royalti dipertahankan. Semua string via `t()` (ID native).
+- **Fase B-lite — Notification** (`NotificationBell.jsx`): panel dikelompokkan **Hari Ini** + **Sebelumnya · Belum dibaca**, badge=unread, membuka notifikasi TIDAK menyelesaikan Work (read≠completed). Limit 25.
+- **Fase C — Chat dock** (`AdminChatWidget.jsx`, `LabelChatWidget.jsx`): closed-state diubah dari **bubble bulat** → **dock persegi** menempel bawah-kanan (pola Shopee); panel buka dari posisi sama. Semua fitur (Label/Internal, search, filter, arsip, settings, history) dipertahankan.
+- Diuji: testing_agent frontend iter83 — semua kriteria fungsional lolos (~90%; sisanya hanya suffix testid instance `admin-header`, bukan bug). Chat dock terverifikasi bukan lingkaran.
+- **BELUM (batch berikutnya)**: Fase B penuh (priority/grouping rule server-side + filter History Important), Fase D (Sound settings 3 suara terpisah + Quiet Hours + Completion Feedback toast saat Work benar-benar selesai), Fase E (katalog EN untuk string baru + regression penuh). Catatan: notifikasi demo lama bisa menunjuk entity yang sudah terhapus (tampil "tidak ditemukan").
+
+
 ## 2026-06 — Entry Massal UPC/ISRC + pembatasan tombol Tayangkan (WIB)
 - **Backend** (`routes/admin.py`): `GET /admin/releases/ready-to-live` (rilisan delivered dengan `release_date <= hari ini WIB` via `jakarta_now()`, menyertakan tracks + cover + artis) dan `POST /admin/releases/bulk-go-live` (reuse `admin_release_action` mark_live per rilisan → validasi + notif + email tetap jalan, kembalikan hasil per item).
 - **Frontend**: tombol **"Entry Massal UPC/ISRC"** di header Manajemen Rilisan membuka `MassGoLiveModal.jsx` — daftar rilisan siap tayang dengan input UPC + ISRC per track inline, tombol per baris **"Simpan & Tayangkan"** (aktif hanya bila UPC+semua ISRC terisi) + tombol atas **"Tayangkan Semua yang Lengkap (n)"**. Tanpa buka satu per satu.

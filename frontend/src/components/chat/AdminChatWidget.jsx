@@ -110,7 +110,7 @@ export default function AdminChatWidget() {
   return (
     <>
       {open && (
-        <div className="fixed bottom-20 right-4 z-[60] flex h-[74vh] max-h-[600px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101010] shadow-2xl md:bottom-6 md:right-24" data-testid="admin-chat-panel">
+        <div className="fixed bottom-14 right-4 z-[60] flex h-[74vh] max-h-[600px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl rounded-br-none border border-white/10 bg-[#101010] shadow-2xl md:right-6" data-testid="admin-chat-panel">
           <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
             <div className="text-sm font-bold text-white">Pusat Chat</div>
             <div className="flex items-center gap-1">
@@ -187,10 +187,12 @@ export default function AdminChatWidget() {
         </div>
       )}
       {chatNotice.notice && <NewChatNotice onOpen={chatNotice.showChat} onDismiss={chatNotice.dismiss} />}
-      <button onClick={() => setOpen((v) => !v)} className="fixed bottom-6 right-6 z-[60] grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#FF1F8E] to-[#A24EFF] text-white shadow-2xl transition-transform hover:scale-105" data-testid="admin-chat-toggle">
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-        {!open && unread > 0 && <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white" data-testid="admin-chat-unread">{unread > 99 ? "99+" : unread}</span>}
-      </button>
+      {!open && (
+        <button onClick={() => setOpen(true)} className="fixed bottom-0 right-4 z-[60] inline-flex items-center gap-2 rounded-t-xl border border-b-0 border-white/10 bg-gradient-to-r from-[#FF1F8E] to-[#A24EFF] px-4 py-2.5 text-sm font-bold text-white shadow-2xl transition-transform hover:-translate-y-0.5 md:right-6" data-testid="admin-chat-toggle">
+          <MessageCircle className="h-4 w-4" /> Pusat Chat
+          {unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1.5 text-[11px] font-bold text-[#FF1F8E]" data-testid="admin-chat-unread">{unread > 99 ? "99+" : unread}</span>}
+        </button>
+      )}
     </>
   );
 }
