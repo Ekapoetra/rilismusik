@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { formatReleaseDate } from "@/utils/releaseDate";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
-import { Calendar, TrendingUp } from "lucide-react";
+import { Calendar, TrendingUp, Rocket } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 import { ReleaseIsrcPanel, ReleaseIsrcToggle } from "@/components/releases/ReleaseIdentifiers";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
+import GoLiveModal from "@/components/releases/GoLiveModal";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtInt(n) { return Number(n || 0).toLocaleString("id-ID"); }
@@ -19,9 +20,11 @@ function fmtPeriod(p) {
 }
 
 export default function AdminReleases() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [expandedIsrc, setExpandedIsrc] = useState(null);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
+  const [goLiveId, setGoLiveId] = useState(null);
   const [q, setQ] = useState("");
   const [periods, setPeriods] = useState([]);
   const [periodFrom, setPeriodFrom] = useState("");
@@ -159,7 +162,10 @@ export default function AdminReleases() {
                 </>
               ) : <span className="text-zinc-600">—</span>}
             </div>
-            <div className="min-w-0 col-span-6 xl:col-auto flex flex-wrap items-center justify-end gap-2" data-testid={`admin-release-status-actions-${r.id}`}>
+            <div className="min-w-0 col-span-6 xl:col-auto relative z-10 flex flex-wrap items-center justify-end gap-2" data-testid={`admin-release-status-actions-${r.id}`}>
+              {r.status === "delivered" && (
+                <button type="button" onClick={() => setGoLiveId(r.id)} className="inline-flex items-center gap-1.5 rounded-full bg-pink-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-pink-400" data-testid={`admin-release-golive-btn-${r.id}`}><Rocket className="h-3.5 w-3.5" /> Tayangkan</button>
+              )}
               <span data-testid={`admin-release-status-${r.id}`}><StatusBadge status={r.status} /></span>
               <AdminDeleteReleaseButton release={r} compact onDeleted={(id) => setItems((current) => current.filter((item) => item.id !== id))} />
             </div>
@@ -167,6 +173,7 @@ export default function AdminReleases() {
           </div>
         ))}
       </div>
+      <GoLiveModal releaseId={goLiveId} open={!!goLiveId} onClose={() => setGoLiveId(null)} onDone={load} />
     </div>
   );
 }

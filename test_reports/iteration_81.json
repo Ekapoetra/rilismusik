@@ -1,0 +1,16 @@
+{
+  "summary": "Retest 2 fixes on /admin/releases?status=delivered Go-Live modal for release 'Cinta Sederhana' (2110e419-...). Both fixes verified: (1) Normal mouse click on 'Tayangkan' button opens go-live-modal without navigating (URL stayed on /admin/releases?status=delivered). (2) go-live-artist displays 'Demo Artist VIP' (fallback from track.artist_name). Regression passed: clicking title (admin-release-open-<id>) still navigates to /admin/releases/<id>. Tunda flow: opened modal, clicked go-live-postpone-btn, set date to 2026-11-20, submitted successfully. Restored date to 2026-09-15 afterwards. mark_live not invoked (fixture preserved).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026",
+  "seed_data_creation": "Date was temporarily changed to 2026-11-20 via Tunda then restored to 2026-09-15. Release remained in delivered status.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both fixes from iteration_80 are verified working. Modal opens with normal (non-force) click due to 'relative z-10' on actions container overriding stretched-link overlay. Artist fallback via tracks[0].artist_name works.",
+  "rca of the issue": "N/A - fixes verified."
+}

@@ -1,5 +1,14 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Modal Finalisasi Tayang (Go-Live) + aksi Tunda
+- **Modal Go-Live** (`components/releases/GoLiveModal.jsx`): dibuka dari tombol "Tayangkan" pada baris rilisan berstatus `delivered` di Manajemen Rilisan admin. Menampilkan cover, judul, artis (fallback ke `track.artist_name` untuk rilisan legacy), form UPC + ISRC per track (prefilled bila ada), input tanggal.
+  - **Simpan & Buat Live** → aksi `mark_live` (validasi UPC + ISRC semua track) → status `live` + email otomatis "sudah tayang" ke label.
+  - **Tunda** → aksi baru `reschedule` (backend `admin_release_action` + `AdminReleaseAction` Literal): update `release_date` saja, status tetap `delivered`, label dapat notif "Tanggal rilis diperbarui".
+- `Releases.jsx`: filter status auto dari query param (`useSearchParams`) agar link work-card `?status=delivered` langsung terfilter; container aksi diberi `relative z-10` agar tombol tidak tertutup stretched-link baris.
+- **Polling**: `detect_releases_due_live_job` & `work_service` sumber `release_go_live` sudah pakai `release_date <= today_wib` → mencakup hari ini DAN beberapa hari lalu (rilisan delivered yang belum sempat dibuat live). Tidak perlu perubahan.
+- Diuji: curl backend (reschedule ubah tanggal & tetap delivered; validasi UPC/ISRC 400) + testing_agent frontend iter80→iter81 100% (klik Tayangkan buka modal tanpa navigasi, artis tampil, Tunda reversible, regresi judul-link OK).
+
+
 ## 2026-06 — Email otomatis lengkap ke label (semua event)
 Semua pakai desain terang universal (`_wrap` + `_badge` + `_release_card` + `_kv_table`), isi & CTA menyesuaikan.
 - **Status rilisan → label**: `send_release_status_email` (kind: submitted/under_review/approved/need_revision/rejected/taken_down) + live (celebratory) yang sudah ada. Wiring: `submit_release` (email 'submitted') & `admin_release_action` (mapping aksi→kind).

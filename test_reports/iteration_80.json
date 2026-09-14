@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend testing for Go-Live modal (Tayangkan) on admin/releases?status=delivered. Verified: status filter auto-populated from ?status=delivered; Tayangkan button rendered for delivered release Cinta Sederhana; modal shows title, date, upc, isrc-per-track (1 track), and cover placeholder; UPC empty validation returns error 'UPC wajib diisi sebelum status Tayang' and status unchanged; Tunda flow works (reschedule to 2026-11-20 succeeded, toast shown, modal closed, list refreshed, release remains delivered with new date, Tayangkan button still visible); restored release date back to 2026-09-15 successfully. Mark_live end-to-end was skipped to preserve demo fixture. IMPORTANT: Found a real UI regression — the release row uses a stretched link (a with 'after:absolute after:inset-0') that overlays the entire row and intercepts pointer events on the 'Tayangkan' button. Playwright's normal click and force=True click both trigger the overlay <a> link (navigating to detail page) instead of the button. Only a JS-dispatched click on the button worked. A real user cursor over the button will typically hover the button (which sits on top visually), but the row-wide stretched link overlay is z-index/pointer-events hostile and can misroute clicks (especially with keyboard/tap on some browsers). This should be fixed by scoping the stretched link only to the title, or by adding pointer-events-none to the ::after overlay for the actions cell (e.g., add relative/z-10 to the actions container so buttons sit above the ::after).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/releases/{id}", "issue": "Response does not include artist_name/primary_artist_name for the delivered release used in Go-Live modal (modal shows artist as '—' while list shows 'Demo Artist VIP')."},
+      {"endpoint": "GET /api/admin/analytics/periods", "issue": "Returns 500 on admin releases page load (logged as warning; page still usable)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminReleases row (Releases.jsx L142)", "issue": "Stretched link (a with 'after:absolute after:inset-0') overlays the whole row and intercepts pointer events for the Tayangkan button; even Playwright force click routes to the <a>. Real users clicking the pink Tayangkan pill may randomly navigate to the release detail page instead of opening the Go-Live modal (depends on stacking / hover state). Fix: give the actions container relative + z-10, or make the ::after pointer-events-none, or reduce the stretched link to the title area only.", "selector": "[data-testid='admin-release-golive-btn-<id>']", "priority": "HIGH"},
+      {"component": "GoLiveModal artist", "issue": "Displays '—' for Cinta Sederhana because GET /releases/{id} lacks artist_name; only list endpoint includes it.", "selector": "[data-testid='go-live-artist']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix stretched-link overlay in /app/frontend/src/pages/admin/Releases.jsx so the 'Tayangkan' button (and other action buttons) receive clicks instead of the row-wide <a>. Simplest fix: wrap the actions cell with className including 'relative z-10' or drop the ::after inset-0 pattern.",
+    "Populate artist_name/primary_artist_name in GET /api/releases/{id} response, or fallback GoLiveModal to use release.artist_credits/track artist info so the modal shows the artist instead of '—'.",
+    "Investigate GET /api/admin/analytics/periods 500 on load."
+  ],
+  "critical_code_review_comments": [
+    "Releases.jsx uses stretched-link pattern that conflicts with action buttons in the same row — anti-pattern for rows with multiple interactive elements.",
+    "GoLiveModal loads release via GET /releases/{id} but relies on field names that may not exist on that endpoint (artist_name). Consider a shared release shape or fallback chain."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend only)", "frontend": "80%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (from request)",
+  "seed_data_creation": "None. Reversed reschedule change; Cinta Sederhana date restored to 2026-09-15, status still delivered, UPC still empty.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Go-Live modal itself works correctly (validation, reschedule). Primary blocker for humans is the row-wide stretched-link overlay on admin release rows that steals clicks from the Tayangkan button. After E1 fixes that, retest by simply clicking the button (no JS dispatch needed). The release id 2110e419-46a3-4911-9a2b-dd5aed48b88d 'Cinta Sederhana' remains in delivered status with 1 track (single) and empty UPC, ready for repeat validation/Tunda tests. Mark_live end-to-end was intentionally skipped to preserve the fixture.",
+  "rca of the issue": "In Releases.jsx line 142, the <Link> uses classes 'after:absolute after:inset-0' to make the whole row card clickable to open the release detail. This ::after pseudo-element covers the entire relative parent (the row div at L138 which uses relative positioning). Buttons at L167 ('Tayangkan') and L170 (delete) are placed on the same row but the actions container (L165) does not have z-index or its own stacking context, so the ::after overlay sits above them and captures click events. Playwright confirmed: click intercepted by the <a> element, force click still navigated to /admin/releases/<id>. Mitigation: add 'relative z-10' to the actions container div at L165, or change the stretched link to a partial link on the title only."
+}

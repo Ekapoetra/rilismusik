@@ -703,6 +703,11 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         for track_id, candidate in resolved_isrcs.items():
             await db.tracks.update_one({"id": track_id}, {"$set": {"isrc": candidate, "updated_at": now_iso()}})
         new_status = "live"
+    elif body.action == "reschedule":
+        require_status(rel, ("delivered",), "Tunda tanggal rilis")
+        if not (body.release_date or "").strip():
+            raise HTTPException(status_code=400, detail="Tanggal rilis baru wajib diisi untuk menunda")
+        new_status = "delivered"
     elif body.action == "override_status":
         override_allowed = ("draft", "submitted", "under_review", "approved", "delivered", "live", "need_revision", "rejected", "taken_down")
         target = (body.target_status or "").strip()
@@ -730,7 +735,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         upd["review_started_by"] = user["id"]
     if body.action == "deliver":
         upd["delivered_to_believe_at"] = now_iso()
-    if body.action in ("deliver", "mark_live") and body.release_date:
+    if body.action in ("deliver", "mark_live", "reschedule") and body.release_date:
         upd["release_date"] = body.release_date  # admin may set any date (no H+7)
     if body.action == "mark_live":
         upd["live_at"] = now_iso()
@@ -749,6 +754,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),
         "mark_live": ("Rilisan sudah tayang", f"'{rel.get('release_title')}' sudah tayang di platform."),
         "takedown": ("Rilisan diturunkan", f"'{rel.get('release_title')}' telah diturunkan dari platform."),
+        "reschedule": ("Tanggal rilis diperbarui", f"Tanggal rilis '{rel.get('release_title')}' diperbarui menjadi {body.release_date}."),
         "override_status": ("Status rilisan diperbarui", f"Status '{rel.get('release_title')}' diperbarui admin. {body.note or ''}"),
     }
     if body.action in titles:
