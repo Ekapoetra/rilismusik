@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet, Upload, Image as ImageIcon, FileAudio, FileCheck2 } from "lucide-react";
+import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet, Upload, Image as ImageIcon, FileAudio, FileCheck2, Minus, ChevronUp } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { releaseStatusLabel } from "@/utils/releasePresentation";
 
@@ -17,6 +17,7 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
   const [showShortfall, setShowShortfall] = useState(false);
   const [shortfall, setShortfall] = useState(null);
   const [shortfallBusy, setShortfallBusy] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   useEffect(() => { setUpc(release.upc || ""); setReleaseDate((release.release_date || "").slice(0, 10)); setIsrcs(Object.fromEntries((release.tracks || []).map((track) => [track.id, track.isrc || ""]))); }, [release]);
 
   const loadShortfall = async () => {
@@ -64,7 +65,7 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
   const onCoverChange = (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("file", file); uploadAsset("cover", `/releases/${release.id}/admin/upload-cover`, fd, "Cover berhasil diperbarui."); event.target.value = ""; };
   const onAudioChange = (trackId) => (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("track_id", trackId); fd.append("file", file); uploadAsset(`audio-${trackId}`, `/releases/${release.id}/admin/upload-audio`, fd, "Audio track berhasil diperbarui."); event.target.value = ""; };
   const onRemixChange = (event) => { const file = event.target.files?.[0]; if (!file) return; const fd = new FormData(); fd.append("file", file); uploadAsset("remix", `/releases/${release.id}/admin/upload-remix-permission`, fd, "Bukti izin remix diunggah."); event.target.value = ""; };
-  return <aside className="sticky bottom-4 border border-white/15 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur" data-testid="admin-release-workflow"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">Tindakan Berikutnya</div><div className="mt-1 text-sm text-zinc-300" data-testid="admin-release-workflow-status">Status saat ini: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div>
+  return <aside className="fixed bottom-4 right-4 z-40 flex w-[min(96vw,460px)] max-h-[82vh] flex-col rounded-xl border border-white/15 bg-zinc-950/95 shadow-2xl backdrop-blur" data-testid="admin-release-workflow"><div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5"><div className="min-w-0"><div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Tindakan Rilisan</div><div className="truncate text-xs text-zinc-400" data-testid="admin-release-workflow-status">Status: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div><button type="button" onClick={() => setMinimized((value) => !value)} className="shrink-0 rounded-md border border-white/15 p-1.5 text-zinc-300 transition-colors hover:bg-white/10" data-testid="admin-release-workflow-toggle" title={minimized ? "Perbesar" : "Kecilkan"}>{minimized ? <ChevronUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button></div>{!minimized && <div className="overflow-y-auto p-4" data-testid="admin-release-workflow-body"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">Tindakan Berikutnya</div><div className="mt-1 text-sm text-zinc-300">Status saat ini: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div>
     {["submitted", "under_review", "need_revision", "live"].includes(status) && <label className="min-w-72 flex-1 lg:max-w-xl"><span className="rm-label">Catatan / alasan</span><textarea className="rm-input min-h-20" value={note} onChange={(event) => setNote(event.target.value)} data-testid="admin-release-note-input" /></label>}
     <div className="flex flex-wrap gap-2">
       {status === "submitted" && <><button className="rm-btn-primary inline-flex items-center gap-2" disabled={busy} onClick={() => action("start_review")} data-testid="admin-release-start-review-button"><ShieldCheck className="h-4 w-4" /> Mulai Pemeriksaan</button><button className="rm-btn-ghost" disabled={busy || !note.trim()} onClick={() => action("need_revision")} data-testid="admin-release-need-revision-button">Minta Revisi</button><button className="rounded-md border border-red-500/30 px-4 py-2 text-sm font-bold text-red-300" disabled={busy || !note.trim()} onClick={() => action("reject")} data-testid="admin-release-reject-button"><XCircle className="mr-2 inline h-4 w-4" /> Tolak</button></>}
@@ -123,5 +124,5 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
       </div>
       <p className="text-[11px] text-zinc-600">Aset tidak dapat diubah setelah rilisan berstatus tayang (live).</p>
     </div>}
-  </aside>;
+  </div>}</aside>;
 };

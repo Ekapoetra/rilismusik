@@ -52,11 +52,11 @@ export default function AdminReleaseDetail() {
       <Link to="/admin/releases" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white" data-testid="admin-release-back-link"><ArrowLeft className="h-4 w-4" /> Manajemen Rilisan</Link>
       {error && <div className="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert" data-testid="admin-release-error">{error}</div>}
       {!release ? (!error && <div className="text-zinc-500" data-testid="admin-release-detail-loading">Memuat detail rilisan…</div>) : <>
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
+        <header className="space-y-4 border-b border-white/10 pb-6">
+          <div className="flex items-start gap-4">
             <ReleaseArtwork release={release} prefix="admin-detail" large onUpdated={(patch) => setRelease((current) => ({ ...current, ...patch }))} />
-            <div className="min-w-0">
-            <div className="break-all text-xs font-bold uppercase text-zinc-500" data-testid="admin-release-detail-reference">{release.release_type} · {release.id}</div>
+            <div className="min-w-0 flex-1">
+            <div className="break-words text-xs font-bold uppercase text-zinc-500" data-testid="admin-release-detail-reference">{release.release_type} · {release.id}</div>
             <h1 className="mt-1 break-words font-display text-4xl font-extrabold tracking-normal" data-testid="admin-release-detail-title">{release.release_title}</h1>
             <p className="mt-2 break-words text-sm text-zinc-400" data-testid="admin-release-detail-artist-label">{release.artist_name} · {release.label_name_snapshot}</p>
             </div>
