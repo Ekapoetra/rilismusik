@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { CheckCircle2, CreditCard, RadioTower, Send, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet, Upload, Image as ImageIcon, FileAudio, FileCheck2, Minus, ChevronUp } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { releaseStatusLabel } from "@/utils/releasePresentation";
@@ -18,32 +18,15 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
   const [shortfall, setShortfall] = useState(null);
   const [shortfallBusy, setShortfallBusy] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  const panelRef = useRef(null);
-  const dragRef = useRef(null);
-  const [pos, setPos] = useState(null);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("adminReleaseWorkflowUI") || "{}");
       if (typeof saved.minimized === "boolean") setMinimized(saved.minimized);
-      if (saved.pos && typeof saved.pos.left === "number") setPos(saved.pos);
+      if (saved.pos) { delete saved.pos; localStorage.setItem("adminReleaseWorkflowUI", JSON.stringify(saved)); }
     } catch (_e) { /* ignore */ }
   }, []);
-  const persist = (patch) => { try { const s = JSON.parse(localStorage.getItem("adminReleaseWorkflowUI") || "{}"); localStorage.setItem("adminReleaseWorkflowUI", JSON.stringify({ ...s, ...patch })); } catch (_e) { /* ignore */ } };
+  const persist = (patch) => { try { const s = JSON.parse(localStorage.getItem("adminReleaseWorkflowUI") || "{}"); delete s.pos; localStorage.setItem("adminReleaseWorkflowUI", JSON.stringify({ ...s, ...patch })); } catch (_e) { /* ignore */ } };
   const toggleMinimized = () => setMinimized((value) => { persist({ minimized: !value }); return !value; });
-  const onDragStart = (event) => {
-    if (event.target.closest("[data-nodrag]")) return;
-    const rect = panelRef.current.getBoundingClientRect();
-    dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
-    const move = (ev) => {
-      const w = panelRef.current?.offsetWidth || 460;
-      const h = panelRef.current?.offsetHeight || 120;
-      const left = Math.max(8, Math.min(ev.clientX - dragRef.current.dx, window.innerWidth - w - 8));
-      const top = Math.max(8, Math.min(ev.clientY - dragRef.current.dy, window.innerHeight - h - 8));
-      setPos({ left, top });
-    };
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); setPos((p) => { if (p) persist({ pos: p }); return p; }); };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-  };
   useEffect(() => { setUpc(release.upc || ""); setReleaseDate((release.release_date || "").slice(0, 10)); setIsrcs(Object.fromEntries((release.tracks || []).map((track) => [track.id, track.isrc || ""]))); }, [release]);
 
   const loadShortfall = async () => {
@@ -100,7 +83,7 @@ export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError 
     if (status === "approved") return { name: "deliver", label: "Kirim Believe", Icon: SquareArrowOutUpRight, extra: { release_date: releaseDate || undefined } };
     return null;
   })();
-  return <aside ref={panelRef} style={pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : undefined} className="fixed bottom-4 right-4 z-40 flex w-[min(96vw,460px)] max-h-[82vh] flex-col rounded-xl border border-white/15 bg-zinc-950/95 shadow-2xl backdrop-blur" data-testid="admin-release-workflow"><div onPointerDown={onDragStart} className="flex touch-none cursor-move items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5" data-testid="admin-release-workflow-dragbar"><div className="min-w-0"><div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Tindakan Rilisan</div><div className="truncate text-xs text-zinc-400" data-testid="admin-release-workflow-status">Status: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div><div className="flex shrink-0 items-center gap-1.5">{primaryAction && <button type="button" data-nodrag onClick={() => action(primaryAction.name, primaryAction.extra || {})} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-pink-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-pink-400 disabled:opacity-50" data-testid="admin-release-quick-action"><primaryAction.Icon className="h-3.5 w-3.5" />{primaryAction.label}</button>}<button type="button" data-nodrag onClick={toggleMinimized} className="rounded-md border border-white/15 p-1.5 text-zinc-300 transition-colors hover:bg-white/10" data-testid="admin-release-workflow-toggle" title={minimized ? "Perbesar" : "Kecilkan"}>{minimized ? <ChevronUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button></div></div>{!minimized && <div className="overflow-y-auto p-4" data-testid="admin-release-workflow-body"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">Tindakan Berikutnya</div><div className="mt-1 text-sm text-zinc-300">Status saat ini: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div>
+  return <aside className="fixed bottom-0 left-0 right-0 z-40 flex max-h-[70vh] flex-col rounded-t-xl border-t border-white/15 bg-zinc-950/95 shadow-2xl backdrop-blur md:left-[var(--rm-dock-left,256px)]" data-testid="admin-release-workflow"><div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5" data-testid="admin-release-workflow-dragbar"><div className="min-w-0"><div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Tindakan Rilisan</div><div className="truncate text-xs text-zinc-400" data-testid="admin-release-workflow-status">Status: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div><div className="flex shrink-0 items-center gap-1.5">{primaryAction && <button type="button" data-nodrag onClick={() => action(primaryAction.name, primaryAction.extra || {})} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-pink-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-pink-400 disabled:opacity-50" data-testid="admin-release-quick-action"><primaryAction.Icon className="h-3.5 w-3.5" />{primaryAction.label}</button>}<button type="button" data-nodrag onClick={toggleMinimized} className="rounded-md border border-white/15 p-1.5 text-zinc-300 transition-colors hover:bg-white/10" data-testid="admin-release-workflow-toggle" title={minimized ? "Perbesar" : "Kecilkan"}>{minimized ? <ChevronUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button></div></div>{!minimized && <div className="min-h-0 flex-1 overflow-y-auto p-4" data-testid="admin-release-workflow-body"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="text-xs font-bold uppercase text-zinc-500">Tindakan Berikutnya</div><div className="mt-1 text-sm text-zinc-300">Status saat ini: <strong className="text-white">{releaseStatusLabel(status)}</strong></div></div>
     {["submitted", "under_review", "need_revision", "live"].includes(status) && <label className="min-w-72 flex-1 lg:max-w-xl"><span className="rm-label">Catatan / alasan</span><textarea className="rm-input min-h-20" value={note} onChange={(event) => setNote(event.target.value)} data-testid="admin-release-note-input" /></label>}
     <div className="flex flex-wrap gap-2">
       {status === "submitted" && <><button className="rm-btn-primary inline-flex items-center gap-2" disabled={busy} onClick={() => action("start_review")} data-testid="admin-release-start-review-button"><ShieldCheck className="h-4 w-4" /> Mulai Pemeriksaan</button><button className="rm-btn-ghost" disabled={busy || !note.trim()} onClick={() => action("need_revision")} data-testid="admin-release-need-revision-button">Minta Revisi</button><button className="rounded-md border border-red-500/30 px-4 py-2 text-sm font-bold text-red-300" disabled={busy || !note.trim()} onClick={() => action("reject")} data-testid="admin-release-reject-button"><XCircle className="mr-2 inline h-4 w-4" /> Tolak</button></>}

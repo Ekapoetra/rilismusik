@@ -305,3 +305,7 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Scoped 24migo reconciliation: `backend/tests/test_iter54_phase64_scoped_24migo.py`; final combined gate 14/14 dengan exact line-level rounding, commit, clean re-preview, global audit regressions, legacy withdrawal regressions, dan frontend production build.
 - Release submission/workflow: `backend/tests/test_phase65_release_submission_workflow.py`, `backend/tests/test_iter55_release_rbac_revision.py`, dan updated Phase43; final combined gate 16/16 dengan frontend production build serta desktop/mobile browser QA.
 - Admin notification log: `backend/tests/test_iter60_admin_notifications_log.py`; final targeted result 6/6 dengan report `/app/test_reports/iteration_60.json`, frontend production build, serta desktop/mobile browser QA.
+## Update 2026-06 — Panel Tindakan Rilisan didok ke bawah
+- AdminReleaseWorkflow.jsx: panel diubah dari floating/draggable menjadi bottom-dock bar selebar area konten (fixed bottom-0 left-0 right-0, md:left via --rm-dock-left).
+- Drag & posisi tersimpan (localStorage pos) dihapus dan dibersihkan otomatis; minimize + quick-action header tetap.
+- AdminLayout.jsx: set CSS var --rm-dock-left (72px collapsed / 256px expanded) agar panel mengikuti lebar sidebar.
