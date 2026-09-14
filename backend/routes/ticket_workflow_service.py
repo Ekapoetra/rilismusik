@@ -9,10 +9,11 @@ TICKET_CATEGORY_LABELS = {
     "takedown": "Takedown Rilisan", "edit_metadata": "Edit Metadata",
     "edit_audio": "Edit Audio", "edit_cover": "Edit Cover",
     "content_id_claim": "Pengajuan YouTube Content ID", "content_id_release": "Cabut YouTube Content ID",
+    "not_live": "Rilisan Tidak Tersedia/Live",
     "royalty_issue": "Masalah Royalti", "other": "Lainnya",
 }
 ACTIVE_CATEGORIES = tuple(key for key in TICKET_CATEGORY_LABELS if key not in {"royalty_issue", "other"})
-AUTO_SUBJECT_CATEGORIES = {"takedown", "edit_metadata", "content_id_claim", "content_id_release"}
+AUTO_SUBJECT_CATEGORIES = {"takedown", "edit_metadata", "content_id_claim", "content_id_release", "not_live"}
 CONTENT_ID_CATEGORIES = {"content_id_claim", "content_id_release"}
 TAKEDOWN_REASONS = {"Revisi Metadata", "Pindah Aggregator", "Konflik Hak Cipta", "Konflik Internal"}
 METADATA_KEYS = ("release_title", "artist_name", "genre", "language", "copyright_line", "p_line")

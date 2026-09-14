@@ -215,6 +215,7 @@ class PaymentProductCreateIn(BaseModel):
     description: Optional[str] = Field(default=None, max_length=500)
     amount: int = Field(ge=1000, le=1_000_000_000)
     active: bool = True
+    delivery_type: str = Field(default="link")
 
 
 class PaymentProductUpdateIn(BaseModel):
@@ -222,6 +223,7 @@ class PaymentProductUpdateIn(BaseModel):
     description: Optional[str] = Field(default=None, max_length=500)
     amount: Optional[int] = Field(default=None, ge=1000, le=1_000_000_000)
     active: Optional[bool] = None
+    delivery_type: Optional[str] = None
 
 
 class PaymentAdminActionIn(BaseModel):
@@ -408,7 +410,7 @@ from contentid_models import ContentIdCreatorIn
 
 class TicketCreateIn(BaseModel):
     release_id: str = Field(min_length=1)
-    category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release"]
+    category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release", "not_live"]
     subject: str = Field(default="", max_length=200)
     description: str = Field(default="", max_length=4000)
     # Category-specific payload

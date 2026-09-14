@@ -17,6 +17,7 @@ PERMISSION_MODULES = [
     {"key": "royalty", "label_id": "Royalti", "label_en": "Royalty", "actions": [("royalty.view", "Lihat royalti", "View royalty"), ("royalty.import", "Impor/publish royalti", "Import/publish royalty"), ("royalty.manage", "Audit dan rekonsiliasi", "Audit and reconcile"), ("royalty.delete", "Hapus import", "Delete import")]},
     {"key": "withdraw", "label_id": "Penarikan Dana", "label_en": "Withdrawals", "actions": [("withdraw.view", "Lihat penarikan", "View withdrawals"), ("withdraw.manage", "Approve/bayar/edit", "Approve/pay/edit")]},
     {"key": "wami", "label_id": "WAMI", "label_en": "WAMI", "actions": [("wami.view", "Lihat WAMI", "View WAMI"), ("wami.manage", "Ubah status WAMI", "Update WAMI status")]},
+    {"key": "addon", "label_id": "Layanan Tambahan", "label_en": "Add-on Services", "actions": [("addon.view", "Lihat layanan tambahan", "View add-on services"), ("addon.manage", "Kelola katalog & proses order", "Manage catalog & process orders")]},
     {"key": "support", "label_id": "Tiket Bantuan", "label_en": "Support Tickets", "actions": [("support.view", "Lihat tiket", "View tickets"), ("support.manage", "Balas/ubah status", "Reply/update status")]},
     {"key": "cms", "label_id": "CMS", "label_en": "CMS", "actions": [("cms.view", "Lihat CMS", "View CMS"), ("cms.manage", "Edit konten/aset", "Edit content/assets")]},
     {"key": "contracts", "label_id": "Kontrak", "label_en": "Contracts", "actions": [("contracts.view", "Lihat kontrak", "View contracts"), ("contracts.manage", "Buat/perpanjang/akhiri", "Create/extend/terminate")]},
@@ -109,8 +110,8 @@ def resolve_deps(key: str) -> List[str]:
 
 BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
-    "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
-    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package.request", "labels.package.request.view", "labels.rate.request", "labels.rate.request.view", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
+    "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "addon.view", "addon.manage", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
+    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package.request", "labels.package.request.view", "labels.rate.request", "labels.rate.request.view", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "addon.view", "addon.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
     "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "labels.blacklist.request", "labels.blacklist.request.view", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
     "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
     "admin_marketing": ["dashboard.view", "notifications.view"],
@@ -134,7 +135,7 @@ DEFAULT_NAV_ITEMS = [
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
     ("payments", "/admin/payments", "CreditCard", "payments.view", "Pembayaran", "Payments", None),
-    ("addon_orders", "/admin/addon-orders", "Sparkles", "releases.review", "Layanan Tambahan", "Add-on Services", None),
+    ("addon_orders", "/admin/addon-orders", "Sparkles", "addon.view", "Layanan Tambahan", "Add-on Services", None),
     ("royalty", "/admin/royalty", "FileSpreadsheet", "royalty.view", "Impor Royalti", "Royalty Import", None),
     ("royalty_adjustments", "/admin/royalty-adjustments", "Wallet", "royalty.manage", "Inject Saldo", "Royalty Adjustments", None),
     ("withdraw", "/admin/withdraw", "Banknote", "withdraw.view", "Penarikan Dana", "Withdrawals", None),
@@ -246,6 +247,16 @@ async def ensure_admin_access_defaults(db) -> None:
         {"key": "super_admin"},
         {"$addToSet": {"permissions": {"$each": ["work.view", "work.manage"]}}},
     )
+    # v10: Add-on Services module (direct action, no approval). Release + Finance can process & manage catalog.
+    await db.admin_roles.update_one(
+        {"key": "super_admin"},
+        {"$addToSet": {"permissions": {"$each": ["addon.view", "addon.manage"]}}},
+    )
+    for key in ("admin_release", "admin_finance"):
+        await db.admin_roles.update_one(
+            {"key": key, "rbac_schema_version": {"$lt": 10}},
+            {"$addToSet": {"permissions": {"$each": ["addon.view", "addon.manage"]}}, "$set": {"rbac_schema_version": 10}},
+        )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -266,6 +277,11 @@ async def ensure_admin_access_defaults(db) -> None:
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation", "items": {"$elemMatch": {"key": "rate_changes", "labels.id": "Permintaan Rate/Fee"}}},
         {"$set": {"items.$.labels.id": "Persetujuan Sensitif", "items.$.labels.en": "Sensitive Approvals", "items.$.icon": "ShieldCheck"}},
+    )
+    # Add-on Services nav item now gated by its own permission (was releases.review).
+    await db.admin_ui_settings.update_one(
+        {"key": "admin_navigation", "items": {"$elemMatch": {"key": "addon_orders", "permission": "releases.review"}}},
+        {"$set": {"items.$.permission": "addon.view"}},
     )
     # Action Center redesign: remove the standalone "Riwayat Notifikasi" nav item
     # (still reachable via the header notification bell's history link).

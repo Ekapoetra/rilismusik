@@ -1,0 +1,24 @@
+{
+  "summary": "Iter78 verified the RILIS MUSIK go-live workflow end-to-end. Backend: (A) GET /api/admin/work/queue?scope=team includes work_type='release_go_live' with open_count=1 initially (seed 2110e419 'Cinta Sederhana'), permission='releases.review', responsible_roles=['Admin Rilisan'], link=/admin/releases?status=delivered, priority=high. (B) GET /api/admin/action-center returns key='release_go_live' with count=1 and correct link. (C) POST /api/admin/cron/release-live-check returns {ok:true, due:1, notified:1} (idempotent second call returns 0/0). (D) Fulfillment via POST /api/releases/{id}/admin/action with action='mark_live' + upc + track_isrcs + release_date succeeded (200): release status transitioned delivered->live, work queue release_go_live open_count reconciled to 0 within cache TTL. (E) GET /api/tickets/categories includes {'value':'not_live'}. (F) POST /api/tickets/label/create with category=not_live + release_id creates ticket (200). (G) Ticket appears in action-center 'tickets' count, work_queue 'support_ticket' open_count, and GET /api/tickets/admin listing. (H) GET /api/label/dashboard returns 'live_today' array containing seed 758c0421 'Symphony Kecil' (and 'Cinta Sederhana' after mark_live). Frontend E2E on /label/dashboard: both banners render with data-testid='label-live-today' + per-release report/dismiss CTAs; report modal opens, note fills, submit posts and success toast 'Laporan terkirim ke admin' shows; no console errors on dashboard. All 8 pytest tests pass (2 skipped after seed consumption is expected/idempotent).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter78_release_go_live.py",
+    "/app/test_reports/pytest/iter78_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "work_service._sources release_go_live: uses today WIB as ISO date compared to release_date (also stored as ISO date). String comparison works for YYYY-MM-DD but ensure release_date is always normalized to date-only (not datetime); a datetime string like '2026-09-15T10:00' would still pass <=today check by lex order, which is fine but worth documenting.",
+    "cron_jobs.detect_releases_due_live_job: confirm the daily marker key encodes WIB date (not UTC) to avoid double-firing at UTC midnight; the manual endpoint test confirmed idempotency within same WIB day.",
+    "labels.dashboard live_today: consider capping the list length (e.g., 10) if a label could theoretically have many releases live same day, to avoid heavy payload.",
+    "LiveTodayBanner: report modal — verify the note is required (or gracefully allowed empty) and that release_id is always attached on submit."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter78_release_go_live.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; demo_vip@rilismusik.com / DemoVIP#2026",
+  "seed_data_creation": "One 'not_live' ticket was created via API test (subject auto-generated for release 758c0421 Symphony Kecil, message 'TEST_not_live automated test ticket'). A second 'not_live' ticket was created via UI test (note 'TEST_UI iter78 - platform Spotify tidak ada release ini'). Release 2110e419 'Cinta Sederhana' was transitioned delivered->live with UPC='QATEST0000001' and track ISRCs 'IDQA1250000N'; its live_at is now today WIB so it also surfaces on the label dashboard banner. Main agent may want to reset if a clean 'delivered' seed is needed for re-testing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After this iteration, release 2110e419 is LIVE (not delivered). To re-test the go-live task fulfillment path, reset the release back to status='delivered' with release_date<=today WIB via mongosh, and clear the cron daily marker for the current WIB date. The TEST_ prefixed not_live tickets are still open and count toward support queue.",
+  "rca of the issue": "N/A — no bugs found."
+}

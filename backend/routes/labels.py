@@ -164,10 +164,32 @@ async def label_dashboard(user: dict = Depends(require_label)):
         if bucket:
             pipeline_counts[bucket] += int(row.get("count") or 0)
 
+    # Releases that went live today (WIB) → celebratory banner on the label dashboard.
+    from datetime import timedelta as _td
+    today_wib = (datetime.now(timezone.utc) + _td(hours=7)).date().isoformat()
+    live_today = []
+    for r in await db.releases.find(
+        {"label_id": label["id"], "status": "live", "live_at": {"$ne": None}},
+        {"_id": 0, "id": 1, "release_title": 1, "primary_artist_name": 1, "artist_name": 1,
+         "display_cover_url": 1, "cover_url": 1, "live_at": 1},
+    ).sort("live_at", -1).to_list(20):
+        live_at = str(r.get("live_at") or "")
+        try:
+            live_date = (datetime.fromisoformat(live_at.replace("Z", "+00:00")) + _td(hours=7)).date().isoformat()
+        except Exception:
+            continue
+        if live_date == today_wib:
+            live_today.append({
+                "id": r["id"], "release_title": r.get("release_title"),
+                "artist_name": r.get("primary_artist_name") or r.get("artist_name"),
+                "cover_url": r.get("display_cover_url") or r.get("cover_url"),
+            })
+
     from .kyc_service import compute_kyc_state
     return {
         "label": {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)},
         "pipeline": pipeline_counts,
+        "live_today": live_today,
         "stats": {
             "balance_available_idr": balance["balance_available_idr"],
             "balance_pending_idr": balance["balance_pending_idr"],

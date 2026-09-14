@@ -6,6 +6,7 @@ import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
 import { LabelHero } from "@/components/label/LabelHero";
+import { LiveTodayBanner } from "@/components/label/LiveTodayBanner";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
@@ -97,6 +98,8 @@ export default function LabelDashboardHome() {
 
       {/* Hero (CMS-managed) */}
       <LabelHero hero={hero} label={label} verified={kyc?.is_verified} subline={identitySub} />
+
+      <LiveTodayBanner releases={data.live_today || []} />
 
       {!locked && <SubmissionQuota prefix="label-dashboard" />}
 

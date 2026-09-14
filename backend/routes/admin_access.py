@@ -25,9 +25,15 @@ def _validate_permissions(values: List[str]) -> List[str]:
 
 
 def _merge_default_nav(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Append any DEFAULT_NAV_ITEMS missing from a stored config so new tabs appear."""
+    """Append missing DEFAULT_NAV_ITEMS and re-sync non-customizable fields (permission/icon/route)."""
+    defaults = {item[0]: item for item in DEFAULT_NAV_ITEMS}
     items = list(config.get("items", []))
-    present = {item.get("key") for item in items}
+    present = set()
+    for item in items:
+        d = defaults.get(item.get("key"))
+        if d:
+            item["permission"], item["icon"], item["route"] = d[3], d[2], d[1]
+        present.add(item.get("key"))
     max_order = max((item.get("order", 0) for item in items), default=-1)
     for key, route, icon, permission, label_id, label_en, parent in DEFAULT_NAV_ITEMS:
         if key not in present:

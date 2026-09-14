@@ -298,6 +298,57 @@ async def trigger_background_completion_check(user: dict = Depends(require_admin
     return await notify_completed_background_jobs()
 
 
+async def detect_releases_due_live_job():
+    """Daily (08:00 WIB): find releases delivered to Believe whose release date has
+    arrived (WIB) and nudge release admins to finalize UPC/ISRC and set them Live.
+    The Work Queue item itself is computed via reconciliation; this job forces a
+    refresh and sends a once-per-day summary notification to responsible admins."""
+    try:
+        today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
+        due = await db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}})
+        # Force a Work Queue reconciliation so the task surfaces immediately.
+        try:
+            from .work_service import reconcile_work, get_responsibility
+            await reconcile_work(force=True)
+        except Exception as exc:
+            logger.warning("release-live reconcile failed: %s", exc)
+            get_responsibility = None
+        if not due:
+            return {"due": 0, "notified": 0}
+        role_ids = []
+        if get_responsibility:
+            mapping = await get_responsibility()
+            role_ids = mapping.get("release_go_live", [])
+        recipients = await db.users.find(
+            {"$or": [{"role": "super_admin"}, {"admin_role_id": {"$in": role_ids}}]},
+            {"_id": 0, "id": 1},
+        ).to_list(500)
+        notified = 0
+        for u in recipients:
+            marker = f"release_live_due_{today_wib}_{u['id']}"
+            if await db.notifications.find_one({"user_id": u["id"], "meta.marker": marker}):
+                continue
+            await notify(
+                u["id"], "release_go_live",
+                f"{due} rilisan siap ditayangkan",
+                f"Ada {due} rilisan yang sudah dikirim ke Believe dan tanggal rilisnya sudah tiba. Lengkapi UPC/ISRC lalu ubah status menjadi Tayang.",
+                "/admin/releases?status=delivered",
+                {"marker": marker, "due": due},
+            )
+            notified += 1
+        return {"due": due, "notified": notified}
+    except Exception as e:
+        logger.exception("detect_releases_due_live_job failed: %s", e)
+        return {"due": 0, "notified": 0, "error": type(e).__name__}
+
+
+@cron_r.post("/release-live-check")
+async def trigger_release_live_check(user: dict = Depends(require_admin)):
+    if user["role"] not in ("super_admin", "admin_release"):
+        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Release")
+    return {"ok": True, **(await detect_releases_due_live_job())}
+
+
 def start_scheduler():
     """Register cron jobs and start the scheduler.
 
@@ -313,6 +364,11 @@ def start_scheduler():
     scheduler.add_job(
         check_contract_expiry_job, "cron", hour=2, minute=0,
         id="contract_expiry_reminder", replace_existing=True,
+    )
+    scheduler.add_job(
+        detect_releases_due_live_job, "cron", hour=1, minute=0,
+        id="release_go_live_detect", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=75),
     )
     scheduler.add_job(
         watchdog_stuck_royalty_imports, "interval", minutes=15,

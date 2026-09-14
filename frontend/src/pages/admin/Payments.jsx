@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
-import { useAuth } from "@/api/AuthContext";
-import { CreditCard, Crown, Disc3, Eye, RefreshCw, Plus, ShoppingBag, Pencil, Trash2 } from "lucide-react";
+import { CreditCard, Crown, Disc3, Eye, RefreshCw } from "lucide-react";
 import PaymentDetailDialog from "./payments/PaymentDetailDialog";
 import { formatIDR, PAYMENT_STATUS, PAYMENT_TYPES } from "./payments/paymentPresentation";
 import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components/admin/FinancialPeriodOverview";
@@ -10,24 +9,18 @@ import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components
 const fmtIDR = formatIDR;
 
 export default function AdminPayments() {
-  const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
-  const [products, setProducts] = useState([]);
   const [status, setStatus] = useState("");
   const [ptype, setPtype] = useState("");
   const [syncing, setSyncing] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
-  const [form, setForm] = useState({ name: "", description: "", amount: "" });
-  const [editingId, setEditingId] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [incomePeriod, setIncomePeriod] = useState(jakartaPeriod);
   const [incomeSummary, setIncomeSummary] = useState(null);
   const needsAction = searchParams.get("needs_action") === "true";
   const requestedPaymentId = searchParams.get("payment_id");
-  const canManage = hasPermission("payments.manage");
 
   const load = useCallback(async () => {
     try {
@@ -35,12 +28,8 @@ export default function AdminPayments() {
       setItems(data);
       if (requestedPaymentId) setSelectedPayment(data.find((row) => row.id === requestedPaymentId) || null);
       else setSelectedPayment((current) => current ? data.find((row) => row.id === current.id) || current : null);
-      if (canManage) {
-        const { data: catalog } = await api.get("/payments/admin/products");
-        setProducts(catalog);
-      }
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
-  }, [status, ptype, canManage, needsAction, requestedPaymentId]);
+  }, [status, ptype, needsAction, requestedPaymentId]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     api.get("/admin/payments/summary", { params: incomePeriod })
@@ -56,22 +45,6 @@ export default function AdminPayments() {
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setSyncing(null); }
   };
-
-  const addProduct = async (e) => {
-    e.preventDefault(); setErr(""); setMsg("");
-    try {
-      if (editingId) await api.patch(`/payments/admin/products/${editingId}`, { ...form, amount: Number(form.amount) });
-      else await api.post("/payments/admin/products", { ...form, amount: Number(form.amount), active: true });
-      setForm({ name: "", description: "", amount: "" }); setEditingId(null); setMsg(editingId ? "Layanan diperbarui." : "Layanan baru ditambahkan."); await load();
-    } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
-  };
-
-  const toggleProduct = async (product) => {
-    try { await api.patch(`/payments/admin/products/${product.id}`, { active: !product.active }); await load(); }
-    catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
-  };
-  const editProduct = (product) => { setEditingId(product.id); setForm({ name: product.name, description: product.description || "", amount: String(product.amount) }); };
-  const deleteProduct = async () => { try { await api.delete(`/payments/admin/products/${deleteTarget.id}`); setDeleteTarget(null); setMsg("Layanan dihapus dari katalog aktif."); await load(); } catch (error) { setErr(formatApiError(error.response?.data?.detail)); } };
 
   const openPayment = (payment) => {
     setSelectedPayment(payment);
@@ -111,26 +84,6 @@ export default function AdminPayments() {
         monthly={incomeSummary.monthly.map((row) => ({ ...row, income: row.amount_idr }))}
         testIdPrefix="admin-payment-income"
       />}
-
-      {canManage && (
-        <section className="space-y-3" data-testid="admin-payment-products">
-          <div><div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Katalog</div><h2 className="font-display text-xl font-bold">Layanan Tambahan</h2></div>
-          <form onSubmit={addProduct} className="rm-card p-4 grid md:grid-cols-12 gap-3 items-end">
-            <div className="md:col-span-3"><label className="rm-label">Nama layanan</label><input required className="rm-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="payment-product-name" /></div>
-            <div className="md:col-span-4"><label className="rm-label">Deskripsi</label><input className="rm-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} data-testid="payment-product-description" /></div>
-            <div className="md:col-span-3"><label className="rm-label">Harga IDR</label><input required min="1000" type="number" className="rm-input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} data-testid="payment-product-amount" /></div>
-            <button className="rm-btn-primary md:col-span-2 flex items-center justify-center gap-2" type="submit" data-testid="payment-product-submit">{editingId ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {editingId ? "Simpan" : "Tambah"}</button>
-            {editingId && <button type="button" className="rm-btn-ghost md:col-span-12" onClick={() => { setEditingId(null); setForm({ name: "", description: "", amount: "" }); }} data-testid="payment-product-edit-cancel">Batal Edit</button>}
-          </form>
-          {products.length > 0 && <div className="grid md:grid-cols-3 gap-3">{products.map((product) => (
-            <div key={product.id} className="rm-card p-4 flex items-start gap-3" data-testid={`admin-payment-product-${product.id}`}>
-              <ShoppingBag className="w-5 h-5 text-pink-300 mt-1" /><div className="flex-1"><div className="font-bold">{product.name}</div><div className="text-xs text-zinc-500">{fmtIDR(product.amount)}</div></div>
-              <div className="flex gap-1"><button className="grid h-8 w-8 place-items-center rounded-md text-zinc-300 hover:bg-white/10" title="Edit layanan" onClick={() => editProduct(product)} data-testid={`payment-product-edit-${product.id}`}><Pencil className="w-3.5 h-3.5" /></button><button className="grid h-8 w-8 place-items-center rounded-md text-red-300 hover:bg-red-500/15" title="Hapus layanan" onClick={() => setDeleteTarget(product)} data-testid={`payment-product-delete-${product.id}`}><Trash2 className="w-3.5 h-3.5" /></button><button className="rm-btn-ghost text-xs" onClick={() => toggleProduct(product)} data-testid={`payment-product-toggle-${product.id}`}>{product.active ? "Nonaktifkan" : "Aktifkan"}</button></div>
-            </div>
-          ))}</div>}
-        </section>
-      )}
-      {deleteTarget && <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setDeleteTarget(null)}><div className="rm-glass-strong w-full max-w-md rounded-[24px] border border-red-500/30 p-6 space-y-4" onClick={(event) => event.stopPropagation()} data-testid="payment-product-delete-modal"><h3 className="font-display text-xl font-extrabold text-red-200">Hapus Layanan</h3><p className="text-sm text-zinc-300">Hapus <b>{deleteTarget.name}</b> dari katalog? Layanan yang sudah dipakai invoice lama akan diarsipkan agar histori tetap utuh.</p><div className="flex justify-end gap-2"><button className="rm-btn-ghost" onClick={() => setDeleteTarget(null)} data-testid="payment-product-delete-cancel">Batal</button><button className="rm-btn-primary" onClick={deleteProduct} data-testid="payment-product-delete-confirm">Hapus</button></div></div></div>}
 
       <section className="space-y-3">
         <div className="rm-card p-4 flex gap-3 flex-wrap items-end">

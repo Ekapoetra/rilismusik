@@ -6,7 +6,7 @@ trackable order with a status lifecycle so both admin and label can follow it.
 """
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from models import new_id, now_iso
@@ -39,6 +39,12 @@ async def sync_release_addon_orders(release: Dict[str, Any], payment: Dict[str, 
     addons = release.get("selected_addons") or []
     if not addons:
         return 0
+    # Resolve per-product delivery type (link vs file) from the catalog.
+    product_ids = [item.get("id") for item in addons if item.get("id")]
+    dtype_map = {}
+    if product_ids:
+        async for p in db.payment_products.find({"id": {"$in": product_ids}}, {"_id": 0, "id": 1, "delivery_type": 1}):
+            dtype_map[p["id"]] = p.get("delivery_type") or "link"
     created = 0
     now = now_iso()
     for item in addons:
@@ -55,11 +61,12 @@ async def sync_release_addon_orders(release: Dict[str, Any], payment: Dict[str, 
                 "product_id": product_id,
                 "product_name": item.get("name") or "Layanan Tambahan",
                 "product_description": item.get("description") or "",
+                "delivery_type": dtype_map.get(product_id, "link"),
                 "amount": int(item.get("amount") or 0),
                 "payment_id": payment.get("id"),
                 "source": "release",
                 "status": "pending",
-                "delivery_url": None, "delivery_note": None,
+                "delivery_url": None, "delivery_note": None, "delivery_filename": None,
                 "created_at": now, "updated_at": now,
             }},
             upsert=True,
@@ -109,7 +116,7 @@ def _safe_url(value: Optional[str]) -> Optional[str]:
 
 @addon_admin_r.get("")
 async def admin_list_addon_orders(status: Optional[str] = None, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "releases.review")
+    assert_admin_permission(user, "addon.view")
     query: Dict[str, Any] = {}
     if status and status != "all":
         query["status"] = status
@@ -122,7 +129,7 @@ async def admin_list_addon_orders(status: Optional[str] = None, user: dict = Dep
 
 @addon_admin_r.patch("/{order_id}/status")
 async def admin_update_status(order_id: str, body: AddonStatusIn, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "releases.review")
+    assert_admin_permission(user, "addon.manage")
     if body.status not in STATUS_LABELS:
         raise HTTPException(status_code=400, detail="Status tidak valid")
     order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
@@ -155,7 +162,7 @@ async def admin_update_status(order_id: str, body: AddonStatusIn, user: dict = D
 
 @addon_admin_r.patch("/{order_id}/delivery")
 async def admin_set_delivery(order_id: str, body: AddonDeliveryIn, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "releases.review")
+    assert_admin_permission(user, "addon.manage")
     order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
@@ -182,9 +189,41 @@ async def admin_set_delivery(order_id: str, body: AddonDeliveryIn, user: dict = 
     return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
 
 
+@addon_admin_r.post("/{order_id}/delivery-file")
+async def admin_upload_delivery_file(order_id: str, file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "addon.manage")
+    order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
+    if order.get("status") == "cancelled":
+        raise HTTPException(status_code=409, detail="Order sudah dibatalkan")
+    filename = (file.filename or "").strip()
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    allowed = {"mp4", "mov", "webm", "zip", "rar", "png", "jpg", "jpeg", "pdf", "mp3", "wav", "gif"}
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail=f"Format file tidak didukung: .{ext or '?'}")
+    import storage_service
+    key = f"addon-delivery/{order_id}.{ext}"
+    content_type = file.content_type or "application/octet-stream"
+    await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type=content_type)
+    now = now_iso()
+    await db.addon_orders.update_one({"id": order_id}, {"$set": {
+        "delivery_url": f"/api/files/{key}", "delivery_filename": filename,
+        "status": "delivered", "delivered_at": now, "updated_at": now,
+    }})
+    await log_activity(user["id"], "addon_order_delivery_file", "addon", order_id, after={"filename": filename})
+    await notify_many(
+        await label_user_ids(order["label_id"]), "addon_order_update",
+        "Layanan tambahan: Terkirim",
+        f"Hasil {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" sudah tersedia untuk diunduh.",
+        link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
+    )
+    return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
+
+
 @addon_admin_r.post("/backfill")
 async def admin_backfill(user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "releases.review")
+    assert_admin_permission(user, "addon.manage")
     result = await backfill_addon_orders()
     await log_activity(user["id"], "addon_order_backfill", "addon", None, after=result)
     return result

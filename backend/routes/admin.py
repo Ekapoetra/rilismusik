@@ -75,6 +75,7 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         doc = await db[coll].find_one(filt, {"_id": 0, field: 1}, sort=[(field, 1)])
         return doc.get(field) if doc else None
 
+    today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
     counts = await asyncio.gather(
         db.releases.count_documents({"status": "under_review"}),
         db.kyc_documents.count_documents({"status": "pending_review", "is_current": True}),
@@ -84,6 +85,8 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         db.users.count_documents({"role": "label", "claim_status": "pending_link"}),
         db.wami_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
         db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
+        db.addon_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
+        db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}),
     )
     oldest = await asyncio.gather(
         _oldest("releases", {"status": "under_review"}, "submitted_at"),
@@ -91,9 +94,11 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         _oldest("withdraw_requests", {"status": "requested"}, "created_at"),
         _oldest("support_tickets", {"status": {"$nin": ["done", "rejected"]}}, "created_at"),
         _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
+        _oldest("addon_orders", {"status": {"$in": ["pending", "in_progress"]}}, "created_at"),
+        _oldest("releases", {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}, "delivered_to_believe_at"),
     )
-    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service = counts
-    o_rel, o_kyc, o_wd, o_tk, o_claim = oldest
+    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service, c_addon_orders, c_golive = counts
+    o_rel, o_kyc, o_wd, o_tk, o_claim, o_addon, o_golive = oldest
     c_addon = (c_wami or 0) + (c_service or 0)
     defs = [
         {"key": "withdrawals", "count": c_wd, "priority": "high", "permission": "withdraw.manage", "oldest_at": o_wd,
@@ -105,6 +110,9 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         {"key": "releases", "count": c_rel, "priority": "normal", "permission": "releases.review", "oldest_at": o_rel,
          "title": "Rilisan menunggu review", "cta": "Review", "link": "/admin/releases?status=under_review", "icon": "Disc3",
          "description": f"{c_rel} rilisan siap diperiksa untuk distribusi."},
+        {"key": "release_go_live", "count": c_golive, "priority": "high", "permission": "releases.review", "oldest_at": o_golive,
+         "title": "Rilisan siap ditayangkan (UPC/ISRC)", "cta": "Tayangkan", "link": "/admin/releases?status=delivered", "icon": "Rocket",
+         "description": f"{c_golive} rilisan sudah dikirim ke Believe & tanggal rilis tiba — lengkapi UPC/ISRC lalu set Tayang."},
         {"key": "kyc", "count": c_kyc, "priority": "normal", "permission": "kyc.view", "oldest_at": o_kyc,
          "title": "Verifikasi Akun menunggu review", "cta": "Review", "link": "/admin/kyc", "icon": "ShieldCheck",
          "description": f"{c_kyc} identitas label perlu diperiksa."},
@@ -117,6 +125,9 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         {"key": "addons", "count": c_addon, "priority": "normal", "permission": "releases.review", "oldest_at": None,
          "title": "Konten tambahan menunggu dikerjakan", "cta": "Kerjakan", "link": "/admin/wami", "icon": "Sparkles",
          "description": f"{c_addon} add-on dari label (WAMI {c_wami} · layanan {c_service}) sudah dibayar dan menunggu diproses."},
+        {"key": "addon_orders", "count": c_addon_orders, "priority": "normal", "permission": "addon.view", "oldest_at": o_addon,
+         "title": "Layanan tambahan menunggu dikerjakan", "cta": "Kerjakan", "link": "/admin/addon-orders", "icon": "Sparkles",
+         "description": f"{c_addon_orders} layanan tambahan rilisan (visualizer, link preset, dll) sudah dibayar dan menunggu diproses."},
     ]
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
     items = [d for d in defs if (d["count"] or 0) > 0]

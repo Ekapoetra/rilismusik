@@ -24,6 +24,8 @@ work_r = APIRouter(prefix="/admin/work", tags=["work"])
 WORK_TYPES: List[Dict[str, Any]] = [
     {"key": "release_review", "label_id": "Review Rilisan", "label_en": "Release Review", "icon": "Disc3",
      "link": "/admin/releases?status=under_review", "permission": "releases.review", "priority": "normal", "sla_days_default": 2},
+    {"key": "release_go_live", "label_id": "Finalisasi Tayang (UPC/ISRC)", "label_en": "Finalize Go-Live", "icon": "Rocket",
+     "link": "/admin/releases?status=delivered", "permission": "releases.review", "priority": "high", "sla_days_default": 1},
     {"key": "withdraw_verification", "label_id": "Verifikasi Penarikan", "label_en": "Withdrawal Verification", "icon": "Banknote",
      "link": "/admin/withdraw", "permission": "withdraw.manage", "priority": "high", "sla_days_default": 1},
     {"key": "payment_followup", "label_id": "Tindak Lanjut Pembayaran", "label_en": "Payment Follow-up", "icon": "CreditCard",
@@ -35,14 +37,14 @@ WORK_TYPES: List[Dict[str, Any]] = [
     {"key": "legacy_claim", "label_id": "Klaim Akun Lama", "label_en": "Legacy Account Claims", "icon": "DatabaseZap",
      "link": "/admin/migrate?tab=claims", "permission": "migration.view", "priority": "normal", "sla_days_default": 3},
     {"key": "addon_processing", "label_id": "Proses Add-on", "label_en": "Add-on Processing", "icon": "Sparkles",
-     "link": "/admin/addon-orders", "permission": "releases.review", "priority": "normal", "sla_days_default": 3},
+     "link": "/admin/addon-orders", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
     {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
      "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
 ]
 WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
 DEFAULT_RESPONSIBILITY = {
-    "release_review": ["admin_release"], "addon_processing": ["admin_release"],
+    "release_review": ["admin_release"], "release_go_live": ["admin_release"], "addon_processing": ["admin_release"],
     "withdraw_verification": ["admin_finance"], "payment_followup": ["admin_finance"],
     "kyc_review": ["admin_support"], "support_ticket": ["admin_support"],
     "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
@@ -92,6 +94,13 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
     if work_type == "release_review":
         async for d in db.releases.find({"status": "under_review"}, {"_id": 0, "id": 1, "submitted_at": 1, "created_at": 1, "title": 1, "label_id": 1, "label_name": 1}):
             add("releases", d, "submitted_at", d.get("title") or "Rilisan", d.get("label_id"), d.get("label_name"))
+    elif work_type == "release_go_live":
+        today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
+        async for d in db.releases.find(
+            {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}},
+            {"_id": 0, "id": 1, "delivered_to_believe_at": 1, "created_at": 1, "release_title": 1, "release_date": 1, "label_id": 1, "label_name": 1},
+        ):
+            add("releases", d, "delivered_to_believe_at", d.get("release_title") or "Rilisan", d.get("label_id"), d.get("label_name"))
     elif work_type == "withdraw_verification":
         async for d in db.withdraw_requests.find({"status": "requested", "legacy_import": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "amount_idr": 1}):
             add("withdraw_requests", d, "created_at", f"Rp {int(d.get('amount_idr') or 0):,}".replace(",", "."), d.get("label_id"), d.get("label_name"))

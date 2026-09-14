@@ -16,6 +16,7 @@ from models import (
     PaymentProductUpdateIn, PaymentAdminActionIn, now_iso, new_id,
 )
 from .payment_admin_service import update_custom_service_action
+from .admin_permission_service import assert_admin_permission
 from payment_service import (
     PaymentCreateData, create_payment_document, create_xendit_session, fulfill_payment,
     payment_price, poll_payment, reconcile_payment, xendit_configured,
@@ -150,18 +151,18 @@ async def create_service_invoice(product_id: str, user: dict = Depends(require_l
 
 @pay_r.get("/admin/products")
 async def admin_list_products(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "addon.view")
     return await db.payment_products.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
 
 
 @pay_r.post("/admin/products")
 async def admin_create_product(body: PaymentProductCreateIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "addon.manage")
     document = {
         "id": new_id(), "name": body.name.strip(), "description": (body.description or "").strip(),
-        "amount": int(body.amount), "active": body.active, "created_by": user["id"],
+        "amount": int(body.amount), "active": body.active,
+        "delivery_type": body.delivery_type if body.delivery_type in ("link", "file") else "link",
+        "created_by": user["id"],
         "created_at": now_iso(), "updated_at": now_iso(),
     }
     await db.payment_products.insert_one(document)
@@ -171,11 +172,12 @@ async def admin_create_product(body: PaymentProductCreateIn, user: dict = Depend
 
 @pay_r.patch("/admin/products/{product_id}")
 async def admin_update_product(product_id: str, body: PaymentProductUpdateIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "addon.manage")
     update = {key: value for key, value in body.model_dump(exclude_none=True).items()}
     if "name" in update:
         update["name"] = update["name"].strip()
+    if "delivery_type" in update and update["delivery_type"] not in ("link", "file"):
+        raise HTTPException(status_code=400, detail="Tipe pengiriman tidak valid")
     update["updated_at"] = now_iso()
     result = await db.payment_products.update_one({"id": product_id}, {"$set": update})
     if not result.matched_count:
@@ -185,8 +187,7 @@ async def admin_update_product(product_id: str, body: PaymentProductUpdateIn, us
 
 @pay_r.delete("/admin/products/{product_id}")
 async def admin_delete_product(product_id: str, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "addon.manage")
     product = await db.payment_products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Layanan tidak ditemukan")
