@@ -1,0 +1,26 @@
+{
+  "summary": "PRD-01 iter73 e2e tested — Blacklist + Package request/approval workflow. Backend pytest: 26/26 passed (finance direct package PATCH=403, finance PATCH label subscription=403, finance package-request creates pending with live payment_type unchanged, duplicate 409, finance approve 403, super admin approve applied annual_vip then restored to pay_per_release; support direct blacklist=403, support blacklist-request pending with account_status unchanged, duplicate 409, support approve 403, reject leaves label unchanged, approve blacklists and unblacklist restores, state validation (unblacklist on active label=400); scoped GET /admin/sensitive-requests returns package-only for Finance and blacklist-only for Support, release user 403; super admin direct blacklist+unblacklist 200; validate warnings redundant_request for [labels.package,labels.package.request] and missing_prerequisite for [labels.blacklist] w/o labels.view; iter72 rate/fee regression still works; module regression 200 for finance/support/release). Frontend verified in browser: Finance label detail shows 'Perlu Persetujuan' badge + 'Ajukan Perubahan' package button + NO direct blacklist button; Support shows 'Ajukan Blacklist…' request-mode button and admin-sensitive-requests-panel; Super Admin sees direct package card (no Perlu Persetujuan badge), 'Tinjau Perubahan' direct save, direct 'Blacklist…' button, and /admin/rate-changes unified queue with 4 tabs (All/Rate/Package/Blacklist). All test labels restored to original state (pay_per_release, account_status=active).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter73_sensitive_package_blacklist.py",
+    "/app/test_reports/pytest/iter73.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "compute_permission_warnings (admin_permission_service.py:427-434) `implied` map is missing labels.package.approve->labels.package.request.view and labels.blacklist.approve->labels.blacklist.request.view (present in has_permission but not here). Effect: an approver_no_queue warning could be triggered for package/blacklist approvers even when the approve grant implicitly gives the view. Minor UX warning-noise issue only; production has_permission is correct.",
+    "sensitive_requests.py::_apply_package re-reads only package_revision but not the full label payload again — change_label_package internally re-validates, so this is fine, but if the label were deleted between request and approval the approval would 500. Consider a soft 404 wrapper.",
+    "admin_permission_service.py:316 legacy_role_for_permission maps ANY `labels.*` prefix (including labels.blacklist/labels.package) to admin_support. Currently harmless because permission_for_request routes blacklist/package to specific perms handled by assert_admin_permission, but future refactors relying on legacy_role_for_permission could misroute — worth a comment or a labels.package/blacklist -> admin_finance/super_admin branch.",
+    "Blacklist approval writes account_status='active' unconditionally on unblacklist, ignoring prior states like 'suspended'. Minor lifecycle regression risk (unblacklist could inadvertently re-activate a suspended label). Consider preserving prior status."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter73_sensitive_package_blacklist.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com/SuperAdmin#2026, finance1@rilismusik.com/Finance#2026, support1@rilismusik.com/Support#2026, release1@rilismusik.com/Release#2026",
+  "seed_data_creation": "None persistent. All sensitive_action_requests created were resolved (rejected or approved+restored). Test PPR label (Demo Label PPR) was momentarily flipped to annual_vip then restored to pay_per_release; momentarily blacklisted then unblacklisted (account_status=active).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter73 sensitive package/blacklist workflow verified end-to-end. Reusable pytest at /app/backend/tests/test_iter73_sensitive_package_blacklist.py (26 cases, ~9s). Key testids: admin-label-subscription-card, admin-label-sub-tier-select, admin-label-sub-expiry-input, admin-label-sub-reason, admin-label-sub-save, admin-label-package-confirm-submit, admin-label-blacklist, admin-label-unblacklist, admin-label-blacklist-submit, admin-sensitive-requests-panel, sensitive-request-{approve,reject}-<id>, admin-rate-change-queue, rate-queue-tab-{all,rate,package,blacklist}, rate-queue-row-<id>, rate-queue-approve-<id>. Backend endpoints: POST /api/admin/labels/{id}/blacklist-request, POST /api/admin/labels/{id}/package-request, GET /api/admin/sensitive-requests, POST /api/admin/sensitive-requests/{id}/decision.",
+  "rca of the issue": "N/A — no failures"
+}

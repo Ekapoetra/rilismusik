@@ -565,8 +565,7 @@ async def admin_activity_logs(user: dict = Depends(require_admin), limit: int = 
 # =============================================================================
 @admin_r.post("/labels/{label_id}/blacklist")
 async def admin_blacklist_label(label_id: str, body: BlacklistIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin",):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    assert_admin_permission(user, "labels.blacklist")
     label = await db.labels.find_one({"id": label_id})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
@@ -581,7 +580,7 @@ async def admin_blacklist_label(label_id: str, body: BlacklistIn, user: dict = D
 
 @admin_r.post("/labels/{label_id}/unblacklist")
 async def admin_unblacklist_label(label_id: str, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "labels.manage")
+    assert_admin_permission(user, "labels.blacklist")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0, "id": 1})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")

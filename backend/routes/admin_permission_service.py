@@ -8,7 +8,7 @@ from fastapi import HTTPException
 PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
-    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Paket Label", "Change Label Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
+    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status")]},
@@ -50,6 +50,38 @@ PERMISSION_META = {
     "labels.rate.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.rate.request.view"],
         "desc_id": "Menyetujui atau menolak permintaan perubahan rate/fee (efektif hanya Super Admin).",
         "desc_en": "Approve or reject rate/fee change requests (effectively Super Admin only)."},
+    "labels.package": {"type": "direct", "sensitive": True, "depends_on": ["labels.view"],
+        "desc_id": "Mengubah paket/langganan label secara LANGSUNG tanpa persetujuan.",
+        "desc_en": "Change a label package/subscription DIRECTLY without approval.",
+        "boundary_id": "Hanya pemegang izin tepercaya; setiap perubahan diaudit.",
+        "boundary_en": "Trusted holders only; every change is audited."},
+    "labels.package.request": {"type": "sensitive", "sensitive": True, "requires_approval": True, "depends_on": ["labels.view"],
+        "desc_id": "Mengajukan perubahan paket label untuk disetujui Super Admin.",
+        "desc_en": "Submit a label package change for Super Admin approval.",
+        "boundary_id": "Paket live tidak berubah sampai disetujui.",
+        "boundary_en": "The live package stays unchanged until approved."},
+    "labels.package.request.view": {"type": "view", "depends_on": ["labels.view"],
+        "desc_id": "Melihat antrean permintaan perubahan paket.",
+        "desc_en": "View the package change request queue."},
+    "labels.package.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.package.request.view"],
+        "desc_id": "Menyetujui atau menolak permintaan perubahan paket (efektif hanya Super Admin).",
+        "desc_en": "Approve or reject package change requests (effectively Super Admin only)."},
+    "labels.blacklist": {"type": "direct", "sensitive": True, "depends_on": ["labels.view"],
+        "desc_id": "Blacklist / lepas blacklist label secara LANGSUNG tanpa persetujuan.",
+        "desc_en": "Blacklist / un-blacklist a label DIRECTLY without approval.",
+        "boundary_id": "Hanya pemegang izin tepercaya; setiap perubahan diaudit.",
+        "boundary_en": "Trusted holders only; every change is audited."},
+    "labels.blacklist.request": {"type": "sensitive", "sensitive": True, "requires_approval": True, "depends_on": ["labels.view"],
+        "desc_id": "Mengajukan blacklist / lepas blacklist label untuk disetujui Super Admin.",
+        "desc_en": "Submit a label blacklist / un-blacklist for Super Admin approval.",
+        "boundary_id": "Status live tidak berubah sampai disetujui.",
+        "boundary_en": "The live status stays unchanged until approved."},
+    "labels.blacklist.request.view": {"type": "view", "depends_on": ["labels.view"],
+        "desc_id": "Melihat antrean permintaan blacklist.",
+        "desc_en": "View the blacklist request queue."},
+    "labels.blacklist.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.blacklist.request.view"],
+        "desc_id": "Menyetujui atau menolak permintaan blacklist (efektif hanya Super Admin).",
+        "desc_en": "Approve or reject blacklist requests (effectively Super Admin only)."},
 }
 
 _META_DEFAULT = {"type": "standard", "sensitive": False, "requires_approval": False,
@@ -77,8 +109,8 @@ def resolve_deps(key: str) -> List[str]:
 BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
     "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
-    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package", "labels.rate.request", "labels.rate.request.view", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
-    "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
+    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package.request", "labels.package.request.view", "labels.rate.request", "labels.rate.request.view", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
+    "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "labels.blacklist.request", "labels.blacklist.request.view", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
     "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
     "admin_marketing": ["dashboard.view", "notifications.view"],
     "admin_ui": ["dashboard.view", "notifications.view", "ui.settings.view", "ui.settings.manage"],
@@ -95,7 +127,7 @@ DEFAULT_NAV_ITEMS = [
     ("dashboard", "/admin/dashboard", "LayoutDashboard", "dashboard.view", "Dashboard", "Dashboard", None),
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
-    ("rate_changes", "/admin/rate-changes", "Percent", "labels.rate.request.view", "Permintaan Rate/Fee", "Rate/Fee Requests", "labels"),
+    ("rate_changes", "/admin/rate-changes", "ShieldCheck", "labels.rate.request.view", "Persetujuan Sensitif", "Sensitive Approvals", "labels"),
     ("kyc", "/admin/kyc", "ShieldCheck", "kyc.view", "Verifikasi Akun", "Account Verification", None),
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
@@ -181,6 +213,27 @@ async def ensure_admin_access_defaults(db) -> None:
         {"$addToSet": {"permissions": {"$each": ["labels.rate", "labels.rate.request", "labels.rate.request.view", "labels.rate.approve"]}},
          "$set": {"rbac_schema_version": 7}},
     )
+    # v8: Extend request→approval to Blacklist and Package changes. Finance loses DIRECT package
+    # and may only REQUEST; Support may REQUEST blacklist; Super Admin gets direct+approve for both.
+    await db.admin_roles.update_one(
+        {"key": "super_admin", "rbac_schema_version": {"$lt": 8}},
+        {"$addToSet": {"permissions": {"$each": ["labels.blacklist", "labels.blacklist.request", "labels.blacklist.request.view", "labels.blacklist.approve", "labels.package.request", "labels.package.request.view", "labels.package.approve"]}},
+         "$set": {"rbac_schema_version": 8}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "admin_support", "rbac_schema_version": {"$lt": 8}},
+        {"$addToSet": {"permissions": {"$each": ["labels.blacklist.request", "labels.blacklist.request.view"]}},
+         "$set": {"rbac_schema_version": 8}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "admin_finance", "rbac_schema_version": {"$lt": 8}},
+        {"$pull": {"permissions": "labels.package"}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "admin_finance", "rbac_schema_version": {"$lt": 8}},
+        {"$addToSet": {"permissions": {"$each": ["labels.package.request", "labels.package.request.view"]}},
+         "$set": {"rbac_schema_version": 8}},
+    )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -196,6 +249,11 @@ async def ensure_admin_access_defaults(db) -> None:
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation", "items": {"$elemMatch": {"key": "kyc", "labels.id": "Pemeriksaan KYC"}}},
         {"$set": {"items.$.labels.id": "Verifikasi Akun", "items.$.labels.en": "Account Verification"}},
+    )
+    # Rename the sensitive approvals nav item if still on the old default label.
+    await db.admin_ui_settings.update_one(
+        {"key": "admin_navigation", "items": {"$elemMatch": {"key": "rate_changes", "labels.id": "Permintaan Rate/Fee"}}},
+        {"$set": {"items.$.labels.id": "Persetujuan Sensitif", "items.$.labels.en": "Sensitive Approvals", "items.$.icon": "ShieldCheck"}},
     )
     # Action Center redesign: remove the standalone "Riwayat Notifikasi" nav item
     # (still reachable via the header notification bell's history link).
@@ -233,6 +291,8 @@ def has_permission(user: Dict[str, Any], permission: Optional[str]) -> bool:
         "access.users.manage": {"access.users.view"}, "access.roles.manage": {"access.roles.view"},
         "ui.settings.manage": {"ui.settings.view"}, "migration.claims": {"migration.view"},
         "labels.rate.approve": {"labels.rate.request.view"},
+        "labels.package.approve": {"labels.package.request.view"},
+        "labels.blacklist.approve": {"labels.blacklist.request.view"},
     }
     for source, targets in implied.items():
         if source in permissions:
@@ -284,8 +344,16 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "royalty.manage" if mutate else "royalty.view"
     if "/admin/rate-changes" in path:
         return "labels.rate.approve" if "/decision" in path else "labels.rate.request.view"
+    if "/admin/sensitive-requests" in path:
+        return None
     if "/admin/labels/" in path and "/rate-change/" in path:
         return "labels.rate" if path.endswith("/direct") else "labels.rate.request"
+    if "/admin/labels/" in path and path.endswith("/blacklist-request"):
+        return "labels.blacklist.request"
+    if "/admin/labels/" in path and path.endswith("/package-request"):
+        return "labels.package.request"
+    if "/admin/labels/" in path and (path.endswith("/blacklist") or path.endswith("/unblacklist")):
+        return "labels.blacklist"
     if "/admin/labels" in path:
         if path.endswith("/package"):
             return "labels.package"
@@ -380,14 +448,20 @@ def compute_permission_warnings(permissions: List[str]) -> List[Dict[str, Any]]:
             warnings.append({"code": "deprecated_permission", "permission": key, "severity": "warning",
                 "message_id": f"Izin “{nm(key)[0]}” sudah tidak digunakan (deprecated).",
                 "message_en": f"Permission “{nm(key)[1]}” is deprecated."})
-    if "labels.rate" in sel and "labels.rate.request" in sel:
-        warnings.append({"code": "redundant_request", "permission": "labels.rate.request", "severity": "info",
-            "message_id": "Izin ubah langsung sudah aktif; izin “Ajukan Perubahan Rate/Fee” menjadi tidak berpengaruh.",
-            "message_en": "Direct change is granted, so the request permission has no effect."})
-    if "labels.rate.approve" in sel and "labels.rate.request.view" not in engine:
-        warnings.append({"code": "approver_no_queue", "permission": "labels.rate.approve", "severity": "warning",
-            "message_id": "Penyetuju perlu izin “Lihat Permintaan Rate/Fee” untuk melihat antrean.",
-            "message_en": "Approver needs “View Rate/Fee Requests” to see the queue."})
+    families = [
+        ("labels.rate", "labels.rate.request", "labels.rate.request.view", "labels.rate.approve", "rate/fee"),
+        ("labels.package", "labels.package.request", "labels.package.request.view", "labels.package.approve", "paket"),
+        ("labels.blacklist", "labels.blacklist.request", "labels.blacklist.request.view", "labels.blacklist.approve", "blacklist"),
+    ]
+    for direct, request, view, approve, _label in families:
+        if direct in sel and request in sel:
+            warnings.append({"code": "redundant_request", "permission": request, "severity": "info",
+                "message_id": f"Izin ubah langsung “{nm(direct)[0]}” sudah aktif; izin “{nm(request)[0]}” menjadi tidak berpengaruh.",
+                "message_en": f"Direct change “{nm(direct)[1]}” is granted, so “{nm(request)[1]}” has no effect."})
+        if approve in sel and view not in engine:
+            warnings.append({"code": "approver_no_queue", "permission": approve, "severity": "warning",
+                "message_id": f"Penyetuju perlu izin “{nm(view)[0]}” untuk melihat antrean.",
+                "message_en": f"Approver needs “{nm(view)[1]}” to see the queue."})
     return warnings
 
 

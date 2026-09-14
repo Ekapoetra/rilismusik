@@ -8,6 +8,7 @@ import BalanceAuditPanel from "./BalanceAuditPanel";
 import { Scale } from "lucide-react";
 import { RoyaltyAdjustmentPanel } from "@/components/admin/royalty-adjustments/RoyaltyAdjustmentPanel";
 import { RateChangePanel } from "@/components/admin/RateChangePanel";
+import { SensitiveRequestsPanel } from "@/components/admin/SensitiveRequestsPanel";
 
 export default function AdminLabelDetail() {
   const { id } = useParams();
@@ -24,6 +25,7 @@ export default function AdminLabelDetail() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [balanceAuditOpen, setBalanceAuditOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
     const response = await api.get(`/admin/labels/${id}`);
@@ -37,6 +39,14 @@ export default function AdminLabelDetail() {
   const canRateApprove = hasPermission("labels.rate.approve");
   const canRateView = hasPermission("labels.rate.request.view");
   const canBlacklist = hasPermission("labels.manage");
+  const canBlacklistDirect = hasPermission("labels.blacklist");
+  const canBlacklistRequest = hasPermission("labels.blacklist.request");
+  const canBlacklistView = hasPermission("labels.blacklist.request.view");
+  const canBlacklistApprove = hasPermission("labels.blacklist.approve");
+  const canPackageDirect = hasPermission("labels.package");
+  const canPackageRequest = hasPermission("labels.package.request");
+  const canPackageView = hasPermission("labels.package.request.view");
+  const canPackageApprove = hasPermission("labels.package.approve");
 
   const runAction = async (action, success) => {
     setErr(""); setMsg("");
@@ -46,11 +56,24 @@ export default function AdminLabelDetail() {
 
   const setStatus = (status) => runAction(() => api.patch(`/admin/labels/${id}`, { account_status: status }), `Status diubah ke ${status}`);
   const verifyBank = () => runAction(() => api.post(`/withdraw/admin/verify-bank/${id}`), "Rekening diverifikasi.");
-  const unblacklist = () => window.confirm("Lepas blacklist label ini?") && runAction(() => api.post(`/admin/labels/${id}/unblacklist`), "Blacklist dilepas. Label dapat login kembali.");
+  const unblacklist = () => {
+    if (canBlacklistDirect) {
+      if (window.confirm("Lepas blacklist label ini?")) runAction(() => api.post(`/admin/labels/${id}/unblacklist`), "Blacklist dilepas. Label dapat login kembali.");
+    } else {
+      const reason = window.prompt("Alasan pengajuan lepas blacklist (opsional):") ?? "";
+      runAction(() => api.post(`/admin/labels/${id}/blacklist-request`, { action: "unblacklist", reason }), "Permintaan lepas blacklist dikirim untuk persetujuan Super Admin.");
+      setRefreshKey((k) => k + 1);
+    }
+  };
 
   const blacklist = async (event) => {
     event.preventDefault();
-    await runAction(() => api.post(`/admin/labels/${id}/blacklist`, { reason: blacklistReason }), "Label di-blacklist. Login akan ditolak.");
+    if (canBlacklistDirect) {
+      await runAction(() => api.post(`/admin/labels/${id}/blacklist`, { reason: blacklistReason }), "Label di-blacklist. Login akan ditolak.");
+    } else {
+      await runAction(() => api.post(`/admin/labels/${id}/blacklist-request`, { action: "blacklist", reason: blacklistReason }), "Permintaan blacklist dikirim untuk persetujuan Super Admin.");
+      setRefreshKey((k) => k + 1);
+    }
     setBlacklistOpen(false); setBlacklistReason("");
   };
 
@@ -77,7 +100,7 @@ export default function AdminLabelDetail() {
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const label = data.label;
   const isBlacklisted = label.account_status === "blacklisted";
-  const permissions = { canFinance, canBlacklist, isBlacklisted, canPackage: hasPermission("labels.package"), canAccounts: hasPermission("labels.accounts") };
+  const permissions = { canFinance, canBlacklist, canBlacklistDirect, canBlacklistRequest, isBlacklisted, canPackage: canPackageDirect, canPackageRequest, canAccounts: hasPermission("labels.accounts") };
   const actions = { setStatus, unblacklist, verifyBank, openBlacklist: () => setBlacklistOpen(true), openEmail: () => setEmailOpen(true), openRevoke: () => setRevokeOpen(true) };
   const modals = {
     revoke: { open: revokeOpen, close: () => setRevokeOpen(false), submit: revokeAccount, reason: revokeReason, setReason: setRevokeReason, cascade: revokeCascade, setCascade: setRevokeCascade },
@@ -90,8 +113,9 @@ export default function AdminLabelDetail() {
     <div className="flex items-center gap-3 flex-wrap"><h1 className="font-display text-3xl font-extrabold tracking-tighter">{label.label_name}</h1>{isBlacklisted && <span className="rm-badge bg-red-500/20 text-red-300">BLACKLISTED</span>}</div>
     {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}{msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
     {isBlacklisted && label.blacklist_reason && <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm"><div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1">Alasan Blacklist</div><div className="text-red-100">{label.blacklist_reason}</div></div>}
-    <LabelDetailCards data={data} permissions={permissions} actions={actions} onChanged={load} />
+    <LabelDetailCards data={data} permissions={permissions} actions={actions} onChanged={load} onPackageChanged={() => { load(); setRefreshKey((k) => k + 1); }} />
     {(canRateDirect || canRateRequest || canRateView || canRateApprove) && <RateChangePanel labelId={id} label={label} perms={{ direct: canRateDirect, request: canRateRequest && !canRateDirect, approve: canRateApprove, view: canRateView }} onChanged={load} />}
+    <SensitiveRequestsPanel labelId={id} canView={canBlacklistView || canPackageView} canApprove={canBlacklistApprove || canPackageApprove} onChanged={load} refreshKey={refreshKey} />
     {hasPermission("royalty.manage") && <RoyaltyAdjustmentPanel label={label} onChanged={load} />}
     {canFinance && <section className="border-y border-white/10 py-5" data-testid="admin-label-balance-adjustment-section"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Kesesuaian Saldo Royalti</h2><p className="mt-1 text-sm text-zinc-400">Preview perhitungan ulang setelah cutoff tanpa menyentuh withdrawal web.</p></div><button type="button" className={balanceAuditOpen ? "rm-btn-primary inline-flex items-center gap-2" : "rm-btn-ghost inline-flex items-center gap-2"} onClick={() => setBalanceAuditOpen((value) => !value)} data-testid="admin-label-balance-audit-toggle"><Scale className="h-4 w-4" /> {balanceAuditOpen ? "Tutup Penyesuaian" : "Audit & Sesuaikan Saldo"}</button></div>{balanceAuditOpen && <div className="mt-5" data-testid="admin-label-balance-audit-content"><BalanceAuditPanel label={label} onComplete={load} /></div>}</section>}
     <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />
