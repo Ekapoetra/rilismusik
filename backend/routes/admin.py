@@ -637,9 +637,49 @@ async def admin_review_bank_change(
     return document
 
 
+ACTIVITY_CATEGORY_MODULES = {
+    "work": ["release", "ticket", "addon_order", "kyc", "work"],
+    "finance": ["withdraw", "payment", "invoice", "royalty", "bank_account", "rate_change", "wami"],
+    "system": ["admin_user", "access", "label", "settings", "ui", "cron", "notification"],
+}
+
+
+def activity_category_for(module: str) -> str:
+    for cat, mods in ACTIVITY_CATEGORY_MODULES.items():
+        if module in mods:
+            return cat
+    return "system"
+
+
 @admin_r.get("/activity-logs")
-async def admin_activity_logs(user: dict = Depends(require_admin), limit: int = 200):
-    items = await db.activity_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+async def admin_activity_logs(
+    user: dict = Depends(require_admin),
+    limit: int = 200,
+    category: Optional[str] = None,
+    actor: Optional[str] = None,
+    module: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    q: Optional[str] = None,
+):
+    filt: Dict[str, Any] = {}
+    if category and category in ACTIVITY_CATEGORY_MODULES:
+        filt["module"] = {"$in": ACTIVITY_CATEGORY_MODULES[category]}
+    if module:
+        filt["module"] = module
+    if actor:
+        filt["user_id"] = actor
+    if start or end:
+        rng: Dict[str, Any] = {}
+        if start:
+            rng["$gte"] = start
+        if end:
+            rng["$lte"] = end + "T23:59:59" if len(end) == 10 else end
+        filt["created_at"] = rng
+    if q:
+        rx = {"$regex": re.escape(q), "$options": "i"}
+        filt["$or"] = [{"action": rx}, {"reference_id": rx}]
+    items = await db.activity_logs.find(filt, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 500))
     user_ids = list({item.get("user_id") for item in items if item.get("user_id")})
     users = await db.users.find(
         {"id": {"$in": user_ids}},
@@ -652,7 +692,17 @@ async def admin_activity_logs(user: dict = Depends(require_admin), limit: int = 
     for item in items:
         actor_id = item.get("user_id")
         item["user_name"] = user_names.get(actor_id, actor_id or "Sistem")
+        item["category"] = activity_category_for(item.get("module") or "")
     return items
+
+
+@admin_r.get("/activity-logs/actors")
+async def admin_activity_actors(user: dict = Depends(require_admin)):
+    """Distinct actors present in activity logs, for the Activity Center filter."""
+    ids = await db.activity_logs.distinct("user_id")
+    ids = [i for i in ids if i]
+    users = await db.users.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "username": 1}).to_list(1000)
+    return [{"id": u["id"], "name": u.get("name") or u.get("username") or u["id"]} for u in users]
 
 
 

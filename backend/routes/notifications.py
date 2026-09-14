@@ -182,3 +182,48 @@ async def mark_all_read(user: dict = Depends(get_current_user)):
     return {"ok": True, "updated": res.modified_count}
 
 
+@notif_r.post("/admin/cleanup-stale")
+async def cleanup_stale_notifications(user: dict = Depends(require_super_admin)):
+    """One-time maintenance: delete notifications whose linked ticket/release no
+    longer exists so history stays tidy. Super Admin only."""
+    deleted = 0
+    scanned = 0
+    batch = 1000
+    cursor = db.notifications.find(
+        {"$or": [{"meta.ticket_id": {"$ne": None}}, {"meta.release_id": {"$ne": None}}]},
+        {"_id": 0, "id": 1, "meta": 1},
+    )
+    stale_ids: list = []
+    buf: list = []
+
+    async def flush(items):
+        nonlocal deleted
+        ticket_ids = {(i.get("meta") or {}).get("ticket_id") for i in items if (i.get("meta") or {}).get("ticket_id")}
+        release_ids = {(i.get("meta") or {}).get("release_id") for i in items if (i.get("meta") or {}).get("release_id")}
+        existing_t, existing_r = set(), set()
+        if ticket_ids:
+            async for d in db.support_tickets.find({"id": {"$in": list(ticket_ids)}}, {"_id": 0, "id": 1}):
+                existing_t.add(d["id"])
+        if release_ids:
+            async for d in db.releases.find({"id": {"$in": list(release_ids)}}, {"_id": 0, "id": 1}):
+                existing_r.add(d["id"])
+        dead = []
+        for i in items:
+            m = i.get("meta") or {}
+            if (m.get("ticket_id") and m["ticket_id"] not in existing_t) or (m.get("release_id") and m["release_id"] not in existing_r):
+                dead.append(i["id"])
+        if dead:
+            res = await db.notifications.delete_many({"id": {"$in": dead}})
+            deleted += res.deleted_count
+
+    async for n in cursor:
+        scanned += 1
+        buf.append(n)
+        if len(buf) >= batch:
+            await flush(buf); buf = []
+    if buf:
+        await flush(buf)
+    await log_activity(user["id"], "cleanup_stale_notifications", "notification", None, after={"scanned": scanned, "deleted": deleted})
+    return {"ok": True, "scanned": scanned, "deleted": deleted}
+
+

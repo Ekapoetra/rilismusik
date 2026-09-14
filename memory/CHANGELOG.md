@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — PRD 03 Batch 3: Completion di semua Work, Activity Center, Cleanup notifikasi basi
+- **Completion Feedback di semua Work**: `celebrateWork()` kini dipicu juga saat **tiket ditutup** (`Tickets.jsx` bulk "Tandai Selesai" + `TicketDetail.jsx` status→done) dan **penarikan dibayar** (`Withdraw.jsx` action mark_paid), selain rilisan tayang. Toast ephemeral "Yeay 🎉…", tidak menaikkan badge.
+- **Activity Center** (`ActivityLogs.jsx` REWRITE → "Pusat Aktivitas"): filter **Kategori** (Work/Finansial/Sistem), **Aktor**, **rentang Tanggal**, dan **pencarian**. Backend `GET /admin/activity-logs` menerima param category/actor/module/start/end/q + field `category` (mapping module→kategori); endpoint baru `GET /admin/activity-logs/actors`. Aksi ditampilkan human-readable + badge kategori berwarna.
+- **Cleanup notifikasi basi massal**: endpoint `POST /notifications/admin/cleanup-stale` (super admin), dijalankan sekali → **98 notifikasi** yang menunjuk tiket/rilisan terhapus dihapus (scanned 106).
+- Diuji: testing_agent frontend iter85 **100%** (Activity Center filters + ticket completion toast + bell regresi OK). Backend cleanup & filter via curl. Catatan: completion feedback withdraw di-wire namun belum diuji E2E (tak ada penarikan approved saat tes).
+
+
 ## 2026-06 — PRD 03 Batch 2: Notification Rules, Sound & Completion, EN, Stale cleanup
 - **Notification Rules** (`routes/notifications.py`): `_priority_for_type` menurunkan prioritas INFO/NORMAL/IMPORTANT/URGENT saat read-time (tanpa migrasi). Bell (`NotificationBell.jsx`) menampilkan dot warna prioritas + **penggabungan tipe sama** (≥3 → 1 baris "N serupa"). Halaman Riwayat (`admin/Notifications.jsx`) menambah tab **Semua/Penting** (filter important+urgent).
 - **Notifikasi basi** (`_flag_stale`): notifikasi yang menunjuk tiket/rilisan terhapus ditandai `stale` + `link` dilepas → klik tidak lagi membuka 404, label "· kedaluwarsa". Item tetap disimpan (PRD: tidak dihapus), unread count konsisten.

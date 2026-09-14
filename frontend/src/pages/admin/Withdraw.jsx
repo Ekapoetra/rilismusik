@@ -7,6 +7,7 @@ import BalanceAuditPanel from "./BalanceAuditPanel";
 import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
 import { LegacyWithdrawEditDialog } from "@/components/admin/LegacyWithdrawEditDialog";
 import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components/admin/FinancialPeriodOverview";
+import { celebrateWork } from "@/lib/completionFeedback";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtAmount(w) { return fmtIDR(w.amount_idr); }
@@ -62,6 +63,7 @@ export default function AdminWithdraw() {
     try {
       await api.post(`/withdraw/admin/${open.id}/action`, { action, ...form });
       setMsg(`Aksi ${action} berhasil.`);
+      if (action === "mark_paid") celebrateWork("withdraw");
       setOpen(null); setAction(""); setForm({ note: "", payment_reference: "", payment_proof_url: "" });
       load();
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }

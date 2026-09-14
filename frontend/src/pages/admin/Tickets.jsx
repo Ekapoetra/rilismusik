@@ -5,6 +5,7 @@ import { api, fileUrl, formatApiError } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS, TICKET_STATUS_LABELS } from "@/components/shared/TicketStatusBadge";
 import { ADMIN_TICKET } from "@/constants/testIds";
 import { Search, MessageSquare, CheckCircle2 } from "lucide-react";
+import { celebrateWork } from "@/lib/completionFeedback";
 
 const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 const CATEGORIES = Object.keys(TICKET_CATEGORY_LABELS);
@@ -40,6 +41,7 @@ export default function AdminTickets() {
     try {
       const { data } = await api.post("/tickets/admin/bulk-status", { ticket_ids: selected, status: newStatus });
       toast.success(`${data.updated_count} tiket diperbarui`);
+      if (newStatus === "done") celebrateWork("ticket");
       await load();
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
     finally { setBulkBusy(false); }

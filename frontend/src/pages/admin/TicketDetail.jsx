@@ -9,6 +9,7 @@ import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdent
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
 import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
+import { celebrateWork } from "@/lib/completionFeedback";
 
 const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 
@@ -96,6 +97,7 @@ export default function AdminTicketDetail() {
         return;
       }
       await api.post(`/tickets/admin/${id}/status`, payload);
+      if (payload.status === "done") celebrateWork("ticket");
       await load(true);
     } catch (e2) {
       setErr(formatApiError(e2.response?.data?.detail));
