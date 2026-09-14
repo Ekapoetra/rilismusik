@@ -4,10 +4,11 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from models import AdminRoleCreateIn, AdminRoleUpdateIn, AdminUiSettingsIn, new_id, now_iso
+from models import AdminRoleCreateIn, AdminRoleUpdateIn, AdminUiSettingsIn, PermissionSetIn, new_id, now_iso
 from .admin_permission_service import (
     ALL_PERMISSIONS, DEFAULT_NAV_ITEMS, assert_admin_permission, default_navigation,
     enrich_admin_user, permission_catalog, has_permission,
+    compute_permission_warnings, preview_access,
 )
 from .deps import db, require_admin, log_activity
 
@@ -35,6 +36,18 @@ async def access_catalog(user: dict = Depends(require_admin)):
 async def list_roles(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.roles.view")
     return await db.admin_roles.find({}, {"_id": 0}).sort([("builtin", -1), ("name", 1)]).to_list(500)
+
+
+@access_r.post("/access/validate")
+async def validate_role_config(body: PermissionSetIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.roles.view")
+    return {"warnings": compute_permission_warnings(body.permissions)}
+
+
+@access_r.post("/access/preview")
+async def preview_role_access(body: PermissionSetIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "access.roles.view")
+    return preview_access(body.permissions, body.active)
 
 
 @access_r.get("/access/role-options")

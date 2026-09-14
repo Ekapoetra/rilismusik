@@ -8,7 +8,7 @@ from fastapi import HTTPException
 PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
-    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Paket Label", "Change Label Package"), ("labels.rate", "Ubah rate/fee label", "Change label rate/fee"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
+    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Paket Label", "Change Label Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status")]},
@@ -28,11 +28,56 @@ PERMISSION_MODULES = [
 ]
 
 ALL_PERMISSIONS = [action[0] for module in PERMISSION_MODULES for action in module["actions"]]
+_ALL_PERMISSIONS_SET = set(ALL_PERMISSIONS)
+PERMISSION_NAMES = {a[0]: (a[1], a[2]) for m in PERMISSION_MODULES for a in m["actions"]}
+
+# Rich permission metadata. Only non-default entries are listed; permission_meta()
+# fills defaults (type=view for *.view else standard). type ∈ view|standard|sensitive|approval|direct
+PERMISSION_META = {
+    "labels.rate": {"type": "direct", "sensitive": True, "depends_on": ["labels.view"],
+        "desc_id": "Mengubah persentase royalti/fee label secara LANGSUNG tanpa persetujuan.",
+        "desc_en": "Change a label royalty/fee percentage DIRECTLY without approval.",
+        "boundary_id": "Hanya pemegang izin tepercaya; setiap perubahan diaudit.",
+        "boundary_en": "Trusted holders only; every change is audited."},
+    "labels.rate.request": {"type": "sensitive", "sensitive": True, "requires_approval": True, "depends_on": ["labels.view"],
+        "desc_id": "Mengajukan perubahan rate/fee label untuk disetujui Super Admin.",
+        "desc_en": "Submit a label rate/fee change for Super Admin approval.",
+        "boundary_id": "Nilai live tidak berubah sampai permintaan disetujui.",
+        "boundary_en": "The live value stays unchanged until the request is approved."},
+    "labels.rate.request.view": {"type": "view", "depends_on": ["labels.view"],
+        "desc_id": "Melihat antrean permintaan perubahan rate/fee.",
+        "desc_en": "View the rate/fee change request queue."},
+    "labels.rate.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.rate.request.view"],
+        "desc_id": "Menyetujui atau menolak permintaan perubahan rate/fee (efektif hanya Super Admin).",
+        "desc_en": "Approve or reject rate/fee change requests (effectively Super Admin only)."},
+}
+
+_META_DEFAULT = {"type": "standard", "sensitive": False, "requires_approval": False,
+                 "depends_on": None, "lifecycle": "active",
+                 "desc_id": "", "desc_en": "", "boundary_id": "", "boundary_en": ""}
+
+
+def permission_meta(key: str) -> Dict[str, Any]:
+    base = dict(_META_DEFAULT)
+    if key.endswith(".view"):
+        base["type"] = "view"
+    base.update(PERMISSION_META.get(key, {}))
+    return base
+
+
+def resolve_deps(key: str) -> List[str]:
+    explicit = PERMISSION_META.get(key, {}).get("depends_on")
+    if explicit is not None:
+        return list(explicit)
+    if key.endswith(".view"):
+        return []
+    candidate = f"{key.split('.')[0]}.view"
+    return [candidate] if candidate != key and candidate in _ALL_PERMISSIONS_SET else []
 
 BUILTIN_ROLE_DEFAULTS = {
     "super_admin": ALL_PERMISSIONS,
     "admin_release": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "artists.view", "artists.manage", "releases.view", "releases.review", "wami.view", "wami.manage", "contracts.view", "contracts.manage", "activity.view", "automation.manage"],
-    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package", "labels.rate", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
+    "admin_finance": ["dashboard.view", "notifications.view", "analytics.view", "analytics.manage", "labels.view", "labels.manage", "labels.package", "labels.rate.request", "labels.rate.request.view", "labels.bank", "artists.view", "releases.view", "payments.view", "payments.manage", "royalty.view", "royalty.import", "royalty.manage", "withdraw.view", "withdraw.manage", "activity.view", "automation.manage"],
     "admin_support": ["dashboard.view", "notifications.view", "labels.view", "labels.manage", "labels.accounts", "labels.bank", "kyc.view", "kyc.review", "artists.view", "payments.view", "payments.manage", "support.view", "support.manage", "migration.view", "migration.manage", "migration.claims"],
     "admin_content": ["dashboard.view", "notifications.view", "cms.view", "cms.manage"],
     "admin_marketing": ["dashboard.view", "notifications.view"],
@@ -50,6 +95,7 @@ DEFAULT_NAV_ITEMS = [
     ("dashboard", "/admin/dashboard", "LayoutDashboard", "dashboard.view", "Dashboard", "Dashboard", None),
     ("analytics", "/admin/analytics", "BarChart3", "analytics.view", "Analitik Royalti", "Royalty Analytics", None),
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
+    ("rate_changes", "/admin/rate-changes", "Percent", "labels.rate.request.view", "Permintaan Rate/Fee", "Rate/Fee Requests", "labels"),
     ("kyc", "/admin/kyc", "ShieldCheck", "kyc.view", "Verifikasi Akun", "Account Verification", None),
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
@@ -118,6 +164,23 @@ async def ensure_admin_access_defaults(db) -> None:
             {"key": key, "rbac_schema_version": {"$lt": 6}},
             {"$addToSet": {"permissions": "labels.package"}, "$set": {"rbac_schema_version": 6}},
         )
+    # v7: Sensitive Label Rate/Fee approval workflow. Finance loses DIRECT change and may
+    # only REQUEST changes (Super Admin approves). $pull and $addToSet on the same field
+    # must be separate updates; both are guarded by version < 7 so they run once.
+    await db.admin_roles.update_one(
+        {"key": "admin_finance", "rbac_schema_version": {"$lt": 7}},
+        {"$pull": {"permissions": "labels.rate"}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "admin_finance", "rbac_schema_version": {"$lt": 7}},
+        {"$addToSet": {"permissions": {"$each": ["labels.rate.request", "labels.rate.request.view"]}},
+         "$set": {"rbac_schema_version": 7}},
+    )
+    await db.admin_roles.update_one(
+        {"key": "super_admin", "rbac_schema_version": {"$lt": 7}},
+        {"$addToSet": {"permissions": {"$each": ["labels.rate", "labels.rate.request", "labels.rate.request.view", "labels.rate.approve"]}},
+         "$set": {"rbac_schema_version": 7}},
+    )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -169,6 +232,7 @@ def has_permission(user: Dict[str, Any], permission: Optional[str]) -> bool:
     implied = {
         "access.users.manage": {"access.users.view"}, "access.roles.manage": {"access.roles.view"},
         "ui.settings.manage": {"ui.settings.view"}, "migration.claims": {"migration.view"},
+        "labels.rate.approve": {"labels.rate.request.view"},
     }
     for source, targets in implied.items():
         if source in permissions:
@@ -218,6 +282,10 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "royalty.import" if mutate else "royalty.view"
     if "/admin/balance-audit" in path:
         return "royalty.manage" if mutate else "royalty.view"
+    if "/admin/rate-changes" in path:
+        return "labels.rate.approve" if "/decision" in path else "labels.rate.request.view"
+    if "/admin/labels/" in path and "/rate-change/" in path:
+        return "labels.rate" if path.endswith("/direct") else "labels.rate.request"
     if "/admin/labels" in path:
         if path.endswith("/package"):
             return "labels.package"
@@ -266,4 +334,99 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
 
 
 def permission_catalog() -> List[Dict[str, Any]]:
-    return [{**module, "actions": [{"key": key, "label_id": label_id, "label_en": label_en} for key, label_id, label_en in module["actions"]]} for module in deepcopy(PERMISSION_MODULES)]
+    result = []
+    for module in deepcopy(PERMISSION_MODULES):
+        actions = []
+        for key, label_id, label_en in module["actions"]:
+            meta = permission_meta(key)
+            actions.append({
+                "key": key, "label_id": label_id, "label_en": label_en,
+                "type": meta["type"], "sensitive": meta["sensitive"],
+                "requires_approval": meta["requires_approval"], "lifecycle": meta["lifecycle"],
+                "depends_on": resolve_deps(key),
+                "description_id": meta["desc_id"], "description_en": meta["desc_en"],
+                "boundary_id": meta["boundary_id"], "boundary_en": meta["boundary_en"],
+            })
+        result.append({**module, "actions": actions})
+    return result
+
+
+def compute_permission_warnings(permissions: List[str]) -> List[Dict[str, Any]]:
+    """Configuration validation: derive determinable warnings from actual permission model."""
+    selected = list(dict.fromkeys(permissions or []))
+    sel = set(selected)
+    engine = set(sel)
+    implied = {
+        "access.users.manage": {"access.users.view"}, "access.roles.manage": {"access.roles.view"},
+        "ui.settings.manage": {"ui.settings.view"}, "migration.claims": {"migration.view"},
+        "labels.rate.approve": {"labels.rate.request.view"},
+    }
+    for source, targets in implied.items():
+        if source in engine:
+            engine |= targets
+
+    def nm(key: str):
+        return PERMISSION_NAMES.get(key, (key, key))
+
+    warnings: List[Dict[str, Any]] = []
+    for key in selected:
+        meta = permission_meta(key)
+        for dep in resolve_deps(key):
+            if dep not in engine:
+                warnings.append({"code": "missing_prerequisite", "permission": key, "severity": "warning",
+                    "message_id": f"Izin “{nm(key)[0]}” sebaiknya disertai “{nm(dep)[0]}”.",
+                    "message_en": f"Permission “{nm(key)[1]}” should also include “{nm(dep)[1]}”."})
+        if meta["lifecycle"] == "deprecated":
+            warnings.append({"code": "deprecated_permission", "permission": key, "severity": "warning",
+                "message_id": f"Izin “{nm(key)[0]}” sudah tidak digunakan (deprecated).",
+                "message_en": f"Permission “{nm(key)[1]}” is deprecated."})
+    if "labels.rate" in sel and "labels.rate.request" in sel:
+        warnings.append({"code": "redundant_request", "permission": "labels.rate.request", "severity": "info",
+            "message_id": "Izin ubah langsung sudah aktif; izin “Ajukan Perubahan Rate/Fee” menjadi tidak berpengaruh.",
+            "message_en": "Direct change is granted, so the request permission has no effect."})
+    if "labels.rate.approve" in sel and "labels.rate.request.view" not in engine:
+        warnings.append({"code": "approver_no_queue", "permission": "labels.rate.approve", "severity": "warning",
+            "message_id": "Penyetuju perlu izin “Lihat Permintaan Rate/Fee” untuk melihat antrean.",
+            "message_en": "Approver needs “View Rate/Fee Requests” to see the queue."})
+    return warnings
+
+
+_STATE_LABELS = {
+    "view": ("Dapat Melihat", "Can view"),
+    "standard": ("Dapat Mengubah", "Can edit"),
+    "sensitive": ("Perlu Persetujuan", "Requires approval"),
+    "approval": ("Dapat Menyetujui", "Can approve"),
+    "direct": ("Ubah Langsung", "Direct change"),
+    "unavailable": ("Tidak Tersedia", "Unavailable"),
+}
+
+
+def preview_access(permissions: List[str], active: bool = True) -> Dict[str, Any]:
+    """Behavioral role preview using the SAME production authorization engine (has_permission)."""
+    user = {"role": "__preview__", "permissions": list(permissions or []), "admin_role_active": bool(active)}
+    modules = []
+    for module in PERMISSION_MODULES:
+        actions = []
+        module_allowed = False
+        has_write = False
+        for key, label_id, label_en in module["actions"]:
+            allowed = has_permission(user, key)
+            meta = permission_meta(key)
+            if allowed:
+                module_allowed = True
+                state = meta["type"]
+                if state != "view":
+                    has_write = True
+            else:
+                state = "unavailable"
+            sid, sen = _STATE_LABELS.get(state, _STATE_LABELS["standard"])
+            entry = {"key": key, "label_id": label_id, "label_en": label_en,
+                     "allowed": allowed, "state": state, "state_label_id": sid, "state_label_en": sen}
+            if not allowed:
+                entry["reason_id"] = f"Perlu izin “{label_id}”."
+                entry["reason_en"] = f"Requires “{label_en}”."
+            actions.append(entry)
+        modules.append({"key": module["key"], "label_id": module["label_id"], "label_en": module["label_en"],
+                        "accessible": module_allowed, "read_only": module_allowed and not has_write,
+                        "actions": actions})
+    return {"modules": modules, "active": bool(active)}

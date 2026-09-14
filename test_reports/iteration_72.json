@@ -1,0 +1,23 @@
+{
+  "summary": "PRD-01 RBAC + Rate/Fee sensitive workflow e2e tested. 17/17 backend pytest cases pass (finance direct 403, finance PATCH royalty 403, request creates pending w/ live unchanged, duplicate 409, finance approve 403, super admin approve applies value, super admin direct restore, validate redundant+missing_prereq warnings, preview labels.view readonly, preview inactive->unavailable, role CRUD w/ builtin+super_admin protection, module regression finance/support/release). Frontend verified: Finance sees Ajukan Perubahan form only (no direct save), Super Admin sees Ubah Langsung button + rate queue page + role editor with validation panel, behavior preview and permission matrix showing 'Ubah Langsung Rate/Fee'+Langsung, 'Ajukan Perubahan Rate/Fee'+Sensitif, 'Setujui/Tolak Rate/Fee'+Persetujuan badges. Test label percentage restored to original after approve.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter72_rbac_rate_change.py",
+    "/app/test_reports/pytest/iter72.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "label_rate_change._apply_rate_change writes royalty_percentage_history BEFORE guard_active_withdraw and BEFORE the DB update — if guard raises 409 mid-flow the history row still exists. Consider ordering: guard -> history insert -> label update. Minor auditing/consistency issue.",
+    "GET /api/admin/rate-changes accepts arbitrary status filter without validation of allowed values (pending/approved/rejected). Not a security issue but should whitelist.",
+    "list_rate_requests returns a Mongo cursor toList result without projecting label_id existence checks; a request for a deleted label will still show in queue and approval will 404. Consider soft handling."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter72_rbac_rate_change.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com/SuperAdmin#2026, finance1@rilismusik.com/Finance#2026, support1@rilismusik.com/Support#2026, release1@rilismusik.com/Release#2026",
+  "seed_data_creation": "None persistent. Test rate change request was approved (value +1) and then restored to original via super admin direct change. Custom test role TEST_iter72_role* was created and deleted within a single test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All PRD-01 RBAC + rate/fee sensitive action features are working end-to-end. Backend test file at /app/backend/tests/test_iter72_rbac_rate_change.py is reusable as regression. Frontend testids verified: admin-rate-change-panel, admin-rate-value-input, admin-rate-reason-input, admin-rate-request-submit, admin-rate-direct-save, admin-role-validation, admin-role-behavior-preview. Active withdraw guard not exercised in this run (no non-legacy active withdraw available) — logic path verified by code review (label_rate_change._apply_rate_change:64-65 calls _guard_active_withdraw only when value actually changes).",
+  "rca of the issue": "N/A — no failures"
+}

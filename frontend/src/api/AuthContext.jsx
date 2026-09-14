@@ -61,7 +61,7 @@ export function AuthProvider({ children }) {
   const hasPermission = useCallback((permission) => {
     if (user?.role === "super_admin") return true;
     const permissions = new Set(user?.permissions || []);
-    const impliedBy = { "access.users.view": "access.users.manage", "access.roles.view": "access.roles.manage", "ui.settings.view": "ui.settings.manage" };
+    const impliedBy = { "access.users.view": "access.users.manage", "access.roles.view": "access.roles.manage", "ui.settings.view": "ui.settings.manage", "labels.rate.request.view": "labels.rate.approve" };
     return permissions.has(permission) || permissions.has(impliedBy[permission]);
   }, [user]);
   const isAdmin = Boolean(user?.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user?.role));

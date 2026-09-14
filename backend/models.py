@@ -269,6 +269,21 @@ class AdminRoleUpdateIn(BaseModel):
     active: Optional[bool] = None
 
 
+class PermissionSetIn(BaseModel):
+    permissions: List[str] = Field(default_factory=list, max_length=200)
+    active: bool = True
+
+
+class RateChangeRequestIn(BaseModel):
+    proposed_value: float = Field(ge=0, le=100)
+    reason: str = Field(default="", max_length=1000)
+
+
+class RateChangeDecisionIn(BaseModel):
+    action: Literal["approve", "reject"]
+    note: Optional[str] = Field(default=None, max_length=1000)
+
+
 class AdminNavItemIn(BaseModel):
     key: str = Field(min_length=1, max_length=80)
     route: str = Field(min_length=1, max_length=200)
