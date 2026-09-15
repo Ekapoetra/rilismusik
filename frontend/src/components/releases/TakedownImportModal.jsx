@@ -31,7 +31,7 @@ export default function TakedownImportModal({ open, onClose, onDone }) {
     setLoading(true); setError(""); setPreview(null); setConfirm(false);
     const fd = new FormData(); fd.append("file", file);
     try {
-      const { data } = await api.post("/admin/releases/takedown-import/preview", fd);
+      const { data } = await api.post("/admin/releases/takedown-import/preview", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setPreview(data);
     } catch (e) {
       setError(formatApiError(e.response?.data?.detail) || "Gagal membaca file.");
@@ -43,7 +43,7 @@ export default function TakedownImportModal({ open, onClose, onDone }) {
     setProcessing(true); setError("");
     const fd = new FormData(); fd.append("file", file);
     try {
-      const { data } = await api.post("/admin/releases/takedown-import/process", fd);
+      const { data } = await api.post("/admin/releases/takedown-import/process", fd, { headers: { "Content-Type": "multipart/form-data" } });
       toast.success(`${data.updated} rilisan diturunkan (takedown).`);
       onDone?.();
       onClose?.();

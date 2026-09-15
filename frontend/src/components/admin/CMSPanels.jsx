@@ -159,12 +159,13 @@ function LabelDashboardPanel({ settings, setValue }) {
   };
   const ctaUnsafe = isUnsafeCta(hero.cta_target);
   return <div className="space-y-5" data-testid="admin-cms-label-dashboard-panel">
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+    <div className={`flex items-start justify-between gap-4 rounded-lg border p-4 ${hero.is_active ? "border-emerald-400/40 bg-emerald-400/[0.06]" : "border-amber-400/40 bg-amber-400/[0.06]"}`}>
       <div>
         <div className="text-sm font-bold">Hero Banner Dashboard Label</div>
         <p className="mt-0.5 text-xs text-zinc-400">Banner ini tampil di dashboard semua akun label. Jika nonaktif, sistem memakai gambar default bawaan.</p>
+        {!hero.is_active && <p className="mt-1.5 text-xs font-semibold text-amber-300" data-testid="admin-cms-label-hero-inactive-warning">⚠️ Status NONAKTIF — banner ini belum tampil di dashboard label. Aktifkan lalu Simpan agar tayang.</p>}
       </div>
-      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold">
+      <label className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-bold ${hero.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-amber-500/20 text-amber-200"}`}>
         <input type="checkbox" checked={!!hero.is_active} onChange={(e) => setValue("label_dashboard_hero.is_active", e.target.checked)} data-testid="admin-cms-label-hero-active" className="h-4 w-4 accent-[#FF1F8E]" />
         {hero.is_active ? "Aktif" : "Nonaktif"}
       </label>
@@ -204,8 +205,13 @@ function LabelDashboardPanel({ settings, setValue }) {
     </div>
 
     <div>
-      <div className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-500">Preview</div>
-      <div className="flex flex-wrap items-start gap-6">
+      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+        Preview
+        {hero.is_active
+          ? <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-200" data-testid="admin-cms-label-hero-preview-status">Tayang di dashboard label</span>
+          : <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-200" data-testid="admin-cms-label-hero-preview-status">Nonaktif — belum tayang</span>}
+      </div>
+      <div className={`flex flex-wrap items-start gap-6 ${hero.is_active ? "" : "opacity-50"}`}>
         <div className="min-w-0 flex-1"><div className="mb-2 text-[11px] font-semibold text-zinc-500">Desktop</div><LabelHeroPreview hero={hero} variant="desktop" /></div>
         <div><div className="mb-2 text-[11px] font-semibold text-zinc-500">Mobile</div><LabelHeroPreview hero={hero} variant="mobile" /></div>
       </div>
