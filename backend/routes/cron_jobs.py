@@ -16,6 +16,7 @@ from .monthly_royalty_email import send_monthly_summaries
 from .background_job_notifications import notify_completed_background_jobs
 from .label_balance_snapshot import start_label_balance_snapshot_refresh
 from .royalty_recalculation import close_stale_recalculation_jobs
+from .staff import finalize_yesterday_attendance
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -471,6 +472,11 @@ def start_scheduler():
         send_payment_reminders_job, "interval", hours=3,
         id="payment_reminders", replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=100),
+    )
+    # Freeze previous WIB day's attendance at 00:30 WIB (17:30 UTC prior day).
+    scheduler.add_job(
+        finalize_yesterday_attendance, "cron", hour=17, minute=30,
+        id="attendance_finalize_daily", replace_existing=True,
     )
     scheduler.start()
 

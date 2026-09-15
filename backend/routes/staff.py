@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from models import new_id, now_iso
-from .deps import db, require_admin, log_activity
+from .deps import db, require_admin, log_activity, notify
 from .admin_permission_service import assert_admin_permission, has_permission
 
 staff_r = APIRouter(prefix="/admin", tags=["staff"])
@@ -379,6 +379,13 @@ async def action_leave(leave_id: str, body: LeaveActionIn, user: dict = Depends(
     new_status = "approved" if body.action == "approve" else "rejected"
     await db.leave_requests.update_one({"id": leave_id}, {"$set": {"status": new_status, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": body.note}})
     await log_activity(user["id"], f"leave_{body.action}", "staff", leave_id, after={"status": new_status})
+    label = "disetujui" if new_status == "approved" else "ditolak"
+    await notify(
+        lr["user_id"], "leave_decision",
+        f"Permohonan cuti {label}",
+        f"Cuti Anda ({lr['start_date']} → {lr['end_date']}) telah {label}." + (f" Catatan: {body.note}" if body.note else ""),
+        "/admin/status", {"leave_id": leave_id, "status": new_status},
+    )
     return {"ok": True, "status": new_status}
 
 
@@ -401,3 +408,36 @@ async def status_me(user: dict = Depends(require_admin)):
 async def status_team(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "staff.attendance.view")
     return await attendance_day(date=_wib_today(), user=user)
+
+
+@staff_r.get("/attendance/summary")
+async def attendance_summary(date: Optional[str] = None, user: dict = Depends(require_admin)):
+    """Today's attendance counts for the Dashboard card. Requires team-view permission."""
+    assert_admin_permission(user, "staff.attendance.view")
+    date = date or _wib_today()
+    data = await attendance_day(date=date, user=user)
+    counts = {s: 0 for s in STATUSES}
+    for r in data["rows"]:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    return {"date": date, "total": len(data["rows"]), "counts": counts}
+
+
+async def finalize_yesterday_attendance():
+    """Daily cron: freeze the previous WIB day's attendance for all active staff so
+    'Tidak Hadir' (and other) statuses become immutable history, even if no one opened
+    the Attendance page. evaluate() persists a frozen snapshot for any past working day."""
+    from .deps import logger
+    date = (_wib_now().date() - timedelta(days=1)).isoformat()
+    cfg = await _get_config()
+    frozen = 0
+    users = await db.users.find(STAFF_FILTER, {"_id": 0, "id": 1}).to_list(2000)
+    for u in users:
+        prof = await db.staff_profiles.find_one({"user_id": u["id"]}, {"_id": 0, "employment_status": 1})
+        if (prof or {}).get("employment_status", "active") != "active":
+            continue
+        res = await evaluate(u["id"], date, cfg)
+        if res.get("frozen") or res["status"] != "NOT_RECORDED":
+            frozen += 1
+    logger.info("[STAFF] finalized attendance for %s: %d staff", date, frozen)
+    return {"date": date, "finalized": frozen}
+

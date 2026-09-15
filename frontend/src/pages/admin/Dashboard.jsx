@@ -212,6 +212,36 @@ function RecentActivity() {
 }
 
 // ---------------- Page ----------------
+const ATT_META = {
+  PRESENT: { label: "Hadir", cls: "text-emerald-300", dot: "bg-emerald-400" },
+  LATE: { label: "Terlambat", cls: "text-amber-300", dot: "bg-amber-400" },
+  ABSENT: { label: "Tidak Hadir", cls: "text-red-300", dot: "bg-red-400" },
+  LEAVE: { label: "Cuti", cls: "text-sky-300", dot: "bg-sky-400" },
+  NOT_RECORDED: { label: "Belum Tercatat", cls: "text-zinc-400", dot: "bg-zinc-500" },
+};
+
+function AttendanceSummary({ data }) {
+  const { t } = useAppPreferences();
+  if (!data) return null;
+  const c = data.counts || {};
+  return (
+    <section data-testid="dashboard-attendance-summary">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">{t("Kehadiran Hari Ini")}</div>
+        <a href="/admin/attendance" className="text-xs font-bold text-pink-300 hover:text-pink-200">{t("Absensi")} →</a>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {["PRESENT", "LATE", "ABSENT", "LEAVE", "NOT_RECORDED"].map((k) => (
+          <div key={k} className="rounded-lg border border-white/10 bg-white/[0.03] p-4" data-testid={`dashboard-att-${k}`}>
+            <div className={`flex items-center gap-2 text-2xl font-extrabold tabular-nums ${ATT_META[k].cls}`}><span className={`h-2 w-2 rounded-full ${ATT_META[k].dot}`} />{c[k] || 0}</div>
+            <div className="mt-1 text-xs text-zinc-500">{t(ATT_META[k].label)}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminDashboard() {
   const { user, hasPermission } = useAuth();
   const { t } = useAppPreferences();
@@ -219,9 +249,11 @@ export default function AdminDashboard() {
   const [work, setWork] = useState([]);
   const [gaps, setGaps] = useState([]);
   const [team, setTeam] = useState([]);
+  const [att, setAtt] = useState(null);
   const [isManager, setIsManager] = useState(false);
   const name = user?.name || user?.pic_name || user?.email || "Admin";
   const canWork = hasPermission("work.view");
+  const canAttendance = hasPermission("staff.attendance.view");
 
   const loadWork = useCallback(async () => {
     if (!canWork) return;
@@ -234,11 +266,13 @@ export default function AdminDashboard() {
     } catch { /* no work.view permission */ }
   }, [canWork]);
 
-  useEffect(() => { api.get("/admin/dashboard").then((r) => setM(r.data)).catch(() => {}); loadWork(); }, [loadWork]);
+  useEffect(() => { api.get("/admin/dashboard").then((r) => setM(r.data)).catch(() => {}); loadWork(); if (canAttendance) api.get("/admin/attendance/summary").then((r) => setAtt(r.data)).catch(() => {}); }, [loadWork, canAttendance]);
 
   return (
     <div className="space-y-8">
       <Greeting name={name} work={work} team={team} isManager={isManager} />
+
+      {canAttendance && <AttendanceSummary data={att} />}
 
       {canWork && <ResponsibilityGap gaps={gaps} />}
 

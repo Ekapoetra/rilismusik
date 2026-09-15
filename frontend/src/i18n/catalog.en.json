@@ -2113,5 +2113,11 @@
   "Ajukan Cuti / Izin": "Request Leave",
   "Kirim Permohonan": "Submit Request",
   "Permohonan cuti terkirim": "Leave request submitted",
-  "Lengkapi form cuti": "Complete the leave form"
+  "Lengkapi form cuti": "Complete the leave form",
+  "Kehadiran Hari Ini": "Attendance Today",
+  "Hadir": "Present",
+  "Terlambat": "Late",
+  "Tidak Hadir": "Absent",
+  "Cuti": "Leave",
+  "Belum Tercatat": "Not Recorded"
 }
