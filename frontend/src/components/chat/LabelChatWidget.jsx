@@ -71,7 +71,7 @@ export default function LabelChatWidget() {
   return (
     <>
       {open && (
-        <div className="fixed bottom-14 right-4 z-[60] flex h-[70vh] max-h-[560px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl rounded-br-none border border-white/10 bg-[#101010] shadow-2xl md:right-6" data-testid="label-chat-panel">
+        <div className="fixed bottom-0 right-4 z-[60] flex h-[70vh] max-h-[560px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl rounded-b-none border border-white/10 bg-[#101010] shadow-2xl md:right-6" data-testid="label-chat-panel">
           <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-bold text-white">Chat Support <OnlineDot online={supportOnline} /></div>
             <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white" data-testid="label-chat-close"><X className="h-4 w-4" /></button>

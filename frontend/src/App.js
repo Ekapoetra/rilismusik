@@ -58,6 +58,9 @@ import StaffManagement from "@/pages/admin/StaffManagement";
 import Attendance from "@/pages/admin/Attendance";
 import StaffConfiguration from "@/pages/admin/StaffConfiguration";
 import WorkspaceStatus from "@/pages/admin/WorkspaceStatus";
+import Performance from "@/pages/admin/Performance";
+import MyPerformance from "@/pages/admin/MyPerformance";
+import PerformanceConfig from "@/pages/admin/PerformanceConfig";
 import AdminUiSettings from "@/pages/admin/UiSettings";
 import AdminNotifications from "@/pages/admin/Notifications";
 import { Toaster } from "@/components/ui/sonner";
@@ -120,6 +123,9 @@ function AppRoutes() {
             <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
             <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />
             <Route path="/admin/attendance" element={guard("staff.attendance.view", <Attendance />)} />
+            <Route path="/admin/performance" element={guard("performance.view_team", <Performance />)} />
+            <Route path="/admin/performance/configuration" element={guard("performance.config.manage", <PerformanceConfig />)} />
+            <Route path="/admin/my-performance" element={guard("performance.view_own", <MyPerformance />)} />
             <Route path="/admin/status" element={guard("dashboard.view", <WorkspaceStatus />)} />
             <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
             <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />

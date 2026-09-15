@@ -325,6 +325,8 @@ async def admin_label_inbox(user: dict = Depends(get_current_user), status: str 
     query = {"kind": "support"}
     if status == "resolved":
         query["status"] = "resolved"
+    elif status == "all":
+        pass  # both active and archived
     else:
         query["status"] = {"$ne": "resolved"}
     convs = await db.chat_conversations.find(query, {"_id": 0}).sort("last_message_at", -1).to_list(2000)

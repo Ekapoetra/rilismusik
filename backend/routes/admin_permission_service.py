@@ -28,6 +28,7 @@ PERMISSION_MODULES = [
     {"key": "notifications", "label_id": "Notifikasi", "label_en": "Notifications", "actions": [("notifications.view", "Lihat riwayat notifikasi", "View notification history")]},
     {"key": "automation", "label_id": "Otomasi", "label_en": "Automation", "actions": [("automation.manage", "Jalankan tugas terjadwal", "Trigger scheduled jobs")]},
     {"key": "staff", "label_id": "Manajemen Staf", "label_en": "Staff Management", "actions": [("staff.view", "Lihat staf", "View staff"), ("staff.manage", "Kelola staf (status kerja & gaji)", "Manage staff (employment & salary)"), ("staff.attendance.view", "Lihat absensi tim", "View team attendance"), ("staff.attendance.correct", "Koreksi absensi", "Correct attendance"), ("staff.leave.approve", "Setujui/tolak cuti", "Approve/reject leave"), ("staff.config.manage", "Kelola konfigurasi absensi", "Manage attendance configuration")]},
+    {"key": "performance", "label_id": "Performa & KPI", "label_en": "Performance & KPI", "actions": [("performance.view_own", "Lihat performa sendiri", "View own performance"), ("performance.view_team", "Lihat performa tim", "View team performance"), ("performance.view_details", "Lihat detail performa", "View performance details"), ("performance.config.manage", "Kelola konfigurasi KPI", "Manage KPI configuration"), ("performance.period.manage", "Finalisasi/buka periode kinerja", "Finalize/reopen performance period")]},
 ]
 
 ALL_PERMISSIONS = [action[0] for module in PERMISSION_MODULES for action in module["actions"]]
@@ -153,6 +154,9 @@ DEFAULT_NAV_ITEMS = [
     ("staff", "/admin/staff", "UsersRound", "staff.view", "Manajemen Staf", "Staff Management", None),
     ("attendance", "/admin/attendance", "CalendarCheck", "staff.attendance.view", "Absensi", "Attendance", "staff"),
     ("staff_config", "/admin/staff/configuration", "SlidersHorizontal", "staff.config.manage", "Konfigurasi", "Configuration", "staff"),
+    ("performance", "/admin/performance", "Gauge", "performance.view_team", "Performa Tim", "Team Performance", None),
+    ("my_performance", "/admin/my-performance", "TrendingUp", "performance.view_own", "Performa Saya", "My Performance", None),
+    ("performance_config", "/admin/performance/configuration", "SlidersHorizontal", "performance.config.manage", "Konfigurasi KPI", "KPI Configuration", "performance"),
 ]
 
 
@@ -267,6 +271,11 @@ async def ensure_admin_access_defaults(db) -> None:
         {"key": "super_admin"},
         {"$addToSet": {"permissions": {"$each": ["staff.view", "staff.manage", "staff.attendance.view", "staff.attendance.correct", "staff.leave.approve", "staff.config.manage"]}}},
     )
+    # v12: Performance & KPI (PRD-05). Super Admin only by default; grant others via Role & Permission.
+    await db.admin_roles.update_one(
+        {"key": "super_admin"},
+        {"$addToSet": {"permissions": {"$each": ["performance.view_own", "performance.view_team", "performance.view_details", "performance.config.manage", "performance.period.manage"]}}},
+    )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -365,6 +374,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
     if "/admin/navigation" in path:
         return None
     if "/admin/work" in path:
+        return None
+    if "/admin/performance" in path:
         return None
     if "/admin/access/roles" in path:
         return "access.roles.manage" if mutate else "access.roles.view"
