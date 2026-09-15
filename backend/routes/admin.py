@@ -131,12 +131,13 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         {"key": "addon_orders", "count": c_addon_orders, "priority": "normal", "permission": "addon.view", "oldest_at": o_addon,
          "title": "Layanan tambahan menunggu dikerjakan", "cta": "Kerjakan", "link": "/admin/addon-orders", "icon": "Sparkles",
          "description": f"{c_addon_orders} layanan tambahan rilisan (visualizer, link preset, dll) sudah dibayar dan menunggu diproses."},
-        {"key": "bank_verification", "count": c_bank, "priority": "high", "permission": "labels.manage", "oldest_at": o_bank,
+        {"key": "bank_verification", "count": c_bank, "priority": "high", "permission": "super_admin", "oldest_at": o_bank,
          "title": "Verifikasi rekening menunggu", "cta": "Tinjau", "link": "/admin/bank-verifications", "icon": "Landmark",
          "description": f"{c_bank} pengajuan perubahan rekening label menunggu diverifikasi."},
     ]
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
-    items = [d for d in defs if (d["count"] or 0) > 0]
+    is_super = user.get("role") == SUPER_ADMIN
+    items = [d for d in defs if (d["count"] or 0) > 0 and (d["key"] != "bank_verification" or is_super)]
     items.sort(key=lambda d: (rank.get(d["priority"], 9), d.get("oldest_at") or "9999"))
     return {"items": items}
 
@@ -593,7 +594,8 @@ async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_adm
 
 @admin_r.get("/labels/{label_id}/bank-change-requests")
 async def admin_list_bank_change_requests(label_id: str, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "labels.manage")
+    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
     return await db.bank_account_change_requests.find(
         {"label_id": label_id}, {"_id": 0},
     ).sort("created_at", -1).to_list(50)
@@ -603,7 +605,8 @@ async def admin_list_bank_change_requests(label_id: str, user: dict = Depends(re
 async def admin_request_bank_change(
     label_id: str, body: BankAccountChangeRequestIn, user: dict = Depends(require_admin),
 ):
-    assert_admin_permission(user, "labels.manage")
+    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
+        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
@@ -622,9 +625,8 @@ async def admin_request_bank_change(
 
 @admin_r.post("/bank-account-change-requests/{request_id}/action")
 async def admin_review_bank_change(
-    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_admin),
+    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_super_admin),
 ):
-    assert_admin_permission(user, "labels.manage")
     document = await review_bank_change_request(
         request_id=request_id, action=body.action, note=body.note, reviewer=user,
         expected_status="pending_admin_approval",
@@ -640,10 +642,9 @@ async def admin_review_bank_change(
 
 
 @admin_r.get("/bank-verifications")
-async def admin_list_pending_bank_verifications(user: dict = Depends(require_admin)):
-    """All bank-account change requests awaiting admin approval, with full detail
-    so the responsible team can review directly without hunting per-label."""
-    assert_admin_permission(user, "labels.manage")
+async def admin_list_pending_bank_verifications(user: dict = Depends(require_super_admin)):
+    """All bank-account change requests awaiting admin approval, with full detail.
+    Super Admin only — bank verification is not part of the edit-label path."""
     return await db.bank_account_change_requests.find(
         {"status": "pending_admin_approval"}, {"_id": 0},
     ).sort("created_at", 1).to_list(500)
@@ -651,9 +652,8 @@ async def admin_list_pending_bank_verifications(user: dict = Depends(require_adm
 
 @admin_r.post("/bank-verifications/{request_id}/action")
 async def admin_action_pending_bank_verification(
-    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_admin),
+    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_super_admin),
 ):
-    assert_admin_permission(user, "labels.manage")
     document = await review_bank_change_request(
         request_id=request_id, action=body.action, note=body.note, reviewer=user,
         expected_status="pending_admin_approval",

@@ -112,7 +112,7 @@ function AppRoutes() {
             <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
             <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
-            <Route path="/admin/bank-verifications" element={guard("labels.manage", <BankVerifications />)} />
+            <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
             <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
             <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
             <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />
