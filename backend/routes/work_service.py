@@ -44,10 +44,12 @@ WORK_TYPES: List[Dict[str, Any]] = [
 ]
 WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
+SUPER_ADMIN_ROLE_ID = "super_admin"
+
 DEFAULT_RESPONSIBILITY = {
     "release_review": ["admin_release"], "release_go_live": ["admin_release"], "addon_processing": ["admin_release"],
     "wami_registration": ["admin_release"],
-    "withdraw_verification": ["admin_finance"],
+    "withdraw_verification": ["super_admin"],  # Super Admin only — sensitive finance action
     "kyc_review": ["super_admin"], "support_ticket": ["admin_support"],
     "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
     "bank_verification": ["super_admin"],  # Super Admin only — not on the edit-label path
@@ -62,15 +64,21 @@ _RECON = {"at": 0.0}
 
 # ---------- config (stored in admin_ui_settings, lazily seeded) ----------
 async def get_responsibility() -> Dict[str, List[str]]:
-    doc = await db.admin_ui_settings.find_one({"key": "work_responsibility"}, {"_id": 0, "mapping": 1})
+    doc = await db.admin_ui_settings.find_one({"key": "work_responsibility"}, {"_id": 0, "mapping": 1, "migrations": 1})
     mapping = (doc or {}).get("mapping") or {}
+    migrations = list((doc or {}).get("migrations") or [])
     changed = False
     for k, v in DEFAULT_RESPONSIBILITY.items():
         if k not in mapping:
             mapping[k] = list(v)
             changed = True
+    # One-time: withdrawal verification is a Super-Admin-only responsibility.
+    if "withdraw_super_admin_v1" not in migrations:
+        mapping["withdraw_verification"] = ["super_admin"]
+        migrations.append("withdraw_super_admin_v1")
+        changed = True
     if not doc or changed:
-        await db.admin_ui_settings.update_one({"key": "work_responsibility"}, {"$set": {"mapping": mapping}}, upsert=True)
+        await db.admin_ui_settings.update_one({"key": "work_responsibility"}, {"$set": {"mapping": mapping, "migrations": migrations}}, upsert=True)
     return {k: mapping.get(k, []) for k in DEFAULT_RESPONSIBILITY}
 
 
@@ -259,7 +267,10 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
         if scope == "my":
             show = (responsible or is_gap) if is_super else responsible
         else:
-            show = True
+            # Team Monitor is for work owned by the team (non-Super-Admin roles).
+            # Work assigned exclusively to Super Admin belongs in "Pekerjaan Saya" only.
+            non_super = [r for r in roles if r != SUPER_ADMIN_ROLE_ID]
+            show = bool(non_super) or is_gap
         if not show:
             continue
         opens = await db.work_items.find({"work_type": key, "status": "open"}, {"_id": 0, "opened_at": 1}).to_list(20000)

@@ -369,3 +369,8 @@ RILIS MUSIK adalah aplikasi web modern untuk distribusi musik, pengelolaan rilis
 - Header shared `_wrap` kini menampilkan logo gambar (EMAIL_LOGO_URL) menggantikan wordmark teks → semua email transaksional ikut ter-branding.
 - Hook: `routes/releases.py` aksi `mark_live` → setelah status jadi live, kirim email ke email label (db.labels.email) secara best-effort (asyncio task). Cover memakai internal_cover_url (legacy) atau cover_url.
 - Diuji: 2 email uji terkirim ke easybnd@gmail.com (message-id: sent). Aset logo & cover terverifikasi 200 publik.
+
+## Work Monitor Scoping Fix (2026-06)
+- Team Monitor kini menyembunyikan work type yang PJ-nya HANYA Super Admin (deteksi via role-id `super_admin`, aman untuk role kustom mendatang). Tugas Super Admin (Verifikasi Rekening, Review KYC, Persetujuan Sensitif, Verifikasi Penarikan) hanya tampil di "Pekerjaan Saya".
+- `withdraw_verification` dipindah ke `["super_admin"]` via migrasi idempoten `withdraw_super_admin_v1` di `get_responsibility()`.
+- File: `/app/backend/routes/work_service.py` (DEFAULT_RESPONSIBILITY, get_responsibility, work_queue team scope).
