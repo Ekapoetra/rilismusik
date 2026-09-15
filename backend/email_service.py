@@ -138,21 +138,77 @@ def _badge(label: str, dot_color: str = "#059669", bg: str = "#e7f6ee", text: st
 
 
 # ---------- Low-level send ----------
+# ---------- Concurrency & retry guard (P0: prevent SMTP connection storms) ----------
+# Bulk flows fire many fire-and-forget `asyncio.create_task(send_*_email(...))`. Without
+# a bound, a burst opens dozens of concurrent SMTP_SSL logins and Hostinger throttles /
+# times out. We cap concurrent sends and retry transient connection errors.
+_EMAIL_MAX_CONCURRENCY = int(os.environ.get("EMAIL_MAX_CONCURRENCY", "2"))
+_EMAIL_MAX_RETRIES = int(os.environ.get("EMAIL_MAX_RETRIES", "3"))
+_email_sem: "Optional[asyncio.Semaphore]" = None
+
+# NOTE: smtplib.SMTPException is itself a subclass of OSError, so a naive "retry on
+# OSError" would wrongly retry hard rejections. We classify explicitly instead.
+_NON_RETRYABLE_SMTP = (
+    smtplib.SMTPAuthenticationError, smtplib.SMTPRecipientsRefused,
+    smtplib.SMTPSenderRefused, smtplib.SMTPDataError,
+    smtplib.SMTPNotSupportedError, smtplib.SMTPResponseException,
+)
+_RETRYABLE_SMTP = (
+    smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, smtplib.SMTPHeloError,
+    ConnectionError, TimeoutError, ssl.SSLError,
+)
+
+
+def _get_email_sem() -> asyncio.Semaphore:
+    """Lazily created inside the running loop so it binds to the correct event loop."""
+    global _email_sem
+    if _email_sem is None:
+        _email_sem = asyncio.Semaphore(_EMAIL_MAX_CONCURRENCY)
+    return _email_sem
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Retry only connection/timeout-class failures. Never retry auth, recipient-refused
+    or other 'server said no' errors (they would fail again and risk duplicate delivery)."""
+    if isinstance(exc, _NON_RETRYABLE_SMTP):
+        return False
+    if isinstance(exc, _RETRYABLE_SMTP):
+        return True
+    # Plain socket / OS-level errors that are NOT smtplib response errors.
+    return isinstance(exc, OSError) and not isinstance(exc, smtplib.SMTPException)
+
+
 async def send_email(*, to: str, subject: str, html: str, attachments: Optional[list] = None) -> Optional[str]:
     """Send an email via Hostinger SMTP. Returns the message-id on success,
     None on failure. Never raises — failure is logged and ignored so callers
     can treat email as best-effort (transactional flows continue to work).
+
+    P0 hardening: every send passes through a global concurrency semaphore so that
+    bulk operations / concurrent requests (which fire many fire-and-forget
+    `asyncio.create_task(send_*_email(...))`) can never open dozens of simultaneous
+    SMTP connections at once — the exact condition that made Hostinger throttle and
+    time out. Transient connection failures are retried with exponential backoff.
     """
     if not SMTP_USER or not SMTP_PASSWORD:
         logger.warning("[EMAIL] SMTP credentials not set — skipping email to %s (%s)", to, subject)
         return None
-    try:
-        message_id = await asyncio.to_thread(_smtp_send_sync, to=to, subject=subject, html=html, attachments=attachments)
-        logger.info("[EMAIL] sent to=%s subject=%r id=%s", to, subject, message_id)
-        return message_id
-    except Exception as e:
-        logger.exception("[EMAIL] failed to=%s subject=%r err=%s", to, subject, e)
-        return None
+    sem = _get_email_sem()
+    last_err: Optional[Exception] = None
+    async with sem:
+        for attempt in range(1, _EMAIL_MAX_RETRIES + 1):
+            try:
+                message_id = await asyncio.to_thread(_smtp_send_sync, to=to, subject=subject, html=html, attachments=attachments)
+                logger.info("[EMAIL] sent to=%s subject=%r id=%s attempt=%d", to, subject, message_id, attempt)
+                return message_id
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                if not _is_retryable(e) or attempt >= _EMAIL_MAX_RETRIES:
+                    break
+                delay = min(2 ** attempt, 10)
+                logger.warning("[EMAIL] attempt %d/%d failed to=%s err=%s; retrying in %ss", attempt, _EMAIL_MAX_RETRIES, to, e, delay)
+                await asyncio.sleep(delay)
+    logger.error("[EMAIL] giving up to=%s subject=%r err=%s", to, subject, last_err)
+    return None
 
 
 # ---------- Domain-specific helpers ----------
