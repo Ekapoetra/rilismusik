@@ -88,6 +88,7 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
         db.addon_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
         db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}),
+        db.bank_account_change_requests.count_documents({"status": "pending_admin_approval"}),
     )
     oldest = await asyncio.gather(
         _oldest("releases", {"status": "under_review"}, "submitted_at"),
@@ -97,9 +98,10 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
         _oldest("addon_orders", {"status": {"$in": ["pending", "in_progress"]}}, "created_at"),
         _oldest("releases", {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}, "delivered_to_believe_at"),
+        _oldest("bank_account_change_requests", {"status": "pending_admin_approval"}, "created_at"),
     )
-    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service, c_addon_orders, c_golive = counts
-    o_rel, o_kyc, o_wd, o_tk, o_claim, o_addon, o_golive = oldest
+    c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service, c_addon_orders, c_golive, c_bank = counts
+    o_rel, o_kyc, o_wd, o_tk, o_claim, o_addon, o_golive, o_bank = oldest
     c_addon = (c_wami or 0) + (c_service or 0)
     defs = [
         {"key": "withdrawals", "count": c_wd, "priority": "high", "permission": "withdraw.manage", "oldest_at": o_wd,
@@ -129,6 +131,9 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         {"key": "addon_orders", "count": c_addon_orders, "priority": "normal", "permission": "addon.view", "oldest_at": o_addon,
          "title": "Layanan tambahan menunggu dikerjakan", "cta": "Kerjakan", "link": "/admin/addon-orders", "icon": "Sparkles",
          "description": f"{c_addon_orders} layanan tambahan rilisan (visualizer, link preset, dll) sudah dibayar dan menunggu diproses."},
+        {"key": "bank_verification", "count": c_bank, "priority": "high", "permission": "labels.manage", "oldest_at": o_bank,
+         "title": "Verifikasi rekening menunggu", "cta": "Tinjau", "link": "/admin/bank-verifications", "icon": "Landmark",
+         "description": f"{c_bank} pengajuan perubahan rekening label menunggu diverifikasi."},
     ]
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
     items = [d for d in defs if (d["count"] or 0) > 0]
@@ -588,8 +593,7 @@ async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_adm
 
 @admin_r.get("/labels/{label_id}/bank-change-requests")
 async def admin_list_bank_change_requests(label_id: str, user: dict = Depends(require_admin)):
-    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "labels.manage")
     return await db.bank_account_change_requests.find(
         {"label_id": label_id}, {"_id": 0},
     ).sort("created_at", -1).to_list(50)
@@ -599,8 +603,7 @@ async def admin_list_bank_change_requests(label_id: str, user: dict = Depends(re
 async def admin_request_bank_change(
     label_id: str, body: BankAccountChangeRequestIn, user: dict = Depends(require_admin),
 ):
-    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "labels.manage")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
@@ -621,8 +624,36 @@ async def admin_request_bank_change(
 async def admin_review_bank_change(
     request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_admin),
 ):
-    if user["role"] not in (SUPER_ADMIN, "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "labels.manage")
+    document = await review_bank_change_request(
+        request_id=request_id, action=body.action, note=body.note, reviewer=user,
+        expected_status="pending_admin_approval",
+    )
+    await notify_many(
+        await label_user_ids(document["label_id"]), "bank_change_reviewed",
+        "Perubahan rekening diproses",
+        f"Permintaan perubahan rekening Anda telah {body.action} oleh admin.",
+        "/label/profile", {"request_id": request_id},
+    )
+    await log_activity(user["id"], f"admin_{body.action}_bank_change", "bank_account", request_id)
+    return document
+
+
+@admin_r.get("/bank-verifications")
+async def admin_list_pending_bank_verifications(user: dict = Depends(require_admin)):
+    """All bank-account change requests awaiting admin approval, with full detail
+    so the responsible team can review directly without hunting per-label."""
+    assert_admin_permission(user, "labels.manage")
+    return await db.bank_account_change_requests.find(
+        {"status": "pending_admin_approval"}, {"_id": 0},
+    ).sort("created_at", 1).to_list(500)
+
+
+@admin_r.post("/bank-verifications/{request_id}/action")
+async def admin_action_pending_bank_verification(
+    request_id: str, body: BankAccountChangeActionIn, user: dict = Depends(require_admin),
+):
+    assert_admin_permission(user, "labels.manage")
     document = await review_bank_change_request(
         request_id=request_id, action=body.action, note=body.note, reviewer=user,
         expected_status="pending_admin_approval",

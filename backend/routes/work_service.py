@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 
 from models import new_id, now_iso
 from .deps import db, log_activity, require_admin
-from .payment_admin_service import MANUAL_PAYMENT_TYPES
 from .admin_permission_service import assert_admin_permission, has_permission
 
 
@@ -22,14 +21,12 @@ work_r = APIRouter(prefix="/admin/work", tags=["work"])
 
 # Discovered Work Types (grounded in the codebase audit). priority: critical|high|normal|low
 WORK_TYPES: List[Dict[str, Any]] = [
-    {"key": "release_review", "label_id": "Review Rilisan", "label_en": "Release Review", "icon": "Disc3",
-     "link": "/admin/releases?status=under_review", "permission": "releases.review", "priority": "normal", "sla_days_default": 2},
+    {"key": "release_review", "label_id": "Proses Rilisan", "label_en": "Release Processing", "icon": "Disc3",
+     "link": "/admin/releases", "permission": "releases.review", "priority": "normal", "sla_days_default": 2},
     {"key": "release_go_live", "label_id": "Finalisasi Tayang (UPC/ISRC)", "label_en": "Finalize Go-Live", "icon": "Rocket",
      "link": "/admin/releases?status=delivered", "permission": "releases.review", "priority": "high", "sla_days_default": 1},
     {"key": "withdraw_verification", "label_id": "Verifikasi Penarikan", "label_en": "Withdrawal Verification", "icon": "Banknote",
      "link": "/admin/withdraw", "permission": "withdraw.manage", "priority": "high", "sla_days_default": 1},
-    {"key": "payment_followup", "label_id": "Tindak Lanjut Pembayaran", "label_en": "Payment Follow-up", "icon": "CreditCard",
-     "link": "/admin/payments?needs_action=true", "permission": "payments.manage", "priority": "high", "sla_days_default": 2},
     {"key": "kyc_review", "label_id": "Review Verifikasi Akun", "label_en": "KYC Review", "icon": "ShieldCheck",
      "link": "/admin/kyc", "permission": "kyc.view", "priority": "normal", "sla_days_default": 2},
     {"key": "support_ticket", "label_id": "Tiket Bantuan", "label_en": "Support Tickets", "icon": "MessageSquare",
@@ -41,13 +38,13 @@ WORK_TYPES: List[Dict[str, Any]] = [
     {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
      "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
     {"key": "bank_verification", "label_id": "Verifikasi Rekening", "label_en": "Bank Account Verification", "icon": "Landmark",
-     "link": "/admin/labels", "permission": "labels.manage", "priority": "high", "sla_days_default": 2},
+     "link": "/admin/bank-verifications", "permission": "labels.manage", "priority": "high", "sla_days_default": 2},
 ]
 WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
 DEFAULT_RESPONSIBILITY = {
     "release_review": ["admin_release"], "release_go_live": ["admin_release"], "addon_processing": ["admin_release"],
-    "withdraw_verification": ["admin_finance"], "payment_followup": ["admin_finance"],
+    "withdraw_verification": ["admin_finance"],
     "kyc_review": ["admin_support"], "support_ticket": ["admin_support"],
     "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
     "bank_verification": [],  # seeded dynamically to roles holding `labels.manage`
@@ -109,8 +106,11 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
                     "ref": ref, "label_id": label_id, "label_name": label_name})
 
     if work_type == "release_review":
-        async for d in db.releases.find({"status": "under_review"}, {"_id": 0, "id": 1, "submitted_at": 1, "created_at": 1, "title": 1, "label_id": 1, "label_name": 1}):
-            add("releases", d, "submitted_at", d.get("title") or "Rilisan", d.get("label_id"), d.get("label_name"))
+        async for d in db.releases.find(
+            {"status": {"$in": ["submitted", "under_review", "paid", "approved"]}},
+            {"_id": 0, "id": 1, "submitted_at": 1, "created_at": 1, "release_title": 1, "title": 1, "label_id": 1, "label_name": 1},
+        ):
+            add("releases", d, "submitted_at", d.get("release_title") or d.get("title") or "Rilisan", d.get("label_id"), d.get("label_name"))
     elif work_type == "release_go_live":
         today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
         async for d in db.releases.find(
@@ -121,9 +121,6 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
     elif work_type == "withdraw_verification":
         async for d in db.withdraw_requests.find({"status": "requested", "legacy_import": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "amount_idr": 1}):
             add("withdraw_requests", d, "created_at", f"Rp {int(d.get('amount_idr') or 0):,}".replace(",", "."), d.get("label_id"), d.get("label_name"))
-    elif work_type == "payment_followup":
-        async for d in db.payments.find({"status": "paid", "type": {"$in": list(MANUAL_PAYMENT_TYPES)}}, {"_id": 0, "id": 1, "created_at": 1, "type": 1, "label_id": 1, "label_name": 1}):
-            add("payments", d, "created_at", d.get("type"), d.get("label_id"), d.get("label_name"))
     elif work_type == "kyc_review":
         async for d in db.kyc_documents.find({"status": "pending_review", "is_current": True}, {"_id": 0, "id": 1, "uploaded_at": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
             add("kyc_documents", d, "uploaded_at", "Verifikasi identitas", d.get("label_id"), d.get("label_name"))

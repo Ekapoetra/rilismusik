@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, ShieldCheck } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
+import { celebrateWork } from "@/lib/completionFeedback";
 
 const PENDING = ["pending_admin_approval", "pending_label_approval"];
 const BankRow = ({ label, value }) => <div className="flex justify-between gap-4 py-1.5 text-sm"><span className="text-zinc-500">{label}</span><span className="text-right font-semibold">{value || "—"}</span></div>;
@@ -30,7 +31,7 @@ export const BankChangePanel = ({ labelId, bank, canFinance, onChanged }) => {
   };
   const review = async (action) => {
     setBusy(true); setError(""); setMessage("");
-    try { await api.post(`/admin/bank-account-change-requests/${pending.id}/action`, { action }); setMessage(action === "approve" ? "Perubahan rekening disetujui." : "Perubahan rekening ditolak."); await load(); await onChanged(); }
+    try { await api.post(`/admin/bank-account-change-requests/${pending.id}/action`, { action }); setMessage(action === "approve" ? "Perubahan rekening disetujui." : "Perubahan rekening ditolak."); if (action === "approve") celebrateWork("bank_verification"); await load(); await onChanged(); }
     catch (err) { setError(formatApiError(err.response?.data?.detail)); }
     finally { setBusy(false); }
   };

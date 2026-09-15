@@ -21,6 +21,11 @@ const LIBRARY = {
     "Sip! Penarikan dana selesai diproses 💸",
     "Yeay 🎉 penarikan tuntas!",
   ],
+  bank_verification: [
+    "Yeay 🎉 rekening berhasil diverifikasi!",
+    "Sip! Verifikasi rekening tuntas ✅",
+    "Mantap! Satu pengajuan rekening beres 🏦",
+  ],
   default: [
     "Yeay 🎉 pekerjaan selesai!",
     "Kerja bagus! Satu tugas tuntas ✅",

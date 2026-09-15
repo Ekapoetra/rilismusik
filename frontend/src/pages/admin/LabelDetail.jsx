@@ -9,6 +9,7 @@ import { Scale } from "lucide-react";
 import { RoyaltyAdjustmentPanel } from "@/components/admin/royalty-adjustments/RoyaltyAdjustmentPanel";
 import { RateChangePanel } from "@/components/admin/RateChangePanel";
 import { SensitiveRequestsPanel } from "@/components/admin/SensitiveRequestsPanel";
+import { celebrateWork } from "@/lib/completionFeedback";
 
 export default function AdminLabelDetail() {
   const { id } = useParams();
@@ -55,7 +56,7 @@ export default function AdminLabelDetail() {
   };
 
   const setStatus = (status) => runAction(() => api.patch(`/admin/labels/${id}`, { account_status: status }), `Status diubah ke ${status}`);
-  const verifyBank = () => runAction(() => api.post(`/withdraw/admin/verify-bank/${id}`), "Rekening diverifikasi.");
+  const verifyBank = () => runAction(async () => { await api.post(`/withdraw/admin/verify-bank/${id}`); celebrateWork("bank_verification"); }, "Rekening diverifikasi.");
   const unblacklist = () => {
     if (canBlacklistDirect) {
       if (window.confirm("Lepas blacklist label ini?")) runAction(() => api.post(`/admin/labels/${id}/unblacklist`), "Blacklist dilepas. Label dapat login kembali.");
