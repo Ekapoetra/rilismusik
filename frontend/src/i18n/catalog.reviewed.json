@@ -380,5 +380,12 @@
   "Tidak Hadir": "Absent",
   "Cuti": "Leave",
   "Libur": "Holiday",
-  "Belum Tercatat": "Not Recorded"
+  "Belum Tercatat": "Not Recorded",
+  "Salin target ke banyak role": "Copy target to many roles",
+  "Nilai yang sedang ditampilkan di atas akan disalin ke role tujuan yang dipilih.": "The values currently shown above will be copied to the selected target roles.",
+  "Pilih semua": "Select all",
+  "Kosongkan": "Clear",
+  "Salin ke role terpilih": "Copy to selected roles",
+  "Pilih minimal satu role tujuan.": "Select at least one target role.",
+  "Target disalin. Klik Simpan untuk menyimpan.": "Targets copied. Click Save to persist."
 }

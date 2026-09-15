@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { SlidersHorizontal, Save, Scale, Target, Gauge } from "lucide-react";
+import { SlidersHorizontal, Save, Scale, Target, Gauge, Copy } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { toast } from "@/components/ui/sonner";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
@@ -25,6 +25,7 @@ export default function PerformanceConfig() {
   const { t, locale } = useAppPreferences();
   const [cfg, setCfg] = useState(null);
   const [roleFilter, setRoleFilter] = useState("default");
+  const [copyRoles, setCopyRoles] = useState([]);
 
   const load = useCallback(async () => {
     try { const { data } = await api.get("/admin/performance/config"); setCfg(data); }
@@ -44,6 +45,21 @@ export default function PerformanceConfig() {
     if (roleFilter === "default") return node.default ?? "";
     return (node.roles || {})[roleFilter] ?? "";
   }, [cfg, roleFilter]);
+
+  const applyCopy = () => {
+    if (copyRoles.length === 0) { toast.error(t("Pilih minimal satu role tujuan.")); return; }
+    const nextTargets = { ...cfg.targets };
+    workTypes.forEach((w) => {
+      const node = { ...(nextTargets[w.key] || {}) };
+      const src = roleFilter === "default" ? (node.default ?? null) : ((node.roles || {})[roleFilter] ?? null);
+      const roleMap = { ...(node.roles || {}) };
+      copyRoles.forEach((rid) => { roleMap[rid] = src; });
+      node.roles = roleMap;
+      nextTargets[w.key] = node;
+    });
+    setCfg({ ...cfg, targets: nextTargets });
+    toast.success(t("Target disalin. Klik Simpan untuk menyimpan."));
+  };
 
   if (!cfg) return <p className="p-6 text-sm text-zinc-500">{t("Memuat…")}</p>;
 
@@ -79,6 +95,25 @@ export default function PerformanceConfig() {
             <option value="default">{t("Default (semua role)")}</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
+        </div>
+
+        {/* Bulk copy: replicate the values currently shown to many roles at once */}
+        <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.02] p-3" data-testid="perf-target-bulk">
+          <div className="text-xs font-bold text-zinc-300">{t("Salin target ke banyak role")}</div>
+          <p className="mt-0.5 text-[11px] text-zinc-500">{t("Nilai yang sedang ditampilkan di atas akan disalin ke role tujuan yang dipilih.")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {roles.map((r) => {
+              const on = copyRoles.includes(r.id);
+              return (
+                <button key={r.id} type="button" onClick={() => setCopyRoles(on ? copyRoles.filter((x) => x !== r.id) : [...copyRoles, r.id])} className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${on ? "border-pink-400/40 bg-pink-400/10 text-pink-300" : "border-white/10 text-zinc-500 hover:text-white"}`} data-testid={`perf-copy-role-${r.id}`}>{r.name}</button>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setCopyRoles(roles.map((r) => r.id))} className="text-[11px] font-semibold text-zinc-400 hover:text-white" data-testid="perf-copy-all">{t("Pilih semua")}</button>
+            <button type="button" onClick={() => setCopyRoles([])} className="text-[11px] font-semibold text-zinc-500 hover:text-white" data-testid="perf-copy-none">{t("Kosongkan")}</button>
+            <button type="button" onClick={applyCopy} className="ml-auto rm-btn-ghost inline-flex items-center gap-1.5 text-xs" data-testid="perf-copy-apply"><Copy className="h-3.5 w-3.5" />{t("Salin ke role terpilih")}</button>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {workTypes.map((w) => (

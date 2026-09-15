@@ -15,7 +15,7 @@ Modern music release & royalty management platform. Stack: FastAPI + React + Mon
 - Per PRD & user decisions: Queue/Processing Time = "Tidak Tersedia" (no started_at tracked); Resolution Time shown. Quality = "Tidak Tersedia" (no reliable per-staff evidence). Targets default EMPTY (Not Applicable). Business config (weights/scoring/categories/confidence) = reasonable editable defaults, effective-dated, audited (`performance_config_audit`).
 - Period Open/Finalized (`performance_periods`): finalize snapshots config so finalized results never silently change; reopen supported.
 - Endpoints: `/api/admin/performance/{config,me,overview,staff/{id},periods,periods/action}`.
-- Frontend: `/admin/performance` (Team), `/admin/my-performance` (self, super admin sees "not staff"), `/admin/performance/configuration`. Bilingual via catalog additions.
+- Frontend: `/admin/performance` (Team), `/admin/my-performance` (self, super admin sees "not staff"), `/admin/performance/configuration`. Bilingual via catalog additions. Target Bulanan punya fitur input massal "Salin target ke banyak role" (pilih role tujuan → salin nilai yang ditampilkan → Simpan).
 ### Part B — Chat correction
 - Renamed "Pusat Chat" → "Chat". Conversation-state filters (Semua/Belum Dibaca/Aktif/Arsip) replace presence filters. Presence (online/offline) NEVER triggers sound — only new incoming messages do (removed the online-arrival sound). Dock attaches to viewport bottom (bottom-0), panel opens upward. Desktop shows list + detail two-pane; mobile swaps list→detail. Backend `/chat/admin/labels` accepts status all|active|resolved.
 
