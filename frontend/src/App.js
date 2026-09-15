@@ -54,6 +54,10 @@ import AdminAccessControl from "@/pages/admin/AccessControl";
 import RateChangeQueue from "@/pages/admin/RateChangeQueue";
 import WorkQueue from "@/pages/admin/WorkQueue";
 import BankVerifications from "@/pages/admin/BankVerifications";
+import StaffManagement from "@/pages/admin/StaffManagement";
+import Attendance from "@/pages/admin/Attendance";
+import StaffConfiguration from "@/pages/admin/StaffConfiguration";
+import WorkspaceStatus from "@/pages/admin/WorkspaceStatus";
 import AdminUiSettings from "@/pages/admin/UiSettings";
 import AdminNotifications from "@/pages/admin/Notifications";
 import { Toaster } from "@/components/ui/sonner";
@@ -113,6 +117,10 @@ function AppRoutes() {
             <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
+            <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
+            <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />
+            <Route path="/admin/attendance" element={guard("staff.attendance.view", <Attendance />)} />
+            <Route path="/admin/status" element={guard("dashboard.view", <WorkspaceStatus />)} />
             <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
             <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
             <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />

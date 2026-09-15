@@ -36,6 +36,7 @@ from routes.admin_access import access_r
 from routes.label_rate_change import rate_change_r
 from routes.sensitive_requests import sensitive_r
 from routes.work_service import work_r
+from routes.staff import staff_r
 from routes.admin_permission_service import ensure_admin_access_defaults
 from routes.label_rate_import import rate_import_r, resume_label_rate_jobs
 from routes.balance_audit import balance_audit_r, resume_balance_audit_jobs
@@ -126,6 +127,7 @@ api.include_router(access_r)
 api.include_router(rate_change_r)
 api.include_router(sensitive_r)
 api.include_router(work_r)
+api.include_router(staff_r)
 from routes.addon_orders import addon_admin_r, addon_label_r
 api.include_router(addon_admin_r)
 api.include_router(addon_label_r)

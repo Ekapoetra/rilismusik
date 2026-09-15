@@ -27,6 +27,7 @@ PERMISSION_MODULES = [
     {"key": "activity", "label_id": "Log Aktivitas", "label_en": "Activity Logs", "actions": [("activity.view", "Lihat log aktivitas", "View activity logs")]},
     {"key": "notifications", "label_id": "Notifikasi", "label_en": "Notifications", "actions": [("notifications.view", "Lihat riwayat notifikasi", "View notification history")]},
     {"key": "automation", "label_id": "Otomasi", "label_en": "Automation", "actions": [("automation.manage", "Jalankan tugas terjadwal", "Trigger scheduled jobs")]},
+    {"key": "staff", "label_id": "Manajemen Staf", "label_en": "Staff Management", "actions": [("staff.view", "Lihat staf", "View staff"), ("staff.manage", "Kelola staf (status kerja & gaji)", "Manage staff (employment & salary)"), ("staff.attendance.view", "Lihat absensi tim", "View team attendance"), ("staff.attendance.correct", "Koreksi absensi", "Correct attendance"), ("staff.leave.approve", "Setujui/tolak cuti", "Approve/reject leave"), ("staff.config.manage", "Kelola konfigurasi absensi", "Manage attendance configuration")]},
 ]
 
 ALL_PERMISSIONS = [action[0] for module in PERMISSION_MODULES for action in module["actions"]]
@@ -148,6 +149,10 @@ DEFAULT_NAV_ITEMS = [
     ("ui_settings", "/admin/ui-settings", "PanelLeft", "ui.settings.view", "Pengaturan UI", "UI Settings", "admin_users"),
     ("migrate", "/admin/migrate", "DatabaseZap", "migration.view", "Migrasi & Klaim", "Migration & Claims", None),
     ("activity", "/admin/activity-logs", "ScrollText", "activity.view", "Log Aktivitas", "Activity Logs", None),
+    ("status", "/admin/status", "Activity", "dashboard.view", "Status", "Status", None),
+    ("staff", "/admin/staff", "UsersRound", "staff.view", "Manajemen Staf", "Staff Management", None),
+    ("attendance", "/admin/attendance", "CalendarCheck", "staff.attendance.view", "Absensi", "Attendance", "staff"),
+    ("staff_config", "/admin/staff/configuration", "SlidersHorizontal", "staff.config.manage", "Konfigurasi", "Configuration", "staff"),
 ]
 
 
@@ -257,6 +262,11 @@ async def ensure_admin_access_defaults(db) -> None:
             {"key": key, "rbac_schema_version": {"$lt": 10}},
             {"$addToSet": {"permissions": {"$each": ["addon.view", "addon.manage"]}}, "$set": {"rbac_schema_version": 10}},
         )
+    # v11: Staff Management & Attendance (PRD-04). Super Admin only by default.
+    await db.admin_roles.update_one(
+        {"key": "super_admin"},
+        {"$addToSet": {"permissions": {"$each": ["staff.view", "staff.manage", "staff.attendance.view", "staff.attendance.correct", "staff.leave.approve", "staff.config.manage"]}}},
+    )
     await db.admin_ui_settings.update_one(
         {"key": "admin_navigation"}, {"$setOnInsert": default_navigation()}, upsert=True,
     )
@@ -422,6 +432,12 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "migration.manage" if mutate else "migration.view"
     if "/admin/activity-logs" in path:
         return "activity.view"
+    if "/admin/staff/config" in path:
+        return "staff.config.manage" if mutate else "staff.view"
+    if "/admin/staff" in path and mutate:
+        return "staff.manage"
+    if "/admin/staff" in path:
+        return "staff.view"
     if "/notifications/admin/log" in path:
         return "notifications.view"
     if "/admin/cron" in path:

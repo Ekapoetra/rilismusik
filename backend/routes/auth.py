@@ -329,6 +329,8 @@ async def login(body: LoginIn, response: Response, request: Request):
         user = await enrich_admin_user(db, user)
         if not user.get("admin_role_active", True):
             raise HTTPException(status_code=403, detail="Role admin sedang dinonaktifkan")
+        from .staff import record_login_evidence
+        await record_login_evidence(user)
     payload = {"user": public_user(user), "access_token": access, "refresh_token": refresh}
     if user["role"] == LABEL_ROLE:
         label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
