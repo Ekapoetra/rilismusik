@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — Work Type baru: Verifikasi Rekening (untuk tim edit-label)
+- **Backend** (`routes/work_service.py`): menambah Work Type **`bank_verification`** ("Verifikasi Rekening" / "Bank Account Verification", ikon Landmark, prioritas high, SLA 2 hari, permission `labels.manage`). Sumber (OPEN): `bank_account_change_requests` berstatus `pending_admin_approval` (pengajuan verifikasi rekening dari label). Auto-close saat status berpindah; atribusi penyelesaian via activity_logs modul `bank_account` (`_MODULE_MAP` diperluas).
+- **Responsibility otomatis**: `get_responsibility()` menyemai responsible roles `bank_verification` = seluruh admin role yang memiliki permission **`labels.manage`** (edit label) — di env ini: Admin Rilisan, Admin Finance, Admin Support (super_admin dikecualikan karena melihat semua). Tetap dapat diubah via /admin/work.
+- Muncul otomatis di Dashboard "Pekerjaan Saya"/"Monitor Tim" & halaman Work Queue untuk tim edit-label (render dinamis, tanpa perubahan frontend). Terjemahan EN ditambahkan.
+- Diuji (curl E2E): work type tampil di queue dengan responsible roles benar & can_act=true; sisip request pending → open_count 1; hapus → auto-close 0. Data uji dibersihkan.
+
+
 ## 2026-06 — PRD 03 Batch 3: Completion di semua Work, Activity Center, Cleanup notifikasi basi
 - **Completion Feedback di semua Work**: `celebrateWork()` kini dipicu juga saat **tiket ditutup** (`Tickets.jsx` bulk "Tandai Selesai" + `TicketDetail.jsx` status→done) dan **penarikan dibayar** (`Withdraw.jsx` action mark_paid), selain rilisan tayang. Toast ephemeral "Yeay 🎉…", tidak menaikkan badge.
 - **Activity Center** (`ActivityLogs.jsx` REWRITE → "Pusat Aktivitas"): filter **Kategori** (Work/Finansial/Sistem), **Aktor**, **rentang Tanggal**, dan **pencarian**. Backend `GET /admin/activity-logs` menerima param category/actor/module/start/end/q + field `category` (mapping module→kategori); endpoint baru `GET /admin/activity-logs/actors`. Aksi ditampilkan human-readable + badge kategori berwarna.

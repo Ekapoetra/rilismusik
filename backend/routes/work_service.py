@@ -40,6 +40,8 @@ WORK_TYPES: List[Dict[str, Any]] = [
      "link": "/admin/addon-orders", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
     {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
      "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
+    {"key": "bank_verification", "label_id": "Verifikasi Rekening", "label_en": "Bank Account Verification", "icon": "Landmark",
+     "link": "/admin/labels", "permission": "labels.manage", "priority": "high", "sla_days_default": 2},
 ]
 WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
@@ -48,23 +50,38 @@ DEFAULT_RESPONSIBILITY = {
     "withdraw_verification": ["admin_finance"], "payment_followup": ["admin_finance"],
     "kyc_review": ["admin_support"], "support_ticket": ["admin_support"],
     "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
+    "bank_verification": [],  # seeded dynamically to roles holding `labels.manage`
 }
 DEFAULT_SLA_DAYS = {w["key"]: w["sla_days_default"] for w in WORK_TYPES}
 
 _MODULE_MAP = {"releases": "release", "withdraw_requests": "withdraw", "kyc_documents": "kyc",
                "support_tickets": "support", "payments": "payment", "wami_orders": "wami", "service_orders": "service",
-               "addon_orders": "addon"}
+               "addon_orders": "addon", "bank_account_change_requests": "bank_account"}
 _RECON = {"at": 0.0}
 
 
 # ---------- config (stored in admin_ui_settings, lazily seeded) ----------
+async def _roles_with_permission(perm: str) -> List[str]:
+    """Admin role ids (excluding super_admin, who sees everything) whose permission
+    set includes `perm`. Used to auto-assign responsibility to the right team."""
+    out: List[str] = []
+    async for r in db.admin_roles.find({"permissions": perm}, {"_id": 0, "id": 1}):
+        if r["id"] != "super_admin":
+            out.append(r["id"])
+    return out
+
+
 async def get_responsibility() -> Dict[str, List[str]]:
     doc = await db.admin_ui_settings.find_one({"key": "work_responsibility"}, {"_id": 0, "mapping": 1})
     mapping = (doc or {}).get("mapping") or {}
     changed = False
     for k, v in DEFAULT_RESPONSIBILITY.items():
         if k not in mapping:
-            mapping[k] = list(v); changed = True
+            if k == "bank_verification":
+                mapping[k] = await _roles_with_permission("labels.manage")
+            else:
+                mapping[k] = list(v)
+            changed = True
     if not doc or changed:
         await db.admin_ui_settings.update_one({"key": "work_responsibility"}, {"$set": {"mapping": mapping}}, upsert=True)
     return {k: mapping.get(k, []) for k in DEFAULT_RESPONSIBILITY}
@@ -128,6 +145,10 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
             add("label_rate_change_requests", d, "requested_at", f"Rate {d.get('current_value')}%→{d.get('proposed_value')}%", d.get("label_id"), d.get("label_name"))
         async for d in db.sensitive_action_requests.find({"status": "pending"}, {"_id": 0, "id": 1, "requested_at": 1, "label_id": 1, "label_name": 1, "summary": 1}):
             add("sensitive_action_requests", d, "requested_at", d.get("summary") or "Aksi sensitif", d.get("label_id"), d.get("label_name"))
+    elif work_type == "bank_verification":
+        async for d in db.bank_account_change_requests.find({"status": "pending_admin_approval"}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "bank_name": 1, "account_number": 1}):
+            ref = f"{d.get('bank_name') or 'Rekening'} · {d.get('account_number') or ''}".strip(" ·")
+            add("bank_account_change_requests", d, "created_at", ref or "Verifikasi rekening", d.get("label_id"), d.get("label_name"))
     return out
 
 
