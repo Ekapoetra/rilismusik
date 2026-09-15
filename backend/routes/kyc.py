@@ -24,6 +24,12 @@ def _reviewer(user: dict) -> None:
         raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Support")
 
 
+def _kyc_approver(user: dict) -> None:
+    """Only Super Admin may APPROVE/REJECT KYC (process verification)."""
+    if user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat memproses verifikasi akun")
+
+
 async def _read_image(file: UploadFile, max_bytes: int, label: str) -> tuple[bytes, str, str, int, int]:
     content_type = (file.content_type or "").lower()
     if content_type not in IMAGE_TYPES:
@@ -174,7 +180,7 @@ async def admin_view_ktp(label_id: str, user: dict = Depends(require_admin)):
 
 @kyc_r.post("/admin/kyc/{label_id}/action")
 async def admin_review_kyc(label_id: str, body: KycReviewActionIn, user: dict = Depends(require_admin)):
-    _reviewer(user)
+    _kyc_approver(user)
     if body.action == "reject" and not str(body.reason or "").strip():
         raise HTTPException(status_code=400, detail="Alasan penolakan wajib diisi")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0})

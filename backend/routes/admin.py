@@ -576,12 +576,12 @@ async def admin_payment_income_summary(
 
 
 @admin_r.get("/admin-users")
-async def admin_list_admin_users(user: dict = Depends(require_admin)):
+async def admin_list_admin_users(include_disabled: bool = False, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.users.view")
-    items = await db.users.find(
-        {"$or": [{"role": {"$in": list(ADMIN_ROLES)}}, {"admin_role_id": {"$exists": True, "$ne": None}}], "status": {"$ne": "disabled"}},
-        {"_id": 0, "password_hash": 0},
-    ).sort("created_at", -1).to_list(500)
+    q: Dict[str, Any] = {"$or": [{"role": {"$in": list(ADMIN_ROLES)}}, {"admin_role_id": {"$exists": True, "$ne": None}}]}
+    if not include_disabled:
+        q["status"] = {"$ne": "disabled"}
+    items = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
     role_ids = list({item.get("admin_role_id") or item.get("role") for item in items})
     roles = await db.admin_roles.find({"$or": [{"id": {"$in": role_ids}}, {"key": {"$in": role_ids}}]}, {"_id": 0}).to_list(500)
     role_map = {key: role for role in roles for key in (role.get("id"), role.get("key")) if key}
@@ -672,23 +672,62 @@ async def admin_update_admin_user(user_id: str, body: Dict[str, Any], user: dict
 
 
 @admin_r.delete("/admin-users/{user_id}")
-async def admin_delete_admin_user(user_id: str, user: dict = Depends(require_admin)):
+async def admin_delete_admin_user(user_id: str, permanent: bool = False, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "access.users.manage")
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="Anda tidak dapat menghapus akun sendiri")
     target = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not target or not (target.get("role") in ADMIN_ROLES or target.get("admin_role_id")) or target.get("status") == "disabled":
+    is_admin_account = target and (target.get("role") in ADMIN_ROLES or target.get("admin_role_id"))
+    if not target or not is_admin_account or (not permanent and target.get("status") == "disabled"):
         raise HTTPException(status_code=404, detail="Admin user tidak ditemukan")
     if target.get("role") == SUPER_ADMIN:
         active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
         if active_supers <= 1:
             raise HTTPException(status_code=400, detail="Super Admin terakhir tidak dapat dihapus")
+    if permanent:
+        await db.users.delete_one({"id": user_id})
+        await db.staff_profiles.delete_many({"user_id": user_id})
+        await db.attendance_evidence.delete_many({"user_id": user_id})
+        await db.attendance_records.delete_many({"user_id": user_id})
+        await db.attendance_corrections.delete_many({"user_id": user_id})
+        await db.leave_requests.delete_many({"user_id": user_id})
+        await log_activity(user["id"], "purge_admin_user", "admin_user", user_id, before={"email": target.get("email"), "role": target.get("role")})
+        return {"ok": True, "user_id": user_id, "permanent": True}
     await db.users.update_one({"id": user_id}, {
         "$set": {"status": "disabled", "deleted_at": now_iso(), "deleted_by": user["id"], "updated_at": now_iso()},
         "$inc": {"token_version": 1},
     })
     await log_activity(user["id"], "delete_admin_user", "admin_user", user_id, before={"email": target.get("email"), "role": target.get("role")})
     return {"ok": True, "user_id": user_id}
+
+
+class BulkPurgeIn(BaseModel):
+    user_ids: List[str]
+
+
+@admin_r.post("/admin-users/bulk-delete")
+async def admin_bulk_purge_admin_users(body: BulkPurgeIn, user: dict = Depends(require_admin)):
+    """Permanently delete multiple admin accounts (e.g. old test accounts). Skips self
+    and refuses to delete the last active Super Admin."""
+    assert_admin_permission(user, "access.users.manage")
+    purged, skipped = [], []
+    for uid in body.user_ids:
+        if uid == user["id"]:
+            skipped.append(uid); continue
+        target = await db.users.find_one({"id": uid}, {"_id": 0, "id": 1, "role": 1, "admin_role_id": 1, "email": 1})
+        if not target or not (target.get("role") in ADMIN_ROLES or target.get("admin_role_id")):
+            skipped.append(uid); continue
+        if target.get("role") == SUPER_ADMIN:
+            active_supers = await db.users.count_documents({"role": SUPER_ADMIN, "status": {"$nin": ["disabled", "suspended"]}})
+            if active_supers <= 1:
+                skipped.append(uid); continue
+        await db.users.delete_one({"id": uid})
+        for coll in ("staff_profiles", "attendance_evidence", "attendance_records", "attendance_corrections", "leave_requests"):
+            await db[coll].delete_many({"user_id": uid})
+        purged.append(uid)
+    await log_activity(user["id"], "bulk_purge_admin_users", "admin_user", None, after={"purged": len(purged), "skipped": len(skipped)})
+    return {"ok": True, "purged": purged, "skipped": skipped}
+
 
 
 @admin_r.get("/labels/{label_id}/bank-change-requests")
