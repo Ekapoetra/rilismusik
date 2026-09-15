@@ -447,6 +447,7 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
                         amount_idr=int(wd.get("amount_idr") or 0),
                         bank_name=bank.get("bank_name") or "—",
                         account_number=bank.get("account_number") or "—",
+                        period_to=wd.get("period_to"),
                     )
         except Exception as e:
             logger.exception("withdraw paid email failed for %s: %s", wd_id, e)

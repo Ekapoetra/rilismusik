@@ -379,16 +379,38 @@ async def send_admin_paid_payment_email(
     return await send_email(to=to, subject=subject, html=html)
 
 
-async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int, bank_name: str, account_number: str) -> Optional[str]:
+_MONTHS_ID = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+              "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+
+
+def _fmt_period_id(period: Optional[str]) -> Optional[str]:
+    """'2026-07' -> 'Juli 2026'. Returns None if not parseable."""
+    if not period or len(str(period)) < 7:
+        return None
+    try:
+        y, m = str(period)[:7].split("-")
+        return f"{_MONTHS_ID[int(m)]} {y}"
+    except Exception:
+        return None
+
+
+async def send_withdraw_paid_email(*, to: str, label_name: str, amount_idr: int, bank_name: str,
+                                   account_number: str, period_to: Optional[str] = None) -> Optional[str]:
     amt = f"Rp {amount_idr:,}".replace(",", ".")
+    period_label = _fmt_period_id(period_to)
+    rows = [("Nominal ditransfer", amt, "color:#059669;font-weight:800;font-size:18px;")]
+    if period_label:
+        rows.append(("Penarikan hingga", period_label, "font-weight:700;"))
+    rows.append(("Rekening tujuan", f'<span style="font-family:monospace;font-size:13px;">{h(bank_name)} · {h(account_number)}</span>', ""))
+    table = _kv_table(rows)
     body = f"""
     <p style="margin:0 0 14px 0;">Halo <strong>{h(label_name)}</strong>,</p>
-    <p style="margin:0 0 14px 0;">Penarikan dana Anda sebesar <strong style="color:#059669;">{amt}</strong> sudah <strong>ditransfer</strong> ke rekening:</p>
-    <p style="margin:0 0 14px 0;background:#f4f4f6;padding:14px 18px;border-radius:14px;color:#3f3f46;font-family:monospace;font-size:13px;">{h(bank_name)} · {h(account_number)}</p>
-    <p style="margin:0;color:#71717a;font-size:13px;">Dana biasanya masuk dalam 1×24 jam. Hubungi support jika belum diterima.</p>
+    <p style="margin:0 0 14px 0;">🎉 <strong>Selamat!</strong> Penarikan dana Anda sudah <strong style="color:#059669;">ditransfer</strong>{f' untuk royalti hingga bulan laporan <strong>{h(period_label)}</strong>' if period_label else ''}.</p>
+    {table}
+    <p style="margin:18px 0 0 0;color:#71717a;font-size:13px;">Dana biasanya masuk dalam 1×24 jam. Terima kasih telah berkarya bersama RILIS MUSIK — hubungi support jika belum diterima.</p>
     """
-    html = _wrap("Penarikan berhasil ditransfer", body, "Lihat Riwayat", f"{FRONTEND_URL}/label/withdraw")
-    return await send_email(to=to, subject=f"Penarikan {amt} ditransfer", html=html)
+    html = _wrap("Penarikan berhasil ditransfer 🎉", body, "Lihat Riwayat", f"{FRONTEND_URL}/label/withdraw")
+    return await send_email(to=to, subject=f"🎉 Penarikan {amt} sudah ditransfer", html=html)
 
 
 async def send_release_submission_email(*, to: str, label_name: str, release_title: str, release_id: str) -> Optional[str]:
