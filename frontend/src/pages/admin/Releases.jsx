@@ -4,12 +4,13 @@ import { api, formatApiError } from "@/api/client";
 import { formatReleaseDate } from "@/utils/releaseDate";
 import StatusBadge, { STATUS_LABELS } from "@/components/shared/StatusBadge";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
-import { Calendar, TrendingUp, Rocket, ListChecks } from "lucide-react";
+import { Calendar, TrendingUp, Rocket, ListChecks, ArrowDownToLine } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 import { ReleaseIsrcPanel, ReleaseIsrcToggle } from "@/components/releases/ReleaseIdentifiers";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import GoLiveModal from "@/components/releases/GoLiveModal";
 import MassGoLiveModal from "@/components/releases/MassGoLiveModal";
+import TakedownImportModal from "@/components/releases/TakedownImportModal";
 
 const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
@@ -30,6 +31,7 @@ export default function AdminReleases() {
   const [status, setStatus] = useState(searchParams.get("status") || "");
   const [goLiveId, setGoLiveId] = useState(null);
   const [massOpen, setMassOpen] = useState(false);
+  const [takedownOpen, setTakedownOpen] = useState(false);
   const [q, setQ] = useState("");
   const [periods, setPeriods] = useState([]);
   const [periodFrom, setPeriodFrom] = useState("");
@@ -83,7 +85,10 @@ export default function AdminReleases() {
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Manajemen Rilisan</h1>
           <p className="text-sm text-zinc-400 mt-1">Total pendapatan dan bulan laporan aktif dihitung dari data royalti.</p>
         </div>
-        <button type="button" onClick={() => setMassOpen(true)} className="rm-btn-primary inline-flex items-center gap-2 self-start text-sm" data-testid="mass-golive-open-btn"><ListChecks className="h-4 w-4" /> Entry Massal UPC/ISRC</button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <button type="button" onClick={() => setTakedownOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-amber-400/40 px-3 py-2 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-400/10" data-testid="takedown-import-open-btn"><ArrowDownToLine className="h-4 w-4" /> Import Takedown</button>
+          <button type="button" onClick={() => setMassOpen(true)} className="rm-btn-primary inline-flex items-center gap-2 text-sm" data-testid="mass-golive-open-btn"><ListChecks className="h-4 w-4" /> Entry Massal UPC/ISRC</button>
+        </div>
       </div>
 
       <div className="rm-card p-4 grid md:grid-cols-6 gap-3 items-end">
@@ -183,6 +188,7 @@ export default function AdminReleases() {
       </div>
       <GoLiveModal releaseId={goLiveId} open={!!goLiveId} onClose={() => setGoLiveId(null)} onDone={load} />
       <MassGoLiveModal open={massOpen} onClose={() => setMassOpen(false)} onDone={load} />
+      <TakedownImportModal open={takedownOpen} onClose={() => setTakedownOpen(false)} onDone={load} />
     </div>
   );
 }

@@ -419,6 +419,105 @@ async def admin_releases_bulk_go_live(body: BulkGoLiveIn, user: dict = Depends(r
     }
 
 
+def _parse_takedown_csv(raw: bytes):
+    """Parse a distributor catalog export and return (upcs, total_data_rows, rows_with_upc).
+    Handles semicolon- or comma-delimited files and a UPC column whose values may be
+    prefixed with 'UPC : '. Raises 400 if no UPC column is present."""
+    text = raw.decode("utf-8-sig", errors="replace")
+    first_line = next((ln for ln in text.splitlines() if ln.strip()), "")
+    delimiter = ";" if first_line.count(";") >= first_line.count(",") else ","
+    rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    if not rows:
+        raise HTTPException(status_code=400, detail="File kosong atau tidak dapat dibaca.")
+    header = [h.strip().strip('"').lower() for h in rows[0]]
+    upc_idx = next((i for i, h in enumerate(header) if "upc" in h), None)
+    if upc_idx is None:
+        raise HTTPException(status_code=400, detail="Kolom UPC tidak ditemukan pada file. Pastikan ada kolom UPC.")
+    data_rows = [r for r in rows[1:] if any((c or "").strip() for c in r)]
+    upcs, with_upc = [], 0
+    for r in data_rows:
+        if upc_idx >= len(r):
+            continue
+        val = (r[upc_idx] or "").strip().strip('"')
+        if ":" in val:
+            val = val.split(":", 1)[1]
+        digits = re.sub(r"\D", "", val)
+        if digits:
+            upcs.append(digits)
+            with_upc += 1
+    return upcs, len(data_rows), with_upc
+
+
+async def _match_takedown_upcs(upcs: List[str]):
+    unique = list(dict.fromkeys(upcs))
+    rel_map: Dict[str, Dict[str, Any]] = {}
+    async for d in db.releases.find(
+        {"upc": {"$nin": [None, ""]}},
+        {"_id": 0, "id": 1, "upc": 1, "status": 1, "release_title": 1, "label_name": 1},
+    ):
+        norm = re.sub(r"\D", "", str(d.get("upc") or ""))
+        if norm:
+            rel_map.setdefault(norm, d)
+    will, already, not_found = [], [], []
+    for u in unique:
+        rel = rel_map.get(u)
+        if not rel:
+            not_found.append(u)
+        elif rel.get("status") == "taken_down":
+            already.append(rel)
+        else:
+            will.append(rel)
+    return unique, will, already, not_found
+
+
+def _takedown_brief(r: Dict[str, Any]) -> Dict[str, Any]:
+    return {"upc": re.sub(r"\D", "", str(r.get("upc") or "")), "release_id": r["id"],
+            "release_title": r.get("release_title"), "label_name": r.get("label_name"),
+            "current_status": r.get("status")}
+
+
+@admin_r.post("/releases/takedown-import/preview")
+async def admin_takedown_import_preview(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    """Dry-run: match uploaded catalog UPCs against releases and report what a
+    bulk takedown would change. No data is modified."""
+    assert_admin_permission(user, "releases.review")
+    upcs, total_rows, rows_with_upc = _parse_takedown_csv(await file.read())
+    unique, will, already, not_found = await _match_takedown_upcs(upcs)
+    return {
+        "total_data_rows": total_rows, "rows_with_upc": rows_with_upc, "unique_upcs": len(unique),
+        "counts": {"will_takedown": len(will), "already_taken_down": len(already), "not_found": len(not_found)},
+        "will_takedown": [_takedown_brief(r) for r in will[:1000]],
+        "already_taken_down": [_takedown_brief(r) for r in already[:200]],
+        "not_found_upcs": not_found[:500],
+    }
+
+
+@admin_r.post("/releases/takedown-import/process")
+async def admin_takedown_import_process(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    """Apply the bulk takedown: matched releases (not already taken down) are moved to
+    status 'taken_down' with an audit trail. Mass emails are intentionally skipped."""
+    assert_admin_permission(user, "releases.review")
+    from pymongo import UpdateOne
+    upcs, total_rows, _ = _parse_takedown_csv(await file.read())
+    unique, will, already, not_found = await _match_takedown_upcs(upcs)
+    ts = now_iso()
+    ops = [UpdateOne({"id": rel["id"]}, {
+        "$set": {"status": "taken_down", "updated_at": ts},
+        "$push": {"status_history": {"from": rel.get("status"), "to": "taken_down",
+                                     "changed_by": user["id"], "changed_at": ts,
+                                     "note": "Import massal takedown (CSV distributor)"}},
+    }) for rel in will]
+    updated = 0
+    for i in range(0, len(ops), 500):
+        res = await db.releases.bulk_write(ops[i:i + 500], ordered=False)
+        updated += res.modified_count
+    await log_activity(user["id"], "admin_bulk_takedown_import", "release", None,
+                       after={"updated": updated, "matched": len(will), "already_taken_down": len(already),
+                              "not_found": len(not_found), "total_rows": total_rows})
+    return {"updated": updated, "already_taken_down": len(already), "not_found": len(not_found),
+            "total_data_rows": total_rows, "unique_upcs": len(unique)}
+
+
 
 
 @admin_r.get("/artists")
