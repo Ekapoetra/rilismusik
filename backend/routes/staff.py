@@ -27,8 +27,10 @@ DEFAULT_RULES = {"grace_minutes": 15, "cutoff": "12:00", "evidence_start": "06:0
 DEFAULT_LEAVE = {"types": ["annual", "sick", "permit"]}
 
 # Staff = admin accounts EXCLUDING super_admin. Builtin admins carry role=admin_*;
-# custom accounts carry admin_role_id. Labels/artists are never staff.
+# custom accounts carry admin_role_id. Labels/artists are never staff. Disabled/
+# suspended accounts (soft-deleted via Pengguna Admin) are excluded from all lists.
 STAFF_FILTER = {"$and": [{"role": {"$ne": "super_admin"}},
+                         {"status": {"$nin": ["disabled", "suspended"]}},
                          {"$or": [{"role": {"$regex": "^admin"}}, {"admin_role_id": {"$ne": None}}]}]}
 
 

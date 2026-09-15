@@ -35,6 +35,8 @@ WORK_TYPES: List[Dict[str, Any]] = [
      "link": "/admin/migrate?tab=claims", "permission": "migration.view", "priority": "normal", "sla_days_default": 3},
     {"key": "addon_processing", "label_id": "Proses Add-on", "label_en": "Add-on Processing", "icon": "Sparkles",
      "link": "/admin/addon-orders", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
+    {"key": "wami_registration", "label_id": "Registrasi WAMI", "label_en": "WAMI Registration", "icon": "Music",
+     "link": "/admin/wami", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
     {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
      "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
     {"key": "bank_verification", "label_id": "Verifikasi Rekening", "label_en": "Bank Account Verification", "icon": "Landmark",
@@ -44,8 +46,9 @@ WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
 DEFAULT_RESPONSIBILITY = {
     "release_review": ["admin_release"], "release_go_live": ["admin_release"], "addon_processing": ["admin_release"],
+    "wami_registration": ["admin_release"],
     "withdraw_verification": ["admin_finance"],
-    "kyc_review": ["admin_support"], "support_ticket": ["admin_support"],
+    "kyc_review": ["super_admin"], "support_ticket": ["admin_support"],
     "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
     "bank_verification": ["super_admin"],  # Super Admin only — not on the edit-label path
 }
@@ -118,12 +121,13 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
         async for d in db.users.find({"role": "label", "claim_status": "pending_link"}, {"_id": 0, "id": 1, "claim_requested_at": 1, "created_at": 1, "email": 1, "name": 1}):
             add("users", d, "claim_requested_at", d.get("email") or d.get("name") or "Klaim", None, d.get("name"))
     elif work_type == "addon_processing":
-        async for d in db.wami_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
-            add("wami_orders", d, "created_at", "WAMI", d.get("label_id"), d.get("label_name"))
         async for d in db.addon_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "product_name": 1}):
             add("addon_orders", d, "created_at", d.get("product_name") or "Add-on", d.get("label_id"), d.get("label_name"))
         async for d in db.service_orders.find({"status": {"$in": ["paid", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "service_name": 1}):
             add("service_orders", d, "created_at", d.get("service_name") or "Layanan", d.get("label_id"), d.get("label_name"))
+    elif work_type == "wami_registration":
+        async for d in db.wami_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
+            add("wami_orders", d, "created_at", "Registrasi WAMI", d.get("label_id"), d.get("label_name"))
     elif work_type == "sensitive_approval":
         async for d in db.label_rate_change_requests.find({"status": "pending"}, {"_id": 0, "id": 1, "requested_at": 1, "label_id": 1, "label_name": 1, "current_value": 1, "proposed_value": 1}):
             add("label_rate_change_requests", d, "requested_at", f"Rate {d.get('current_value')}%→{d.get('proposed_value')}%", d.get("label_id"), d.get("label_name"))
