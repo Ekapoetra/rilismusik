@@ -10,7 +10,7 @@ import storage_service
 from models import KycReviewActionIn, new_id, now_iso
 from .deps import (
     admin_user_ids, db, get_label_by_user, log_activity, notify, notify_many,
-    require_admin, require_label,
+    require_admin, require_label, assert_admin_permission,
 )
 from .kyc_service import compute_kyc_state
 
@@ -20,8 +20,7 @@ IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png"}
 
 
 def _reviewer(user: dict) -> None:
-    if user.get("role") not in ("super_admin", "admin_support"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Support")
+    assert_admin_permission(user, "kyc.review")
 
 
 def _kyc_approver(user: dict) -> None:

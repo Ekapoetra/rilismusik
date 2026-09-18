@@ -10,7 +10,7 @@ import { LiveTodayBanner } from "@/components/label/LiveTodayBanner";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle } from "lucide-react";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle, Layers, ChevronDown } from "lucide-react";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -29,6 +29,7 @@ export default function LabelDashboardHome() {
   const [kyc, setKyc] = useState(null);
   const [hero, setHero] = useState(null);
   const [withdraws, setWithdraws] = useState([]);
+  const [account, setAccount] = useState(null);
   const [claimDismissed, setClaimDismissed] = useState(false);
   const analytics = useLabelAnalytics();
   const { balance: liveBalance } = useRoyaltyBalance(Boolean(kyc?.is_verified));
@@ -39,7 +40,24 @@ export default function LabelDashboardHome() {
     api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
     api.get("/cms/landing").then((r) => setHero(r.data?.label_dashboard_hero || {})).catch(() => setHero({}));
     api.get("/withdraw/label").then((r) => setWithdraws(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/label/account").then((r) => setAccount(r.data)).catch(() => {});
   }, []);
+
+  const switchLabel = async (id) => {
+    if (!id || id === account?.active_label_id) return;
+    try { await api.post("/label/active-label", { label_id: id }); window.location.reload(); }
+    catch (_) { /* silent */ }
+  };
+
+  const withdrawBatch = async () => {
+    try {
+      await api.post("/withdraw/label/batch");
+      alert("Pencairan gabungan diajukan untuk seluruh label.");
+      window.location.reload();
+    } catch (e) {
+      alert(e?.response?.data?.detail || "Pencairan gabungan gagal.");
+    }
+  };
 
   // Persist claim-banner dismissal per label so it never reappears after closing.
   useEffect(() => {
@@ -51,10 +69,12 @@ export default function LabelDashboardHome() {
   const [celebrate, setCelebrate] = useState(false);
   useEffect(() => {
     if (!kyc?.is_verified) return;
-    api.get("/label/analytics", { params: { window: "6" } }).then((r) => setTrend(r.data.monthly || [])).catch(() => setTrend([]));
+    const params = { window: "6" };
+    if (analytics.labelId && analytics.labelId !== "all") params.label_id = analytics.labelId;
+    api.get("/label/analytics", { params }).then((r) => setTrend(r.data.monthly || [])).catch(() => setTrend([]));
     const key = `rm:verified_seen:${data?.label?.id || "x"}`;
     if (!localStorage.getItem(key)) setCelebrate(true);
-  }, [kyc?.is_verified, data?.label?.id]);
+  }, [kyc?.is_verified, data?.label?.id, analytics.labelId]);
   const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
   if (!data) return <DashboardSkeleton />;
@@ -95,6 +115,9 @@ export default function LabelDashboardHome() {
           <Link to="/label/withdraw" data-testid={LABEL_DASHBOARD.withdrawButton} className="rm-btn-ghost">Tarik Dana</Link>
         </div>
       </div>
+
+      {/* Multi Label account bar (switcher + aggregated balance) */}
+      {account?.is_multi_label && <MultiLabelBar account={account} onSwitch={switchLabel} onWithdraw={withdrawBatch} analyticsLabel={analytics.labelId} onAnalyticsLabel={analytics.setLabelId} locked={locked} />}
 
       {/* Hero (CMS-managed) */}
       <LabelHero hero={hero} label={label} verified={kyc?.is_verified} subline={identitySub} />
@@ -284,6 +307,63 @@ export default function LabelDashboardHome() {
         )}
       </div>
     </div>
+  );
+}
+
+function MultiLabelBar({ account, onSwitch, onWithdraw, analyticsLabel, onAnalyticsLabel, locked }) {
+  const exp = account?.entitlements?.subscription_expires_at;
+  const expText = exp ? new Date(exp).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  return (
+    <section className="rounded-2xl border border-[#A24EFF]/35 bg-gradient-to-r from-[#A24EFF]/[0.12] to-[#4E7CFF]/[0.08] p-5" data-testid="label-multi-label-bar">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#C79BFF]"><Layers className="h-4 w-4" /> Multi Label</div>
+          <div className="mt-1 text-sm text-zinc-300" data-testid="label-multi-label-summary">{account.label_count} label dikelola • Aktif sampai {expText}</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Total Saldo Tersedia</div>
+            {locked ? (
+              <div className="mt-0.5 flex items-center gap-2"><span className="select-none font-display text-2xl font-extrabold tabular-nums blur-[6px]">{fmtIDR(account.account_available_idr)}</span><Lock className="h-4 w-4 text-zinc-500" /></div>
+            ) : (
+              <div className="mt-0.5 font-display text-2xl font-extrabold tabular-nums rm-gradient-text" data-testid="label-account-available">{fmtIDR(account.account_available_idr)}</div>
+            )}
+            {!locked && account.account_available_idr > 0 && (
+              <button type="button" onClick={onWithdraw} className="rm-btn-primary mt-2 inline-flex items-center gap-2 text-xs" data-testid="label-batch-withdraw-cta"><Wallet className="h-3.5 w-3.5" /> Cairkan Saldo Gabungan</button>
+            )}
+          </div>
+          <label className="min-w-[180px]">
+            <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-zinc-500">Label Aktif</span>
+            <div className="relative">
+              <select
+                className="rm-input w-full appearance-none pr-9"
+                value={account.active_label_id || ""}
+                onChange={(e) => onSwitch(e.target.value)}
+                data-testid="label-active-switcher"
+              >
+                {account.labels.map((l) => <option key={l.id} value={l.id}>{l.label_name}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            </div>
+          </label>
+          <label className="min-w-[200px]">
+            <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-zinc-500">Filter Analitik</span>
+            <div className="relative">
+              <select
+                className="rm-input w-full appearance-none pr-9"
+                value={analyticsLabel || "all"}
+                onChange={(e) => onAnalyticsLabel(e.target.value)}
+                data-testid="label-analytics-filter"
+              >
+                <option value="all">Semua Label</option>
+                {account.labels.map((l) => <option key={l.id} value={l.id}>{l.label_name}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            </div>
+          </label>
+        </div>
+      </div>
+    </section>
   );
 }
 

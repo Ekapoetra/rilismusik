@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS, TICKET_STATUS_LABELS } from "@/components/shared/TicketStatusBadge";
 import { ADMIN_TICKET } from "@/constants/testIds";
-import { ArrowLeft, Paperclip, Send, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Paperclip, Send, X, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
@@ -98,6 +98,16 @@ export default function AdminTicketDetail() {
       }
       await api.post(`/tickets/admin/${id}/status`, payload);
       if (payload.status === "done") celebrateWork("ticket");
+      await load(true);
+    } catch (e2) {
+      setErr(formatApiError(e2.response?.data?.detail));
+    } finally { setBusy(false); }
+  };
+
+  const recheckBelieve = async () => {
+    setBusy(true); setErr("");
+    try {
+      await api.post(`/tickets/admin/${id}/believe-recheck`);
       await load(true);
     } catch (e2) {
       setErr(formatApiError(e2.response?.data?.detail));
@@ -223,6 +233,9 @@ export default function AdminTicketDetail() {
             <button onClick={applyStatus} disabled={busy} className="rm-btn-primary w-full" data-testid={ADMIN_TICKET.setStatusButton}>
               {busy ? "Menyimpan…" : "Simpan Perubahan"}
             </button>
+            {t.status === "submitted_to_believe" && <button onClick={recheckBelieve} disabled={busy} className="rm-btn-ghost inline-flex w-full items-center justify-center gap-2" data-testid="admin-ticket-believe-recheck">
+              <ShieldCheck className="h-4 w-4" /> Sudah dicek — masih diproses Believe
+            </button>}
           </div>}
         </div>
       </div>

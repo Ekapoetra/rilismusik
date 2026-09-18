@@ -15,6 +15,7 @@ cache's `monthly_analytics.period`).
 from typing import Any, Dict, List, Optional
 
 from .deps import db_bg
+from .analytics_eligibility import analytics_eligible_filter
 
 
 # Mapping from "logical dim" → field name in royalty_lines used by the live
@@ -86,10 +87,7 @@ async def _rollup_live(
     """Slow path: live aggregate over royalty_lines. Used as fallback when
     the materialized cache hasn't been built yet.
     """
-    match: Dict[str, Any] = {
-        field: {"$in": ids},
-        "match_status": {"$in": ["matched", "manually_matched"]},
-    }
+    match: Dict[str, Any] = analytics_eligible_filter({field: {"$in": ids}})
     if period_from or period_to:
         period_filter: Dict[str, Any] = {}
         if period_from:

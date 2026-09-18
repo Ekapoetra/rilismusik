@@ -36,9 +36,13 @@ from routes.admin_access import access_r
 from routes.label_rate_change import rate_change_r
 from routes.sensitive_requests import sensitive_r
 from routes.work_service import work_r
+from routes.dashboard_metrics import dashboard_metrics_r
 from routes.staff import staff_r
 from routes.performance_service import perf_r
+from routes.xendit_reconciliation import xendit_recon_r
+from routes.refund_service import refund_r
 from routes.admin_permission_service import ensure_admin_access_defaults
+from bank_data import normalize_existing_bank_names, resync_bank_labels_v2
 from routes.label_rate_import import rate_import_r, resume_label_rate_jobs
 from routes.balance_audit import balance_audit_r, resume_balance_audit_jobs
 from routes.royalty_duplicate_audit import duplicate_audit_r, resume_duplicate_audit_jobs
@@ -47,6 +51,9 @@ from routes.label_analytics import label_analytics_r
 from routes.admin_analytics import analytics_r, recompute_monthly_analytics
 from routes.royalty import royalty_r, resume_interrupted_imports
 from routes.withdraw import withdraw_r
+from routes.multi_label_merge import merge_r, ml_public_r
+from routes.compensation_service import compensation_r
+from routes.compensation_admin import comp_admin_r
 from routes.royalty_adjustments import adjustment_r
 from routes.tickets import ticket_r
 from routes.notifications import notif_r
@@ -128,8 +135,11 @@ api.include_router(access_r)
 api.include_router(rate_change_r)
 api.include_router(sensitive_r)
 api.include_router(work_r)
+api.include_router(dashboard_metrics_r)
 api.include_router(staff_r)
 api.include_router(perf_r)
+api.include_router(xendit_recon_r)
+api.include_router(refund_r)
 from routes.addon_orders import addon_admin_r, addon_label_r
 api.include_router(addon_admin_r)
 api.include_router(addon_label_r)
@@ -142,6 +152,10 @@ api.include_router(analytics_r)
 api.include_router(royalty_r)
 api.include_router(adjustment_r)
 api.include_router(withdraw_r)
+api.include_router(merge_r)
+api.include_router(ml_public_r)
+api.include_router(compensation_r)
+api.include_router(comp_admin_r)
 api.include_router(ticket_r)
 from routes.contentid_assets import contentid_r
 api.include_router(contentid_r)
@@ -234,6 +248,12 @@ async def _bootstrap_async():
         logger.info("scheduler started")
     except Exception as e:  # noqa: BLE001
         logger.exception("start_scheduler failed: %s", e)
+
+    try:
+        await normalize_existing_bank_names(client[os.environ["DB_NAME"]])
+        await resync_bank_labels_v2(client[os.environ["DB_NAME"]])
+    except Exception as e:  # noqa: BLE001
+        logger.exception("normalize_existing_bank_names failed: %s", e)
 
     try:
         # Reuse the credential-safe explicit backend origins. storage_service

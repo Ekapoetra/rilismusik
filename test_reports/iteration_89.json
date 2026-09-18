@@ -1,0 +1,27 @@
+{
+  "summary": "Iter89 — Post-bridge-removal RBAC regression + Delegasi Aksi Sensitif + Phase F (search/destructive badge/module toggle). Backend: 9/9 pytest passed — Finance/Release/Support 200 on their permission-gated endpoints (withdraw list, refresh-revenue, ready-to-live, kyc); cross-domain 403 with detail.code=PERMISSION_DENIED for Support→refresh-revenue and Release→withdraw list; bank-verification delegation flow (Super 200 → Finance 403 default → PATCH admin_finance +labels.bank.verify → re-login → 200 → restore original perms verified); CMS PATCH gate (Finance 403, Content not 403). admin_finance role restored to original permission set in finally block. Frontend: Logged in as Super Admin, /admin/access renders role list — Super Admin = 74 izin · Bawaan (no delete icon), all other roles Kustom with trash icon. Selecting Admin Finance shows PermissionMatrix. Search box (admin-permission-search) filters — typing 'bank' shows admin-permission-search-count = '2 izin cocok' and shrinks visible content (4759 vs 8527 chars), clearing fully restores. Destruktif badge rendered (releases.delete etc). Module toggle admin-permission-module-toggle-releases present. Zero JS console errors on the page.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter89_perm_bridge_removal.py",
+    "/app/test_reports/pytest/iter89_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "New permission labels.bank.verify surfaces the 'Konfigurasi diperlukan — 1 izin baru' banner on /admin/access as expected (meta review flow). No action needed — it correctly asks Super Admin to review/assign the new perm. Consider auto-marking Super-Admin-only newly-introduced permissions as reviewed on migration if the intent is to avoid the banner on every install.",
+    "PermissionMatrix search+count+module-toggle+destructive badge implementation is testable and correct. data-testid coverage is complete for automated E2E (admin-permission-search, admin-permission-search-count, admin-permission-module-toggle-releases)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter89_perm_bridge_removal.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Used superadmin/finance1/release1/support1/content1 from /app/memory/test_credentials.md. No new accounts created.",
+  "seed_data_creation": "None. admin_finance role permissions momentarily patched (+labels.bank.verify) then restored to original set in test teardown; final GET verified labels.bank.verify NOT in admin_finance permissions.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "PRD 'Unified Admin Roles & Permissions' Phases B2/Delegation/F complete and fully green. Backend test file /app/backend/tests/test_iter89_perm_bridge_removal.py is the regression file (needs REACT_APP_BACKEND_URL exported when running pytest). For frontend testing on /admin/access use data-testid: admin-permission-search, admin-permission-search-count, admin-permission-module-toggle-<moduleId>. New unreviewed perm labels.bank.verify causes the review banner (1 new perm) — non-blocking."
+}

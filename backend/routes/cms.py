@@ -14,6 +14,7 @@ from .deps import (
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+assert_admin_permission,
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
@@ -58,8 +59,7 @@ async def get_landing(user: Optional[dict] = None):
 
 @cms_r.patch("/landing")
 async def update_landing(body: CMSUpdateIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_content"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Content/CMS atau Super Admin")
+    assert_admin_permission(user, "cms.manage")
     for k, v in body.settings.items():
         await db.landing_settings.update_one(
             {"key": k},
@@ -73,8 +73,7 @@ async def update_landing(body: CMSUpdateIn, user: dict = Depends(require_admin))
 
 @cms_r.post("/landing/upload-image")
 async def upload_landing_image(file: UploadFile = File(...), user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_content"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Content/CMS atau Super Admin")
+    assert_admin_permission(user, "cms.manage")
     ext = (file.filename or "").lower().split(".")[-1]
     if ext not in ("jpg", "jpeg", "png", "webp", "svg"):
         raise HTTPException(status_code=400, detail="Format gambar tidak didukung")
@@ -89,8 +88,7 @@ async def upload_landing_image(file: UploadFile = File(...), user: dict = Depend
 
 @cms_r.post("/documents/upload-signature")
 async def upload_document_signature(file: UploadFile = File(...), user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_content"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Content/CMS atau Super Admin")
+    assert_admin_permission(user, "cms.manage")
     ext = (file.filename or "").lower().rsplit(".", 1)[-1]
     if ext not in ("jpg", "jpeg", "png", "webp"):
         raise HTTPException(status_code=400, detail="Tanda tangan/stempel harus JPG, PNG, atau WEBP")

@@ -28,6 +28,7 @@ from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
     LabelProfileUpdate, BankAccountIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
+    AdminMetadataEditIn, MetadataEditReview,
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
@@ -51,8 +52,8 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
-from .admin_permission_service import assert_admin_permission
-from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text
+from .admin_permission_service import assert_admin_permission, has_permission
+from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text, cancel_release_pending_payments
 from email_service import send_release_invoice_email, send_release_submission_email, send_release_live_email, send_release_status_email
 from .release_workflow_service import (
     EDITABLE_STATUSES, normalize_artist_credits, require_status,
@@ -74,6 +75,7 @@ async def list_releases(
     user: dict = Depends(require_kyc_for_label_user),
     status: Optional[str] = None,
     q: Optional[str] = None,
+    wami: Optional[str] = None,
     period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
     period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
 ):
@@ -88,6 +90,10 @@ async def list_releases(
         filt["id"] = {"$in": release_ids}
     if status:
         filt["status"] = status
+    if wami == "true":
+        filt["wami_registered"] = True
+    elif wami == "false":
+        filt["wami_registered"] = {"$ne": True}
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
@@ -115,7 +121,27 @@ async def get_submission_quota(release_id: Optional[str] = None, user: dict = De
     label = await get_label_by_user(user)
     if release_id and not await db.releases.find_one({"id": release_id, "label_id": label["id"]}, {"_id": 0, "id": 1}):
         raise HTTPException(404, "Rilisan tidak ditemukan")
-    return await submission_quota(db, label["id"], release_id)
+    return await submission_quota(db, label, release_id)
+
+
+async def release_subscription_covered(rel: dict) -> bool:
+    """True if the release is covered by the label's CURRENT active subscription
+    (annual / VIP / multi_label). Pay Per Release labels (no active subscription)
+    return False and therefore must pay before the release can be approved/delivered.
+    Keyed on the label's CURRENT entitlement (not the frozen billing_flow at submit)
+    so a lapsed subscription or legacy release is correctly treated as PPR."""
+    if not rel.get("label_id"):
+        return False
+    label = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0})
+    if not label:
+        return False
+    from .entitlements import resolve_label_entitlements
+    from .deps import account_entitlements
+    if label.get("user_id"):
+        owner = await db.users.find_one({"id": label["user_id"]}, {"_id": 0})
+        if owner:
+            return bool((await account_entitlements(owner)).get("unlimited_release"))
+    return bool(resolve_label_entitlements(label).get("unlimited_release"))
 
 
 @release_r.get("/{release_id}")
@@ -128,6 +154,13 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
         if rel["label_id"] != label["id"]:
             raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
+    if user["role"] == LABEL_ROLE:
+        # Hide internal-only WAMI fields (original publisher & internal id) from labels.
+        for tk in tracks:
+            if isinstance(tk.get("wami"), dict):
+                tk["wami"].pop("original_publishers", None)
+                tk["wami"].pop("internal_id", None)
+                tk["wami"].pop("imported_by", None)
     payment = None
     if rel.get("payment_id"):
         payment = await db.payments.find_one({"id": rel["payment_id"]}, {"_id": 0})
@@ -145,7 +178,16 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
         "country": label_doc.get("country") or "Indonesia",
         "postcode": label_doc.get("postcode") or "",
     }
-    return {**rel, "tracks": tracks, "payment": payment, "shortfall_invoice": shortfall_invoice, "label_contact": label_contact, "label_whatsapp": rel.get("label_whatsapp_snapshot") or label_doc.get("whatsapp")}
+    covered = await release_subscription_covered(rel)
+    requires_ppr_payment = (not covered) and rel.get("payment_status") != "paid"
+    pending_metadata_edit = None
+    if user["role"] != LABEL_ROLE:
+        pending_metadata_edit = await db.release_metadata_edits.find_one(
+            {"release_id": release_id, "status": "pending"}, {"_id": 0}, sort=[("created_at", -1)])
+    return {**rel, "tracks": tracks, "payment": payment, "shortfall_invoice": shortfall_invoice, "label_contact": label_contact,
+            "label_whatsapp": rel.get("label_whatsapp_snapshot") or label_doc.get("whatsapp"),
+            "covered_by_subscription": covered, "requires_ppr_payment": requires_ppr_payment,
+            "pending_metadata_edit": pending_metadata_edit}
 
 
 @release_r.get("/{release_id}/copyright-letter")
@@ -483,16 +525,12 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     primary_count = len(rel.get("primary_artists") or [])
     featured_count = len(rel.get("featured_artists") or [])
 
-    # Determine payment flow
-    now = datetime.now(timezone.utc)
-    is_subscribed = False
-    if label.get("subscription_status") == "active" and label.get("subscription_expires_at"):
-        try:
-            expires = datetime.fromisoformat(label["subscription_expires_at"])
-            if expires > now:
-                is_subscribed = True
-        except Exception:
-            is_subscribed = False
+    # Determine payment flow via the central entitlement resolver (account-level,
+    # so Multi Label inherits unlimited release + free add-ons regardless of active child label).
+    from .deps import account_entitlements
+    account_ent = await account_entitlements(user)
+    is_subscribed = bool(account_ent.get("unlimited_release"))
+    free_addons = bool(account_ent.get("free_addons"))
 
     selected_addons = []
     addon_ids = list(dict.fromkeys(body.addon_product_ids))
@@ -504,7 +542,7 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             raise HTTPException(status_code=400, detail="Salah satu layanan tambahan tidak tersedia")
 
     if is_subscribed:
-        if selected_addons:
+        if selected_addons and not free_addons:
             raise HTTPException(status_code=400, detail="Layanan tambahan gabungan saat submit hanya tersedia untuk Pay Per Release")
         new_status = "submitted"
         payment_status = "free_subscription"
@@ -518,7 +556,7 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         billing_flow = "pay_per_release"
         payment_id = None
 
-    async with submission_slot(db, label["id"], release_id) as slot:
+    async with submission_slot(db, label, release_id) as slot:
         # Re-check after acquiring the per-release lease to avoid duplicate submissions.
         current = await db.releases.find_one({"id": release_id}, {"_id": 0, "status": 1, "updated_at": 1})
         if not current or current.get("status") != rel.get("status") or current.get("updated_at") != rel.get("updated_at"):
@@ -555,6 +593,13 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     )
         if result.modified_count != 1:
             raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+    if is_subscribed and free_addons and selected_addons:
+        try:
+            from .addon_orders import sync_free_addon_orders
+            fresh = await db.releases.find_one({"id": release_id}, {"_id": 0})
+            await sync_free_addon_orders(fresh, account_ent.get("package") or "subscription")
+        except Exception:
+            logger.exception("Free add-on order creation failed for release %s", release_id)
     try:
         await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
     except Exception:
@@ -595,6 +640,55 @@ async def delete_release(release_id: str, user: dict = Depends(require_label)):
 
 
 
+async def _bill_release_ppr(rel: dict, release_id: str, user: dict):
+    """Generate the Pay Per Release invoice from the submission (base + add-ons) and move the
+    release to awaiting_payment. Shared by 'send_payment' and the manual 'bill_ppr' override."""
+    track_count = await db.tracks.count_documents({"release_id": release_id})
+    base_amount = ppr_base_amount(rel.get("release_type"), track_count, await ppr_pricing())
+    base_name, base_desc = ppr_line_item_text(rel.get("release_type"), track_count)
+    selected_addons = rel.get("selected_addons") or []
+    addon_amount = sum(int(item.get("amount") or 0) for item in selected_addons)
+    total_amount = base_amount + addon_amount
+    line_items = [{
+        "reference_id": f"release-base-{release_id}", "name": base_name,
+        "description": f"{rel.get('release_title')} — {base_desc}", "amount": base_amount, "quantity": 1,
+    }] + [{
+        "reference_id": f"addon-{item['id']}", "name": item.get("name") or "Layanan Tambahan",
+        "description": item.get("description"), "amount": int(item.get("amount") or 0), "quantity": 1,
+    } for item in selected_addons]
+    invoice_doc = await create_payment_document(PaymentCreateData(
+        label_id=rel["label_id"], payment_type="pay_per_release", amount=total_amount,
+        release_id=release_id, description=f"Distribusi rilisan — {rel.get('release_title')}",
+        return_path=f"/label/releases/{release_id}", reference_id=f"ppr-release-{release_id}",
+        line_items=line_items, base_amount=base_amount, addon_amount=addon_amount,
+        addon_product_ids=[item["id"] for item in selected_addons],
+        approval_required_before_payment=True,
+    ))
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "status": "awaiting_payment", "payment_status": "pending", "payment_id": invoice_doc["id"],
+        "billing_flow": "pay_per_release", "ppr_base_amount": base_amount,
+        "metadata_validated_at": now_iso(), "metadata_validated_by": user["id"], "updated_at": now_iso(),
+    }, "$push": {"status_history": {
+        "from": rel.get("status"), "to": "awaiting_payment", "changed_by": user["id"],
+        "changed_at": now_iso(), "note": "Metadata valid; invoice dikirim",
+    }}})
+    await log_activity(user["id"], "admin_send_ppr_invoice", "release", release_id, before={"status": rel.get("status")}, after={"status": "awaiting_payment", "payment_id": invoice_doc["id"], "amount": total_amount})
+    await notify_many(
+        await label_user_ids(rel["label_id"]), "release_invoice_ready", "Metadata valid — invoice tersedia",
+        f"Metadata '{rel.get('release_title')}' telah valid. Selesaikan pembayaran invoice gabungan Rp {total_amount:,.0f}.",
+        f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
+    )
+    label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
+    label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
+    if label_user and label_user.get("email"):
+        asyncio.create_task(send_release_invoice_email(
+            to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
+            release_title=rel.get("release_title") or "Rilisan", amount_idr=total_amount,
+            payment_id=invoice_doc["id"], release_id=release_id,
+        ))
+    return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+
 @release_r.post("/{release_id}/admin/action")
 async def admin_release_action(release_id: str, body: AdminReleaseAction, user: dict = Depends(require_admin)):
     rel = await db.releases.find_one({"id": release_id})
@@ -602,12 +696,16 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
 
     # Admin Release / Super Admin only for review actions
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release atau Super Admin")
+    assert_admin_permission(user, "releases.review")
 
     billing_flow = rel.get("billing_flow") or (
         "pay_per_release" if rel.get("payment_status") in ("not_generated", "pending", "paid") else "subscription"
     )
+    # Canonical PPR determination: keyed on the label's CURRENT subscription coverage,
+    # not the frozen billing_flow. A PPR release (label not on an active subscription)
+    # MUST be paid before it can be approved or delivered to Believe.
+    covered_by_subscription = await release_subscription_covered(rel)
+    already_paid = rel.get("payment_status") == "paid"
     if body.action == "start_review":
         require_status(rel, ("submitted",), "Mulai pemeriksaan")
         new_status = "under_review"
@@ -615,60 +713,37 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         if rel.get("status") == "awaiting_payment" and rel.get("payment_id"):
             return await db.releases.find_one({"id": release_id}, {"_id": 0})
         require_status(rel, ("under_review",), "Kirim tautan pembayaran")
-        if billing_flow != "pay_per_release" or rel.get("payment_status") != "not_generated":
-            raise HTTPException(status_code=409, detail="Rilisan ini tidak memerlukan invoice Pay Per Release")
-        track_count = await db.tracks.count_documents({"release_id": release_id})
-        base_amount = ppr_base_amount(rel.get("release_type"), track_count, await ppr_pricing())
-        base_name, base_desc = ppr_line_item_text(rel.get("release_type"), track_count)
-        selected_addons = rel.get("selected_addons") or []
-        addon_amount = sum(int(item.get("amount") or 0) for item in selected_addons)
-        total_amount = base_amount + addon_amount
-        line_items = [{
-            "reference_id": f"release-base-{release_id}",
-            "name": base_name,
-            "description": f"{rel.get('release_title')} — {base_desc}",
-            "amount": base_amount, "quantity": 1,
-        }] + [{
-            "reference_id": f"addon-{item['id']}",
-            "name": item.get("name") or "Layanan Tambahan",
-            "description": item.get("description"),
-            "amount": int(item.get("amount") or 0), "quantity": 1,
-        } for item in selected_addons]
-        invoice_doc = await create_payment_document(PaymentCreateData(
-            label_id=rel["label_id"], payment_type="pay_per_release", amount=total_amount,
-            release_id=release_id, description=f"Distribusi rilisan — {rel.get('release_title')}",
-            return_path=f"/label/releases/{release_id}", reference_id=f"ppr-release-{release_id}",
-            line_items=line_items, base_amount=base_amount, addon_amount=addon_amount,
-            addon_product_ids=[item["id"] for item in selected_addons],
-            approval_required_before_payment=True,
-        ))
-        await db.releases.update_one({"id": release_id}, {"$set": {
-            "status": "awaiting_payment", "payment_status": "pending", "payment_id": invoice_doc["id"],
-            "metadata_validated_at": now_iso(), "metadata_validated_by": user["id"], "updated_at": now_iso(),
-        }, "$push": {"status_history": {
-            "from": rel.get("status"), "to": "awaiting_payment", "changed_by": user["id"],
-            "changed_at": now_iso(), "note": "Metadata valid; invoice dikirim",
-        }}})
-        await log_activity(user["id"], "admin_send_ppr_invoice", "release", release_id, before={"status": rel.get("status")}, after={"status": "awaiting_payment", "payment_id": invoice_doc["id"], "amount": total_amount})
-        await notify_many(
-            await label_user_ids(rel["label_id"]), "release_invoice_ready", "Metadata valid — invoice tersedia",
-            f"Metadata '{rel.get('release_title')}' telah valid. Selesaikan pembayaran invoice gabungan Rp {total_amount:,.0f}.",
-            f"/label/releases/{release_id}", {"release_id": release_id, "payment_id": invoice_doc["id"]},
-        )
-        label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
-        label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
-        if label_user and label_user.get("email"):
-            asyncio.create_task(send_release_invoice_email(
-                to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
-                release_title=rel.get("release_title") or "Rilisan", amount_idr=total_amount,
-                payment_id=invoice_doc["id"], release_id=release_id,
-            ))
+        if covered_by_subscription:
+            raise HTTPException(status_code=409, detail="Rilisan ini tercakup langganan aktif; tidak memerlukan invoice Pay Per Release")
+        if already_paid:
+            raise HTTPException(status_code=409, detail="Pembayaran rilisan ini sudah lunas")
+        return await _bill_release_ppr(rel, release_id, user)
+    elif body.action == "bill_ppr":
+        # Manual admin override: bill this release per its submission regardless of the label's
+        # CURRENT subscription coverage (e.g. label switched Annual→PPR mid-review). Works from
+        # submitted / under_review / approved so an already-approved release can still be billed.
+        if rel.get("status") == "awaiting_payment" and rel.get("payment_id"):
+            return await db.releases.find_one({"id": release_id}, {"_id": 0})
+        require_status(rel, ("submitted", "under_review", "approved"), "Buat tagihan Pay Per Release")
+        if already_paid:
+            raise HTTPException(status_code=409, detail="Pembayaran rilisan ini sudah lunas")
+        return await _bill_release_ppr(rel, release_id, user)
+    elif body.action == "save_identifiers":
+        # Save UPC/ISRC without publishing (separate from "Tandai Tayang").
+        require_status(rel, ("delivered",), "Simpan UPC/ISRC")
+        ident_upd = {"updated_at": now_iso()}
+        if body.upc is not None:
+            ident_upd["upc"] = body.upc.strip()
+        for track_id, candidate in (body.track_isrcs or {}).items():
+            await db.tracks.update_one({"id": track_id, "release_id": release_id}, {"$set": {"isrc": (candidate or "").strip(), "updated_at": now_iso()}})
+        await db.releases.update_one({"id": release_id}, {"$set": ident_upd})
+        await log_activity(user["id"], "admin_save_identifiers", "release", release_id, after={"upc": ident_upd.get("upc")})
         return await db.releases.find_one({"id": release_id}, {"_id": 0})
     elif body.action == "approve":
-        if billing_flow == "pay_per_release":
+        if not covered_by_subscription:
             require_status(rel, ("paid",), "Setujui")
-            if rel.get("payment_status") != "paid":
-                raise HTTPException(status_code=409, detail="Pembayaran belum dikonfirmasi Xendit")
+            if not already_paid:
+                raise HTTPException(status_code=409, detail="Rilisan Pay Per Release harus dibayar lunas sebelum disetujui. Kirim tautan pembayaran dan tunggu pelunasan lebih dulu.")
         else:
             require_status(rel, ("under_review",), "Setujui")
         new_status = "approved"
@@ -684,6 +759,8 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         new_status = "rejected"
     elif body.action == "deliver":
         require_status(rel, ("approved",), "Kirim ke Believe")
+        if not covered_by_subscription and not already_paid:
+            raise HTTPException(status_code=409, detail="Rilisan Pay Per Release belum dibayar. Selesaikan pembayaran sebelum mengirim ke Believe.")
         new_status = "delivered"
     elif body.action == "mark_live":
         require_status(rel, ("delivered",), "Tandai tayang")
@@ -723,11 +800,25 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         if not (body.note or "").strip():
             raise HTTPException(status_code=400, detail="Alasan penurunan rilisan wajib diisi")
         new_status = "taken_down"
+    # Phase C: granular high-risk gates (layered on top of releases.review from require_admin).
+    if body.action == "mark_live":
+        assert_admin_permission(user, "releases.go_live")
+    elif new_status == "taken_down":
+        assert_admin_permission(user, "releases.takedown")
     upd = {"status": new_status, "updated_at": now_iso()}
     if body.action in ("need_revision", "reject") and body.note:
         upd["admin_note"] = body.note
     if body.action == "override_status" and body.note:
         upd["admin_note"] = body.note
+    # When an admin manually rolls a Pay Per Release release BACK to a pre-payment status
+    # (via "Koreksi/Mundurkan Status") while its invoice is still unpaid, void that invoice
+    # and reset the payment gate so "Kirim Tautan Pembayaran" can regenerate it. Without this
+    # the release is stuck: the button shows but send_payment fails with a 409.
+    if body.action == "override_status" and new_status in ("draft", "submitted", "under_review", "need_revision") \
+            and billing_flow == "pay_per_release" and rel.get("payment_status") not in ("not_generated", "paid", "free_subscription"):
+        await cancel_release_pending_payments(release_id, user["id"], "Status dikoreksi; invoice lama dibatalkan")
+        upd["payment_status"] = "not_generated"
+        upd["payment_id"] = None
     if body.upc:
         upd["upc"] = body.upc
     if body.action == "start_review":
@@ -744,6 +835,9 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "changed_at": now_iso(), "note": body.note,
     }}})
     await log_activity(user["id"], f"admin_{body.action}", "release", release_id, before={"status": rel["status"]}, after={"status": new_status})
+    # When a release is rejected, void any still-open Xendit payment link so the label can't pay for a dead release.
+    if body.action == "reject" or (body.action == "override_status" and new_status == "rejected"):
+        await cancel_release_pending_payments(release_id, user["id"], "Rilisan ditolak")
     # Notify label
     label_uids = await label_user_ids(rel["label_id"])
     titles = {
@@ -792,9 +886,110 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
 
 
 
+RELEASE_EDIT_FIELDS = {
+    "release_title", "artist_name", "release_date", "year", "genre", "subgenre",
+    "language", "explicit", "copyright_line", "p_line", "notes", "artist_web_url",
+}
+TRACK_EDIT_FIELDS = {
+    "track_title", "artist_name", "isrc", "composer", "lyricist", "producer",
+    "arranger", "performer", "genre", "language", "explicit", "lyrics", "featuring_artist_name",
+}
+
+
+def _clean_changes(changes: dict, allowed: set) -> dict:
+    return {k: v for k, v in (changes or {}).items() if k in allowed}
+
+
+async def _apply_metadata_edit(release_id: str, changes: dict, track_changes: dict, user: dict, note: str = None):
+    """Apply whitelisted release + track metadata changes and record before/after for audit."""
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    rel_changes = _clean_changes(changes, RELEASE_EDIT_FIELDS)
+    before = {k: rel.get(k) for k in rel_changes}
+    if rel_changes:
+        await db.releases.update_one({"id": release_id}, {"$set": {**rel_changes, "updated_at": now_iso()}})
+    track_before = {}
+    for track_id, tch in (track_changes or {}).items():
+        clean = _clean_changes(tch, TRACK_EDIT_FIELDS)
+        if not clean:
+            continue
+        existing = await db.tracks.find_one({"id": track_id, "release_id": release_id}, {"_id": 0})
+        if not existing:
+            continue
+        track_before[track_id] = {k: existing.get(k) for k in clean}
+        await db.tracks.update_one({"id": track_id, "release_id": release_id}, {"$set": {**clean, "updated_at": now_iso()}})
+    await db.releases.update_one({"id": release_id}, {"$push": {"status_history": {
+        "from": rel.get("status"), "to": rel.get("status"), "changed_by": user["id"],
+        "changed_at": now_iso(), "note": f"Edit metadata: {note or ''}".strip(),
+    }}})
+    await log_activity(user["id"], "admin_metadata_edit", "release", release_id,
+                       before={"release": before, "tracks": track_before},
+                       after={"release": rel_changes, "tracks": {tid: _clean_changes(tc, TRACK_EDIT_FIELDS) for tid, tc in (track_changes or {}).items()}})
+    return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+
+@release_r.post("/{release_id}/admin/metadata-edit")
+async def admin_metadata_edit(release_id: str, body: AdminMetadataEditIn, user: dict = Depends(require_admin)):
+    """Edit release metadata at any status (including live). Super Admin applies immediately;
+    other admins create a pending request that a Super Admin must approve."""
+    assert_admin_permission(user, "releases.review")
+    rel = await db.releases.find_one({"id": release_id}, {"_id": 0})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    rel_changes = _clean_changes(body.changes, RELEASE_EDIT_FIELDS)
+    track_changes = {tid: _clean_changes(tc, TRACK_EDIT_FIELDS) for tid, tc in (body.track_changes or {}).items()}
+    track_changes = {tid: tc for tid, tc in track_changes.items() if tc}
+    if not rel_changes and not track_changes:
+        raise HTTPException(status_code=400, detail="Tidak ada perubahan metadata yang valid")
+    if user.get("role") == SUPER_ADMIN:
+        updated = await _apply_metadata_edit(release_id, rel_changes, track_changes, user, body.note)
+        return {"applied": True, "release": updated}
+    # Non-super: queue a pending request for Super Admin approval.
+    req = {
+        "id": new_id(), "release_id": release_id, "release_title": rel.get("release_title"),
+        "label_id": rel.get("label_id"), "label_name": rel.get("label_name"),
+        "requested_by": user["id"], "requested_by_name": user.get("name"),
+        "changes": rel_changes, "track_changes": track_changes, "note": body.note,
+        "status": "pending", "created_at": now_iso(), "reviewed_by": None, "reviewed_at": None, "review_note": None,
+    }
+    await db.release_metadata_edits.insert_one(dict(req))
+    await log_activity(user["id"], "admin_metadata_edit_request", "release", release_id, after={"request_id": req["id"]})
+    for admin_id in await admin_user_ids(("super_admin",)):
+        await notify(admin_id, "release_metadata_edit_request", "Pengajuan edit metadata",
+                     f"{user.get('name') or 'Admin'} mengajukan perubahan metadata untuk '{rel.get('release_title')}'.",
+                     f"/admin/releases/{release_id}", {"release_id": release_id, "request_id": req["id"]})
+    req.pop("_id", None)
+    return {"applied": False, "request": req}
+
+
+@release_r.get("/admin/metadata-edit-requests")
+async def admin_list_metadata_edit_requests(status: str = Query("pending"), user: dict = Depends(require_super_admin)):
+    items = await db.release_metadata_edits.find({"status": status}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return items
+
+
+@release_r.post("/admin/metadata-edit/{req_id}/review")
+async def admin_review_metadata_edit(req_id: str, body: MetadataEditReview, user: dict = Depends(require_super_admin)):
+    req = await db.release_metadata_edits.find_one({"id": req_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
+    if req.get("status") != "pending":
+        raise HTTPException(status_code=409, detail="Pengajuan sudah diproses")
+    fields = {"status": "approved" if body.decision == "approve" else "rejected",
+              "reviewed_by": user["id"], "reviewed_at": now_iso(), "review_note": body.note}
+    await db.release_metadata_edits.update_one({"id": req_id}, {"$set": fields})
+    release = None
+    if body.decision == "approve":
+        release = await _apply_metadata_edit(req["release_id"], req.get("changes"), req.get("track_changes"), user, f"Disetujui dari pengajuan {req.get('requested_by_name') or ''}")
+    await notify(req["requested_by"], "release_metadata_edit_reviewed",
+                 "Pengajuan edit metadata " + ("disetujui" if body.decision == "approve" else "ditolak"),
+                 f"Perubahan metadata '{req.get('release_title')}' {'disetujui dan diterapkan' if body.decision == 'approve' else 'ditolak'}. {body.note or ''}",
+                 f"/admin/releases/{req['release_id']}", {"release_id": req["release_id"], "request_id": req_id})
+    return {"ok": True, "status": fields["status"], "release": release}
+
+
 def _require_release_finance(user: dict) -> None:
-    if user.get("role") not in ("super_admin", "admin_finance", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin, Admin Finance, atau Admin Release")
+    if not (has_permission(user, "payments.manage") or has_permission(user, "releases.review")):
+        raise HTTPException(status_code=403, detail="Perlu izin Kelola Pembayaran atau Review Rilisan")
 
 
 async def _ppr_paid_base(release_id: str) -> int:

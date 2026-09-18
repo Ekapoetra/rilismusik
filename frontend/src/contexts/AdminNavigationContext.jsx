@@ -16,19 +16,22 @@ const FALLBACK_ITEMS = [
 export const AdminNavigationProvider = ({ children }) => {
   const { hasPermission } = useAuth();
   const [items, setItems] = useState([]);
+  const [groups, setGroups] = useState([]);
   const { locale, setLocale } = useAppPreferences();
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try {
       const { data } = await api.get("/admin/navigation");
       setItems((data.items || []).filter((item) => item.key !== "label_rates" && item.route !== "/admin/labels/rate-import"));
+      setGroups(data.groups || []);
       if (!localStorage.getItem("admin-ui-locale")) setLocale(data.default_locale || "id");
     } catch {
       setItems(FALLBACK_ITEMS.filter((item) => hasPermission(item.permission)));
+      setGroups([]);
     } finally { setLoading(false); }
   }, [hasPermission, setLocale]);
   useEffect(() => { load(); }, [load]);
-  const value = useMemo(() => ({ items, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [items, locale, setLocale, loading, load]);
+  const value = useMemo(() => ({ items, groups, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [items, groups, locale, setLocale, loading, load]);
   return <AdminNavigationContext.Provider value={value}>{children}</AdminNavigationContext.Provider>;
 };
 

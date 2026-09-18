@@ -15,7 +15,7 @@ export const AdminDeleteReleaseButton = ({ release, onDeleted, compact = false }
   const [error, setError] = useState("");
   const testId = compact ? `admin-release-delete-${release.id}` : "admin-release-detail-delete";
 
-  if (!hasPermission("releases.review") || !["draft", "rejected"].includes(release.status)) return null;
+  if (!hasPermission("releases.delete") || !["draft", "rejected"].includes(release.status)) return null;
 
   const handleDelete = async () => {
     if (deleting) return;

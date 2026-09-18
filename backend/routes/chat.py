@@ -222,11 +222,18 @@ async def _unread_count(conversation_ids: List[str], user_id: str) -> int:
 
 
 # ---------------- Presence & unread ----------------
+class HeartbeatIn(BaseModel):
+    status: Optional[str] = None  # "online" | "idle" (optional presence hint)
+
+
 @chat_r.post("/heartbeat")
-async def heartbeat(user: dict = Depends(get_current_user)):
+async def heartbeat(body: Optional[HeartbeatIn] = None, user: dict = Depends(get_current_user)):
+    fields = {"user_id": user["id"], "last_seen": now_iso(), "role": user.get("role"), "name": user.get("name")}
+    if body and body.status in ("online", "idle"):
+        fields["presence_status"] = body.status
     await db.chat_presence.update_one(
         {"user_id": user["id"]},
-        {"$set": {"user_id": user["id"], "last_seen": now_iso(), "role": user.get("role"), "name": user.get("name")}},
+        {"$set": fields},
         upsert=True,
     )
     return {"ok": True}

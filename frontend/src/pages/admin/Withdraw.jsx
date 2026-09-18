@@ -7,6 +7,7 @@ import BalanceAuditPanel from "./BalanceAuditPanel";
 import { ManualLegacyWithdrawPanel } from "@/components/admin/ManualLegacyWithdrawPanel";
 import { LegacyWithdrawEditDialog } from "@/components/admin/LegacyWithdrawEditDialog";
 import { FinancialPeriodOverview, jakartaPeriod, monthLabel } from "@/components/admin/FinancialPeriodOverview";
+import MultiLabelBatchPanel from "@/components/admin/MultiLabelBatchPanel";
 import { celebrateWork } from "@/lib/completionFeedback";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
@@ -22,11 +23,14 @@ const STATUS_PILL = {
 export default function AdminWithdraw() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission("withdraw.manage");
+  const canApprove = hasPermission("withdraw.approve");
+  const canPay = hasPermission("withdraw.pay");
   const [items, setItems] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [status, setStatus] = useState("");
+  const [sort, setSort] = useState("created_desc");
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [window, setWindow] = useState(null);
@@ -45,13 +49,13 @@ export default function AdminWithdraw() {
     setLoading(true);
     try {
       const [listResponse, summaryResponse] = await Promise.all([
-        api.get("/withdraw/admin", { params: { status: status || undefined, q: searchQuery || undefined, ...reportPeriod } }),
+        api.get("/withdraw/admin", { params: { status: status || undefined, q: searchQuery || undefined, sort, ...reportPeriod } }),
         api.get("/withdraw/admin/summary", { params: reportPeriod }),
       ]);
       setItems(listResponse.data); setSummary(summaryResponse.data);
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
     finally { setLoading(false); }
-  }, [status, searchQuery, reportPeriod]);
+  }, [status, searchQuery, reportPeriod, sort]);
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(query.trim()), 300);
     return () => clearTimeout(timer);
@@ -103,6 +107,8 @@ export default function AdminWithdraw() {
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-withdraw-error">{err}</div>}
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-withdraw-message">{msg}</div>}
 
+      <MultiLabelBatchPanel />
+
       <div className="rm-card p-4 flex flex-wrap gap-3 items-end">
         <div className="min-w-[240px] flex-1">
           <label className="rm-label">Cari Nama Label</label>
@@ -117,6 +123,16 @@ export default function AdminWithdraw() {
             <option value="approved">Approved</option>
             <option value="paid">Paid</option>
             <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div className="min-w-[200px]">
+          <label className="rm-label">Urutkan / Grup</label>
+          <select className="rm-input" value={sort} onChange={(e) => setSort(e.target.value)} data-testid="admin-withdraw-sort">
+            <option value="created_desc">Tanggal terbaru</option>
+            <option value="created_asc">Tanggal terlama</option>
+            <option value="amount_desc">Nominal terbesar</option>
+            <option value="amount_asc">Nominal terkecil</option>
+            <option value="bank">Grup per bank</option>
           </select>
         </div>
         {loading && <div className="text-xs text-zinc-400" role="status" data-testid="admin-withdraw-period-loading">Memuat periode…</div>}
@@ -157,8 +173,12 @@ export default function AdminWithdraw() {
           <div className="col-span-1">Status</div>
           <div className="col-span-1 text-right">Aksi</div>
         </div>
-        {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm" data-testid="admin-withdraw-empty">{loading ? "Memuat withdrawal…" : "Belum ada withdraw."}</div> : items.map((w) => (
-          <div key={w.id} className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0" data-testid={`admin-withdraw-row-${w.id}`}>
+        {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm" data-testid="admin-withdraw-empty">{loading ? "Memuat withdrawal…" : "Belum ada withdraw."}</div> : items.map((w, idx) => (
+          <React.Fragment key={w.id}>
+            {sort === "bank" && (idx === 0 || (items[idx - 1].bank_snapshot?.bank_name || "—") !== (w.bank_snapshot?.bank_name || "—")) && (
+              <div className="bg-white/[0.04] px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-pink-300" data-testid={`admin-withdraw-bankgroup-${w.bank_snapshot?.bank_value || "unknown"}`}>{w.bank_snapshot?.bank_name || "Tanpa Bank"}</div>
+            )}
+          <div className="px-5 py-4 grid grid-cols-12 gap-3 items-center border-b border-white/5 last:border-0" data-testid={`admin-withdraw-row-${w.id}`}>
             <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-300 grid place-items-center"><Banknote className="w-4 h-4" /></div>
               <div className="min-w-0">
@@ -170,19 +190,20 @@ export default function AdminWithdraw() {
             <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1" data-testid={`admin-withdraw-period-${w.id}`}>{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
             <div className="col-span-6 md:col-span-1"><span data-testid={`admin-withdraw-status-${w.id}`} className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
             <div className="col-span-12 md:col-span-1 text-right">
-              {canManage && w.status === "requested" && (
+              {canApprove && w.status === "requested" && (
                 <div className="flex gap-1 justify-end">
                   <button title="Approve" className="text-emerald-300 hover:bg-emerald-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("approve"); }} data-testid={`admin-withdraw-approve-${w.id}`}><CheckCircle className="w-4 h-4" /></button>
                   <button title="Reject" className="text-red-600 hover:bg-red-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("reject"); }} data-testid={`admin-withdraw-reject-${w.id}`}><XCircle className="w-4 h-4" /></button>
                 </div>
               )}
-              {canManage && w.status === "approved" && (
+              {canPay && w.status === "approved" && (
                 <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
               )}
               {w.legacy_editable && canManage && <button type="button" title="Edit tanggal / bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
               {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
             </div>
           </div>
+          </React.Fragment>
         ))}
       </div>
 

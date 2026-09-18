@@ -1,8 +1,9 @@
 """Pydantic models for RILIS MUSIK platform."""
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime, timezone
 import uuid
+from bank_data import resolve_bank
 
 
 def now_iso() -> str:
@@ -64,9 +65,19 @@ class LabelProfileUpdate(BaseModel):
 
 
 class BankAccountIn(BaseModel):
-    bank_name: str = Field(min_length=2, max_length=100)
+    bank_name: str = Field(default="", max_length=100)
+    bank_value: Optional[str] = Field(default=None, max_length=80)
     account_number: str = Field(min_length=4, max_length=50)
     account_holder_name: str = Field(min_length=2, max_length=120)
+
+    @model_validator(mode="after")
+    def _canonical_bank(self):
+        resolved = resolve_bank(self.bank_value, self.bank_name)
+        if not resolved:
+            raise ValueError("Pilih bank dari daftar yang tersedia")
+        self.bank_value = resolved["value"]
+        self.bank_name = resolved["label"]
+        return self
 
 
 class BankAccountChangeRequestIn(BankAccountIn):
@@ -171,13 +182,43 @@ class ReleaseSubmitConfirmation(BaseModel):
 
 
 class AdminReleaseAction(BaseModel):
-    action: Literal["start_review", "send_payment", "approve", "need_revision", "reject", "deliver", "mark_live", "takedown", "override_status", "reschedule"]
+    action: Literal["start_review", "send_payment", "bill_ppr", "approve", "need_revision", "reject", "deliver", "mark_live", "save_identifiers", "takedown", "override_status", "reschedule"]
     isrc: Optional[str] = None
     track_isrcs: Dict[str, str] = Field(default_factory=dict)
     upc: Optional[str] = None
     note: Optional[str] = None
     target_status: Optional[str] = None
     release_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class AdminMetadataEditIn(BaseModel):
+    """Admin metadata edit — release-level `changes` + per-track `track_changes`.
+    Super Admin applies immediately; other admins create a pending request."""
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    track_changes: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    note: Optional[str] = None
+
+
+class MetadataEditReview(BaseModel):
+    decision: Literal["approve", "reject"]
+    note: Optional[str] = None
+
+
+class WamiMigrationItem(BaseModel):
+    track_id: str
+    release_id: Optional[str] = None
+    title: Optional[str] = None
+    iswc: Optional[str] = None
+    contributors: List[str] = Field(default_factory=list)
+    original_publishers: List[str] = Field(default_factory=list)
+    performers: List[str] = Field(default_factory=list)
+    bmat_id: Optional[str] = None
+    internal_id: Optional[str] = None
+
+
+class WamiMigrationApplyIn(BaseModel):
+    items: List[WamiMigrationItem] = Field(default_factory=list)
+    filename: Optional[str] = None
 
 
 # ============ ARTIST ============
@@ -291,12 +332,20 @@ class AdminNavItemIn(BaseModel):
     route: str = Field(min_length=1, max_length=200)
     labels: Dict[Literal["id", "en"], str]
     parent_key: Optional[str] = Field(default=None, max_length=80)
+    group_id: Optional[str] = Field(default=None, max_length=80)
     visible: bool = True
+    order: int = Field(default=0, ge=0, le=200)
+
+
+class AdminNavGroupIn(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    labels: Dict[Literal["id", "en"], str]
     order: int = Field(default=0, ge=0, le=200)
 
 
 class AdminUiSettingsIn(BaseModel):
     default_locale: Literal["id", "en"] = "id"
+    groups: List[AdminNavGroupIn] = Field(default_factory=list, max_length=40)
     items: List[AdminNavItemIn] = Field(min_length=1, max_length=100)
 
 

@@ -31,7 +31,7 @@ export default function NotificationBell({ instance = "desktop", historyPath = n
     try {
       const { data } = await api.get("/notifications/me", { params: { limit: 25 } });
       const rows = data.items || [];
-      if (known.current) { const fresh = rows.find((item) => !known.current.has(item.id) && !item.read_at && !String(item.type || "").includes("chat")); if (fresh) playNotificationSound("notification", `notification:${fresh.id}`); }
+      if (known.current) { const fresh = rows.find((item) => !known.current.has(item.id) && !item.read_at && !String(item.type || "").includes("chat")); if (fresh) { playNotificationSound("notification", `notification:${fresh.id}`); window.dispatchEvent(new CustomEvent("rilismusik:new-notification")); } }
       known.current = new Set(rows.map((item) => item.id));
       setItems(data.items || []);
       setUnread(data.unread_count || 0);

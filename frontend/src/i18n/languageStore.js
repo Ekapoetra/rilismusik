@@ -19,6 +19,22 @@ const overrides = {
   "Manajemen Label": ["Manajemen Label", "Label Management"], "Manajemen Rilisan": ["Manajemen Rilisan", "Release Management"],
   "Simpan": ["Simpan", "Save"], "Batal": ["Batal", "Cancel"], "Hapus": ["Hapus", "Delete"], "Cari": ["Cari", "Search"],
   "Memuat…": ["Memuat…", "Loading…"], "Tidak ada data": ["Tidak ada data", "No data available"],
+  "Status": ["Status", "Status"], "Idle": ["Idle", "Idle"], "Online": ["Online", "Online"], "Offline": ["Offline", "Offline"],
+  "Profil": ["Profil", "Profile"], "Chat": ["Chat", "Chat"],
+  "Ringkasan Platform": ["Ringkasan Platform", "Platform Summary"], "Ringkasan Kerja": ["Ringkasan Kerja", "Work Summary"],
+  "Distribusi tugas": ["Distribusi tugas", "Task distribution"], "Total Tugas": ["Total Tugas", "Total Tasks"],
+  "Total Label": ["Total Label", "Total Labels"], "Total Artist": ["Total Artist", "Total Artists"],
+  "Total Rilis": ["Total Rilis", "Total Releases"], "Active Member": ["Active Member", "Active Members"],
+  "Sales Revenue": ["Sales Revenue", "Sales Revenue"], "Requested Withdrawal": ["Permintaan Penarikan", "Requested Withdrawal"],
+  "Royalty Income": ["Royalty Income", "Royalty Income"], "via Xendit": ["via Xendit", "via Xendit"],
+  "impor CSV Believe": ["impor CSV Believe", "Believe CSV import"], "aktivasi akun": ["aktivasi akun", "account activation"],
+  "Hari ini": ["Hari ini", "Today"], "Minggu ini": ["Minggu ini", "This week"], "Bulan ini": ["Bulan ini", "This month"],
+  "Aktivitas Terbaru": ["Aktivitas Terbaru", "Recent Activity"], "Aktivitas Anda": ["Aktivitas Anda", "Your activity"],
+  "Kerja & Keuangan": ["Kerja & Keuangan", "Work & Finance"], "Belum ada aktivitas.": ["Belum ada aktivitas.", "No activity yet."],
+  "Anda": ["Anda", "You"], "Sedang Dikerjakan": ["Sedang Dikerjakan", "In Progress"],
+  "Pekerjaan yang sedang berjalan": ["Pekerjaan yang sedang berjalan", "Work currently in progress"],
+  "Tidak ada pekerjaan berjalan.": ["Tidak ada pekerjaan berjalan.", "No work in progress."],
+  "Completed": ["Completed", "Completed"], "In Progress": ["In Progress", "In Progress"], "Open": ["Open", "Open"], "Overdue": ["Overdue", "Overdue"],
 };
 // Invalid/missing entries fail back to the authored text, never a guessed reverse translation.
 const catalogText = (catalog, key) => {

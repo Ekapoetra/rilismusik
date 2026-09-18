@@ -7,6 +7,7 @@ import { Search, Filter, Trash2 } from "lucide-react";
 import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
+import { WamiBadge } from "@/components/shared/WamiBadge";
 
 const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected", "taken_down"];
 
@@ -14,12 +15,13 @@ export default function LabelReleases() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [wamiFilter, setWamiFilter] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/releases/", { params: { status: status || undefined, q: q || undefined } });
+    const { data } = await api.get("/releases/", { params: { status: status || undefined, q: q || undefined, wami: wamiFilter || undefined } });
     setItems(data);
-  }, [status, q]);
+  }, [status, q, wamiFilter]);
   useEffect(() => { load(); }, [load]);
 
   const deleteRelease = async (release) => {
@@ -59,6 +61,14 @@ export default function LabelReleases() {
             {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
           </select>
         </div>
+        <div className="min-w-[160px]">
+          <label className="rm-label">WAMI</label>
+          <select className="rm-input" value={wamiFilter} onChange={(e) => setWamiFilter(e.target.value)} data-testid="label-releases-wami-filter">
+            <option value="">Semua</option>
+            <option value="true">Terdaftar WAMI</option>
+            <option value="false">Belum WAMI</option>
+          </select>
+        </div>
         <button className="rm-btn-ghost flex items-center gap-2" onClick={load} data-testid="label-releases-apply-filter"><Filter className="w-4 h-4" /> Filter</button>
       </div>
 
@@ -81,6 +91,7 @@ export default function LabelReleases() {
               <div className="min-w-0">
                 <Link to={`/label/releases/${r.id}`} className="font-semibold break-words [overflow-wrap:anywhere]" translate="no" data-testid={`label-release-title-${r.id}`}>{r.release_title}</Link>
                 <ReleaseArtistCredits release={r} prefix="label-release" />
+                {r.wami_registered && <div className="mt-1"><WamiBadge testid={`label-release-wami-${r.id}`} /></div>}
               </div>
             </div>
             <div className="col-span-6 md:col-span-2 text-sm capitalize">{r.release_type}</div>

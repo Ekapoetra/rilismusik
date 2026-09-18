@@ -15,7 +15,7 @@ PACKAGE_FIELDS = ("payment_type", "subscription_tier", "subscription_status", "s
 
 class LabelPackageUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    package: Literal["pay_per_release", "annual_normal", "annual_vip"]
+    package: Literal["pay_per_release", "annual_normal", "annual_vip", "multi_label"]
     expires_on: Optional[date] = None
     reason: str = Field(min_length=3, max_length=1000)
     expected_revision: int = Field(ge=0)
@@ -34,7 +34,9 @@ class LabelPackageResult(BaseModel):
 
 
 async def change_label_package(label_id: str, body: LabelPackageUpdate, user: dict):
-    assert_admin_permission(user, "labels.package")
+    # Multi Label is an account-level entitlement gated by its own permission
+    # (Super Admin only by default); all other package changes use labels.package.
+    assert_admin_permission(user, "labels.multi_label.manage" if body.package == "multi_label" else "labels.package")
     label = await db.labels.find_one({"id": label_id}, {"_id": 0, "package_change_history": 0})
     if not label:
         raise HTTPException(404, "Label tidak ditemukan")

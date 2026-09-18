@@ -31,6 +31,7 @@ DEFAULT_PRICES = {
     "album_package": 200_000,
     "annual_normal": 350_000,
     "annual_vip": 500_000,
+    "multi_label": 1_500_000,
     "wami_addon": 100_000,
 }
 
@@ -165,6 +166,7 @@ async def payment_price(code: str) -> int:
         "album_package": "album_package_price",
         "annual_normal": "annual_normal_price",
         "annual_vip": "annual_subscription_price",
+        "multi_label": "multi_label_price",
         "wami_addon": "wami_addon_price",
     }
     configured = values.get(key_map.get(code))
@@ -235,6 +237,27 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
     except DuplicateKeyError:
         existing = await db.payments.find_one({"reference_id": document["reference_id"]}, {"_id": 0})
         if existing:
+            # Idempotent reuse by reference_id. But if the previous invoice was voided
+            # (cancelled/expired/failed) — e.g. after an admin rolled the release back and
+            # regenerated the payment link — revive it in place with the fresh amounts and
+            # clear the dead provider session so the label gets a payable link again.
+            if existing.get("status") in ("cancelled", "expired", "failed"):
+                revive = {
+                    "status": "pending", "provider_status": None, "fulfillment_status": "pending",
+                    "xendit_invoice_url": None, "payment_request_id": None, "payment_id_provider": None,
+                    "paid_at": None, "expired_at": None, "cancelled_reason": None, "cancelled_by": None,
+                    "amount": document["amount"], "description": document["description"],
+                    "line_items": document["line_items"], "base_amount": document["base_amount"],
+                    "addon_amount": document["addon_amount"], "addon_product_ids": document["addon_product_ids"],
+                    "return_path": document["return_path"], "type": document["type"],
+                    "approval_required_before_payment": document["approval_required_before_payment"],
+                    "updated_at": now_iso(),
+                }
+                await db.payments.update_one(
+                    {"id": existing["id"]},
+                    {"$set": revive, "$unset": {"xendit_session_id": "", "xendit_invoice_id": ""}},
+                )
+                return await db.payments.find_one({"id": existing["id"]}, {"_id": 0})
             return existing
         raise
     document.pop("_id", None)
@@ -358,6 +381,38 @@ async def create_xendit_session(payment: Dict[str, Any]) -> Dict[str, Any]:
         "updated_at": now_iso(),
     }})
     return await db.payments.find_one({"id": payment["id"]}, {"_id": 0})
+
+
+async def cancel_release_pending_payments(release_id: str, actor_id: str, reason: str) -> int:
+    """Best-effort: cancel any ACTIVE Xendit session and mark still-pending payments
+    for a release as cancelled, so a rejected/deleted release can't be paid anymore.
+    Never raises — reject/delete flows must not fail if Xendit is unreachable."""
+    cancelled = 0
+    try:
+        cursor = db.payments.find(
+            {"release_id": release_id, "status": "pending"},
+            {"_id": 0, "id": 1, "xendit_session_id": 1},
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning("[REFUND] cancel query failed release=%s: %s", release_id, exc)
+        return 0
+    async for pay in cursor:
+        session_id = pay.get("xendit_session_id")
+        if session_id:
+            try:
+                await _xendit_request("POST", f"/sessions/{session_id}/cancel")
+            except Exception as exc:
+                logger.warning("[REFUND] Xendit session cancel failed payment=%s: %s", pay["id"], getattr(exc, "detail", exc))
+        await db.payments.update_one(
+            {"id": pay["id"]},
+            {"$set": {"status": "cancelled", "provider_status": "CANCELED",
+                      "cancelled_reason": reason, "cancelled_by": actor_id, "updated_at": now_iso()}},
+        )
+        cancelled += 1
+    if cancelled:
+        logger.info("[REFUND] cancelled %s pending payment(s) for release=%s (%s)", cancelled, release_id, reason)
+    return cancelled
+
 
 
 async def get_xendit_session(session_id: str) -> Dict[str, Any]:

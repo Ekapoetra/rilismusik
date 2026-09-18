@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Users, LifeBuoy, CheckCircle2, Settings, Search, MessagesSquare } from "lucide-react";
+import { X, Users, LifeBuoy, CheckCircle2, Settings, Search, MessagesSquare } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
@@ -8,6 +8,7 @@ import { ChatThread, OnlineDot } from "./ChatThread";
 import { ChatSettingsPanel } from "./ChatSettingsPanel";
 import { uploadChatAttachment } from "./chatUtils";
 import { useIncomingChat, NewChatNotice } from "./NewChatNotice";
+import { OPEN_CHAT_EVENT, CHAT_UNREAD_EVENT } from "@/components/shared/QuickChatButton";
 
 // Conversation-state filters (NOT presence). Online/Offline is presence and is shown
 // only as an indicator dot on each row — never as a conversation filter.
@@ -80,6 +81,10 @@ export default function AdminChatWidget() {
   useEffect(() => { loadLists(); const timer = setInterval(() => { if (!openRef.current) loadLists(); }, 15000); return () => clearInterval(timer); }, [loadLists]);
   useEffect(() => { if (!open) return; loadLists(); const timer = setInterval(loadLists, 4000); return () => clearInterval(timer); }, [open, loadLists, labelFilter]);
   useEffect(() => { if (!open || !activeConversationId) return; loadThread(); const timer = setInterval(loadThread, 3000); return () => clearInterval(timer); }, [open, activeConversationId, loadThread]);
+
+  // Header Quick Chat integration: open on request, and broadcast unread count for the header badge.
+  useEffect(() => { const toggleChat = () => setOpen((o) => !o); window.addEventListener(OPEN_CHAT_EVENT, toggleChat); return () => window.removeEventListener(OPEN_CHAT_EVENT, toggleChat); }, []);
+  useEffect(() => { window.dispatchEvent(new CustomEvent(CHAT_UNREAD_EVENT, { detail: unread })); }, [unread]);
 
   const openLabel = (item) => setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
   const openInternal = async (a) => {
@@ -197,12 +202,6 @@ export default function AdminChatWidget() {
         </div>
       )}
       {chatNotice.notice && <NewChatNotice onOpen={chatNotice.showChat} onDismiss={chatNotice.dismiss} />}
-      {!open && (
-        <button onClick={() => setOpen(true)} className="fixed bottom-0 right-4 z-[60] inline-flex items-center gap-2 rounded-t-xl border border-b-0 border-white/10 bg-gradient-to-r from-[#FF1F8E] to-[#A24EFF] px-4 py-2.5 text-sm font-bold text-white shadow-2xl transition-transform hover:-translate-y-0.5 md:right-6" data-testid="admin-chat-toggle">
-          <MessageCircle className="h-4 w-4" /> {t("Chat")}
-          {unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1.5 text-[11px] font-bold text-[#FF1F8E]" data-testid="admin-chat-unread">{unread > 99 ? "99+" : unread}</span>}
-        </button>
-      )}
     </>
   );
 }

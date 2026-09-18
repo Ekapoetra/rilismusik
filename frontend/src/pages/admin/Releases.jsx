@@ -11,9 +11,21 @@ import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import GoLiveModal from "@/components/releases/GoLiveModal";
 import MassGoLiveModal from "@/components/releases/MassGoLiveModal";
 import TakedownImportModal from "@/components/releases/TakedownImportModal";
+import { WamiBadge } from "@/components/shared/WamiBadge";
 
 const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
+
+const PLAN_META = {
+  multi_label: { label: "Multi Label", cls: "border-violet-400/40 bg-violet-400/10 text-violet-200" },
+  annual_vip: { label: "VIP", cls: "border-amber-400/40 bg-amber-400/10 text-amber-200" },
+  annual_normal: { label: "Annual", cls: "border-sky-400/40 bg-sky-400/10 text-sky-200" },
+  pay_per_release: { label: "PPR", cls: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300" },
+};
+function PlanBadge({ plan, id }) {
+  const meta = PLAN_META[plan] || PLAN_META.pay_per_release;
+  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${meta.cls}`} data-testid={`admin-release-plan-${id}`}>{meta.label}</span>;
+}
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtInt(n) { return Number(n || 0).toLocaleString("id-ID"); }
@@ -33,6 +45,7 @@ export default function AdminReleases() {
   const [massOpen, setMassOpen] = useState(false);
   const [takedownOpen, setTakedownOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [wamiFilter, setWamiFilter] = useState("");
   const [periods, setPeriods] = useState([]);
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
@@ -47,6 +60,7 @@ export default function AdminReleases() {
       const params = {};
       if (status) params.status = status;
       if (q) params.q = q;
+      if (wamiFilter) params.wami = wamiFilter;
       if (periodFrom) params.period_from = periodFrom;
       if (periodTo) params.period_to = periodTo;
       const { data } = await api.get("/admin/releases", { params });
@@ -61,7 +75,7 @@ export default function AdminReleases() {
     } catch (requestError) {
       setError(formatApiError(requestError.response?.data?.detail) || "Gagal memuat rilisan.");
     } finally { setLoading(false); }
-  }, [status, q, periodFrom, periodTo, sortBy]);
+  }, [status, q, wamiFilter, periodFrom, periodTo, sortBy]);
 
   useEffect(() => {
     (async () => {
@@ -118,6 +132,14 @@ export default function AdminReleases() {
           </select>
         </div>
         <div>
+          <label className="rm-label">WAMI</label>
+          <select className="rm-input" value={wamiFilter} onChange={(e) => setWamiFilter(e.target.value)} data-testid="admin-releases-wami-filter">
+            <option value="">Semua</option>
+            <option value="true">Terdaftar WAMI</option>
+            <option value="false">Belum WAMI</option>
+          </select>
+        </div>
+        <div>
           <label className="rm-label">Urutkan</label>
           <select className="rm-input" value={sortBy} onChange={(e) => setSortBy(e.target.value)} data-testid="admin-releases-sort">
             <option value="status">Prioritas status</option>
@@ -141,23 +163,24 @@ export default function AdminReleases() {
 
       {error && <div role="alert" className="rounded-md bg-red-500/10 p-4 text-sm text-red-300" data-testid="admin-releases-error">{error}</div>}
       <div className="rm-card overflow-hidden">
-        <div className="hidden xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
-          <div>Rilisan</div><div>Label</div><div data-testid="admin-releases-upc-header">UPC</div><div data-testid="admin-releases-isrc-header">ISRC</div>
+        <div className="hidden xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,.85fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
+          <div>Rilisan</div><div>Label</div><div data-testid="admin-releases-plan-header">Paket</div><div data-testid="admin-releases-upc-header">UPC</div><div data-testid="admin-releases-isrc-header">ISRC</div>
           <div>Tanggal Rilis</div><div className="text-right">Pendapatan</div><div>Aktif Terakhir</div><div className="text-right">Status / Aksi</div>
         </div>
         {items.length === 0 ? (
           <div className="p-8 text-center text-zinc-500 text-sm">{loading ? "Memuat…" : "Tidak ada rilisan."}</div>
         ) : items.map((r) => (
-          <div key={r.id} className="relative px-5 py-4 grid grid-cols-12 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors" data-testid={`admin-release-row-${r.id}`}>
+          <div key={r.id} className="relative px-5 py-4 grid grid-cols-12 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,.85fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors" data-testid={`admin-release-row-${r.id}`}>
             <div className="min-w-0 col-span-12 xl:col-auto flex items-start gap-3">
               <ReleaseArtwork release={r} prefix="admin-list" onUpdated={(patch) => setItems((current) => current.map((item) => item.id === r.id ? { ...item, ...patch } : item))} />
               <div className="min-w-0">
               <Link to={`/admin/releases/${r.id}`} translate="no" className="block break-words font-semibold [overflow-wrap:anywhere] after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-white/50" data-testid={`admin-release-open-${r.id}`}>{r.release_title}</Link>
               <ReleaseArtistCredits release={r} prefix="admin-release" />
-              <div className="mt-1 text-[10px] uppercase text-zinc-500" data-testid={`admin-release-type-${r.id}`}>{r.release_type}</div>
+              <div className="mt-1 flex items-center gap-2"><div className="text-[10px] uppercase text-zinc-500" data-testid={`admin-release-type-${r.id}`}>{r.release_type}</div>{r.wami_registered && <WamiBadge testid={`admin-release-wami-${r.id}`} />}</div>
               </div>
             </div>
             <div className="col-span-12 min-w-0 break-words text-sm xl:col-auto" translate="no" data-testid={`admin-release-label-${r.id}`}>{r.label_name || "—"}</div>
+            <div className="col-span-6 min-w-0 xl:col-auto relative z-10"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">Paket</div><PlanBadge plan={r.subscription_plan} id={r.id} /></div>
             <div className="min-w-0 col-span-6 xl:col-auto"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">UPC</div><code className="break-all text-xs" translate="no" data-testid={`admin-release-upc-${r.id}`}>{r.upc || "—"}</code></div>
             <div className="min-w-0 col-span-6 xl:col-auto"><div className="mb-1 text-[10px] text-zinc-500 xl:hidden">ISRC</div><ReleaseIsrcToggle release={r} open={expandedIsrc === r.id} onToggle={() => setExpandedIsrc((value) => value === r.id ? null : r.id)} /></div>
             <div className="min-w-0 col-span-6 xl:col-auto text-sm break-words" data-testid={`admin-release-date-${r.id}`}>{formatReleaseDate(r.release_date)}</div>

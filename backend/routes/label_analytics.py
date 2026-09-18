@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Literal
 from fastapi import APIRouter, Depends, Query
 
 from models import now_iso
-from .deps import db_bg, get_label_by_user, require_label
+from .deps import db_bg, get_label_by_user, get_labels_for_user, account_entitlements, require_label
+from fastapi import HTTPException
 
 
 label_analytics_r = APIRouter(prefix="/label/analytics", tags=["label-analytics"])
@@ -30,11 +31,30 @@ def _period_sequence(period_from: str, period_to: str) -> List[str]:
 @label_analytics_r.get("")
 async def get_label_dashboard_analytics(
     window: Literal["latest", "6", "12"] = Query(default="latest"),
+    label_id: str = Query(default=None),
     user: dict = Depends(require_label),
 ):
-    label = await get_label_by_user(user)
+    # Multi Label defaults to ALL owned labels (aggregated). A label_id filter must
+    # belong to the account (ownership enforced server-side). Only final label_idr is
+    # exposed — no distributor fee / gross / EUR split ever leaves the server.
+    owned = await get_labels_for_user(user)
+    owned_ids = [l["id"] for l in owned]
+    name_map = {l["id"]: l.get("label_name") for l in owned}
+    ent = await account_entitlements(user)
+    if label_id:
+        if label_id not in owned_ids:
+            raise HTTPException(status_code=404, detail="Label tidak ditemukan pada akun ini")
+        label_ids = [label_id]
+        scope = "label"
+    elif ent.get("multi_label") and len(owned_ids) > 1:
+        label_ids = owned_ids
+        scope = "all"
+    else:
+        active = await get_label_by_user(user)
+        label_ids = [active["id"]]
+        scope = "label"
     visibility = {
-        "label_id": label["id"],
+        "label_id": {"$in": label_ids},
         "status": {"$in": VISIBLE_STATUSES},
         "legacy_settled": {"$ne": True},
         "period": {"$type": "string"},
@@ -50,6 +70,9 @@ async def get_label_dashboard_analytics(
             "period_to": None,
             "latest_period": None,
             "available_periods": [],
+            "scope": scope,
+            "selected_label_id": label_id,
+            "labels": [{"id": l["id"], "label_name": l.get("label_name")} for l in owned],
             "totals": {"streams": 0, "revenue_idr": 0, "lines": 0},
             "latest_report": {"streams": 0, "revenue_idr": 0, "lines": 0},
             "monthly": [], "top_tracks": [], "top_platforms": [], "top_countries": [],
@@ -91,6 +114,7 @@ async def get_label_dashboard_analytics(
             {"$group": {
                 "_id": {
                     "track_id": "$track_id",
+                    "label_id": "$label_id",
                     "title": {"$ifNull": ["$track_title_raw", "Unknown"]},
                     "artist": {"$ifNull": ["$artist_name_raw", "Unknown"]},
                 },
@@ -142,6 +166,9 @@ async def get_label_dashboard_analytics(
         "period_to": latest_period,
         "latest_period": latest_period,
         "available_periods": sorted([period for period in available_periods if isinstance(period, str)], reverse=True),
+        "scope": scope,
+        "selected_label_id": label_id,
+        "labels": [{"id": l["id"], "label_name": l.get("label_name")} for l in owned],
         "totals": {
             "streams": int(total_row.get("streams") or 0),
             "revenue_idr": int(total_row.get("revenue_idr") or 0),
@@ -155,6 +182,8 @@ async def get_label_dashboard_analytics(
         "monthly": monthly,
         "top_tracks": [{
             "track_id": row["_id"].get("track_id"),
+            "label_id": row["_id"].get("label_id"),
+            "label_name": name_map.get(row["_id"].get("label_id")),
             "title": row["_id"].get("title") or "Unknown",
             "artist": row["_id"].get("artist") or "Unknown",
             "streams": int(row.get("streams") or 0),

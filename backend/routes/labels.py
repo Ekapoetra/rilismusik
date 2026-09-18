@@ -1,6 +1,7 @@
 """Label profile & dashboard router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
 from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta, date
 import os
 import csv
@@ -11,7 +12,7 @@ import secrets
 from .deps import (
     db, logger, UPLOAD_DIR,
     get_current_user, require_label, require_artist, require_admin, require_super_admin,
-    public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
+    public_user, get_label_by_user, get_labels_for_user, account_entitlements, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
 )
@@ -64,7 +65,58 @@ async def label_me(user: dict = Depends(require_label)):
         }
     label = await get_label_by_user(user)
     from .kyc_service import compute_kyc_state
-    return {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)}
+    from .entitlements import resolve_label_entitlements
+    return {**redact_label_for_self(label), "entitlements": resolve_label_entitlements(label), "kyc": await compute_kyc_state(user=user, label=label)}
+
+
+class ActiveLabelIn(BaseModel):
+    label_id: str
+
+
+@label_r.get("/account")
+async def label_account(user: dict = Depends(require_label)):
+    """Multi Label account summary: owned labels, active/primary, entitlements and
+    account-level aggregated available balance (each child keeps its own cutoff)."""
+    labels = await get_labels_for_user(user)
+    if not labels:
+        raise HTTPException(status_code=404, detail="Label belum diset")
+    from .deps import _account_authority
+    ent = await account_entitlements(user)
+    is_multi = bool(ent.get("multi_label"))
+    active = await get_label_by_user(user)
+    authority = _account_authority(labels, user)
+    balances = {}
+    account_available = None
+    if is_multi:
+        from .balance_utils import compute_labels_available_balances
+        balances = await compute_labels_available_balances(labels)
+        account_available = int(sum(balances.values()))
+
+    def _mini(lab):
+        return {
+            "id": lab["id"], "label_name": lab.get("label_name"),
+            "logo_url": f"/api/files/{lab['logo_storage_key']}" if lab.get("logo_storage_key") else None,
+            "available_idr": int(balances.get(lab["id"], 0)) if is_multi else None,
+        }
+
+    return {
+        "is_multi_label": is_multi,
+        "entitlements": ent,
+        "active_label_id": active["id"],
+        "primary_label_id": authority.get("id"),
+        "labels": [_mini(lab) for lab in labels],
+        "label_count": len(labels),
+        "account_available_idr": account_available,
+    }
+
+
+@label_r.post("/active-label")
+async def set_active_label(body: ActiveLabelIn, user: dict = Depends(require_label)):
+    labels = await get_labels_for_user(user)
+    if not any(lab["id"] == body.label_id for lab in labels):
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan pada akun ini")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"active_label_id": body.label_id, "updated_at": now_iso()}})
+    return {"ok": True, "active_label_id": body.label_id}
 
 
 @label_r.patch("/me")
@@ -232,6 +284,7 @@ async def submit_bank(body: BankAccountIn, user: dict = Depends(require_label)):
         "id": new_id(),
         "label_id": label["id"],
         "bank_name": body.bank_name,
+        "bank_value": body.bank_value,
         "account_number": body.account_number,
         "account_holder_name": body.account_holder_name,
         "verified_status": "pending",

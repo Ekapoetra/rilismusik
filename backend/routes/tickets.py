@@ -400,6 +400,30 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
     return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
 
 
+@ticket_r.post("/admin/{ticket_id}/believe-recheck")
+async def admin_believe_recheck(ticket_id: str, user: dict = Depends(require_admin)):
+    """Team checked Believe but the release is still being processed. Defer the
+    follow-up task by resetting the working-day clock (recurs until ticket is done)."""
+    assert_admin_permission(user, "support.manage")
+    ticket = await db.support_tickets.find_one({"id": ticket_id})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
+    if ticket.get("status") != "submitted_to_believe":
+        raise HTTPException(status_code=400, detail="Follow-up hanya untuk tiket yang sudah disubmit ke Believe")
+    now = now_iso()
+    await db.support_tickets.update_one({"id": ticket_id}, {"$set": {
+        "believe_last_checked_at": now, "believe_followup_notified_at": None, "updated_at": now,
+    }, "$inc": {"believe_check_count": 1}})
+    await db.ticket_comments.insert_one({
+        "id": new_id(), "ticket_id": ticket_id, "user_id": user["id"], "user_name": user.get("name"),
+        "role": user["role"], "body": "Sudah dicek ke Believe — masih diproses. Follow-up ditunda 3 hari kerja.",
+        "attachments": [], "is_system": True, "created_at": now,
+    })
+    await log_activity(user["id"], "ticket_believe_recheck", "support", ticket_id, after={"believe_last_checked_at": now})
+    return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0})
+
+
+
 @ticket_r.post("/admin/bulk-status")
 async def admin_bulk_update_tickets(body: TicketBulkStatusIn, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "support.manage")

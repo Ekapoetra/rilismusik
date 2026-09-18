@@ -48,24 +48,43 @@ async def release_operation(db, release_id, operation):
         await db.release_operation_locks.delete_one({"_id": key, "token": token})
 
 
-async def daily_record(db, label_id, now=None):
-    day, start, end = quota_window(now); key = f"{label_id}:{day}"
+async def resolve_quota_scope(db, label):
+    """Quota is 7/day/ACCOUNT for Multi Label, else 7/day/label (backward compatible)."""
+    from .entitlements import resolve_label_entitlements
+    user_id = label.get("user_id")
+    owned = []
+    if user_id:
+        owned = await db.labels.find(
+            {"user_id": user_id},
+            {"_id": 0, "id": 1, "subscription_tier": 1, "subscription_status": 1, "subscription_expires_at": 1},
+        ).to_list(200)
+    is_multi = any(resolve_label_entitlements(l)["multi_label"] for l in owned)
+    if is_multi:
+        return {"key": f"acct:{user_id}", "label_ids": [l["id"] for l in owned]}
+    return {"key": label["id"], "label_ids": [label["id"]]}
+
+
+async def daily_record(db, scope, now=None):
+    day, start, end = quota_window(now)
+    scope_key = scope["key"]; label_ids = scope["label_ids"]
+    key = f"{scope_key}:{day}"
     record = await db.label_daily_submissions.find_one({"_id": key}, {"_id": 0})
     if not record:
-        # Include successful web submissions earlier on the day this feature is enabled.
-        historical = await db.releases.find({"label_id": label_id, "imported_legacy": {"$ne": True}, "$or": [
+        # Include successful web submissions earlier on the day this feature is enabled,
+        # aggregated across every label owned by the account.
+        historical = await db.releases.find({"label_id": {"$in": label_ids}, "imported_legacy": {"$ne": True}, "$or": [
             {"submitted_at": {"$gte": start, "$lt": end}},
             {"status_history": {"$elemMatch": {"to": "submitted", "changed_at": {"$gte": start, "$lt": end}}}}]}, {"_id": 0, "id": 1}).to_list(10000)
         entries = [{"release_id": rid, "state": "committed", "token": "historical"} for rid in dict.fromkeys(r["id"] for r in historical)]
         try:
-            await db.label_daily_submissions.update_one({"_id": key}, {"$setOnInsert": {"label_id": label_id, "day": day, "entries": entries}}, upsert=True)
+            await db.label_daily_submissions.update_one({"_id": key}, {"$setOnInsert": {"scope_key": scope_key, "label_ids": label_ids, "day": day, "entries": entries}}, upsert=True)
         except DuplicateKeyError:
             pass
         record = await db.label_daily_submissions.find_one({"_id": key}, {"_id": 0})
     # Repair only this ledger's reservations after an interrupted request.
     for entry in record.get("entries", []):
         if entry.get("state") != "pending": continue
-        receipt = await db.releases.find_one({"id": entry["release_id"], "label_id": label_id,
+        receipt = await db.releases.find_one({"id": entry["release_id"], "label_id": {"$in": label_ids},
             "status_history.quota_token": entry["token"]}, {"_id": 0, "id": 1})
         if receipt:
             await db.label_daily_submissions.update_one({"_id": key, "entries.token": entry["token"]}, {"$set": {"entries.$.state": "committed"}})
@@ -74,8 +93,9 @@ async def daily_record(db, label_id, now=None):
     return key, end, await db.label_daily_submissions.find_one({"_id": key}, {"_id": 0})
 
 
-async def submission_quota(db, label_id, release_id=None, now=None):
-    _, end, record = await daily_record(db, label_id, now)
+async def submission_quota(db, label, release_id=None, now=None):
+    scope = await resolve_quota_scope(db, label)
+    _, end, record = await daily_record(db, scope, now)
     entries = record.get("entries", []); used = sum(e["state"] == "committed" for e in entries)
     return SubmissionQuotaOut(day=record["day"], used=used, pending=len(entries) - used,
         remaining=max(0, DAILY_LIMIT - len(entries)), resets_at=end,
@@ -83,9 +103,10 @@ async def submission_quota(db, label_id, release_id=None, now=None):
 
 
 @asynccontextmanager
-async def submission_slot(db, label_id, release_id):
+async def submission_slot(db, label, release_id):
+    scope = await resolve_quota_scope(db, label)
     async with release_operation(db, release_id, "submit") as token:
-        key, end, record = await daily_record(db, label_id)
+        key, end, record = await daily_record(db, scope)
         existing = next((e for e in record.get("entries", []) if e["release_id"] == release_id), None)
         new_slot = existing is None
         if existing and existing["state"] == "pending":
@@ -103,7 +124,7 @@ async def submission_slot(db, label_id, release_id):
             if new_slot:
                 # Receipt is written atomically with the actual submitted status/history.
                 try:
-                    committed = await db.releases.find_one({"id": release_id, "label_id": label_id, "status_history.quota_token": token}, {"_id": 0, "id": 1})
+                    committed = await db.releases.find_one({"id": release_id, "label_id": {"$in": scope["label_ids"]}, "status_history.quota_token": token}, {"_id": 0, "id": 1})
                     if committed:
                         await db.label_daily_submissions.update_one({"_id": key, "entries.token": token}, {"$set": {"entries.$.state": "committed"}})
                     else:

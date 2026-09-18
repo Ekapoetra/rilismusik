@@ -162,6 +162,7 @@ async def seed_indexes_and_admins():
                 "email": email,
                 "password_hash": hash_password(pwd),
                 "role": role,
+                "admin_role_id": role,
                 "email_verified_at": now_iso(),
                 "status": "active",
                 "created_at": now_iso(),

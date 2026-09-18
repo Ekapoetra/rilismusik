@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from models import new_id, now_iso
 from .deps import db, require_admin, log_activity
 from .admin_permission_service import assert_admin_permission, has_permission
-from .work_service import WORK_TYPES, WORK_TYPE_MAP, get_responsibility, get_work_settings
+from .work_service import WORK_TYPES, WORK_TYPE_MAP, applicable_work_types, get_work_settings
 from .staff import STAFF_FILTER
 
 perf_r = APIRouter(prefix="/admin/performance", tags=["performance"])
@@ -154,7 +154,7 @@ def _confidence(scoring: Dict[str, Any], sample: int) -> str:
 # ---------- core computation ----------
 async def compute_staff_performance(user_id: str, role_id: str, period: str,
                                     cfg: Dict[str, Any], sla: Dict[str, int],
-                                    responsibility: Dict[str, List[str]]) -> Dict[str, Any]:
+                                    role_perms_map: Dict[str, Any]) -> Dict[str, Any]:
     weights = cfg["weights"]
     targets = cfg["targets"]
     scoring = cfg["scoring"]
@@ -185,8 +185,8 @@ async def compute_staff_performance(user_id: str, role_id: str, period: str,
     completed_count = len(items)
     weighted_output = round(sum(cnt * float(weights.get(wt, 1.0)) for wt, cnt in by_type.items()), 2)
 
-    # Applicable work types = those this staff's role is responsible for.
-    applicable = [wt for wt, roles in responsibility.items() if role_id in roles]
+    # Applicable work types = those this staff's role holds the permission for.
+    applicable = applicable_work_types(role_perms_map.get(role_id) or set())
 
     # --- Achievement (needs configured targets) ---
     ach_entries = []
@@ -324,6 +324,17 @@ async def update_config(body: ConfigIn, user: dict = Depends(require_admin)):
     return {"ok": True, "section": body.section, "value": body.value}
 
 
+async def _role_perms_map() -> Dict[str, set]:
+    """{role_id/key -> set(permissions)} for all admin roles (KPI applicability source)."""
+    out: Dict[str, set] = {}
+    async for r in db.admin_roles.find({}, {"_id": 0, "id": 1, "key": 1, "permissions": 1}):
+        perms = set(r.get("permissions") or [])
+        out[r["id"]] = perms
+        if r.get("key"):
+            out.setdefault(r["key"], perms)
+    return out
+
+
 @perf_r.get("/me")
 async def my_performance(period: Optional[str] = None, user: dict = Depends(require_admin)):
     _ensure(user, "performance.view_own")
@@ -332,9 +343,9 @@ async def my_performance(period: Optional[str] = None, user: dict = Depends(requ
     period = period or current_period()
     cfg = await _config_for_period(period)
     sla = (await get_work_settings())["sla_days"]
-    resp = await get_responsibility()
+    role_perms_map = await _role_perms_map()
     role_id = user.get("admin_role_id") or user.get("role")
-    data = await compute_staff_performance(user["id"], role_id, period, cfg, sla, resp)
+    data = await compute_staff_performance(user["id"], role_id, period, cfg, sla, role_perms_map)
     st = await _period_state(period)
     return {"is_staff": True, "period": period, "period_state": st.get("state", "open"),
             "name": user.get("name") or user.get("email"), **data}
@@ -346,12 +357,12 @@ async def overview(period: Optional[str] = None, user: dict = Depends(require_ad
     period = period or current_period()
     cfg = await _config_for_period(period)
     sla = (await get_work_settings())["sla_days"]
-    resp = await get_responsibility()
+    role_perms_map = await _role_perms_map()
     role_names = {r["id"]: r["name"] async for r in db.admin_roles.find({}, {"_id": 0, "id": 1, "name": 1})}
     rows = []
     for u in await _active_staff():
         role_id = u.get("admin_role_id") or u.get("role")
-        d = await compute_staff_performance(u["id"], role_id, period, cfg, sla, resp)
+        d = await compute_staff_performance(u["id"], role_id, period, cfg, sla, role_perms_map)
         rows.append({
             "user_id": u["id"], "name": u.get("name") or u.get("email"),
             "role_id": role_id, "role_name": role_names.get(role_id, role_id),
@@ -375,9 +386,9 @@ async def staff_performance(user_id: str, period: Optional[str] = None, user: di
     period = period or current_period()
     cfg = await _config_for_period(period)
     sla = (await get_work_settings())["sla_days"]
-    resp = await get_responsibility()
+    role_perms_map = await _role_perms_map()
     role_id = target.get("admin_role_id") or target.get("role")
-    data = await compute_staff_performance(user_id, role_id, period, cfg, sla, resp)
+    data = await compute_staff_performance(user_id, role_id, period, cfg, sla, role_perms_map)
     # Attendance indicators (shown separately, NOT part of the score).
     attendance = None
     if has_permission(user, "performance.view_team") or user["id"] == user_id:

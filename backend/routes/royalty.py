@@ -16,7 +16,7 @@ from .deps import (
     require_kyc_for_label_user,
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
-    LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+    LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN, assert_admin_permission,
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
@@ -118,8 +118,7 @@ async def admin_upload_royalty_csv(
     `period` lama tetap diterima untuk kompatibilitas klien, tetapi tidak pernah
     dipakai sebagai fallback dan tidak dapat menimpa nilai CSV.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     if period:
         try:
             datetime.strptime(period, "%Y-%m")
@@ -316,8 +315,7 @@ async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depen
     Flow: client calls this → uploads file with PUT to `presigned_put_url` →
     calls `/admin/imports/{import_id}/finalize` to trigger background processing.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     if body.period:
         try:
             datetime.strptime(body.period, "%Y-%m")
@@ -380,8 +378,7 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
     R2 succeeds. Verifies the object exists, downloads it to a local staging
     file, and kicks off the existing background processor.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -945,8 +942,7 @@ async def admin_get_import(import_id: str, user: dict = Depends(require_admin)):
 
 @royalty_r.post("/admin/imports/{import_id}/line/{line_id}/match")
 async def admin_manually_match_line(import_id: str, line_id: str, body: RoyaltyLineMatchIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -996,8 +992,7 @@ async def admin_recalculate_all_unwithdrawn(user: dict = Depends(require_admin))
     This is the one-time production migration path for historical CSV data;
     source revenue and exchange rates are reused, so no CSV re-upload is needed.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.manage")
     await close_stale_recalculation_jobs()
     running = await db.migrate_jobs.find_one({
         "kind": "recalculate_all_unwithdrawn",
@@ -1031,8 +1026,7 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
     Status transitions: pending_review → publishing → published (or publish_error).
     """
     try:
-        if user["role"] not in ("super_admin", "admin_finance"):
-            raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+        assert_admin_permission(user, "royalty.publish")
         imp = await db.royalty_imports.find_one({"id": import_id})
         if not imp:
             raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -1282,8 +1276,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
 @royalty_r.post("/admin/imports/{import_id}/mark-dana-received")
 async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_admin)):
     """Queue pending → available processing and return immediately."""
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.publish")
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -2113,8 +2106,7 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
     Only Super Admin / Admin Finance. The original uploaded CSV file must still
     exist on disk — otherwise we return 400 and the admin must re-upload.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -2156,8 +2148,7 @@ async def admin_repair_reporting_period(import_id: str, user: dict = Depends(req
     that the source-row count exactly matches stored lines before changing any
     data. Amounts, balances, and line statuses are untouched.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -2209,8 +2200,7 @@ async def admin_initiate_repair_source_upload(
     user: dict = Depends(require_admin),
 ):
     """Issue a short-lived direct-to-R2 URL for a missing original CSV."""
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0, "id": 1, "status": 1})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")
@@ -2258,8 +2248,7 @@ async def admin_finalize_repair_source_upload(
     user: dict = Depends(require_admin),
 ):
     """Validate the R2 object, attach it, then queue period repair."""
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.import")
     pending = await db_bg.royalty_import_repair_uploads.find_one({
         "id": body.upload_id,
         "import_id": import_id,
@@ -2548,8 +2537,7 @@ async def admin_force_finalize_import(import_id: str, user: dict = Depends(requi
 
     Safe to run multiple times — purely a derived recompute, no row inserts.
     """
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "royalty.import")
     imp = await db.royalty_imports.find_one({"id": import_id})
     if not imp:
         raise HTTPException(status_code=404, detail="Import tidak ditemukan")

@@ -14,6 +14,7 @@ from .deps import (
     public_user, get_label_by_user, redact_label_for_self, LABEL_HIDDEN_FIELDS,
     log_activity, notify, notify_many, admin_user_ids, label_user_ids,
     LABEL_ROLE, ARTIST_ROLE, ADMIN_ROLES, SUPER_ADMIN,
+assert_admin_permission,
 )
 from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
@@ -92,8 +93,7 @@ def _enrich_contract(c: Dict[str, Any]) -> Dict[str, Any]:
 
 @contract_r.post("/admin/upload-pdf")
 async def contract_upload_pdf(file: UploadFile = File(...), user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    assert_admin_permission(user, "contracts.manage")
     ext = (file.filename or "").lower().rsplit(".", 1)[-1]
     if ext != "pdf":
         raise HTTPException(status_code=400, detail="File kontrak harus PDF")
@@ -107,8 +107,7 @@ async def contract_upload_pdf(file: UploadFile = File(...), user: dict = Depends
 
 @contract_r.post("/admin")
 async def contract_create(body: ContractCreateIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    assert_admin_permission(user, "contracts.manage")
     label = await db.labels.find_one({"id": body.label_id}, {"_id": 0, "id": 1, "label_name": 1, "user_id": 1})
     if not label:
         raise HTTPException(status_code=404, detail="Label tidak ditemukan")
@@ -169,8 +168,7 @@ async def contract_detail_admin(cid: str, user: dict = Depends(require_admin)):
 
 @contract_r.post("/admin/{cid}/extend")
 async def contract_extend(cid: str, body: ContractExtendIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    assert_admin_permission(user, "contracts.manage")
     c = await db.contracts.find_one({"id": cid})
     if not c:
         raise HTTPException(status_code=404, detail="Kontrak tidak ditemukan")
@@ -189,8 +187,7 @@ async def contract_extend(cid: str, body: ContractExtendIn, user: dict = Depends
 
 @contract_r.post("/admin/{cid}/terminate")
 async def contract_terminate(cid: str, body: ContractTerminateIn, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Release / Super Admin")
+    assert_admin_permission(user, "contracts.manage")
     c = await db.contracts.find_one({"id": cid})
     if not c:
         raise HTTPException(status_code=404, detail="Kontrak tidak ditemukan")

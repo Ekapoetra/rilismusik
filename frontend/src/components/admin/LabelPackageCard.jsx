@@ -5,7 +5,7 @@ import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/sonner";
 
-export const PACKAGE_NAMES = { pay_per_release: "Pay Per Release", annual_normal: "Annual", annual_vip: "VIP" };
+export const PACKAGE_NAMES = { pay_per_release: "Pay Per Release", annual_normal: "Annual", annual_vip: "VIP", multi_label: "Multi Label" };
 const selectedPackage = (label) => label.payment_type === "annual_subscription" ? label.subscription_tier || "annual_normal" : "pay_per_release";
 
 export const LabelPackageCard = ({ label, onChanged, mode = "direct" }) => {
@@ -39,7 +39,7 @@ export const LabelPackageCard = ({ label, onChanged, mode = "direct" }) => {
   return <section className="rm-card min-w-0 space-y-4 p-5" data-testid="admin-label-subscription-card">
     <h2 className="flex items-center gap-2 font-display text-lg font-bold"><Package className="h-4 w-4" />{t("Paket & Langganan")}{isRequest && <span className="rm-badge bg-amber-500/15 text-amber-300 text-[10px]">{t("Perlu Persetujuan")}</span>}</h2>
     <div className="text-sm text-zinc-400" data-testid="admin-label-current-package">{t("Paket saat ini")}: <strong className="text-zinc-200">{PACKAGE_NAMES[current]}</strong></div>
-    <label className="block"><span className="rm-label">{t("Paket")}</span><select className="rm-input" value={tier} onChange={(event) => { setTier(event.target.value); setError(""); }} disabled={saving} data-testid="admin-label-sub-tier-select">{Object.entries(PACKAGE_NAMES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+    <label className="block"><span className="rm-label">{t("Paket")}</span><select className="rm-input" value={tier} onChange={(event) => { setTier(event.target.value); setError(""); }} disabled={saving} data-testid="admin-label-sub-tier-select">{Object.entries(PACKAGE_NAMES).filter(([key]) => key !== "multi_label" || !isRequest).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
     {tier !== "pay_per_release" && <label className="block"><span className="rm-label">{t("Masa Berlaku Sampai")}</span><input className="rm-input" type="date" value={expiry} onChange={(event) => setExpiry(event.target.value)} disabled={saving} data-testid="admin-label-sub-expiry-input" /></label>}
     <label className="block"><span className="rm-label">{t("Alasan Perubahan")}</span><textarea className="rm-input min-h-[80px]" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={1000} disabled={saving} data-testid="admin-label-sub-reason" /></label>
     {error && !confirming && <div role="alert" className="text-sm text-red-400" data-testid="admin-label-sub-error">{error}</div>}

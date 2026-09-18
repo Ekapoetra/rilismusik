@@ -1,5 +1,59 @@
 # RILIS MUSIK — Changelog
 
+## 2026-06 — PRD 06 Compensation FASE B+C+D (Bonus Engine + Payroll + UI)
+- **Bonus Engine**: dari payments paid (bukan royalti), atribusi eksplisit, Bonus Rules effective-dated, Bonus Ledger idempotent per payment (anti double-count: 1 rule paling spesifik). Antrean Unattributed. `routes/compensation_admin.py`.
+- **Payroll**: Period draft→review→approved→paid→finalized + Item snapshot (gaji resolver tanpa proration + tunjangan + bonus + penyesuaian), finalisasi immutable & bonus → paid_out. Allowances & Adjustments effective/approve. Salary manage via staff_salary_history.
+- **UI**: `CompensationAdmin.jsx` (6 tab) + `MyCompensation.jsx`; self-service via grant otomatis compensation.view/view_own ke semua admin role; audit via log_activity.
+- Diuji E2E (curl): bonus 10%×500k=50k, payroll compqa net 8.55jt, lifecycle+finalize immutability (generate 409, reverse bonus final 409), self-view. Screenshot UI. Work Queue wiring ke work_service menyusul.
+
+
+## 2026-06 — PRD 06 Compensation FASE A (Fondasi & RBAC + My Compensation)
+- RBAC: modul `compensation` (17 permission) + PERMISSION_META + migrasi v14 (super_admin only, delegatable via Role & Permission). Nav "Kompensasi Saya" + submenu.
+- `routes/compensation_service.py`: salary resolver effective-dated (tak pernah pakai gaji hari ini untuk periode lampau; fallback ditandai needs_review), `is_staff_user`, endpoint `/compensation/me` & `/compensation/staff/{id}`.
+- Frontend `MyCompensation.jsx` (Gaji/Bonus/Riwayat Payroll) — self-service dalam Admin Console (tanpa workspace/login staf terpisah).
+- Diuji: resolver benar per tanggal efektif, RBAC (superadmin 200, finance 403), screenshot. Fase B–D (bonus engine, payroll, work/UI) menyusul.
+
+
+## 2026-06 — Multi Label FASE 6 (Merge Wizard) + Registrasi + Admin Batch View + Kuota E2E
+- **Merge Wizard** (`multi_label_merge.py` + `pages/admin/MultiLabelMerge.jsx`): Super Admin menggabungkan beberapa akun existing → satu Multi Label (1 login, 1 PIC, 1 rekening payout, banyak label). Label tidak digabung; cutoff per-label & history utuh; akun lama diarsipkan `merged` (login 403); legacy dikecualikan; idempotent; validasi no-partial-merge. Nav "Multi Label" + endpoint candidates/validate/commit/accounts.
+- **Registrasi**: publik `POST /api/multi-label/request` + halaman `/ajukan-multi-label` (CTA landing) → antrean admin (tab Permintaan) + notify super admin.
+- **Admin Batch View**: `GET /api/withdraw/admin/batches` + panel batch (induk + rincian child) di halaman Penarikan admin.
+- **Kuota E2E**: terverifikasi 7/hari/ACCOUNT lintas label (ke-8 → 429).
+- Diuji testing_agent iter93: 10/10 backend, 4/4 UI PASS. Hanya 2 catatan kosmetik non-blocking (PIC card = responsible_name sesuai spec; warning Recharts lama).
+
+
+## 2026-06 — Multi Label FASE 5: Withdrawal Batch
+- `POST /api/withdraw/label/batch` (Multi Label): satu aksi → child withdraw_request per label (amount dari history eligible masing-masing), minimum pada TOTAL agregat, parent `multi_label_withdraw_batches`, atomic recovery bila child gagal. Payout bank = rekening label authority.
+- Shared settlement: `mark_paid` menyetel `last_withdrawn_period` semua child ke `shared_period_to` (cutoff tersinkron); parent status auto (requested→processing→paid). `GET /api/withdraw/label/batches` = history + breakdown child.
+- Frontend: tombol "Cairkan Saldo Gabungan" di MultiLabelBar. Diuji E2E: total Rp5jt, period_to=2026-06, kedua label tersinkron ke 2026-06 setelah paid, saldo 0, Σ child=total. Fase 6 (merge wizard) + registrasi + kuota-E2E belum.
+
+
+## 2026-06 — Multi Label FASE 4 + Global Switcher
+- **Fase 4 Analytics**: `/label/analytics` account-aware. Multi Label default agregat semua label (`scope=all`), filter opsional `label_id` (ownership 404). `top_tracks` membawa label_id/label_name; response +`labels[]`/`scope`/`selected_label_id`. Fee tetap ter-redaksi (hanya `label_idr`, legacy dikecualikan). Dashboard punya dropdown "Filter Analitik".
+- **Global Switcher**: `LabelSwitcher` dipindah ke header `LabelLayout` → Active Label switcher tersedia di semua halaman label (hanya untuk akun Multi Label).
+- Diuji: curl (scope=all=5jt, filter B=3jt, forged 404) + screenshot (header switcher + filter). Fase 5 (withdrawal batch) & Fase 6 (merge wizard) belum dikerjakan.
+
+
+## 2026-06 — Multi Label FASE 2 & 3: Multi-ownership, Active Label, Agregasi Saldo, Benefit Gratis
+- **Fase 2**: satu akun mengelola banyak label. `deps.get_label_by_user()` kini kembalikan **active label** (backward compatible). Endpoint baru `GET /api/label/account` (ringkasan + saldo teragregasi Σ child, cutoff per-label tetap) & `POST /api/label/active-label` (switch, validasi ownership). Dashboard label menampilkan `MultiLabelBar` (switcher + Total Saldo Tersedia). `/label/account` & `/label/active-label` masuk KYC-allowed prefixes.
+- **Fase 3**: resolver entitlement disambung. WAMI gratis (Rp0, no invoice) untuk Multi Label & VIP via `account_entitlements().free_wami`. Kuota harian jadi **7/hari/ACCOUNT** untuk Multi Label (scope `acct:{user_id}`), single-label tetap per-label. Add-on saat submit dibuat gratis (Rp0, `subscription_free`) untuk akun ber-`free_addons`; unlimited release account-level.
+- Diuji: testing_agent iter92 (7 assertion inti PASS), curl E2E (acct_avail=5.000.000, WAMI amount=0 benefit=multi_label, switch+404, single-label tanpa regresi), screenshot MultiLabelBar. 2 "failure" iter92 = seed demo_ppr KYC pra-ada (bukan defect Multi Label).
+
+
+## 2026-06 — Multi Label FASE 1: Fondasi Entitlement & Paket
+- **Resolver pusat** `backend/routes/entitlements.py`: `resolve_label_entitlements()` mengembalikan unlimited_release/vip_benefits/free_wami/free_addons/multi_label/daily_release_limit(7). Menggantikan pengecekan `subscription_tier=="annual_vip"` yang tersebar (dipakai bertahap mulai Fase 3).
+- **Paket `multi_label`** (Rp1.500.000/th): didukung di `label_package_service.py` (aktivasi manual Super Admin, guard `labels.multi_label.manage`). `payment_service` menambah harga default + key `multi_label_price`.
+- **RBAC**: permission baru `labels.multi_label.view/manage`, migrasi v13 (super_admin only, others via Role & Permission), muncul di capability review banner.
+- **Landing**: kartu ke-4 "MULTI LABEL — Layanan Baru" (grid lg:grid-cols-4, CTA "Ajukan Multi Label", testid `landing-pricing-multi-label`).
+- **`GET /api/label/me`** kini menyertakan objek `entitlements`.
+- Diuji curl E2E: aktivasi pada Demo Label VIP → tier=multi_label & semua entitlement true; Admin Finance ditolak 403; data direvert ke annual_vip.
+
+
+## 2026-06 — Perbaikan UI Konfigurasi KPI + Auto-refresh Work di Dashboard
+- **UI Konfigurasi KPI** (`PerformanceConfig.jsx`): pada "Bobot Jenis Pekerjaan" & "Bobot Komponen Skor", label tidak lagi `truncate` (kini `flex-1` + wrap penuh) dan input angka dipersempit (weights `w-14`, component `w-16`) dengan teks rata tengah. Menyelesaikan keluhan label terpotong sementara input terlalu lebar untuk angka 1-2 digit.
+- **Auto-refresh Dashboard** (`Dashboard.jsx` + `NotificationBell.jsx`): lonceng notifikasi kini mem-broadcast event `rilismusik:new-notification` saat notifikasi baru masuk (poll 10 dtk). Dashboard mendengarkan event tsb untuk me-refresh "My Work", "Tim Work" & metrik + fallback interval 10 dtk. Daftar pekerjaan kini ter-update otomatis tanpa reload halaman.
+
+
 ## 2026-06 — Work Type baru: Verifikasi Rekening (untuk tim edit-label)
 - **Backend** (`routes/work_service.py`): menambah Work Type **`bank_verification`** ("Verifikasi Rekening" / "Bank Account Verification", ikon Landmark, prioritas high, SLA 2 hari, permission `labels.manage`). Sumber (OPEN): `bank_account_change_requests` berstatus `pending_admin_approval` (pengajuan verifikasi rekening dari label). Auto-close saat status berpindah; atribusi penyelesaian via activity_logs modul `bank_account` (`_MODULE_MAP` diperluas).
 - **Responsibility otomatis**: `get_responsibility()` menyemai responsible roles `bank_verification` = seluruh admin role yang memiliki permission **`labels.manage`** (edit label) — di env ini: Admin Rilisan, Admin Finance, Admin Support (super_admin dikecualikan karena melihat semua). Tetap dapat diubah via /admin/work.
@@ -523,3 +577,37 @@ Semua pakai desain terang universal (`_wrap` + `_badge` + `_release_card` + `_kv
 - Added registration, MDA generation, contracts, support tickets, WAMI, notifications, withdrawal, CMS, analytics, and massive royalty import architecture.
 - Migrated persistent uploads to Cloudflare R2.
 - Added security hardening: no auth token leakage, brute-force protection, token-version revocation, email HTML escaping, CORS hardening, and payment reconciliation checks.
+## 2026-06 — Admin Header Revamp + Dashboard KPI/i18n (Iter94)
+- Header (AdminLayout): added Status pill (Online/Idle, auto-idle + manual override, syncs presence via chat heartbeat), Notification bell (notifications only), Quick Chat icon (opens the shared chat panel; removed the old floating bottom-right chat toggle), and Profile avatar dropdown (Log Out only). New components: StatusMenu.jsx, ProfileMenu.jsx, QuickChatButton.jsx. AdminChatWidget now opens via `rilismusik:open-chat` event and broadcasts unread via `rilismusik:chat-unread`.
+- Dashboard KPIs: fixed real data — active_members now counts activated accounts (labels.account_status="active", was wrongly using kyc_status:"verified" → always 0); requested_withdrawal now sums `amount_idr` (was summing non-existent `amount` → always 0). Role-based cards: Super Admin=7 (Sales Revenue, Requested Withdrawal, Royalty Income, Total Label, Total Artist, Total Rilis, Active Member), Admin=5 (Sales, Labels, Artists, Releases, Active Member). Sales Revenue & Requested Withdrawal each have their own period dropdown (Today/Week/Month) backed by new `GET /api/admin/dashboard/money?kind=sales|withdrawal&period=`.
+- Work Summary donut: animated sweep + count-up + hover highlight. Recent Activity: now Work & Finance only (system excluded).
+- i18n: added ID/EN vocabulary to languageStore overrides for all new/changed strings.
+- Backend: dashboard_metrics.py (`/money` endpoint, active_members + withdrawal fixes), chat.py heartbeat accepts optional presence status.
+- Testing: iteration_94.json — backend 100%, frontend 100%, no bugs. NOTE: Sales Revenue = Rp 0 is correct in preview (payments collection empty).
+
+## 2026-06 — Dashboard fixes round 2 (withdrawal/royalty/counts/chat/worksummary)
+- Requested Withdrawal: now mirrors the canonical Arus Dana Withdrawal cashflow — paid (by paid_date) + pending (requested/approved by request_date), summing amount_idr via a $convert-to-date aggregation. Fixes the ~5x overcount (prod showed Rp 510jt; now matches the withdraw page's ~Rp 99jt for the month). Card default period changed to "Bulan ini".
+- Royalty Income: now = latest imported CSV's total_revenue_eur × its exchange_rate_eur_idr → displayed in IDR (was summing ALL royalty_lines in EUR). O(1) lookup on royalty_imports. Sub shows "€{eur} · {period}". This also removes the full royalty_lines scan that was TIMING OUT /metrics in production and zeroing every count card.
+- Counts hardened against large-collection timeouts: totals use estimated_document_count(); added-trend + active_members use count_documents(maxTimeMS). Aggregations use maxTimeMS. So Total Label/Artist/Rilis/Active Member no longer collapse to 0 on slow prod queries.
+- Quick Chat icon now TOGGLES (open on click, close on second click) via OPEN_CHAT_EVENT.
+- Work Summary "Ringkasan Kerja" no longer leaves an empty hole: Panel + WorkSummary are h-full flex columns; the donut is vertically centered so all three top-row panels are equal height.
+- NOTE: production must be REDEPLOYED to pick up these backend fixes (the timeout/0-count issue is prod-only, resolved by the royalty O(1) change).
+
+## 2026-06 — Release workflow: PPR billing override, live metadata edit, UPC/ISRC split
+- **Tagihan PPR saat label pindah Annual→PPR**: aksi baru `bill_ppr` ("Buat Tagihan Pay Per Release") tersedia dari status submitted/under_review/approved, override cakupan langganan live, membuat invoice sesuai submit (base+add-on) lalu set awaiting_payment. UI: tombol muncul di `submitted` & `approved` saat requires_ppr_payment && belum lunas (memecah kebuntuan release yang sudah "approved" saat masih Annual). Reuse helper `_bill_release_ppr` (dipakai juga oleh send_payment).
+- **Edit metadata rilisan (termasuk LIVE) dgn persetujuan Super Admin**: endpoint `POST /releases/{id}/admin/metadata-edit` — Super Admin diterapkan langsung; admin lain membuat pending request. Review: `GET /releases/admin/metadata-edit-requests?status=pending` + `POST /releases/admin/metadata-edit/{req_id}/review` (approve/reject, super only). Whitelist field release + track. get_release kini mengembalikan `pending_metadata_edit`. UI: bagian "Edit Metadata" di panel workflow (semua status, incl live) + banner pending dgn tombol Setujui/Tolak untuk Super Admin. Collection baru: `release_metadata_edits`.
+- **Pisah tombol UPC/ISRC & Tayangkan** (status delivered): "Simpan UPC/ISRC" (aksi `save_identifiers`, tanpa ubah status) + "Tandai Tayang" (`mark_live`, tombol disabled jika UPC kosong). 
+- Model: `AdminReleaseAction` action Literal + `bill_ppr`/`save_identifiers`; model baru `AdminMetadataEditIn`, `MetadataEditReview`.
+- Verifikasi curl: super edit langsung di release LIVE ✓, non-super→pending→super approve menerapkan perubahan ✓, bill_ppr gating (409 di status live) ✓, empty-change 400 ✓. UI form edit metadata render di release live ✓.
+- Perlu REDEPLOY agar sampai ke produksi.
+
+## 2026-06 — WAMI migration import (bulk match by Title) + badge/filter
+- Analisis file WAMI DATA.xlsx: sheet "Works", 326 baris (321 judul unik, 5 nama kembar). Kolom: Title, ISWC, Contributors, Original Publishers, Performers, BMAT ID, Internal ID. Multi-nilai dipisah newline; kosong="-".
+- Backend (routes/wami.py): `POST /wami/migration/preview` (upload .xlsx via openpyxl → cocokkan Title ke track_title lalu release_title; exact-normalized + fuzzy difflib≥0.9; kandidat + performers/artis/label untuk disambiguasi; auto-select bila 1 kandidat). `POST /wami/migration/apply` (tempel blok wami ke track, set wami_registered + wami_track_count di rilisan, idempoten via internal_id, catat batch di wami_imports). `GET /wami/migration/history`.
+- Level penempelan: TRACK + flag/ringkasan di RILISAN (badge muncul jika ≥1 track WAMI).
+- get_release: redaksi sisi label (hapus original_publishers, internal_id, imported_by dari track.wami). Admin lihat penuh.
+- Filter `?wami=true|false` di GET /releases (label) & GET /admin/releases.
+- Frontend: tab "Impor Data (Migrasi)" di admin/Wami.jsx (WamiMigrationImport.jsx: upload→summary→tabel preview dgn dropdown pilih rilisan utk cocok-ganda→Terapkan). Badge WamiBadge + filter WAMI di admin Releases.jsx & label Releases.jsx. Panel data WAMI per-track di ReleaseMetadataView.jsx (dipakai kedua halaman detail).
+- Model baru: WamiMigrationItem, WamiMigrationApplyIn.
+- Verifikasi curl E2E: preview (match exact + not_found) ✓, apply (track+release flag) ✓, admin filter wami=true ✓, admin get penuh ✓, label redaksi (by code; akun demo ter-gate KYC). UI render ✓. Data uji dibersihkan (0 track WAMI tersisa).
+- Perlu REDEPLOY untuk produksi. Impor data asli dilakukan user nanti via UI.

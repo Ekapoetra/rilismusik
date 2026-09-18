@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { Music, CheckCircle2, Clock, AlertTriangle, X, Star } from "lucide-react";
+import WamiMigrationImport from "./WamiMigrationImport";
 
 const STATUS_LABELS = {
   unpaid: "Belum Bayar",
@@ -25,6 +26,7 @@ const NEXT_STATUS_OPTIONS = ["in_progress", "registered", "rejected", "cancelled
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 
 export default function AdminWami() {
+  const [tab, setTab] = useState("orders");
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [modal, setModal] = useState(null);  // order being updated
@@ -68,6 +70,13 @@ export default function AdminWami() {
 
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{msg}</div>}
 
+      <div className="flex gap-2 border-b border-white/10">
+        {[["orders", "Pendaftaran WAMI"], ["migration", "Impor Data (Migrasi)"]].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-bold transition-colors ${tab === k ? "border-[#FF1F8E] text-white" : "border-transparent text-zinc-400 hover:text-white"}`} data-testid={`admin-wami-tab-${k}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "migration" ? <WamiMigrationImport /> : <>
       <div className="flex gap-2 flex-wrap">
         {["", "unpaid", "pending", "in_progress", "registered", "rejected", "cancelled"].map((s) => (
           <button
@@ -133,6 +142,7 @@ export default function AdminWami() {
           );
         })}
       </div>
+      </>}
 
       {modal && (
         <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setModal(null)}>

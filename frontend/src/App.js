@@ -27,6 +27,7 @@ import LabelWami from "@/pages/label/Wami";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminAnalytics from "@/pages/admin/Analytics";
+import AnalyticsAudit from "@/pages/admin/AnalyticsAudit";
 import AdminLabels from "@/pages/admin/Labels";
 import AdminLabelDetail from "@/pages/admin/LabelDetail";
 import RoyaltyAdjustments from "@/pages/admin/RoyaltyAdjustments";
@@ -51,6 +52,10 @@ import AdminWami from "@/pages/admin/Wami";
 import AdminMigrate from "@/pages/admin/Migrate";
 import AdminKycReviews from "@/pages/admin/KycReviews";
 import AdminAccessControl from "@/pages/admin/AccessControl";
+import MultiLabelMerge from "@/pages/admin/MultiLabelMerge";
+import MyCompensation from "@/pages/admin/MyCompensation";
+import CompensationAdmin from "@/pages/admin/CompensationAdmin";
+import MultiLabelRequest from "@/pages/MultiLabelRequest";
 import RateChangeQueue from "@/pages/admin/RateChangeQueue";
 import WorkQueue from "@/pages/admin/WorkQueue";
 import BankVerifications from "@/pages/admin/BankVerifications";
@@ -61,6 +66,8 @@ import WorkspaceStatus from "@/pages/admin/WorkspaceStatus";
 import Performance from "@/pages/admin/Performance";
 import MyPerformance from "@/pages/admin/MyPerformance";
 import PerformanceConfig from "@/pages/admin/PerformanceConfig";
+import XenditReconciliation from "@/pages/admin/XenditReconciliation";
+import Refunds from "@/pages/admin/Refunds";
 import AdminUiSettings from "@/pages/admin/UiSettings";
 import AdminNotifications from "@/pages/admin/Notifications";
 import { Toaster } from "@/components/ui/sonner";
@@ -81,6 +88,7 @@ function AppRoutes() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/ajukan-multi-label" element={<MultiLabelRequest />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
@@ -114,10 +122,18 @@ function AppRoutes() {
                 guard("analytics.view", <AdminAnalytics />)
               }
             />
+            <Route path="/admin/analytics/audit" element={guard("analytics.manage", <AnalyticsAudit />)} />
             <Route path="/admin/labels" element={guard("labels.view", <AdminLabels />)} />
             <Route path="/admin/labels/rate-import" element={<Navigate to="/admin/labels" replace />} />
             <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
             <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
+            <Route path="/admin/multi-label" element={guard("labels.multi_label.view", <MultiLabelMerge />)} />
+            <Route path="/admin/compensation/me" element={guard("compensation.view_own", <MyCompensation />)} />
+            <Route path="/admin/compensation/payroll" element={guard("compensation.payroll.view", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/staff" element={guard("compensation.view_team", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/bonus" element={guard("compensation.bonus.view", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/bonus-rules" element={guard("compensation.bonus.rules.manage", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/adjustments" element={guard("compensation.adjustment.create", <CompensationAdmin />)} />
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
             <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
@@ -143,6 +159,8 @@ function AppRoutes() {
             <Route path="/admin/royalty-adjustments" element={guard("royalty.manage", <RoyaltyAdjustments />)} />
             <Route path="/admin/royalty/:id" element={guard("royalty.view", <AdminRoyaltyDetail />)} />
             <Route path="/admin/withdraw" element={guard("withdraw.view", <AdminWithdraw />)} />
+            <Route path="/admin/xendit-reconciliation" element={guard("payments.view", <XenditReconciliation />)} />
+            <Route path="/admin/refunds" element={guard("payments.refund", <Refunds />)} />
             <Route path="/admin/tickets" element={guard("support.view", <AdminTickets />)} />
             <Route path="/admin/tickets/:id" element={guard("support.view", <AdminTicketDetail />)} />
             <Route path="/admin/contracts" element={guard("contracts.view", <AdminContracts />)} />

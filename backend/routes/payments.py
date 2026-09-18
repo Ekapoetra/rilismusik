@@ -91,14 +91,19 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
             vip_expiry_ok = datetime.fromisoformat(str(label["subscription_expires_at"]).replace("Z", "+00:00")) > datetime.now(timezone.utc)
         except Exception:
             vip_expiry_ok = False
-    is_vip = label.get("payment_type") == "annual_subscription" and label.get("subscription_tier") == "annual_vip" and label.get("subscription_status") == "active" and vip_expiry_ok
+    # Free WAMI is an account-level benefit (VIP and Multi Label). Resolve via the
+    # central entitlement resolver so Multi Label is never wrongly billed.
+    from .deps import account_entitlements
+    ent = await account_entitlements(user)
+    is_vip = bool(ent.get("free_wami"))
+    benefit_source = ent.get("package") if is_vip else None
     order_id = new_id()
     amount = 0 if is_vip else await payment_price("wami_addon")
     order = {
         "id": order_id, "label_id": label["id"], "release_id": release["id"],
         "release_title": release.get("release_title"), "track_id": body.track_id,
         "track_title": track.get("track_title"), "isrc": track.get("isrc"),
-        "is_free_vip": is_vip, "amount_idr": amount,
+        "is_free_vip": is_vip, "benefit_source": benefit_source, "amount_idr": amount,
         "status": "pending" if is_vip else "unpaid", "wami_reference": None,
         "admin_note": None, "paid_at": now_iso() if is_vip else None,
         "registered_at": None, "created_at": now_iso(), "updated_at": now_iso(),
@@ -203,8 +208,7 @@ async def admin_delete_product(product_id: str, user: dict = Depends(require_adm
 async def admin_payment_action(
     payment_id: str, body: PaymentAdminActionIn, user: dict = Depends(require_admin),
 ):
-    if user["role"] not in ("super_admin", "admin_finance", "admin_support"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance, Support, atau Super Admin")
+    assert_admin_permission(user, "payments.manage")
     payment = await update_custom_service_action(payment_id, body.action)
     await log_activity(
         user["id"], f"payment_service_{body.action}", "payment", payment_id,

@@ -1,0 +1,27 @@
+{
+  "summary": "Iter88 regression for Unified Admin Roles & Permissions PRD. Backend: 10/10 pytest passed (super admin implicit full access, finance & release permission sets, granular withdraw 403 gating with PERMISSION_DENIED + permission field, session invalidation via role PATCH bumping token_version, super_admin role delete 400, in-use dynamic role delete 409, config-review baseline+complete, work queue permission-based my/team + PUT /responsibilities 410, cleanup ran successfully). Frontend: /admin/access shows Super Admin as 'Bawaan' with no delete, other roles as 'Kustom' with trash; no admin-perm-review-banner visible (baseline count 0). /admin/work Konfigurasi dialog shows SLA-only with read-only 'PJ (otomatis)' per work type, zero editable role toggle chips. Finance1 can access /admin/withdraw (page renders); no withdrawal rows in current period so approve/reject/pay buttons are absent by design (empty state).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter88_unified_rbac.py",
+    "/app/test_reports/pytest/iter88_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Delete-role trash button on AccessControl list does not carry a data-testid matching 'delete-role*' — added ad-hoc but low-priority; testable via visual trash icon and confirmed 400/409 backend guards. Consider adding data-testid=\"admin-role-delete-{roleId}\" on the trash button for reliable E2E gating.",
+    "WorkQueue page shows a separate 'Celah Penanggung Jawab' warning callout when a work-type has no role with the required permission (Persetujuan Aksi Sensitif). This is intentional and separate from the admin-perm-review-banner. Non-blocking; documentation-worthy."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter88_unified_rbac.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Used superadmin@rilismusik.com / SuperAdmin#2026, finance1@rilismusik.com / Finance#2026, release1@rilismusik.com / Release#2026 (from /app/memory/test_credentials.md). Created a temporary admin user iter88-<hex>@example.com with a temporary dynamic role for granular 403 testing; both deleted in test teardown (verified 200 on both DELETE calls).",
+  "seed_data_creation": "None persistent. All Iter88 temp fixtures cleaned in test finally block.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter88 PRD 'Unified Admin Roles & Permissions' is passing. Backend regression file /app/backend/tests/test_iter88_unified_rbac.py covers navigation, role protection, granular 403 (mark_paid/approve), session invalidation, work queue permission-based my/team + retired PUT /responsibilities, and config-review. On empty withdraw periods the finance UI shows 'Belum ada withdraw' (empty state); when a 'requested'/'approved' row exists, finance sees approve/reject/pay testids per canApprove/canPay gating (verified via component logic; not exercised due to data absence)."
+}

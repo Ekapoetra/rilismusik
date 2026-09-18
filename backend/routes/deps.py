@@ -19,7 +19,7 @@ from auth_utils import (
 from models import now_iso, new_id
 from .admin_permission_service import (
     enrich_admin_user, is_admin_identity, permission_for_request,
-    assert_admin_permission, has_permission, legacy_role_for_permission,
+    assert_admin_permission, has_permission,
 )
 
 
@@ -63,7 +63,7 @@ async def get_current_user(request: Request) -> dict:
 
 # ---------- Role-based dependencies ----------
 KYC_ALLOWED_LABEL_PREFIXES = (
-    "/api/label/me", "/api/label/dashboard", "/api/label/bank-account",
+    "/api/label/me", "/api/label/account", "/api/label/active-label", "/api/label/dashboard", "/api/label/bank-account",
     "/api/label/kyc", "/api/label/logo", "/api/label/claim", "/api/contracts/label",
     "/api/label/addon-orders",
 )
@@ -98,8 +98,6 @@ async def require_admin(request: Request, user: dict = Depends(get_current_user)
     permission = permission_for_request(request.url.path, request.method)
     if permission:
         assert_admin_permission(user, permission)
-        user["assigned_role"] = user.get("role")
-        user["role"] = legacy_role_for_permission(permission, user.get("role"))
     return user
 
 
@@ -117,11 +115,51 @@ def public_user(u: dict) -> dict:
     return u
 
 
+async def get_labels_for_user(user: dict) -> list:
+    """All labels owned by an account (Multi Label may own several)."""
+    return await db.labels.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", 1).to_list(200)
+
+
+def _account_authority(labels: list, user: dict) -> dict:
+    """The label that holds the account entitlement (Multi Label tier), else the
+    primary/first label. Used to resolve account-level benefits."""
+    from .entitlements import resolve_label_entitlements
+    if not labels:
+        return {}
+    multi = next((l for l in labels if resolve_label_entitlements(l)["multi_label"]), None)
+    if multi:
+        return multi
+    primary_id = user.get("primary_label_id")
+    return next((l for l in labels if l.get("id") == primary_id), None) or labels[0]
+
+
 async def get_label_by_user(user: dict) -> dict:
-    label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
-    if not label:
+    """Return the ACTIVE operational label for the account.
+
+    Single-label accounts behave exactly as before. Multi Label accounts resolve
+    the active label from user.active_label_id (falling back to the account
+    authority / first label). Financial aggregation is handled separately.
+    """
+    labels = await get_labels_for_user(user)
+    if not labels:
         raise HTTPException(status_code=404, detail="Label belum diset")
-    return label
+    if len(labels) == 1:
+        return labels[0]
+    active_id = user.get("active_label_id")
+    chosen = next((l for l in labels if l.get("id") == active_id), None)
+    if chosen:
+        return chosen
+    return _account_authority(labels, user)
+
+
+async def account_entitlements(user: dict) -> dict:
+    """Resolve account-level capabilities (Multi Label inherits VIP benefits)."""
+    from .entitlements import resolve_label_entitlements
+    labels = await get_labels_for_user(user)
+    authority = _account_authority(labels, user) if labels else {}
+    ent = resolve_label_entitlements(authority)
+    ent["label_count"] = len(labels)
+    return ent
 
 
 # Fields hidden from label/artist when returning label profile data.
@@ -221,7 +259,7 @@ __all__ = [
     "logger", "UPLOAD_DIR", "client", "db",
     "get_current_user", "require_label", "require_artist",
     "require_admin", "require_super_admin", "assert_admin_permission", "has_permission",
-    "public_user", "get_label_by_user", "redact_label_for_self",
+    "public_user", "get_label_by_user", "get_labels_for_user", "account_entitlements", "redact_label_for_self",
     "LABEL_HIDDEN_FIELDS",
     "log_activity",
     "notify", "notify_many", "admin_user_ids", "label_user_ids",

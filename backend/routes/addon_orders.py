@@ -94,7 +94,50 @@ async def sync_release_addon_orders(release: Dict[str, Any], payment: Dict[str, 
     return created
 
 
+async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str) -> int:
+    """Create one FREE (Rp0) addon_order per selected add-on for subscription/Multi Label
+    accounts. Idempotent per (release, product). Order still enters the processing queue."""
+    addons = release.get("selected_addons") or []
+    if not addons:
+        return 0
+    product_ids = [item.get("id") for item in addons if item.get("id")]
+    dtype_map = {}
+    if product_ids:
+        async for p in db.payment_products.find({"id": {"$in": product_ids}}, {"_id": 0, "id": 1, "delivery_type": 1}):
+            dtype_map[p["id"]] = p.get("delivery_type") or "link"
+    created = 0
+    now = now_iso()
+    for item in addons:
+        product_id = item.get("id")
+        if not product_id:
+            continue
+        dedupe = f"{release['id']}:{product_id}"
+        result = await db.addon_orders.update_one(
+            {"dedupe_key": dedupe},
+            {"$setOnInsert": {
+                "id": new_id(), "dedupe_key": dedupe,
+                "label_id": release.get("label_id"), "label_name": release.get("label_name"),
+                "release_id": release.get("id"), "release_title": release.get("release_title"),
+                "product_id": product_id,
+                "product_name": item.get("name") or "Layanan Tambahan",
+                "product_description": item.get("description") or "",
+                "delivery_type": dtype_map.get(product_id, "link"),
+                "amount": 0, "benefit_source": benefit_source,
+                "payment_id": None,
+                "source": "subscription_free",
+                "status": "pending",
+                "delivery_url": None, "delivery_note": None, "delivery_filename": None,
+                "created_at": now, "updated_at": now,
+            }},
+            upsert=True,
+        )
+        if result.upserted_id is not None:
+            created += 1
+    return created
+
+
 async def backfill_addon_orders() -> Dict[str, int]:
+    """Create missing addon_orders from already-paid release payments."""
     """Create missing addon_orders from already-paid release payments."""
     scanned = 0
     created = 0

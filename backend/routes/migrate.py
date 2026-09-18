@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from .deps import (
     db, db_bg, logger, UPLOAD_DIR,
     require_admin, require_super_admin, log_activity, notify,
+assert_admin_permission,
 )
 from models import now_iso, new_id
 from royalty_utils import normalize_label_match_name
@@ -635,8 +636,7 @@ async def list_pending_claims(user: dict = Depends(require_admin)):
 @migrate_r.post("/claims/{user_id}/link/{legacy_label_id}")
 async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: dict = Depends(require_admin)):
     """Admin links a pending-claim user to an existing unclaimed legacy label."""
-    if user.get("role") not in ("super_admin", "admin_release", "admin_support"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Release / Support yang boleh link claim")
+    assert_admin_permission(user, "migration.claims")
     u = await db.users.find_one({"id": user_id})
     if not u:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
@@ -753,8 +753,7 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
 
 @migrate_r.post("/claims/{user_id}/reject")
 async def reject_claim(user_id: str, reason: str = Form(""), user: dict = Depends(require_admin)):
-    if user.get("role") not in ("super_admin", "admin_release", "admin_support"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Release / Support")
+    assert_admin_permission(user, "migration.claims")
     u = await db.users.find_one({"id": user_id})
     if not u:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")

@@ -114,3 +114,10 @@ frontend/node_modules/.cache/default-development/13.pack
 frontend/node_modules/.cache/default-development/17.pack
 frontend/node_modules/.cache/default-development/15.pack
 frontend/node_modules/.cache/default-development/7.pack_
+
+# Lock files (per permintaan: tidak diversi-kan)
+yarn.lock
+frontend/yarn.lock
+
+# Memory log artifacts
+memory/*.log

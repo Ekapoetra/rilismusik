@@ -1,0 +1,31 @@
+{
+  "summary": "Iter94 regression on admin header revamp + KPI role visibility + money endpoint. All 5 backend tests PASS. Full frontend flow verified for Super Admin and Finance (non-super). Header cluster (Status, Notification, QuickChat, Profile, Language) works; status/profile/language dropdowns open; chat panel opens/closes via header button; old floating admin-chat-toggle is REMOVED. Super Admin sees 7 KPI cards; Finance sees exactly 5 (withdrawal + royalty hidden). Per-card period dropdowns work: Requested Withdrawal → 'Bulan ini' updates to Rp 5.000.000 as expected; Sales Revenue period switch functions (value stays Rp 0 as no payments seeded). Recent Activity panel shows only Work/Finance entries (Release/Deliver/Approve/Send PPR Invoice) - no system entries. Work Summary donut renders. Language toggle to EN switches header/sidebar/dashboard labels (Good morning, Today's Focus, My Work, Work Summary, Recent Activity, Sign out, etc.). Backend metrics: active_members=10, total_labels=11, total_artists=12, total_releases=8; withdrawal month=Rp 5.000.000.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin dashboard console (any page pre-login state)", "issues": ["3-4 harmless 401 console errors observed on initial load — likely notification/heartbeat polling firing before auth token set; not user-visible but recommend gating polls behind auth state."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter94_admin_header_kpi.py",
+    "/app/test_reports/pytest/iter94.xml"
+  ],
+  "action_items": [
+    "(Optional) Gate NotificationBell/heartbeat polling on presence of auth token to suppress the pre-auth 401s in the browser console."
+  ],
+  "critical_code_review_comments": [
+    "Testid naming inconsistency: 5 of the 7 KPI cards use 'kpi-*' testids while Total Label/Total Rilis use 'admin-dashboard-total-labels'/'admin-dashboard-total-releases' via ADMIN_DASHBOARD constant. Not a bug (documented in review request) but consider unifying to 'kpi-total-labels'/'kpi-total-releases' for consistency and easier automation.",
+    "AdminLayout.jsx contains very long single-line JSX (>500 chars) making review difficult; consider prettier reformat for readability.",
+    "Native <select> is used for KPI period dropdowns — options are not clickable via Playwright's normal .click() and require select_option(); acceptable but a shadcn Select would give better UX + testability parity with other menus."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026; finance1@rilismusik.com / Finance#2026 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None. No demo data modified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Header/KPI/money endpoint revamp fully validated. Backend money endpoint accepts kind=sales|withdrawal and period=today|week|month, returns {kind, period, value, currency, trend}. Withdrawal permission-gated but Finance also has withdraw permission per seed and returns 200. KPI card testids: kpi-sales-revenue, kpi-requested-withdrawal, kpi-royalty-income, kpi-total-artists, kpi-active-members, admin-dashboard-total-labels, admin-dashboard-total-releases. Period selects use native <select> — use page.select_option(selector, 'month|today|week').",
+  "rca of the issue": "N/A — no bugs found in this iteration's scope."
+}

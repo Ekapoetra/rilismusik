@@ -1,0 +1,35 @@
+{
+  "summary": "Phase 6 Multi Label Merge Wizard + Phase 5 public request + admin batch view + Multi Label dashboard — ALL PASS (10/10 backend, 4/4 UI flows). Backend: merge validate/commit with 3 MGQA labels aggregates Rp9.000.000 (legacy Rp9.999.999 excluded), idempotent=true on re-commit, old accounts mgqa-b/c blocked login (403 'akun digabungkan'), primary mgqa-a still logs in, validate rejects already-merged label with ok:false errors, Admin Finance (finance1) gets 403 on commit (labels.multi_label.manage). Public /multi-label/request works unauth, admin sees it, GET /admin/multi-label/requests OK. GET /withdraw/admin/batches → 200. UI: /ajukan-multi-label form → success screen; /admin/multi-label wizard 5 steps → commit → account card visible with 3 labels + Bank Central Asia + Rp9.000.000; admin-ml-batch-panel present on /admin/withdraw; /label/dashboard shows Rp5.000.000, label-global-switcher, Active Label switcher, Analytics filter. Fixtures re-seeded before and cleaned up after all tests.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/multi-label Akun Multi Label card", "issues": ["PIC field on card renders as '—' (long dash) for mlqa account and shows label.pic_name (e.g. 'Budi') for merged account rather than users.responsible_name that was set by the wizard. Cosmetic: the wizard PIC input is captured on the user doc but the card reads from label.pic_name — minor inconsistency; not blocking."]},
+      {"screen": "/label/dashboard (Multi Label)", "issues": ["Recharts logs width(-1)/height(-1) warnings on initial render (chart container sizing race). Cosmetic console warning only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter93_merge_wizard.py",
+    "/app/test_reports/pytest/iter93.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: In /admin/multi-label Accounts card, render PIC from responsible.name (user doc) rather than label.pic_name so the wizard-set PIC reflects immediately.",
+    "OPTIONAL: Fix Recharts container width/height on /label/dashboard MultiLabelBar to avoid initial -1 sizing warning."
+  ],
+  "critical_code_review_comments": [
+    "multi_label_merge.py _validate() correctly gates payout_bank_account_id ownership to selected labels, blocks re-use of a label already owned by a different multi_label account, and blocks concurrent merges via active merge doc check — solid.",
+    "commit() is atomic-ish: writes a 'committing' merge doc and marks 'completed' at the end; on exception marks 'failed'. There is no MongoDB transaction wrapping label reassignment / user status flip / bank creation — if the process dies mid-way the recovery is manual (as noted in the HTTPException detail). Acceptable trade-off for MVP but flag for future.",
+    "Idempotency only returns idempotent=true when the merge doc is completed AND all label owners match; a re-commit before the first completed doc is created will re-run. In practice fine because commit is synchronous.",
+    "auth.py correctly returns 403 with Indonesian 'akun digabungkan' text when user.status == 'merged' — validated end-to-end.",
+    "Accounts endpoint returns aggregate_balance_idr (matches spec's Rp9.000.000), but the review-request wording said 'aggregate' — no mismatch, just a naming note. The 'last_withdrawn_period' invariant per-label is NOT surfaced on the /accounts response (only on preview from /validate). If admins need to see per-label cutoffs in the Akun Multi Label tab, add it to the labels array in /admin/multi-label/accounts."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter93_merge_wizard.py"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (all UI flows verified)"},
+  "test_credentials": "Used as provided: superadmin@rilismusik.com/SuperAdmin#2026, finance1@rilismusik.com/Finance#2026, mgqa-a/b/c@example.com/MergeA|B|C#2026, multilabel-qa@example.com/MultiLabelQA#2026.",
+  "seed_data_creation": "Ran scripts.seed_merge_fixture cleanup+seed before backend tests, re-seeded once between backend and UI to give the wizard a fresh unmerged trio, then cleanup after. scripts.seed_multilabel_fixture cleanup+seed before dashboard UI test, cleanup after.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Phase 6 Merge Wizard invariants + Phase 5 public request + Admin Batch View + Multi Label dashboard are green. If retesting the merge, remember: (a) confirm=true is required on /merge/commit, (b) field is payout_bank_account_id (not bank_account_id), (c) responsible_* are flat fields (not nested pic object), (d) the fixture must be re-seeded between merge attempts because status=='merged' users cannot re-log in and labels are permanently reassigned. Both fixtures already cleaned up.",
+  "rca of the issue": "n/a — no bugs found."
+}

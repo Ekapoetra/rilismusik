@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, Pencil, ShieldCheck } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { BANK_ACCOUNT } from "@/constants/testIds";
+import { BankSelect } from "@/components/shared/BankSelect";
+import { findBank } from "@/data/indonesiaBanks";
 
-const EMPTY = { bank_name: "", account_number: "", account_holder_name: "", reason: "" };
+const EMPTY = { bank_name: "", bank_value: "", account_number: "", account_holder_name: "", reason: "" };
 const PENDING = ["pending_admin_approval", "pending_label_approval"];
 
 const BankRow = ({ label, value }) => (
@@ -35,6 +37,7 @@ export const BankAccountPanel = ({ onChanged }) => {
   const openForm = () => {
     setForm({
       bank_name: bank?.bank_name || "",
+      bank_value: bank?.bank_value || findBank(bank?.bank_name)?.value || "",
       account_number: bank?.account_number || "",
       account_holder_name: bank?.account_holder_name || "",
       reason: "",
@@ -88,7 +91,7 @@ export const BankAccountPanel = ({ onChanged }) => {
 
       {(!bank || editing) && (
         <form className="grid gap-3 md:grid-cols-2" onSubmit={submit}>
-          <Field label="Nama Bank"><input className="rm-input" value={form.bank_name} onChange={(event) => setForm({ ...form, bank_name: event.target.value })} required data-testid={BANK_ACCOUNT.bankNameInput} /></Field>
+          <Field label="Nama Bank"><BankSelect value={form.bank_value || form.bank_name} onChange={(value, label) => setForm({ ...form, bank_value: value, bank_name: label })} testid={BANK_ACCOUNT.bankNameInput} /></Field>
           <Field label="Nomor Rekening"><input className="rm-input" value={form.account_number} onChange={(event) => setForm({ ...form, account_number: event.target.value })} required data-testid={BANK_ACCOUNT.accountNumberInput} /></Field>
           <Field label="Atas Nama"><input className="rm-input" value={form.account_holder_name} onChange={(event) => setForm({ ...form, account_holder_name: event.target.value })} required data-testid={BANK_ACCOUNT.holderInput} /></Field>
           {bank && <Field label="Alasan Perubahan"><input className="rm-input" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} data-testid={BANK_ACCOUNT.reasonInput} /></Field>}

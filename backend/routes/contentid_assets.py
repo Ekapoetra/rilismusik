@@ -132,7 +132,7 @@ async def delete_staged_asset(asset_id: str, user: dict = Depends(require_label)
 async def list_documents(ticket_id: str, response: Response, user: dict = Depends(get_current_user)):
     await visible_ticket(ticket_id, user)
     response.headers.update(PRIVATE_HEADERS)
-    documents = await db.contentid_declarations.find({"ticket_id": ticket_id}, {"_id": 0, "pdf_key": 0, "label_id": 0}).sort("sequence", 1).to_list(20)
+    documents = await db.contentid_declarations.find({"ticket_id": ticket_id}, {"_id": 0, "pdf_key": 0, "indemnification_pdf_key": 0, "dmca_pdf_key": 0, "label_id": 0}).sort("sequence", 1).to_list(20)
     if documents:
         await log_activity(user["id"], "contentid_identity_access", "support", ticket_id, after={"document_count": len(documents)})
     return [ContentIdDocumentOut(**item) for item in documents]
@@ -146,6 +146,26 @@ async def download_pdf(ticket_id: str, document_id: str, user: dict = Depends(ge
         raise HTTPException(404, "Surat tidak ditemukan")
     await log_activity(user["id"], "contentid_pdf_download", "support", ticket_id, after={"document_id": document_id})
     return await binary_response(doc["pdf_key"], "application/pdf", f"Surat-Pernyataan-Hak-Cipta-{doc['sequence']}.pdf", True)
+
+
+@contentid_r.get("/tickets/{ticket_id}/{document_id}/indemnification")
+async def download_indemnification(ticket_id: str, document_id: str, user: dict = Depends(get_current_user)):
+    await visible_ticket(ticket_id, user)
+    doc = await db.contentid_declarations.find_one({"id": document_id, "ticket_id": ticket_id, "status": "ready"}, {"_id": 0})
+    if not doc or not doc.get("indemnification_pdf_key"):
+        raise HTTPException(404, "Surat tidak ditemukan")
+    await log_activity(user["id"], "contentid_indemnification_download", "support", ticket_id, after={"document_id": document_id})
+    return await binary_response(doc["indemnification_pdf_key"], "application/pdf", f"Indemnification-Letter-{doc['sequence']}.pdf", True)
+
+
+@contentid_r.get("/tickets/{ticket_id}/{document_id}/dmca")
+async def download_dmca(ticket_id: str, document_id: str, user: dict = Depends(get_current_user)):
+    await visible_ticket(ticket_id, user)
+    doc = await db.contentid_declarations.find_one({"id": document_id, "ticket_id": ticket_id, "status": "ready"}, {"_id": 0})
+    if not doc or not doc.get("dmca_pdf_key"):
+        raise HTTPException(404, "Surat tidak ditemukan")
+    await log_activity(user["id"], "contentid_dmca_download", "support", ticket_id, after={"document_id": document_id})
+    return await binary_response(doc["dmca_pdf_key"], "application/pdf", f"DMCA-Counter-Notification-{doc['sequence']}.pdf", True)
 
 
 async def cleanup_expired_contentid_assets():

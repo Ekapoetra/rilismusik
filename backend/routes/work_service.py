@@ -22,66 +22,50 @@ work_r = APIRouter(prefix="/admin/work", tags=["work"])
 # Discovered Work Types (grounded in the codebase audit). priority: critical|high|normal|low
 WORK_TYPES: List[Dict[str, Any]] = [
     {"key": "release_review", "label_id": "Proses Rilisan", "label_en": "Release Processing", "icon": "Disc3",
-     "link": "/admin/releases", "permission": "releases.review", "priority": "normal", "sla_days_default": 2},
+     "link": "/admin/releases", "permission": "releases.review", "priority": "normal", "sla_days_default": 2, "scope": "permission"},
     {"key": "release_go_live", "label_id": "Finalisasi Tayang (UPC/ISRC)", "label_en": "Finalize Go-Live", "icon": "Rocket",
-     "link": "/admin/releases?status=delivered", "permission": "releases.review", "priority": "high", "sla_days_default": 1},
+     "link": "/admin/releases?status=delivered", "permission": "releases.go_live", "priority": "high", "sla_days_default": 1, "scope": "permission"},
     {"key": "withdraw_verification", "label_id": "Verifikasi Penarikan", "label_en": "Withdrawal Verification", "icon": "Banknote",
-     "link": "/admin/withdraw", "permission": "withdraw.manage", "priority": "high", "sla_days_default": 1},
+     "link": "/admin/withdraw", "permission": "withdraw.approve", "priority": "high", "sla_days_default": 1, "scope": "permission"},
     {"key": "kyc_review", "label_id": "Review Verifikasi Akun", "label_en": "KYC Review", "icon": "ShieldCheck",
-     "link": "/admin/kyc", "permission": "kyc.view", "priority": "normal", "sla_days_default": 2},
+     "link": "/admin/kyc", "permission": "kyc.review", "priority": "normal", "sla_days_default": 2, "scope": "permission"},
     {"key": "support_ticket", "label_id": "Tiket Bantuan", "label_en": "Support Tickets", "icon": "MessageSquare",
-     "link": "/admin/tickets", "permission": "support.view", "priority": "normal", "sla_days_default": 2},
+     "link": "/admin/tickets", "permission": "support.view", "priority": "normal", "sla_days_default": 2, "scope": "permission"},
+    {"key": "believe_followup", "label_id": "Follow-up ke Believe", "label_en": "Believe Follow-up", "icon": "SendHorizontal",
+     "link": "/admin/tickets?status=submitted_to_believe", "permission": "support.view", "priority": "high", "sla_days_default": 1, "scope": "permission"},
     {"key": "legacy_claim", "label_id": "Klaim Akun Lama", "label_en": "Legacy Account Claims", "icon": "DatabaseZap",
-     "link": "/admin/migrate?tab=claims", "permission": "migration.view", "priority": "normal", "sla_days_default": 3},
+     "link": "/admin/migrate?tab=claims", "permission": "migration.claims", "priority": "normal", "sla_days_default": 3, "scope": "permission"},
     {"key": "addon_processing", "label_id": "Proses Add-on", "label_en": "Add-on Processing", "icon": "Sparkles",
-     "link": "/admin/addon-orders", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
+     "link": "/admin/addon-orders", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3, "scope": "permission"},
     {"key": "wami_registration", "label_id": "Registrasi WAMI", "label_en": "WAMI Registration", "icon": "Music",
-     "link": "/admin/wami", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3},
-    {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldCheck",
-     "link": "/admin/rate-changes", "permission": "labels.rate.approve", "priority": "high", "sla_days_default": 2},
+     "link": "/admin/wami", "permission": "addon.manage", "priority": "normal", "sla_days_default": 3, "scope": "permission"},
     {"key": "bank_verification", "label_id": "Verifikasi Rekening", "label_en": "Bank Account Verification", "icon": "Landmark",
-     "link": "/admin/bank-verifications", "permission": "labels.bank", "priority": "high", "sla_days_default": 2},
+     "link": "/admin/bank-verifications", "permission": "labels.bank.verify", "priority": "high", "sla_days_default": 2, "scope": "permission"},
+    # super_admin_only: exclusive to the Super Admin system role — never team work, never a "gap".
+    {"key": "sensitive_approval", "label_id": "Persetujuan Aksi Sensitif", "label_en": "Sensitive Approvals", "icon": "ShieldAlert",
+     "link": "/admin/rate-changes", "permission": None, "priority": "high", "sla_days_default": 2, "scope": "super_admin_only"},
 ]
 WORK_TYPE_MAP = {w["key"]: w for w in WORK_TYPES}
 
 SUPER_ADMIN_ROLE_ID = "super_admin"
 
-DEFAULT_RESPONSIBILITY = {
-    "release_review": ["admin_release"], "release_go_live": ["admin_release"], "addon_processing": ["admin_release"],
-    "wami_registration": ["admin_release"],
-    "withdraw_verification": ["super_admin"],  # Super Admin only — sensitive finance action
-    "kyc_review": ["super_admin"], "support_ticket": ["admin_support"],
-    "legacy_claim": ["admin_support"], "sensitive_approval": ["super_admin"],
-    "bank_verification": ["super_admin"],  # Super Admin only — not on the edit-label path
-}
+
+def applicable_work_types(perms) -> List[str]:
+    """Work types a dynamic role is responsible for = scope=permission types whose required
+    permission is held by the role. (super_admin_only types are never team/KPI work.)"""
+    pset = set(perms or [])
+    return [w["key"] for w in WORK_TYPES if w["scope"] == "permission" and w["permission"] in pset]
+
+
 DEFAULT_SLA_DAYS = {w["key"]: w["sla_days_default"] for w in WORK_TYPES}
 
 _MODULE_MAP = {"releases": "release", "withdraw_requests": "withdraw", "kyc_documents": "kyc",
                "support_tickets": "support", "payments": "payment", "wami_orders": "wami", "service_orders": "service",
-               "addon_orders": "addon", "bank_account_change_requests": "bank_account"}
+               "addon_orders": "addon", "bank_account_change_requests": "bank_account", "bank_accounts": "bank_account"}
 _RECON = {"at": 0.0}
 
 
 # ---------- config (stored in admin_ui_settings, lazily seeded) ----------
-async def get_responsibility() -> Dict[str, List[str]]:
-    doc = await db.admin_ui_settings.find_one({"key": "work_responsibility"}, {"_id": 0, "mapping": 1, "migrations": 1})
-    mapping = (doc or {}).get("mapping") or {}
-    migrations = list((doc or {}).get("migrations") or [])
-    changed = False
-    for k, v in DEFAULT_RESPONSIBILITY.items():
-        if k not in mapping:
-            mapping[k] = list(v)
-            changed = True
-    # One-time: withdrawal verification is a Super-Admin-only responsibility.
-    if "withdraw_super_admin_v1" not in migrations:
-        mapping["withdraw_verification"] = ["super_admin"]
-        migrations.append("withdraw_super_admin_v1")
-        changed = True
-    if not doc or changed:
-        await db.admin_ui_settings.update_one({"key": "work_responsibility"}, {"$set": {"mapping": mapping, "migrations": migrations}}, upsert=True)
-    return {k: mapping.get(k, []) for k in DEFAULT_RESPONSIBILITY}
-
-
 async def get_work_settings() -> Dict[str, Any]:
     doc = await db.admin_ui_settings.find_one({"key": "work_settings"}, {"_id": 0, "sla_days": 1})
     sla = (doc or {}).get("sla_days") or {}
@@ -123,16 +107,26 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
         async for d in db.kyc_documents.find({"status": "pending_review", "is_current": True}, {"_id": 0, "id": 1, "uploaded_at": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
             add("kyc_documents", d, "uploaded_at", "Verifikasi identitas", d.get("label_id"), d.get("label_name"))
     elif work_type == "support_ticket":
-        async for d in db.support_tickets.find({"status": {"$nin": ["done", "rejected", "cancelled"]}}, {"_id": 0, "id": 1, "created_at": 1, "subject": 1, "category": 1, "label_id": 1}):
+        # submitted_to_believe tickets are NOT active support work; they surface as a
+        # dedicated "believe_followup" task once the working-day threshold passes.
+        async for d in db.support_tickets.find({"status": {"$nin": ["done", "rejected", "cancelled", "submitted_to_believe"]}}, {"_id": 0, "id": 1, "created_at": 1, "subject": 1, "category": 1, "label_id": 1}):
             add("support_tickets", d, "created_at", d.get("subject") or d.get("category") or "Tiket", d.get("label_id"))
+    elif work_type == "believe_followup":
+        from .working_days import working_days_elapsed
+        BELIEVE_FOLLOWUP_WORKING_DAYS = 3
+        async for d in db.support_tickets.find({"status": "submitted_to_believe"}, {"_id": 0, "id": 1, "subject": 1, "category": 1, "label_id": 1, "submitted_to_believe_at": 1, "believe_last_checked_at": 1, "created_at": 1}):
+            ref_at = d.get("believe_last_checked_at") or d.get("submitted_to_believe_at") or d.get("created_at")
+            if working_days_elapsed(ref_at) >= BELIEVE_FOLLOWUP_WORKING_DAYS:
+                out.append({"source": "support_tickets", "entity_id": d["id"],
+                            "opened_at": ref_at or now_iso(),
+                            "ref": f"Cek Believe: {d.get('subject') or d.get('category') or 'Tiket'}",
+                            "label_id": d.get("label_id"), "label_name": None})
     elif work_type == "legacy_claim":
         async for d in db.users.find({"role": "label", "claim_status": "pending_link"}, {"_id": 0, "id": 1, "claim_requested_at": 1, "created_at": 1, "email": 1, "name": 1}):
             add("users", d, "claim_requested_at", d.get("email") or d.get("name") or "Klaim", None, d.get("name"))
     elif work_type == "addon_processing":
         async for d in db.addon_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "product_name": 1}):
             add("addon_orders", d, "created_at", d.get("product_name") or "Add-on", d.get("label_id"), d.get("label_name"))
-        async for d in db.service_orders.find({"status": {"$in": ["paid", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "service_name": 1}):
-            add("service_orders", d, "created_at", d.get("service_name") or "Layanan", d.get("label_id"), d.get("label_name"))
     elif work_type == "wami_registration":
         async for d in db.wami_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1}):
             add("wami_orders", d, "created_at", "Registrasi WAMI", d.get("label_id"), d.get("label_name"))
@@ -145,6 +139,11 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
         async for d in db.bank_account_change_requests.find({"status": "pending_admin_approval"}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "bank_name": 1, "account_number": 1}):
             ref = f"{d.get('bank_name') or 'Rekening'} · {d.get('account_number') or ''}".strip(" ·")
             add("bank_account_change_requests", d, "created_at", ref or "Verifikasi rekening", d.get("label_id"), d.get("label_name"))
+        # First-time bank input awaiting verification (registration/KYC path — no change request).
+        async for d in db.bank_accounts.find({"verified_status": "pending"}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "bank_name": 1, "account_number": 1}):
+            lab = await db.labels.find_one({"id": d.get("label_id")}, {"_id": 0, "label_name": 1})
+            ref = f"{d.get('bank_name') or 'Rekening'} · {d.get('account_number') or ''}".strip(" ·")
+            add("bank_accounts", d, "created_at", ref or "Verifikasi rekening awal", d.get("label_id"), (lab or {}).get("label_name"))
     return out
 
 
@@ -244,34 +243,74 @@ async def _role_names() -> Dict[str, str]:
     return names
 
 
+async def _delegated_permissions() -> set:
+    """Permissions EFFECTIVELY delegated to non-super admins: an active dynamic role holds the
+    permission AND at least one active admin user is assigned to that role. Super Admin excluded."""
+    roles = await db.admin_roles.find(
+        {"key": {"$ne": SUPER_ADMIN_ROLE_ID}, "active": {"$ne": False}},
+        {"_id": 0, "id": 1, "key": 1, "permissions": 1},
+    ).to_list(500)
+    delegated: set = set()
+    for r in roles:
+        perms = set(r.get("permissions") or [])
+        if not perms:
+            continue
+        has_active_user = await db.users.find_one(
+            {"$or": [{"admin_role_id": r["id"]}, {"admin_role_id": r.get("key")}, {"role": r.get("key")}],
+             "status": {"$nin": ["disabled", "suspended"]}},
+            {"_id": 0, "id": 1},
+        )
+        if has_active_user:
+            delegated |= perms
+    return delegated
+
+
 # ---------- endpoints ----------
 @work_r.get("/queue")
 async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
+    """Work ownership model (PRD 'Work Scope, not Responsibility'):
+      - AUTHORIZATION (has_permission) says what a user MAY do — NOT what they own.
+      - scope=super_admin_only  -> belongs to Super Admin's "My Work" only (never team).
+      - scope=permission        -> belongs to a regular admin's "My Work" iff that admin's
+        REAL stored role permissions include the work's permission; for Super Admin it is
+        team work (Team Monitor), never auto-owned via the super wildcard.
+    Invariant: My Work ∩ Team Monitor = ∅ (per user). No Responsibility / gaps concept."""
     assert_admin_permission(user, "work.view")
     await reconcile_work()
-    mapping = await get_responsibility()
     settings = await get_work_settings()
-    role_names = await _role_names()
-    user_role = user.get("admin_role_id")
-    is_super = user.get("role") == "super_admin"
+    is_super = user.get("role") == SUPER_ADMIN_ROLE_ID
     is_manage = has_permission(user, "work.manage")
+    # A regular admin's REAL permissions (Super Admin's list is a wildcard and must NOT be used
+    # to decide ownership — see PRD "SUPER ADMIN FULL ACCESS ≠ SUPER ADMIN OWNS ALL WORK").
+    real_perms = set() if is_super else set(user.get("permissions") or [])
     if scope == "team" and not (is_manage or is_super):
         raise HTTPException(status_code=403, detail="Hanya pengelola yang dapat melihat Team Monitor")
+
+    # EFFECTIVE DELEGATION: a permission is delegated only if an ACTIVE non-super dynamic role
+    # holds it AND at least one ACTIVE admin user is assigned to that role. Super Admin's implicit
+    # access is NEVER counted as delegation (see PRD "SUPER ADMIN PERMISSION BYPASS").
+    delegated_perms = await _delegated_permissions()
+
+    def is_delegated(wt: Dict[str, Any]) -> bool:
+        return wt["scope"] == "permission" and wt["permission"] in delegated_perms
+
+    def show_for(wt: Dict[str, Any]) -> bool:
+        if scope == "my":
+            if is_super:
+                # Super Admin = fallback owner: permanent super_admin_only work + delegatable
+                # work that has NOT been effectively delegated to a regular admin.
+                return wt["scope"] == "super_admin_only" or (wt["scope"] == "permission" and not is_delegated(wt))
+            # Regular admin owns delegatable work their active role is permitted for.
+            return wt["scope"] == "permission" and wt["permission"] in real_perms
+        # Team Monitor = work that IS effectively delegated (and, for a regular manager, not
+        # personally owned so My ∩ Team = ∅). Super Admin sees all delegated work here.
+        return is_delegated(wt) and (is_super or wt["permission"] not in real_perms)
+
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
     items = []
     for wt in WORK_TYPES:
         key = wt["key"]
-        roles = mapping.get(key, [])
-        is_gap = len(roles) == 0
-        responsible = user_role in roles
-        if scope == "my":
-            show = (responsible or is_gap) if is_super else responsible
-        else:
-            # Team Monitor is for work owned by the team (non-Super-Admin roles).
-            # Work assigned exclusively to Super Admin belongs in "Pekerjaan Saya" only.
-            non_super = [r for r in roles if r != SUPER_ADMIN_ROLE_ID]
-            show = bool(non_super) or is_gap
-        if not show:
+        if not show_for(wt):
             continue
         opens = await db.work_items.find({"work_type": key, "status": "open"}, {"_id": 0, "opened_at": 1}).to_list(20000)
         sla = int(settings["sla_days"].get(key, wt["sla_days_default"]))
@@ -280,14 +319,13 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
         items.append({
             "work_type": key, "label_id": wt["label_id"], "label_en": wt["label_en"], "icon": wt["icon"],
             "link": wt["link"], "permission": wt["permission"], "priority": wt["priority"],
-            "open_count": len(opens), "overdue_count": overdue, "oldest_open_at": oldest,
-            "oldest_age_days": _age_days(oldest) if oldest else 0, "sla_days": sla,
-            "is_gap": is_gap, "responsible_roles": [role_names.get(r, r) for r in roles],
-            "can_act": has_permission(user, wt["permission"]),
+            "scope": wt["scope"], "delegated": is_delegated(wt), "open_count": len(opens),
+            "overdue_count": overdue, "oldest_open_at": oldest,
+            "oldest_age_days": _age_days(oldest) if oldest else 0,
+            "sla_days": sla, "can_act": True if is_super else (wt["scope"] == "permission" and wt["permission"] in real_perms),
         })
     items.sort(key=lambda d: (0 if d["overdue_count"] else 1, rank.get(d["priority"], 9), d.get("oldest_open_at") or "9999"))
-    gaps = [i for i in items if i["is_gap"]] if (is_super or is_manage) else []
-    return {"scope": scope, "items": items, "gaps": gaps, "is_manager": bool(is_manage or is_super)}
+    return {"scope": scope, "items": items, "is_manager": bool(is_manage or is_super)}
 
 
 @work_r.get("/history")
@@ -305,38 +343,17 @@ async def work_history(work_type: Optional[str] = None, limit: int = 100, user: 
     return {"items": rows}
 
 
-@work_r.get("/responsibilities")
-async def get_responsibilities(user: dict = Depends(require_admin)):
+@work_r.get("/settings")
+async def get_work_config(user: dict = Depends(require_admin)):
+    """SLA configuration per work type (Responsibility config has been removed entirely —
+    work ownership follows role permissions / super_admin_only scope)."""
     assert_admin_permission(user, "work.view")
-    mapping = await get_responsibility()
     settings = await get_work_settings()
-    role_names = await _role_names()
-    roles = [{"id": rid, "name": name} for rid, name in role_names.items()]
-    types = [{"key": w["key"], "label_id": w["label_id"], "label_en": w["label_en"], "permission": w["permission"],
-              "priority": w["priority"], "sla_days": int(settings["sla_days"].get(w["key"], w["sla_days_default"])),
-              "responsible_role_ids": mapping.get(w["key"], []), "is_gap": len(mapping.get(w["key"], [])) == 0}
+    types = [{"key": w["key"], "label_id": w["label_id"], "label_en": w["label_en"],
+              "permission": w["permission"], "scope": w["scope"], "priority": w["priority"],
+              "sla_days": int(settings["sla_days"].get(w["key"], w["sla_days_default"]))}
              for w in WORK_TYPES]
-    return {"work_types": types, "roles": roles}
-
-
-class ResponsibilityUpdateIn(BaseModel):
-    work_type: str
-    role_ids: List[str] = Field(default_factory=list, max_length=50)
-
-
-@work_r.put("/responsibilities")
-async def update_responsibility(body: ResponsibilityUpdateIn, user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "work.manage")
-    if body.work_type not in WORK_TYPE_MAP:
-        raise HTTPException(status_code=404, detail="Work Type tidak ditemukan")
-    valid_role_ids = set(await db.admin_roles.distinct("id"))
-    role_ids = [r for r in dict.fromkeys(body.role_ids) if r in valid_role_ids]
-    mapping = await get_responsibility()
-    before = mapping.get(body.work_type, [])
-    mapping[body.work_type] = role_ids
-    await db.admin_ui_settings.update_one({"key": "work_responsibility"}, {"$set": {"mapping": mapping}}, upsert=True)
-    await log_activity(user["id"], "work_responsibility_update", "work", body.work_type, before={"role_ids": before}, after={"role_ids": role_ids})
-    return {"work_type": body.work_type, "role_ids": role_ids}
+    return {"work_types": types}
 
 
 class SlaUpdateIn(BaseModel):

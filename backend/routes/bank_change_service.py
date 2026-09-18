@@ -13,6 +13,7 @@ PENDING_BANK_CHANGE_STATUSES = {"pending_admin_approval", "pending_label_approva
 def _bank_values(payload: Dict[str, Any]) -> Dict[str, str]:
     return {
         "bank_name": str(payload.get("bank_name") or "").strip(),
+        "bank_value": (str(payload.get("bank_value")).strip() if payload.get("bank_value") else None),
         "account_number": str(payload.get("account_number") or "").strip(),
         "account_holder_name": str(payload.get("account_holder_name") or "").strip(),
     }

@@ -1,0 +1,22 @@
+{
+  "summary": "Iter91 — Work Dashboard PRD (My Work vs Team Monitor split; Responsibility Gap fully removed). Backend pytest 9/9 green (/app/backend/tests/test_iter91_work_scope.py): (1) GET /api/admin/work/queue?scope=my as Super Admin returns items ALL scope=='super_admin_only' (sensitive_approval only) with NO 'gaps' key; (2) scope=team returns items ALL scope=='permission' and no sensitive_approval; (3) My/Team disjoint for Super Admin; (4) /admin/work/settings returns work_types with sla_days+scope and NO responsible_role_ids; (5) /admin/work/responsibilities GET => 404, PUT => 404/405; (6) release1 My Work includes release_review + release_go_live, NOT withdraw/sensitive; (7) finance1 My Work includes withdraw_verification, NOT release_review/sensitive; (8) /admin/performance/overview 200 with rows for Super Admin. Frontend UI verified across three logins: Super Admin dashboard has zero admin-responsibility-gap / -cta, todays-focus shows 'Semuanya terkendali.' (no gap row), My Work section only exposes super_admin_only work (currently 0 open so shows empty state), Team Monitor shows operational team work (Tiket Bantuan/Proses Add-on). /admin/work as Super Admin: no work-gap-alert, Konfigurasi dialog is SLA-only per work type with 'Khusus Super Admin' badge for sensitive_approval and no role toggle chips. release1 /admin/work shows Proses Rilisan and NOT Verifikasi Penarikan; finance1 /admin/work shows Verifikasi Penarikan and NOT Proses Rilisan. No JS errors on any inspected page (401s in console are pre-login /auth/me polls — expected).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter91_work_scope.py",
+    "/app/test_reports/pytest/iter91_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "work_service.py applicable_work_types() cleanly restricts to scope=='permission'; Super Admin correctly excluded from ownership via wildcard (real_perms empty for super). Good invariant guard.",
+    "work_queue team branch computes 'not mine' from real_perms — for a delegated admin with work.manage permission but no operational perms, everything shows up as team work, which matches PRD intent.",
+    "/admin/work/settings returns 'permission' key that may be None for sensitive_approval; frontend already conditions on scope==super_admin_only to show badge — no null-deref risk observed."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter91_work_scope.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com/SuperAdmin#2026, release1@rilismusik.com/Release#2026, finance1@rilismusik.com/Finance#2026 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None. No mutations performed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Work scope model verified: WORK_TYPES carry `scope` (permission|super_admin_only); only sensitive_approval is super_admin_only today. My Work∩Team Monitor=∅. Responsibility endpoints/UI fully deleted (404 backend, no data-testid work-gap-alert/admin-responsibility-gap/admin-responsibility-gap-cta on frontend). Regression file /app/backend/tests/test_iter91_work_scope.py can be reused. Note login response uses `access_token`."
+}

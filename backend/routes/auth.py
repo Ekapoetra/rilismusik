@@ -307,6 +307,8 @@ async def login(body: LoginIn, response: Response, request: Request):
             await db.login_attempts.update_one({"identifier": k}, {"$set": update}, upsert=True)
         raise HTTPException(status_code=401, detail="Email atau password salah")
 
+    if user.get("status") == "merged":
+        raise HTTPException(status_code=403, detail="Akun ini telah digabungkan ke akun Multi Label. Silakan masuk menggunakan akun utama.")
     if user.get("status") in {"suspended", "disabled"}:
         raise HTTPException(status_code=403, detail="Akun tidak aktif")
 

@@ -12,7 +12,7 @@ import storage_service
 from models import new_id, now_iso
 from royalty_utils import detect_columns, iter_csv_file
 from .balance_utils import compute_label_balance_snapshot
-from .deps import UPLOAD_DIR, db, db_bg, log_activity, logger, require_admin
+from .deps import UPLOAD_DIR, db, db_bg, log_activity, logger, require_admin, assert_admin_permission
 from .royalty import _process_csv_import_bg, _trigger_dashboard_recompute
 
 
@@ -34,8 +34,7 @@ class ReplacementCommitIn(BaseModel):
 
 
 def _require_finance(user: dict) -> None:
-    if user.get("role") not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Admin Finance / Super Admin")
+    assert_admin_permission(user, "royalty.manage")
 
 
 def _require_super_admin(user: dict) -> None:

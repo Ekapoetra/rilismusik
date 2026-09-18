@@ -77,9 +77,9 @@ export default function PerformanceConfig() {
         <p className="mb-3 text-xs text-zinc-500">{t("Bobot mewakili kompleksitas operasional relatif untuk pengukuran, bukan penilaian keahlian staf.")}</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {workTypes.map((w) => (
-            <label key={w.key} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm">
-              <span className="truncate">{locale === "en" ? w.label_en : w.label_id}</span>
-              <input type="number" step="0.5" min="0" value={cfg.weights[w.key] ?? 1} onChange={(e) => setCfg({ ...cfg, weights: { ...cfg.weights, [w.key]: Number(e.target.value) } })} className="rm-input w-20 py-1 text-right" data-testid={`perf-weight-${w.key}`} />
+            <label key={w.key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 leading-snug">{locale === "en" ? w.label_en : w.label_id}</span>
+              <input type="number" step="0.5" min="0" value={cfg.weights[w.key] ?? 1} onChange={(e) => setCfg({ ...cfg, weights: { ...cfg.weights, [w.key]: Number(e.target.value) } })} className="rm-input w-14 shrink-0 py-1 text-center" data-testid={`perf-weight-${w.key}`} />
             </label>
           ))}
         </div>
@@ -138,9 +138,9 @@ export default function PerformanceConfig() {
             <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500">{t("Bobot Komponen Skor")}</div>
             <div className="grid gap-3 sm:grid-cols-4">
               {["achievement", "timeliness", "complexity", "quality"].map((k) => (
-                <label key={k} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2">
-                  <span className="capitalize">{t({ achievement: "Pencapaian", timeliness: "Ketepatan", complexity: "Kompleksitas", quality: "Kualitas" }[k])}</span>
-                  <input type="number" step="0.1" min="0" max="1" value={cfg.scoring.component_weights[k] ?? 0} onChange={(e) => setCfg({ ...cfg, scoring: { ...cfg.scoring, component_weights: { ...cfg.scoring.component_weights, [k]: Number(e.target.value) } } })} className="rm-input w-16 py-1 text-right" data-testid={`perf-cw-${k}`} />
+                <label key={k} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 px-3 py-2">
+                  <span className="min-w-0 flex-1 capitalize leading-snug">{t({ achievement: "Pencapaian", timeliness: "Ketepatan", complexity: "Kompleksitas", quality: "Kualitas" }[k])}</span>
+                  <input type="number" step="0.1" min="0" max="1" value={cfg.scoring.component_weights[k] ?? 0} onChange={(e) => setCfg({ ...cfg, scoring: { ...cfg.scoring, component_weights: { ...cfg.scoring.component_weights, [k]: Number(e.target.value) } } })} className="rm-input w-16 shrink-0 py-1 text-center" data-testid={`perf-cw-${k}`} />
                 </label>
               ))}
             </div>

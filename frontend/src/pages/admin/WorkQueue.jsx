@@ -13,7 +13,7 @@ const iconFor = (name) => Icons[name] || Icons.Circle;
 function WorkCard({ item, onOpen }) {
   const Ico = iconFor(item.icon);
   return (
-    <button type="button" onClick={() => onOpen(item)} className={`group flex flex-col rounded-lg border p-5 text-left transition-all hover:-translate-y-0.5 ${item.is_gap ? "border-amber-400/40 bg-amber-500/[0.05]" : item.overdue_count ? "border-red-400/30 bg-red-500/[0.04]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]"}`} data-testid={`work-card-${item.work_type}`}>
+    <button type="button" onClick={() => onOpen(item)} className={`group flex flex-col rounded-lg border p-5 text-left transition-all hover:-translate-y-0.5 ${item.overdue_count ? "border-red-400/30 bg-red-500/[0.04]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]"}`} data-testid={`work-card-${item.work_type}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-md bg-white/5"><Ico className="h-4 w-4 text-pink-300" /></span><span className={`rm-badge text-[10px] ${PRIORITY[item.priority] || PRIORITY.normal}`}>{item.priority}</span></div>
         <span className="font-display text-3xl font-extrabold tabular-nums" data-testid={`work-count-${item.work_type}`}>{item.open_count}</span>
@@ -24,11 +24,7 @@ function WorkCard({ item, onOpen }) {
         {item.oldest_age_days > 0 && <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />tertua {item.oldest_age_days} hari</span>}
         <span>SLA {item.sla_days}h</span>
       </div>
-      {item.is_gap ? (
-        <div className="mt-3 text-xs font-bold text-amber-300">Belum ada penanggung jawab</div>
-      ) : (
-        <div className="mt-3 text-[11px] text-zinc-500">PJ: {item.responsible_roles.join(", ") || "—"}</div>
-      )}
+      {item.scope === "super_admin_only" && <div className="mt-3 inline-flex items-center gap-1 rounded bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-300">Khusus Super Admin</div>}
       <div className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-pink-300 opacity-0 transition-opacity group-hover:opacity-100">Buka modul <ArrowRight className="h-4 w-4" /></div>
     </button>
   );
@@ -36,14 +32,8 @@ function WorkCard({ item, onOpen }) {
 
 function ConfigDialog({ open, onClose, onSaved }) {
   const [data, setData] = useState(null);
-  const load = useCallback(async () => { const { data } = await api.get("/admin/work/responsibilities"); setData(data); }, []);
+  const load = useCallback(async () => { const { data } = await api.get("/admin/work/settings"); setData(data); }, []);
   useEffect(() => { if (open) load(); }, [open, load]);
-  const toggleRole = async (wt, roleId, checked) => {
-    const cur = wt.responsible_role_ids || [];
-    const next = checked ? [...cur, roleId] : cur.filter((r) => r !== roleId);
-    try { await api.put("/admin/work/responsibilities", { work_type: wt.key, role_ids: next }); await load(); onSaved && onSaved(); }
-    catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
-  };
   const saveSla = async (wt, days) => {
     try { await api.put("/admin/work/settings/sla", { work_type: wt.key, sla_days: Number(days) }); toast.success("SLA disimpan."); onSaved && onSaved(); }
     catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
@@ -51,19 +41,17 @@ function ConfigDialog({ open, onClose, onSaved }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="ui-menu max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-lg" data-testid="work-config-dialog">
-        <DialogHeader><DialogTitle>Konfigurasi Tanggung Jawab & SLA</DialogTitle><DialogDescription>Atur role penanggung jawab dan ambang SLA (hari) per jenis pekerjaan.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Konfigurasi SLA</DialogTitle><DialogDescription>Ambang SLA (hari) per jenis pekerjaan. Kepemilikan pekerjaan otomatis mengikuti izin role (atau khusus Super Admin) — atur izin di menu Role &amp; Permission.</DialogDescription></DialogHeader>
         {!data ? <p className="text-sm text-zinc-500">Memuat…</p> : (
           <div className="space-y-4">
             {data.work_types.map((wt) => (
               <div key={wt.key} className="rounded-md border border-white/10 p-3" data-testid={`work-config-${wt.key}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="text-sm">{wt.label_id}{wt.is_gap && <span className="ml-2 rm-badge bg-amber-500/15 text-amber-300 text-[10px]">Gap</span>}</strong>
+                  <strong className="text-sm">{wt.label_id}{wt.scope === "super_admin_only" && <span className="ml-2 rm-badge bg-violet-500/15 text-violet-300 text-[10px]">Khusus Super Admin</span>}</strong>
                   <label className="flex items-center gap-2 text-xs text-zinc-400">SLA (hari)<input type="number" min="0" max="90" defaultValue={wt.sla_days} className="rm-input w-20 py-1" onBlur={(e) => saveSla(wt, e.target.value)} data-testid={`work-sla-${wt.key}`} /></label>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {data.roles.map((r) => { const on = (wt.responsible_role_ids || []).includes(r.id); return (
-                    <button key={r.id} type="button" onClick={() => toggleRole(wt, r.id, !on)} className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-zinc-500 hover:text-white"}`} data-testid={`work-role-${wt.key}-${r.id}`}>{r.name}</button>
-                  ); })}
+                <div className="mt-2 text-[11px] text-zinc-500" data-testid={`work-config-roles-${wt.key}`}>
+                  {wt.scope === "super_admin_only" ? "Pekerjaan eksklusif Super Admin — tidak perlu izin role." : <>Izin: <span className="font-mono text-zinc-400">{wt.permission}</span> — otomatis muncul di Pekerjaan Saya role yang memiliki izin ini.</>}
                 </div>
               </div>
             ))}
@@ -120,14 +108,8 @@ export default function WorkQueue() {
 
       {view === "queue" && data && (
         <>
-          {data.gaps?.length > 0 && (
-            <div className="rounded-lg border border-amber-400/40 bg-amber-500/[0.06] p-4" data-testid="work-gap-alert">
-              <div className="flex items-center gap-2 font-bold text-amber-300"><AlertTriangle className="h-4 w-4" /> Responsibility Gap</div>
-              <p className="mt-1 text-sm text-amber-200/80">{data.gaps.length} jenis pekerjaan belum memiliki role penanggung jawab: {data.gaps.map((g) => g.label_id).join(", ")}.{canManage && " Buka Konfigurasi untuk menetapkan."}</p>
-            </div>
-          )}
           {data.items.length === 0 ? (
-            <div className="rounded-md border border-white/10 py-16 text-center text-sm text-zinc-500" data-testid="work-empty">Tidak ada pekerjaan untuk tanggung jawab Anda.</div>
+            <div className="rounded-md border border-white/10 py-16 text-center text-sm text-zinc-500" data-testid="work-empty">Tidak ada pekerjaan untuk Anda saat ini.</div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="work-grid">
               {data.items.map((item) => <WorkCard key={item.work_type} item={item} onOpen={openItem} />)}

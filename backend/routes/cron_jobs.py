@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from .deps import db, db_bg, logger, require_admin, notify, label_user_ids
+from .deps import db, db_bg, logger, require_admin, notify, notify_many, label_user_ids, assert_admin_permission
 from models import now_iso
 from email_service import send_contract_expiry_email, send_subscription_expiry_email, send_payment_reminder_email
 from payment_service import poll_payment, xendit_configured
@@ -297,6 +297,43 @@ async def reconcile_pending_xendit_payments():
             )
 
 
+async def believe_followup_reminder_job():
+    """Daily: alert support admins about tickets submitted to Believe that have passed
+    the 3-working-day follow-up threshold and haven't been re-checked yet. Fires once per
+    cycle (reset when the ticket is re-checked or its status changes)."""
+    from .working_days import working_days_elapsed
+    THRESHOLD = 3
+    # Support permission holders: super_admin + active dynamic roles carrying support.view.
+    roles = await db.admin_roles.find({"permissions": {"$in": ["support.view", "support.manage"]}}, {"_id": 0, "id": 1, "key": 1}).to_list(200)
+    role_keys = [r.get("key") for r in roles if r.get("key")] + [r.get("id") for r in roles if r.get("id")]
+    recipients = await db.users.find(
+        {"$and": [
+            {"$or": [{"role": "super_admin"}, {"role": {"$in": role_keys}}, {"admin_role_id": {"$in": role_keys}}]},
+            {"status": {"$nin": ["disabled", "suspended"]}},
+        ]}, {"_id": 0, "id": 1},
+    ).to_list(500)
+    recipient_ids = list({u["id"] for u in recipients})
+    if not recipient_ids:
+        return
+    async for t in db.support_tickets.find({"status": "submitted_to_believe"}, {"_id": 0, "id": 1, "subject": 1, "category": 1, "submitted_to_believe_at": 1, "believe_last_checked_at": 1, "believe_followup_notified_at": 1, "created_at": 1}):
+        ref_at = t.get("believe_last_checked_at") or t.get("submitted_to_believe_at") or t.get("created_at")
+        if working_days_elapsed(ref_at) < THRESHOLD:
+            continue
+        # Already notified for the current cycle (notified after the last recheck)?
+        notified = t.get("believe_followup_notified_at")
+        if notified and (not ref_at or notified >= ref_at):
+            continue
+        await db.support_tickets.update_one({"id": t["id"]}, {"$set": {"believe_followup_notified_at": now_iso()}})
+        await notify_many(
+            recipient_ids, "believe_followup",
+            "Follow-up ke Believe diperlukan",
+            f"Tiket '{t.get('subject') or t.get('category') or 'Content ID'}' sudah >3 hari kerja disubmit ke Believe. Cek apakah sudah diproses, lalu tandai Selesai.",
+            f"/admin/tickets/{t['id']}", {"ticket_id": t["id"]},
+        )
+
+
+@cron_r.post("/payment-reminders-check")
+
 @cron_r.post("/payment-reminders-check")
 async def trigger_payment_reminders_check(user: dict = Depends(require_admin)):
     """Manually run the unpaid-invoice reminder sweep."""
@@ -304,19 +341,25 @@ async def trigger_payment_reminders_check(user: dict = Depends(require_admin)):
     return {"ok": True, "job": "payment_reminders"}
 
 
+@cron_r.post("/believe-followup-check")
+async def trigger_believe_followup_check(user: dict = Depends(require_admin)):
+    """Manually run the Believe follow-up reminder sweep."""
+    assert_admin_permission(user, "support.view")
+    await believe_followup_reminder_job()
+    return {"ok": True, "job": "believe_followup_reminder"}
+
+
 
 @cron_r.post("/subscription-check")
 async def trigger_subscription_check(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     await check_subscription_expiry_job()
     return {"ok": True, "job": "subscription_expiry"}
 
 
 @cron_r.post("/contract-check")
 async def trigger_contract_check(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Release")
+    assert_admin_permission(user, "automation.manage")
     await check_contract_expiry_job()
     return {"ok": True, "job": "contract_expiry_reminder"}
 
@@ -326,38 +369,33 @@ async def trigger_stuck_imports_check(user: dict = Depends(require_admin)):
     """Manually trigger the stuck-royalty-import watchdog. Useful when an admin
     notices an import sitting at 99% and doesn't want to wait for the next
     15-min tick."""
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     await watchdog_stuck_royalty_imports()
     return {"ok": True, "job": "watchdog_stuck_royalty_imports"}
 
 
 @cron_r.post("/stuck-recalculations-check")
 async def trigger_stuck_recalculations_check(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     return {"ok": True, **(await watchdog_stuck_recalculation_jobs())}
 
 
 @cron_r.post("/xendit-payments-check")
 async def trigger_xendit_payments_check(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     await reconcile_pending_xendit_payments()
     return {"ok": True, "job": "xendit_payment_polling"}
 
 
 @cron_r.post("/monthly-royalty-summary")
 async def trigger_monthly_royalty_summary(period: str | None = None, user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     return await send_monthly_summaries(period)
 
 
 @cron_r.get("/monthly-royalty-summary/status")
 async def monthly_royalty_summary_status(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_finance"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Finance")
+    assert_admin_permission(user, "automation.manage")
     return await db.monthly_email_deliveries.find({}, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
 
 
@@ -376,17 +414,14 @@ async def detect_releases_due_live_job():
         due = await db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}})
         # Force a Work Queue reconciliation so the task surfaces immediately.
         try:
-            from .work_service import reconcile_work, get_responsibility
+            from .work_service import reconcile_work
             await reconcile_work(force=True)
         except Exception as exc:
             logger.warning("release-live reconcile failed: %s", exc)
-            get_responsibility = None
         if not due:
             return {"due": 0, "notified": 0}
-        role_ids = []
-        if get_responsibility:
-            mapping = await get_responsibility()
-            role_ids = mapping.get("release_go_live", [])
+        # Recipients = admins whose role holds releases.go_live (permission = responsibility).
+        role_ids = await db.admin_roles.distinct("id", {"key": {"$ne": "super_admin"}, "active": {"$ne": False}, "permissions": "releases.go_live"})
         recipients = await db.users.find(
             {"$or": [{"role": "super_admin"}, {"admin_role_id": {"$in": role_ids}}]},
             {"_id": 0, "id": 1},
@@ -412,8 +447,7 @@ async def detect_releases_due_live_job():
 
 @cron_r.post("/release-live-check")
 async def trigger_release_live_check(user: dict = Depends(require_admin)):
-    if user["role"] not in ("super_admin", "admin_release"):
-        raise HTTPException(status_code=403, detail="Hanya Super Admin / Admin Release")
+    assert_admin_permission(user, "automation.manage")
     return {"ok": True, **(await detect_releases_due_live_job())}
 
 
@@ -477,6 +511,12 @@ def start_scheduler():
     scheduler.add_job(
         finalize_yesterday_attendance, "cron", hour=17, minute=30,
         id="attendance_finalize_daily", replace_existing=True,
+    )
+    # Believe follow-up reminders — daily at 02:00 UTC (~09:00 WIB).
+    scheduler.add_job(
+        believe_followup_reminder_job, "cron", hour=2, minute=0,
+        id="believe_followup_reminder", replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=120),
     )
     scheduler.start()
 

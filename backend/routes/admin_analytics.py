@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .deps import db, db_bg, logger, require_admin, require_super_admin, SUPER_ADMIN
+from .analytics_eligibility import analytics_eligible_filter, ANALYTICS_MATCH_STATUSES, ANALYTICS_LINE_STATUSES
+from .admin_permission_service import assert_admin_permission
 from models import new_id, now_iso
 
 analytics_r = APIRouter(prefix="/admin/analytics", tags=["admin-analytics"])
@@ -58,9 +60,9 @@ async def _stream_dim_aggregate(*, dim: str) -> AsyncIterator[Dict[str, Any]]:
     For all other dims, the group key is `(period, <dim_field>)` and the doc
     includes the dimension key + human-readable label.
 
-    Includes filtering: only `match_status in ['matched','manually_matched']`
-    lines are counted toward `revenue_eur`/`label_idr` since unmatched rows
-    have unreliable label/artist FK and would otherwise pollute the totals.
+    Only canonical analytics-eligible lines are counted (matched/manually_matched,
+    published-onward status, non-staged) — identical to the live path so the
+    cache can never diverge from a filtered aggregate.
     """
     dim_field_map = {
         "platform": "$platform",
@@ -71,7 +73,7 @@ async def _stream_dim_aggregate(*, dim: str) -> AsyncIterator[Dict[str, Any]]:
         "release": "$release_id",
     }
 
-    match_stage = {"$match": {"period": {"$ne": None, "$exists": True}}}
+    match_stage = {"$match": analytics_eligible_filter()}
     if dim == "total":
         group_id = {"period": "$period"}
     else:
@@ -453,7 +455,7 @@ async def admin_monthly_analytics(
 
     # ---- Slow path (live aggregate) — only when a filter is supplied ----
     if has_runtime_filter:
-        line_match: Dict[str, Any] = {"match_status": {"$in": ["matched", "manually_matched"]}}
+        line_match: Dict[str, Any] = analytics_eligible_filter()
         if period_filter:
             line_match["period"] = period_filter
         if label_id:
@@ -681,3 +683,165 @@ async def admin_analytics_periods(user: dict = Depends(require_admin)):
     except Exception:
         pass
     return {"periods": periods, "min": periods[0] if periods else None, "max": periods[-1] if periods else None}
+
+
+
+@analytics_r.get("/audit")
+async def admin_analytics_audit(
+    user: dict = Depends(require_admin),
+    period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+    period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
+    dup_limit: int = Query(50, ge=1, le=200),
+):
+    """READ-ONLY reconciliation & duplicate audit.
+
+    Per reporting month it compares: raw (no eligibility) vs canonical-eligible
+    vs the `monthly_analytics` cache, lists contributing imports, flags periods
+    fed by >1 import (overlap), and reports identical business-rows appearing in
+    DIFFERENT imports (duplicate suspects). NEVER mutates data.
+    """
+    assert_admin_permission(user, "analytics.manage")
+    prange: Dict[str, Any] = {}
+    if period_from:
+        prange["$gte"] = period_from
+    if period_to:
+        prange["$lte"] = period_to
+    period_match = {"period": prange} if prange else {"period": {"$ne": None, "$exists": True}}
+    eligible_match = analytics_eligible_filter(dict(period_match) if prange else None)
+
+    # 1) raw (all lines, no eligibility) per period
+    raw_by_period: Dict[str, Dict[str, Any]] = {}
+    async for r in db_bg.royalty_lines.aggregate([
+        {"$match": period_match},
+        {"$group": {"_id": "$period", "idr": {"$sum": "$label_idr"}, "lines": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        if isinstance(r["_id"], str):
+            raw_by_period[r["_id"]] = {"raw_idr": int(r.get("idr") or 0), "raw_lines": int(r.get("lines") or 0)}
+
+    # 2) canonical-eligible per period
+    elig_by_period: Dict[str, Dict[str, Any]] = {}
+    async for r in db_bg.royalty_lines.aggregate([
+        {"$match": eligible_match},
+        {"$group": {"_id": "$period", "idr": {"$sum": "$label_idr"}, "eur": {"$sum": "$revenue_eur"}, "lines": {"$sum": 1}}},
+    ], allowDiskUse=True):
+        if isinstance(r["_id"], str):
+            elig_by_period[r["_id"]] = {"eligible_idr": int(r.get("idr") or 0), "eligible_eur": round(r.get("eur") or 0, 2), "eligible_lines": int(r.get("lines") or 0)}
+
+    # 3) cache (monthly_analytics dim=total) per period
+    cache_by_period: Dict[str, Dict[str, Any]] = {}
+    cache_match = {"dim": "total"}
+    if prange:
+        cache_match["period"] = prange
+    async for r in db_bg.monthly_analytics.aggregate([
+        {"$match": cache_match},
+        {"$group": {"_id": "$period", "idr": {"$sum": "$revenue_idr"}, "lines": {"$sum": "$lines_count"}}},
+    ]):
+        if isinstance(r["_id"], str):
+            cache_by_period[r["_id"]] = {"cache_idr": int(r.get("idr") or 0), "cache_lines": int(r.get("lines") or 0)}
+
+    # 4) imports contributing per period (all lines + eligible subset)
+    imports_by_period: Dict[str, List[Dict[str, Any]]] = {}
+    import_ids: set = set()
+    async for r in db_bg.royalty_lines.aggregate([
+        {"$match": period_match},
+        {"$group": {
+            "_id": {"period": "$period", "import_id": "$import_id"},
+            "lines": {"$sum": 1},
+            "eligible_lines": {"$sum": {"$cond": [{"$and": [
+                {"$in": ["$match_status", ANALYTICS_MATCH_STATUSES]},
+                {"$in": ["$status", ANALYTICS_LINE_STATUSES]},
+                {"$ne": ["$replacement_stage", True]},
+            ]}, 1, 0]}},
+            "eligible_idr": {"$sum": {"$cond": [{"$and": [
+                {"$in": ["$match_status", ANALYTICS_MATCH_STATUSES]},
+                {"$in": ["$status", ANALYTICS_LINE_STATUSES]},
+                {"$ne": ["$replacement_stage", True]},
+            ]}, "$label_idr", 0]}},
+        }},
+    ], allowDiskUse=True):
+        period = r["_id"].get("period")
+        imp = r["_id"].get("import_id")
+        if not isinstance(period, str):
+            continue
+        import_ids.add(imp)
+        imports_by_period.setdefault(period, []).append({
+            "import_id": imp, "lines": int(r.get("lines") or 0),
+            "eligible_lines": int(r.get("eligible_lines") or 0),
+            "eligible_idr": int(r.get("eligible_idr") or 0),
+        })
+
+    # hydrate import filename + status
+    imp_meta: Dict[str, Dict[str, Any]] = {}
+    if import_ids:
+        async for d in db_bg.royalty_imports.find({"id": {"$in": list(import_ids)}}, {"_id": 0, "id": 1, "filename": 1, "status": 1}):
+            imp_meta[d["id"]] = {"filename": d.get("filename"), "import_status": d.get("status")}
+
+    # assemble per-period rows
+    all_periods = sorted(set(raw_by_period) | set(elig_by_period) | set(cache_by_period))
+    periods_out: List[Dict[str, Any]] = []
+    overlaps: List[Dict[str, Any]] = []
+    for p in all_periods:
+        raw = raw_by_period.get(p, {})
+        elig = elig_by_period.get(p, {})
+        cache = cache_by_period.get(p, {})
+        imps = imports_by_period.get(p, [])
+        for it in imps:
+            it.update(imp_meta.get(it["import_id"], {"filename": None, "import_status": None}))
+        imps.sort(key=lambda x: x["eligible_idr"], reverse=True)
+        eligible_idr = elig.get("eligible_idr", 0)
+        cache_idr = cache.get("cache_idr", 0)
+        periods_out.append({
+            "period": p,
+            "raw_idr": raw.get("raw_idr", 0), "raw_lines": raw.get("raw_lines", 0),
+            "eligible_idr": eligible_idr, "eligible_eur": elig.get("eligible_eur", 0), "eligible_lines": elig.get("eligible_lines", 0),
+            "cache_idr": cache_idr, "cache_lines": cache.get("cache_lines", 0),
+            "diff_cache_vs_eligible_idr": eligible_idr - cache_idr,
+            "import_count": len(imps),
+            "imports": imps,
+        })
+        contributing = [it for it in imps if it["eligible_lines"] > 0]
+        if len(contributing) > 1:
+            overlaps.append({"period": p, "import_count": len(contributing),
+                             "imports": [{"import_id": it["import_id"], "filename": it["filename"], "eligible_lines": it["eligible_lines"], "eligible_idr": it["eligible_idr"]} for it in contributing]})
+
+    # 5) duplicate suspects — identical eligible business-rows across DIFFERENT imports
+    dup_suspects: List[Dict[str, Any]] = []
+    async for r in db_bg.royalty_lines.aggregate([
+        {"$match": eligible_match},
+        {"$group": {
+            "_id": {
+                "period": "$period", "platform": "$platform", "country": "$country",
+                "isrc": "$isrc", "sales_type": "$sales_type", "subscription_type": "$subscription_type",
+                "quantity": "$quantity", "revenue_eur": "$revenue_eur", "track_id": "$track_id",
+            },
+            "count": {"$sum": 1},
+            "import_ids": {"$addToSet": "$import_id"},
+            "idr": {"$sum": "$label_idr"}, "eur": {"$sum": "$revenue_eur"},
+        }},
+        {"$match": {"count": {"$gt": 1}, "import_ids.1": {"$exists": True}}},
+        {"$sort": {"idr": -1}},
+        {"$limit": dup_limit},
+    ], allowDiskUse=True):
+        k = r["_id"]
+        dup_suspects.append({
+            "period": k.get("period"), "platform": k.get("platform"), "country": k.get("country"),
+            "isrc": k.get("isrc"), "sales_type": k.get("sales_type"), "subscription_type": k.get("subscription_type"),
+            "quantity": k.get("quantity"), "revenue_eur": k.get("revenue_eur"),
+            "count": int(r.get("count") or 0), "import_ids": r.get("import_ids") or [],
+            "idr": int(r.get("idr") or 0), "eur": round(r.get("eur") or 0, 2),
+        })
+
+    return {
+        "generated_at": now_iso(),
+        "filters": {"period_from": period_from, "period_to": period_to},
+        "eligibility": {"match_status": ANALYTICS_MATCH_STATUSES, "status": ANALYTICS_LINE_STATUSES, "exclude_replacement_stage": True},
+        "note": "READ-ONLY audit. 'raw' = semua baris; 'eligible' = definisi kanonik Analytics; 'cache' = monthly_analytics. Duplicate suspect hanya indikasi (baris identik di import berbeda) — belum tentu duplikat sebenarnya.",
+        "cache_source_meta": {
+            "source_period_min": _last_recompute_meta.get("source_period_min"),
+            "source_period_max": _last_recompute_meta.get("source_period_max"),
+            "finished_at": _last_recompute_meta.get("finished_at"),
+        },
+        "periods": periods_out,
+        "overlaps": overlaps,
+        "duplicate_suspects": dup_suspects,
+    }
