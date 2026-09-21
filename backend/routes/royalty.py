@@ -1680,14 +1680,72 @@ def _wipe_r2_prefix_sync(prefix: str) -> int:
 
 
 # -------- LABEL royalty endpoints --------
-@royalty_r.get("/months")
-async def label_royalty_months(user: dict = Depends(require_kyc_for_label_user)):
-    """List periods that have published royalty data visible to the current user."""
+async def _label_customer_report_scope(label: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the customer-visible royalty report scope for one label.
+
+    The label may see:
+    1) current unsettled royalties after the effective withdrawal cutoff; and
+    2) the most recent PAID withdrawal created by the web app, so the report
+       that was just settled remains downloadable.
+
+    Older web withdrawals and all legacy-settled Believe history stay hidden.
+    This helper is report-only and must never be reused to calculate a
+    withdrawable balance.
+    """
+    cutoff = label.get("last_withdrawn_period")
+    current_clause: Dict[str, Any] = {
+        "status": {"$in": ["pending", "available"]},
+        "legacy_settled": {"$ne": True},
+    }
+    if cutoff:
+        current_clause["period"] = {"$gt": cutoff}
+
+    latest_paid = await db.withdraw_requests.find_one(
+        {
+            "label_id": label["id"],
+            "status": "paid",
+            "legacy_import": {"$ne": True},
+            "adjustment_only": {"$ne": True},
+            "period_from": {"$type": "string"},
+            "period_to": {"$type": "string"},
+        },
+        {"_id": 0, "period_from": 1, "period_to": 1, "paid_date": 1, "created_at": 1},
+        sort=[("paid_date", -1), ("created_at", -1)],
+    )
+
+    clauses: List[Dict[str, Any]] = [current_clause]
+    if latest_paid and latest_paid.get("period_from") and latest_paid.get("period_to"):
+        clauses.append({
+            "status": "withdrawn",
+            "legacy_settled": {"$ne": True},
+            "period": {
+                "$gte": latest_paid["period_from"],
+                "$lte": latest_paid["period_to"],
+            },
+        })
+
+    return {"label_id": label["id"], "$or": clauses}
+
+
+async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
+    """Report scope for customer-facing label/artist royalty endpoints."""
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
-        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
-    elif user["role"] == ARTIST_ROLE:
-        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+        return await _label_customer_report_scope(label)
+    if user["role"] == ARTIST_ROLE:
+        return {
+            "artist_id": user["id"],
+            "status": {"$in": ["pending", "available"]},
+            "legacy_settled": {"$ne": True},
+        }
+    raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+
+
+@royalty_r.get("/months")
+async def label_royalty_months(user: dict = Depends(require_kyc_for_label_user)):
+    """List periods that have royalty data visible to the current user."""
+    if user["role"] in (LABEL_ROLE, ARTIST_ROLE):
+        filt = await _royalty_report_scope(user)
     elif user["role"] in ADMIN_ROLES:
         filt = {"status": {"$in": ["pending", "available", "withdrawn"]}}
     else:
@@ -1699,18 +1757,12 @@ async def label_royalty_months(user: dict = Depends(require_kyc_for_label_user))
 
 @royalty_r.get("/summary")
 async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user), period: Optional[str] = None):
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        base = {"label_id": label["id"], "legacy_settled": {"$ne": True}}
-    elif user["role"] == ARTIST_ROLE:
-        base = {"artist_id": user["id"], "legacy_settled": {"$ne": True}}
-    else:
-        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    base = await _royalty_report_scope(user)
     if period:
         base["period"] = period
 
     pipeline = [
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": base},
         {"$group": {
             "_id": None,
             "total_idr": {"$sum": "$label_idr"},
@@ -1725,7 +1777,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
     # per-platform
     by_platform = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": base},
         {"$group": {"_id": "$platform", "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
     ], allowDiskUse=True):
@@ -1733,7 +1785,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
 
     by_country = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": base},
         {"$group": {"_id": "$country", "total_idr": {"$sum": "$label_idr"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 10},
@@ -1742,7 +1794,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
 
     by_track = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": base},
         {"$group": {"_id": {"track_id": "$track_id", "title": "$track_title_raw"}, "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 15},
@@ -1762,14 +1814,10 @@ async def label_royalty_lines(
     artist_id: Optional[str] = None,
     limit: int = 500,
 ):
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        filt["label_id"] = label["id"]
-    elif user["role"] == ARTIST_ROLE:
-        filt["artist_id"] = user["id"]
+    if user["role"] in (LABEL_ROLE, ARTIST_ROLE):
+        filt = await _royalty_report_scope(user)
     elif user["role"] in ADMIN_ROLES:
-        pass
+        filt = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
     else:
         raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
     if period:
@@ -1796,14 +1844,7 @@ async def label_royalty_export_csv(
 ):
     """Stream CSV export of royalty lines for the current label/period."""
     from fastapi.responses import StreamingResponse
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        filt["label_id"] = label["id"]
-    elif user["role"] == ARTIST_ROLE:
-        filt["artist_id"] = user["id"]
-    else:
-        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    filt = await _royalty_report_scope(user)
     if period:
         filt["period"] = period
 
@@ -1832,22 +1873,6 @@ async def label_royalty_export_csv(
     filename = f"royalty_{period or 'all'}.csv"
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
-
-def _royalty_report_base(user: dict) -> Dict[str, Any]:
-    """Filter untuk laporan royalti label/artis: hanya pending/available & bukan legacy."""
-    return {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
-
-
-async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
-    base = _royalty_report_base(user)
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        base["label_id"] = label["id"]
-    elif user["role"] == ARTIST_ROLE:
-        base["artist_id"] = user["id"]
-    else:
-        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
-    return base
 
 
 @royalty_r.get("/report-artists")
@@ -1986,8 +2011,8 @@ async def label_send_artist_report(
         raise HTTPException(status_code=400, detail="Artis ini belum memiliki email terdaftar.")
     artist_name = artist.get("artist_name")
 
-    base = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True},
-            "label_id": label["id"], "artist_name_raw": artist_name}
+    base = await _royalty_report_scope(user)
+    base["artist_name_raw"] = artist_name
     if period:
         base["period"] = period
 
