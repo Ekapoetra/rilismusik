@@ -5,8 +5,12 @@ The report scope is intentionally different from the withdrawable-balance scope:
 - only the latest paid non-legacy web withdrawal is re-exposed as withdrawn;
 - current pending/available rows are visible only after last_withdrawn_period.
 """
+import sys
+from pathlib import Path
+
 import pytest
 
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from routes import royalty
 
 
