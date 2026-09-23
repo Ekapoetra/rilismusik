@@ -3,7 +3,7 @@ import { api } from "@/api/client";
 import { formatApiError } from "@/api/AuthContext";
 
 export function useLabelAnalytics() {
-  const [windowValue, setWindowValue] = useState("latest");
+  const [windowValue, setWindowValue] = useState("6");
   const [labelId, setLabelId] = useState("all");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

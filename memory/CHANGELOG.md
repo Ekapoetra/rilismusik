@@ -611,3 +611,8 @@ Semua pakai desain terang universal (`_wrap` + `_badge` + `_release_card` + `_kv
 - Model baru: WamiMigrationItem, WamiMigrationApplyIn.
 - Verifikasi curl E2E: preview (match exact + not_found) ✓, apply (track+release flag) ✓, admin filter wami=true ✓, admin get penuh ✓, label redaksi (by code; akun demo ter-gate KYC). UI render ✓. Data uji dibersihkan (0 track WAMI tersisa).
 - Perlu REDEPLOY untuk produksi. Impor data asli dilakukan user nanti via UI.
+
+## 2026-06 — Fix laporan royalti pasca-withdraw + chart Pertumbuhan Stream 1 bulan
+- BUG1 (laporan royalti tak bisa diunduh setelah withdraw): endpoint laporan label/artis (`/royalty/months`, `/royalty/lines`, `/royalty/export.csv`, `/royalty/export.xlsx` via `_royalty_report_base`, `/royalty/summary`, `/royalty/artists/{id}/send-report`) sebelumnya memfilter `status ∈ {pending, available}` sehingga baris yang sudah `withdrawn` (dicairkan) hilang dari laporan/unduhan. Kini menyertakan `withdrawn` (samakan dgn analytics/admin), tetap kecualikan `legacy_settled` (riwayat pra-klaim). Data pasca cut-off/withdraw tetap bisa diunduh.
+- BUG2 (Pertumbuhan Stream cuma 1 bulan): `useLabelAnalytics` default window "latest" → 1 bulan. Diubah default ke "6" agar chart "Pertumbuhan Stream" menampilkan hingga 6 bulan (dropdown latest/6/12 tetap ada). KPI "Laporan Terbaru" tetap pakai `latest_report` (bulan terbaru, independen window).
+- Catatan: tak bisa direproduksi di preview (akun demo ter-gate KYC + data royalti preview kosong); perbaikan by-code, akan tampak di produksi setelah REDEPLOY.

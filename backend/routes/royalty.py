@@ -1685,9 +1685,9 @@ async def label_royalty_months(user: dict = Depends(require_kyc_for_label_user))
     """List periods that have published royalty data visible to the current user."""
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
-        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+        filt = {"label_id": label["id"], "status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
     elif user["role"] == ARTIST_ROLE:
-        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+        filt = {"artist_id": user["id"], "status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
     elif user["role"] in ADMIN_ROLES:
         filt = {"status": {"$in": ["pending", "available", "withdrawn"]}}
     else:
@@ -1710,7 +1710,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
         base["period"] = period
 
     pipeline = [
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
         {"$group": {
             "_id": None,
             "total_idr": {"$sum": "$label_idr"},
@@ -1725,7 +1725,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
     # per-platform
     by_platform = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
         {"$group": {"_id": "$platform", "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
     ], allowDiskUse=True):
@@ -1733,7 +1733,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
 
     by_country = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
         {"$group": {"_id": "$country", "total_idr": {"$sum": "$label_idr"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 10},
@@ -1742,7 +1742,7 @@ async def label_royalty_summary(user: dict = Depends(require_kyc_for_label_user)
 
     by_track = []
     async for row in db_bg.royalty_lines.aggregate([
-        {"$match": {**base, "status": {"$in": ["pending", "available"]}}},
+        {"$match": {**base, "status": {"$in": ["pending", "available", "withdrawn"]}}},
         {"$group": {"_id": {"track_id": "$track_id", "title": "$track_title_raw"}, "total_idr": {"$sum": "$label_idr"}, "streams": {"$sum": "$quantity"}}},
         {"$sort": {"total_idr": -1}},
         {"$limit": 15},
@@ -1762,7 +1762,7 @@ async def label_royalty_lines(
     artist_id: Optional[str] = None,
     limit: int = 500,
 ):
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
         filt["label_id"] = label["id"]
@@ -1796,7 +1796,7 @@ async def label_royalty_export_csv(
 ):
     """Stream CSV export of royalty lines for the current label/period."""
     from fastapi.responses import StreamingResponse
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
     if user["role"] == LABEL_ROLE:
         label = await get_label_by_user(user)
         filt["label_id"] = label["id"]
@@ -1834,8 +1834,9 @@ async def label_royalty_export_csv(
 
 
 def _royalty_report_base(user: dict) -> Dict[str, Any]:
-    """Filter untuk laporan royalti label/artis: hanya pending/available & bukan legacy."""
-    return {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True}}
+    """Filter untuk laporan royalti label/artis: pending/available/withdrawn & bukan legacy.
+    Sertakan 'withdrawn' agar laporan tetap bisa diunduh setelah pencairan (data pasca cut-off)."""
+    return {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
 
 
 async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
@@ -1986,7 +1987,7 @@ async def label_send_artist_report(
         raise HTTPException(status_code=400, detail="Artis ini belum memiliki email terdaftar.")
     artist_name = artist.get("artist_name")
 
-    base = {"status": {"$in": ["pending", "available"]}, "legacy_settled": {"$ne": True},
+    base = {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True},
             "label_id": label["id"], "artist_name_raw": artist_name}
     if period:
         base["period"] = period
