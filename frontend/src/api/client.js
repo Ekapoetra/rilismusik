@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "");
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const IS_BROWSER = typeof window !== "undefined";
 // Every deployed frontend is served by the same ingress as `/api`. Always use
 // a relative browser URL so apex/www aliases cannot turn auth into cross-origin.
