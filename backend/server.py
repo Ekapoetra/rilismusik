@@ -37,6 +37,7 @@ from routes.label_rate_change import rate_change_r
 from routes.sensitive_requests import sensitive_r
 from routes.work_service import work_r
 from routes.dashboard_metrics import dashboard_metrics_r
+from routes.prototype_v7 import prototype_v7_r
 from routes.staff import staff_r
 from routes.performance_service import perf_r
 from routes.xendit_reconciliation import xendit_recon_r
@@ -136,6 +137,7 @@ api.include_router(rate_change_r)
 api.include_router(sensitive_r)
 api.include_router(work_r)
 api.include_router(dashboard_metrics_r)
+api.include_router(prototype_v7_r)
 api.include_router(staff_r)
 api.include_router(perf_r)
 api.include_router(xendit_recon_r)
