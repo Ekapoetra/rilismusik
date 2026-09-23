@@ -1811,10 +1811,12 @@ async def label_royalty_export_csv(
     writer = csv.writer(buf)
     writer.writerow([
         "period", "release_title", "track_title", "artist_name", "platform", "country",
-        "isrc", "upc", "streams", "royalty_idr", "status",
+        "isrc", "upc", "streams", "royalty_idr", "status", "sudah_dicairkan",
     ])
+    status_label = {"pending": "Tertunda", "available": "Tersedia", "withdrawn": "Sudah Dicairkan"}
     cursor = db.royalty_lines.find(filt, {"_id": 0}).sort("period", -1)
     async for it in cursor:
+        st = it.get("status")
         writer.writerow([
             it.get("period"),
             it.get("release_title_raw"),
@@ -1826,7 +1828,8 @@ async def label_royalty_export_csv(
             it.get("upc"),
             it.get("quantity"),
             it.get("label_idr"),
-            it.get("status"),
+            status_label.get(st, st),
+            "Ya" if st == "withdrawn" else "Belum",
         ])
     buf.seek(0)
     filename = f"royalty_{period or 'all'}.csv"
@@ -1873,12 +1876,28 @@ def _safe_sheet_title(name: str, used: set) -> str:
 
 
 async def _build_royalty_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], artist: Optional[str]) -> bytes:
-    """Bangun workbook Excel: sheet Ringkasan + 1 sheet detail per artis. `base` sudah
-    mengandung filter scope (label/artis), period, dan artist bila diberikan."""
+    """Bangun workbook Excel berhias: sheet Ringkasan + 1 sheet detail per artis.
+    Angka diberi pemisah ribuan, ada bingkai, header berwarna, dan kolom 'Sudah Dicairkan'."""
     from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+
+    PINK, INK, GREEN, ZEBRA = "FF1F8E", "111827", "E7F7EF", "FBF3F8"
+    thin = Side(style="thin", color="E5E7EB")
+    BORDER = Border(left=thin, right=thin, top=thin, bottom=thin)
+    HEAD_FONT = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+    HEAD_FILL = PatternFill("solid", fgColor=PINK)
+    TITLE_FONT = Font(name="Calibri", bold=True, size=16, color=INK)
+    SUB_FONT = Font(name="Calibri", italic=True, size=10, color="6B7280")
+    KEY_FONT = Font(name="Calibri", bold=True, color=INK)
+    CENTER = Alignment(horizontal="center", vertical="center")
+    LEFT = Alignment(horizontal="left", vertical="center", wrap_text=False)
+    IDR_FMT, NUM_FMT = '"Rp"#,##0', '#,##0'
+    STATUS_LABEL = {"pending": "Tertunda", "available": "Tersedia", "withdrawn": "Sudah Dicairkan"}
 
     columns = ["Periode", "Rilisan", "Track", "Artis", "Platform", "Negara",
-               "ISRC", "UPC", "Streams", "Royalti IDR", "Status"]
+               "ISRC", "UPC", "Streams", "Royalti IDR", "Status", "Sudah Dicairkan"]
+    widths = [11, 26, 26, 22, 14, 12, 16, 16, 12, 15, 16, 15]
 
     if artist:
         artist_names = [artist]
@@ -1905,36 +1924,88 @@ async def _build_royalty_workbook_bytes(*, base: Dict[str, Any], period: Optiona
 
     wb = Workbook()
     used_titles = set()
+
+    # ---------------- Ringkasan ----------------
     ws = wb.active
     ws.title = "Ringkasan"
     used_titles.add("ringkasan")
     scope_label = "Semua Artis" if not artist else artist
-    ws.append(["Laporan Royalti"])
-    ws.append(["Periode", period or "Semua periode"])
-    ws.append(["Cakupan", scope_label])
-    ws.append(["Catatan", "Royalti legacy tidak termasuk"])
-    ws.append([])
-    ws.append(["Total Royalti IDR", overall["total_idr"]])
-    ws.append(["Total Streams", overall["total_streams"]])
-    ws.append(["Total Baris", overall["total_lines"]])
-    ws.append([])
-    ws.append(["Ringkasan per Artis"])
-    ws.append(["Artis", "Streams", "Royalti IDR", "Baris"])
-    for a in per_artist:
-        ws.append([a["artist"], a["streams"], a["total_idr"], a["lines"]])
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "Laporan Royalti"
+    ws["A1"].font = TITLE_FONT
+    ws.merge_cells("A2:D2")
+    ws["A2"] = "Royalti legacy (sebelum bergabung) tidak termasuk"
+    ws["A2"].font = SUB_FONT
+    meta = [("Periode", period or "Semua periode"), ("Cakupan", scope_label)]
+    r = 4
+    for k, v in meta:
+        ws.cell(r, 1, k).font = KEY_FONT
+        ws.cell(r, 2, v)
+        r += 1
+    r += 1
+    totals = [("Total Royalti IDR", overall["total_idr"], IDR_FMT),
+              ("Total Streams", overall["total_streams"], NUM_FMT),
+              ("Total Baris", overall["total_lines"], NUM_FMT)]
+    for k, v, fmt in totals:
+        ws.cell(r, 1, k).font = KEY_FONT
+        c = ws.cell(r, 2, v); c.number_format = fmt
+        r += 1
+    r += 1
+    ws.cell(r, 1, "Ringkasan per Artis").font = TITLE_FONT
+    r += 1
+    head_row = r
+    for j, h in enumerate(["Artis", "Streams", "Royalti IDR", "Baris"], start=1):
+        c = ws.cell(head_row, j, h); c.font = HEAD_FONT; c.fill = HEAD_FILL; c.alignment = CENTER; c.border = BORDER
+    r += 1
+    for i, a in enumerate(per_artist):
+        row_cells = [a["artist"], a["streams"], a["total_idr"], a["lines"]]
+        fills = None if i % 2 == 0 else PatternFill("solid", fgColor=ZEBRA)
+        for j, val in enumerate(row_cells, start=1):
+            c = ws.cell(r, j, val); c.border = BORDER
+            if fills:
+                c.fill = fills
+            if j == 2 or j == 4:
+                c.number_format = NUM_FMT
+            if j == 3:
+                c.number_format = IDR_FMT
+        r += 1
+    for j, w in enumerate([26, 14, 16, 10], start=1):
+        ws.column_dimensions[get_column_letter(j)].width = w
+    ws.freeze_panes = "A1"
 
+    # ---------------- Detail per artis ----------------
     for name in artist_names:
         title = _safe_sheet_title(name, used_titles)
         sheet = wb.create_sheet(title=title)
-        sheet.append(columns)
+        for j, h in enumerate(columns, start=1):
+            c = sheet.cell(1, j, h); c.font = HEAD_FONT; c.fill = HEAD_FILL; c.alignment = CENTER; c.border = BORDER
+            sheet.column_dimensions[get_column_letter(j)].width = widths[j - 1]
+        sheet.freeze_panes = "A2"
+        rownum = 2
         cursor = db.royalty_lines.find({**base, "artist_name_raw": name}, {"_id": 0}).sort("period", -1)
         async for it in cursor:
-            sheet.append([
-                it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
-                it.get("artist_name_raw"), it.get("platform"), it.get("country"),
-                it.get("isrc"), it.get("upc"), it.get("quantity"),
-                it.get("label_idr"), it.get("status"),
-            ])
+            status = it.get("status")
+            withdrawn = status == "withdrawn"
+            values = [it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
+                      it.get("artist_name_raw"), it.get("platform"), it.get("country"),
+                      it.get("isrc"), it.get("upc"), it.get("quantity") or 0,
+                      it.get("label_idr") or 0, STATUS_LABEL.get(status, status),
+                      "Ya" if withdrawn else "Belum"]
+            zebra = PatternFill("solid", fgColor=ZEBRA) if rownum % 2 else None
+            paid_fill = PatternFill("solid", fgColor=GREEN) if withdrawn else None
+            for j, val in enumerate(values, start=1):
+                c = sheet.cell(rownum, j, val); c.border = BORDER
+                if j == 9:
+                    c.number_format = NUM_FMT
+                elif j == 10:
+                    c.number_format = IDR_FMT
+                elif j == 12:
+                    c.alignment = CENTER
+                if paid_fill and j == 12:
+                    c.fill = paid_fill
+                elif zebra:
+                    c.fill = zebra
+            rownum += 1
 
     out = io.BytesIO()
     wb.save(out)
