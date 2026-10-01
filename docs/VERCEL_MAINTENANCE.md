@@ -8,6 +8,9 @@ Jadwal yang ditampilkan: **5 Oktober 2026 pukul 08.00 WIB**.
 Jadwal ini merupakan pemberitahuan; halaman tidak membuka layanan secara otomatis.
 
 Build: `node scripts/build-maintenance.cjs`.
+Pemeriksaan Native Deployment Checks Vercel menggunakan `npm run lint`
+(ESLint) dan `npm run typecheck` (TypeScript untuk skrip build JavaScript).
+Dependency pemeriksaan dipin dalam `package-lock.json`; instalasi memakai `npm ci`.
 Logo menggunakan aset asli `frontend/public/brand/logo-ui-light.png`.
 
 Halaman menggunakan HTTP 503, `Retry-After` pada waktu tersebut, dan `no-store`.
