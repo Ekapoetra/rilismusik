@@ -8,6 +8,8 @@ import { ReleaseArtistCredits } from "@/components/releases/ReleaseArtistCredits
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { WamiBadge } from "@/components/shared/WamiBadge";
+import { ReleaseCoverGrid } from "@/components/releases/ReleaseCoverGrid";
+import { ReleaseViewToggle, useReleaseView } from "@/components/releases/ReleaseViewToggle";
 
 const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected", "taken_down"];
 
@@ -17,6 +19,7 @@ export default function LabelReleases() {
   const [status, setStatus] = useState("");
   const [wamiFilter, setWamiFilter] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [view, setView] = useReleaseView("rm-label-release-view");
 
   const load = useCallback(async () => {
     const { data } = await api.get("/releases/", { params: { status: status || undefined, q: q || undefined, wami: wamiFilter || undefined } });
@@ -70,10 +73,14 @@ export default function LabelReleases() {
           </select>
         </div>
         <button className="rm-btn-ghost flex items-center gap-2" onClick={load} data-testid="label-releases-apply-filter"><Filter className="w-4 h-4" /> Filter</button>
+        <div className="ml-auto"><ReleaseViewToggle view={view} onChange={setView} prefix="label-releases" /></div>
       </div>
 
       {/* Table */}
       <SubmissionQuota />
+      {view === "cover" ? (
+        <ReleaseCoverGrid items={items} basePath="/label/releases" prefix="label-release" />
+      ) : (
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div className="col-span-5">Judul / Artist</div>
@@ -101,6 +108,7 @@ export default function LabelReleases() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
