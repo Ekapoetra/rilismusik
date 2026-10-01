@@ -1,54 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "web": {
-      "root": "frontend",
-      "framework": "create-react-app",
-      "installCommand": "yarn install --non-interactive",
-      "buildCommand": "CI=false yarn build",
-      "outputDirectory": "build",
-      "rewrites": [
-        {
-          "source": "/(.*)",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    "api": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "vercel_app:app",
-      "functions": {
-        "vercel_app.py": {
-          "maxDuration": 60,
-          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}"
-        }
-      }
-    }
-  },
-  "rewrites": [
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "node scripts/build-maintenance.cjs",
+  "outputDirectory": "maintenance-dist",
+  "routes": [
     {
-      "source": "/api",
-      "destination": {
-        "service": "api"
-      }
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": {
-        "service": "api"
-      }
-    },
-    {
-      "source": "/health",
-      "destination": {
-        "service": "api"
-      }
-    },
-    {
-      "source": "/(.*)",
-      "destination": {
-        "service": "web"
+      "src": "/.*",
+      "dest": "/index.html",
+      "status": 503,
+      "headers": {
+        "Cache-Control": "no-store, max-age=0",
+        "Retry-After": "Mon, 05 Oct 2026 01:00:00 GMT",
+        "X-Robots-Tag": "noindex, nofollow",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8"
       }
     }
   ]

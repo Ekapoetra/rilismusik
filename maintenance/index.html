@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f7f8fc">
+  <meta name="description" content="Rilis Musik sedang melakukan pemeliharaan sistem. Online kembali pada 5 Oktober 2026 pukul 08.00 WIB.">
+  <title>Pemeliharaan Sistem — Rilis Musik</title>
+  <link rel="icon" type="image/png" href="{{RILIS_MUSIK_LOGO}}">
+  <style>
+    :root { color-scheme: light; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202127; background: #f7f8fc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 32px 20px; background: radial-gradient(ellipse at 15% 10%, #e9e8ff 0, transparent 46%), radial-gradient(ellipse at 90% 90%, #e4f5fa 0, transparent 44%), #f7f8fc; }
+    main { width: min(100%, 660px); text-align: center; }
+    .brand { display: inline-flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .brand img { display: block; width: 48px; height: 48px; }
+    .brand span { font-size: 20px; font-weight: 750; letter-spacing: -.6px; }
+    .card { position: relative; background: #ffffff; border: 1px solid #e8e8f0; border-radius: 28px; padding: 44px 40px 36px; box-shadow: 0 18px 70px #3535660a; overflow: hidden; }
+    .card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6759e8, #89c6e6); }
+    .status { display: inline-flex; gap: 9px; align-items: center; border-radius: 100px; background: #f2f0ff; color: #6255bf; padding: 9px 14px; font-size: 12px; font-weight: 650; letter-spacing: .3px; }
+    .status-dot { width: 7px; height: 7px; background: #7969db; border-radius: 50%; }
+    h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.15; letter-spacing: -1.8px; margin: 25px 0 18px; font-weight: 750; }
+    .description { max-width: 450px; margin: 0 auto; font-size: 15px; line-height: 1.8; color: #6a6c79; }
+    .schedule { margin: 32px 0 25px; border: 1px solid #ececf3; border-radius: 16px; padding: 23px 16px; background: #fafafe; }
+    .schedule-label { display: block; margin-bottom: 11px; text-transform: uppercase; letter-spacing: 1.8px; font-size: 10px; font-weight: 700; color: #818290; }
+    time { display: block; font-size: clamp(23px, 5vw, 29px); font-weight: 700; letter-spacing: -.7px; }
+    time span { display: block; font-size: 17px; font-weight: 500; color: #6559b5; letter-spacing: 0; margin-top: 9px; }
+    .thanks { margin: 0; font-size: 13px; line-height: 1.7; color: #868792; }
+    footer { margin-top: 26px; color: #9899a5; font-size: 11px; letter-spacing: .2px; }
+    @media (max-width: 480px) { body { padding: 26px 16px; } .brand { margin-bottom: 30px; } .card { padding: 35px 22px 30px; border-radius: 23px; } h1 { letter-spacing: -1px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">
+      <img src="{{RILIS_MUSIK_LOGO}}" alt="Logo Rilis Musik" width="48" height="48">
+      <span>Rilis Musik</span>
+    </div>
+    <section class="card" aria-labelledby="maintenance-title">
+      <div class="status"><span class="status-dot" aria-hidden="true"></span>Pemeliharaan terjadwal</div>
+      <h1 id="maintenance-title">Pemeliharaan sistem</h1>
+      <p class="description">Kami sedang melakukan pemeliharaan sistem untuk meningkatkan kualitas layanan Rilis Musik.</p>
+      <div class="schedule">
+        <span class="schedule-label">Online kembali</span>
+        <time datetime="2026-10-05T08:00:00+07:00">5 Oktober 2026<span>08.00 WIB</span></time>
+      </div>
+      <p class="thanks">Terima kasih atas kesabaran dan pengertian Anda.</p>
+    </section>
+    <footer>Rilis Musik · Musik menghubungkan lebih banyak cerita.</footer>
+  </main>
+</body>
+</html>
