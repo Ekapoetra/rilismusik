@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("rilismusik")
 
 from models import now_iso
-from routes.deps import UPLOAD_DIR, client
+from routes.deps import UPLOAD_DIR, client, client_bg
 from routes.auth import auth
 from routes.labels import label_r
 from routes.releases import release_r
@@ -226,6 +226,9 @@ async def on_startup():
     Kubernetes readiness timeout (60-300s) and triggers a restart loop.
     """
     import asyncio
+    if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") == "preview":
+        logger.info("Preview startup: bootstrap, scheduler and background recovery are disabled")
+        return
     asyncio.create_task(_bootstrap_async())
     from routes.contentid_assets import contentid_maintenance
     app.state.contentid_maintenance_task = asyncio.create_task(contentid_maintenance())
@@ -290,3 +293,4 @@ async def on_shutdown():
             await task
     stop_scheduler()
     client.close()
+    client_bg.close()
