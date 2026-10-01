@@ -7,7 +7,8 @@ menuju frontend. Branch ini untuk uji migrasi, belum untuk pengalihan produksi.
 ## Pengaturan project
 
 - Repository: `Ekapoetra/rilismusik`.
-- Branch percobaan: `codex/vercel-preview`.
+- Branch untuk import/deploy Vercel: `vercel-preview` (tanpa `/` pada nama branch).
+- Branch PR pengembangan: `codex/vercel-preview`.
 - Root Directory: akar repository, bukan `frontend` atau `backend`.
 - Gunakan konfigurasi Services dari `vercel.json`. Build/install/output diatur
   per service; jangan menambahkan override build frontend di tingkat project.
@@ -60,7 +61,8 @@ sesuai IP keluar deployment sebelum menguji koneksi.
 2. Login menggunakan akun lama dengan email dan password.
 3. Sebagai super admin, buka `/api/admin/deployment-check` pada domain yang
    sama. Respons harus menunjukkan database `rilismusik`, koneksi berhasil,
-   dan jumlah dokumen koleksi `users`, `labels`, `releases`.
+   dan jumlah dokumen koleksi `users`, `labels`, `releases`, `royalty_lines`,
+   `monthly_analytics`.
 4. Cocokkan dashboard, daftar label, daftar rilisan, saldo dan riwayat dengan
    aplikasi lama. Periksa cover/audio yang diambil dari R2.
 
@@ -69,6 +71,26 @@ perubahan data melalui endpoint, dan pemicu pekerjaan background.
 Login/refresh tetap menulis sesi pada database salinan. Pembacaan tertentu
 bisa memperbarui cache/metadata sesuai perilaku API lama, jadi ini bukan
 jaminan database benar-benar read-only.
+
+## Jika analitik atau pendapatan artis kosong
+
+Ekspor ZIP yang diterima pada 1 Oktober 2026 berisi 160 koleksi dan 7.498.233
+dokumen, tetapi tidak memuat koleksi aktif `royalty_lines` maupun
+`monthly_analytics`. Sebanyak 7.274.925 dokumen berada pada 97 koleksi
+`monthly_analytics_staging_*`; koleksi sementara itu bukan bukti bahwa data
+royalti sumber sudah ikut dipindahkan.
+
+`royalty_lines` menyimpan rincian royalti. `monthly_analytics` menyimpan
+ringkasan yang dibaca analitik dan pendapatan artis. Ambil ekspor kedua
+koleksi dari database lama dan cocokkan jumlah serta periode datanya sebelum
+impor tambahan. Rebuild tidak dapat memulihkan rincian yang belum diimpor.
+Jangan mengganti koleksi aktif dengan salah satu staging tanpa validasi
+kelengkapan dan konsistensi dengan sumber.
+
+Pada mode preview, cache miss tetap memakai pembacaan live yang sama tetapi
+tidak menjadwalkan rebuild otomatis. Tombol Rebuild Cache masih dibatasi
+karena pekerjaan tersebut harus dijalankan oleh worker yang sesuai pada
+tahap migrasi berikutnya.
 
 ## Sebelum pengalihan produksi
 

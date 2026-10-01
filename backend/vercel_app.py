@@ -62,7 +62,7 @@ async def deployment_check(user: dict = Depends(require_super_admin)):
         await db.command("ping")
         counts = {
             name: await db[name].estimated_document_count()
-            for name in ("users", "labels", "releases")
+            for name in ("users", "labels", "releases", "royalty_lines", "monthly_analytics")
         }
     except Exception:
         raise HTTPException(

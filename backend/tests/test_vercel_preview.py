@@ -1,9 +1,10 @@
 """Smoke-check the real API imports and preview behavior without a live DB."""
+import asyncio
 import os
 import unittest
 from pathlib import Path
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.update({
@@ -67,6 +68,46 @@ class PreviewSmokeTests(unittest.TestCase):
 
     def test_database_check_requires_authentication(self):
         self.assertEqual(self.client.get("/api/admin/deployment-check").status_code, 401)
+
+    def test_cache_miss_reads_revenue_without_scheduling_a_preview_rebuild(self):
+        from routes import revenue_rollup
+        expected = {"artist-1": {"revenue_idr": 42000, "lines": 3}}
+        with patch.object(revenue_rollup, "_rollup_from_cache", new=AsyncMock(return_value={})), \
+             patch.object(revenue_rollup, "_rollup_live", new=AsyncMock(return_value=expected)) as live, \
+             patch("asyncio.create_task") as create_task:
+            result = asyncio.run(revenue_rollup.rollup_revenue_by_id(
+                field="artist_id", ids=["artist-1"], period_from="2026-01", period_to="2026-06",
+            ))
+        self.assertEqual(result, expected)
+        live.assert_awaited_once_with(
+            field="artist_id", ids=["artist-1"], period_from="2026-01", period_to="2026-06",
+        )
+        create_task.assert_not_called()
+
+    def test_database_check_includes_royalty_source_and_analytics_counts(self):
+        import vercel_app
+        counts = {"users": 287, "labels": 1798, "releases": 18092, "royalty_lines": 0, "monthly_analytics": 0}
+        database = MagicMock()
+        database.name = "migration_preview_test"
+        database.command = AsyncMock(return_value={"ok": 1})
+        collections = {
+            name: MagicMock(estimated_document_count=AsyncMock(return_value=count))
+            for name, count in counts.items()
+        }
+        database.__getitem__.side_effect = collections.__getitem__
+        async def admin():
+            return {"role": "super_admin"}
+        app.dependency_overrides[require_super_admin] = admin
+        try:
+            with patch.object(vercel_app, "db", new=database):
+                response = self.client.get("/api/admin/deployment-check")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["collections"], counts)
+            database.command.assert_awaited_once_with("ping")
+            for collection in collections.values():
+                collection.estimated_document_count.assert_awaited_once_with()
+        finally:
+            app.dependency_overrides.pop(require_super_admin, None)
 
     def test_database_failure_does_not_expose_connection_details(self):
         import vercel_app
