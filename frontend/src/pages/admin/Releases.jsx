@@ -12,6 +12,8 @@ import GoLiveModal from "@/components/releases/GoLiveModal";
 import MassGoLiveModal from "@/components/releases/MassGoLiveModal";
 import TakedownImportModal from "@/components/releases/TakedownImportModal";
 import { WamiBadge } from "@/components/shared/WamiBadge";
+import { ReleaseCoverGrid } from "@/components/releases/ReleaseCoverGrid";
+import { ReleaseViewToggle, useReleaseView } from "@/components/releases/ReleaseViewToggle";
 
 const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
@@ -52,6 +54,7 @@ export default function AdminReleases() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState("status"); // status | revenue | date
+  const [view, setView] = useReleaseView("rm-admin-release-view");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,6 +150,7 @@ export default function AdminReleases() {
             <option value="date">Tanggal rilis</option>
           </select>
         </div>
+        <div className="flex justify-end md:col-span-5"><ReleaseViewToggle view={view} onChange={setView} prefix="admin-releases" /></div>
       </div>
 
       {(items.length > 0 || totalRev > 0) && (
@@ -162,6 +166,28 @@ export default function AdminReleases() {
       )}
 
       {error && <div role="alert" className="rounded-md bg-red-500/10 p-4 text-sm text-red-300" data-testid="admin-releases-error">{error}</div>}
+      {view === "cover" ? (
+        <ReleaseCoverGrid items={items} loading={loading} basePath="/admin/releases" prefix="admin-release"
+          renderMeta={(r) => <div className="space-y-2">
+            <div className="truncate" translate="no" title={r.label_name} data-testid={`admin-release-label-${r.id}`}>{r.label_name || "—"}</div>
+            <div className="font-mono font-semibold text-emerald-300">{fmtIDR(r.revenue_idr)}</div>
+            <details className="min-w-0">
+              <summary className="cursor-pointer text-[11px] text-zinc-500 hover:text-zinc-300">Info rilisan</summary>
+              <div className="mt-2 space-y-2">
+                <PlanBadge plan={r.subscription_plan} id={r.id} />
+                <div>UPC: <code translate="no" className="break-all" data-testid={`admin-release-upc-${r.id}`}>{r.upc || "—"}</code></div>
+                <div>{fmtInt(r.royalty_lines_count)} baris royalti</div>
+                <div>Aktif: {fmtPeriod(r.last_active_period)}{r.first_active_period && r.first_active_period !== r.last_active_period ? ` · dari ${fmtPeriod(r.first_active_period)}` : ""}</div>
+                <ReleaseIsrcToggle release={r} open={expandedIsrc === r.id} onToggle={() => setExpandedIsrc((value) => value === r.id ? null : r.id)} />
+                {expandedIsrc === r.id && <ReleaseIsrcPanel release={r} />}
+              </div>
+            </details>
+          </div>}
+          renderActions={(r) => <>
+            {isReadyToLive(r) && <button type="button" onClick={() => setGoLiveId(r.id)} className="inline-flex items-center gap-1.5 rounded-full bg-pink-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-pink-400" data-testid={`admin-release-golive-btn-${r.id}`}><Rocket className="h-3.5 w-3.5" /> Tayangkan</button>}
+            <AdminDeleteReleaseButton release={r} compact onDeleted={(id) => setItems((current) => current.filter((item) => item.id !== id))} />
+          </>} />
+      ) : (
       <div className="rm-card overflow-hidden">
         <div className="hidden xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,.85fr)_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,.8fr)_minmax(0,1.2fr)] gap-3 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">
           <div>Rilisan</div><div>Label</div><div data-testid="admin-releases-plan-header">Paket</div><div data-testid="admin-releases-upc-header">UPC</div><div data-testid="admin-releases-isrc-header">ISRC</div>
@@ -209,6 +235,7 @@ export default function AdminReleases() {
           </div>
         ))}
       </div>
+      )}
       <GoLiveModal releaseId={goLiveId} open={!!goLiveId} onClose={() => setGoLiveId(null)} onDone={load} />
       <MassGoLiveModal open={massOpen} onClose={() => setMassOpen(false)} onDone={load} />
       <TakedownImportModal open={takedownOpen} onClose={() => setTakedownOpen(false)} onDone={load} />
