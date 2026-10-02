@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/api/AuthContext";
 import { LABEL_NAV } from "@/constants/testIds";
-import { api } from "@/api/client";
+import { LabelKycProvider, useLabelKyc } from "@/contexts/LabelKycContext";
 import NotificationBell from "./NotificationBell";
 import LabelSwitcher from "./LabelSwitcher";
 import { DashboardBrand } from "./DashboardBrand";
@@ -28,15 +28,15 @@ const NAV = [
 const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 
 export default function LabelLayout() {
+  return <LabelKycProvider><LabelShell /></LabelKycProvider>;
+}
+function LabelShell() {
   const { user, profile, logout } = useAuth();
   const { t } = useAppPreferences();
   const loc = useLocation(); const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(localStorage.getItem("label-sidebar-collapsed") === "true");
-  const [kyc, setKyc] = useState(profile?.kyc || null); const [kycLoading, setKycLoading] = useState(true);
-  const loadKyc = useCallback(async () => { setKycLoading(true); try { const { data } = await api.get("/label/kyc"); setKyc(data); } catch { setKyc({ status: "incomplete", is_verified: false }); } finally { setKycLoading(false); } }, []);
-  useEffect(() => { loadKyc(); }, [loadKyc, loc.pathname]);
-  useEffect(() => { const update = (event) => setKyc(event.detail); window.addEventListener("rilismusik:kyc-updated", update); return () => window.removeEventListener("rilismusik:kyc-updated", update); }, []);
+  const { kyc, loading: kycLoading } = useLabelKyc();
   const locked = !isKycFreePath(loc.pathname) && (kycLoading || !kyc?.is_verified);
   const onLogout = async () => { await logout(); navigate("/login"); };
   const toggle = () => setCollapsed((value) => { localStorage.setItem("label-sidebar-collapsed", String(!value)); return !value; });

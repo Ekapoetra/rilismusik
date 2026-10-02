@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import * as Icons from "lucide-react";
 import { api } from "@/api/client";
+import { usePollingRead } from "@/hooks/usePollingRead";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
 import { useAuth } from "@/api/AuthContext";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
@@ -39,7 +40,7 @@ const PRIO_META = {
   low: { cls: "bg-zinc-500/15 text-zinc-300", label: "Rendah" },
 };
 
-function Greeting({ name, work, team, isManager }) {
+function Greeting({ name, work, team, isManager, pending, error }) {
   const { t } = useAppPreferences();
   const now = new Date();
   const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
@@ -49,7 +50,9 @@ function Greeting({ name, work, team, isManager }) {
   const teamOpen = team.reduce((s, w) => s + (w.open_count || 0), 0);
   const overdue = work.reduce((s, w) => s + (w.overdue_count || 0), 0);
   let message;
-  if (openWork === 0 && (!isManager || teamOpen === 0)) message = t("Semua pekerjaan sudah tertangani. 🎉");
+  if (error) message = t("Daftar pekerjaan belum dapat diperbarui.");
+  else if (pending) message = t("Memuat daftar pekerjaan…");
+  else if (openWork === 0 && (!isManager || teamOpen === 0)) message = t("Semua pekerjaan sudah tertangani. 🎉");
   else if (isManager && teamOpen > 0) message = `${t("Tim Anda punya")} ${teamOpen} ${t("pekerjaan terbuka")}${overdue ? `, ${overdue} ${t("lewat tempo")}` : ""}. ${t("Mari selesaikan yang prioritas.")}`;
   else message = `${t("Ada")} ${openWork} ${t("pekerjaan menunggu, mari selesaikan yang paling prioritas.")}`;
   return (
@@ -180,11 +183,12 @@ const DONUT = [
   { key: "open", label: "Open", color: "#a1a1aa" },
   { key: "overdue", label: "Overdue", color: "#fb7185" },
 ];
-function WorkSummary() {
+function WorkSummary({ progress }) {
   const { t } = useAppPreferences();
   const [period, setPeriod] = useState("today");
-  const [data, setData] = useState(null);
-  useEffect(() => { setData(null); api.get("/admin/dashboard/work-summary", { params: { period } }).then((r) => setData(r.data)).catch(() => setData({ total: 0, completed: 0, in_progress: 0, open: 0, overdue: 0 })); }, [period]);
+  const result = usePollingRead("/admin/dashboard/work-summary", { period, include_progress: false });
+  const data = result.data && progress ? { ...result.data, in_progress: progress.length, total: result.data.completed + result.data.open + progress.length } : null;
+
   return (
     <section className="rm-card p-5 h-full flex flex-col" data-testid="admin-work-summary-panel">
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -193,7 +197,7 @@ function WorkSummary() {
           {PERIODS.map((p) => <option key={p.k} value={p.k} className="bg-zinc-900">{t(p.l)}</option>)}
         </select>
       </div>
-      <div className="flex flex-1 items-center"><WorkSummaryChart data={data} /></div>
+      <div className="flex flex-1 items-center">{result.error ? <p role="alert" className="text-red-300">{t("Ringkasan kerja belum dapat diperbarui.")}</p> : <WorkSummaryChart data={data} />}</div>
     </section>
   );
 }
@@ -349,15 +353,9 @@ const KPI_ACCENT = { rose: "from-rose-500/15 to-rose-500/5 text-rose-300", indig
 function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid, nonce, defaultPeriod = "today" }) {
   const { t } = useAppPreferences();
   const [period, setPeriod] = useState(defaultPeriod);
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    api.get("/admin/dashboard/money", { params: { kind, period } })
-      .then((r) => { if (alive) setData(r.data); })
-      .catch(() => { if (alive) setData({ value: 0, trend: null }); });
-    return () => { alive = false; };
-  }, [kind, period, nonce]);
-  const c = KPI_ACCENT[accent] || "text-zinc-400";
+  const result = usePollingRead("/admin/dashboard/money", { kind, period }, { refreshEvent: "rilismusik:new-notification" });
+  const data = result.data;
+
   return (
     <div className="rm-card h-full p-5" data-testid={testid}>
       <div className="flex items-center justify-between gap-2">
@@ -367,7 +365,8 @@ function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid
         </select>
       </div>
       <div className="mt-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
-      <div className="mt-1 font-display text-2xl font-extrabold tracking-tighter" data-testid={`${testid}-value`}>{data ? fmtIDR(data.value) : "…"}</div>
+      <div className="mt-1 font-display text-2xl font-extrabold tracking-tighter" data-testid={`${testid}-value`}>{data ? fmtIDR(data.value) : result.error ? "—" : "…"}</div>
+      {result.error && <p role="alert" className="mt-1 text-xs text-red-300">{t("Nilai belum dapat diperbarui.")}</p>}
       <div className="mt-1.5 flex items-center gap-2"><Trend trend={data?.trend} />{sub && <span className="text-[11px] text-zinc-500">{sub}</span>}</div>
     </div>
   );
@@ -376,53 +375,37 @@ function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid
 export default function AdminDashboard() {
   const { user, hasPermission } = useAuth();
   const { t } = useAppPreferences();
-  const [metrics, setMetrics] = useState(null);
-  const [nonce, setNonce] = useState(0);
-  const [inprog, setInprog] = useState(null);
-  const [work, setWork] = useState([]);
-  const [team, setTeam] = useState([]);
-  const [isManager, setIsManager] = useState(false);
+  const canWork = hasPermission("work.view");
+  const workResult = usePollingRead("/admin/work/queue", { scope: "all" }, { enabled: canWork, refreshEvent: "rilismusik:new-notification" });
+  const metricsResult = usePollingRead("/admin/dashboard/metrics", { period: "month", include_money: false }, { refreshEvent: "rilismusik:new-notification" });
+  const progressResult = usePollingRead("/admin/dashboard/in-progress");
+  const metrics = metricsResult.data;
+  const inprog = progressResult.data?.items || null;
+  const work = workResult.data?.items || [];
+  const team = workResult.data?.team_items || [];
+  const isManager = Boolean(workResult.data?.is_manager);
+  const workPending = canWork && (!workResult.data || workResult.data.synchronizing);
   const name = user?.name || user?.pic_name || user?.email || "Admin";
   const isSuper = user?.role === "super_admin";
-  const canWork = hasPermission("work.view");
-
-  const loadWork = useCallback(async () => {
-    if (!canWork) return;
-    try {
-      const { data } = await api.get("/admin/work/queue", { params: { scope: "my" } });
-      setWork(data.items || []); setIsManager(!!data.is_manager);
-      if (data.is_manager) { try { const { data: td } = await api.get("/admin/work/queue", { params: { scope: "team" } }); setTeam(td.items || []); } catch { /* */ } }
-    } catch { /* */ }
-  }, [canWork]);
-
-  const loadPeriodData = useCallback(() => {
-    api.get("/admin/dashboard/metrics", { params: { period: "month" } }).then((r) => setMetrics(r.data)).catch(() => setMetrics({}));
-  }, []);
-
-  const refresh = useCallback(() => {
-    loadWork(); loadPeriodData(); setNonce((n) => n + 1);
-    api.get("/admin/dashboard/in-progress").then((r) => setInprog(r.data.items || [])).catch(() => setInprog([]));
-  }, [loadWork, loadPeriodData]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => { const iv = setInterval(refresh, 15000); const onN = () => refresh(); window.addEventListener("rilismusik:new-notification", onN); return () => { clearInterval(iv); window.removeEventListener("rilismusik:new-notification", onN); }; }, [refresh]);
 
   const m = metrics || {};
 
   return (
     <div className="space-y-6">
-      <Greeting name={name} work={work} team={team} isManager={isManager} />
+      <Greeting name={name} work={work} team={team} isManager={isManager} pending={workPending} error={workResult.error} />
+      {workResult.error && <p role="alert" className="text-red-300">{t("Daftar pekerjaan belum dapat diperbarui. Data terakhir tetap ditampilkan.")}</p>}
+      {workPending && <p role="status" className="text-zinc-400">{t("Memuat daftar pekerjaan…")}</p>}
 
-      {canWork && <TodaysFocus work={work} />}
+      {canWork && !workPending && !workResult.error && <TodaysFocus work={work} />}
 
       {canWork && (
         <div className="grid gap-5 lg:grid-cols-2">
           <Panel icon={ClipboardList} title={t("Pekerjaan Saya")} subtitle={`${t("Total")} ${work.reduce((s, w) => s + (w.open_count || 0), 0)} ${t("pekerjaan di antrean Anda")}`} to="/admin/work" testid="admin-my-work">
-            <WorkList items={work.filter((w) => w.open_count > 0)} testid="admin-my-work-list" emptyLabel="Tidak ada pekerjaan untuk Anda." />
+            {workPending ? <p role="status">{t("Memuat pekerjaan…")}</p> : workResult.error && !workResult.data ? <p role="alert">{t("Pekerjaan belum dapat dimuat.")}</p> : <WorkList items={work.filter((w) => w.open_count > 0)} testid="admin-my-work-list" emptyLabel="Tidak ada pekerjaan untuk Anda." />}
           </Panel>
           {isManager ? (
             <Panel icon={Users} title={t("Pekerjaan Tim")} subtitle={`${t("Total")} ${team.reduce((s, w) => s + (w.open_count || 0), 0)} ${t("pekerjaan dalam antrean tim")}`} to="/admin/work" tint="text-indigo-300" testid="admin-team-monitor">
-              <WorkList items={team.filter((w) => w.open_count > 0)} testid="admin-team-list" emptyLabel="Tidak ada pekerjaan tim terbuka." />
+              {workPending ? <p role="status">{t("Memuat pekerjaan tim…")}</p> : <WorkList items={team.filter((w) => w.open_count > 0)} testid="admin-team-list" emptyLabel="Tidak ada pekerjaan tim terbuka." />}
             </Panel>
           ) : (
             <Panel icon={Loader2} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel">
@@ -435,21 +418,23 @@ export default function AdminDashboard() {
       <div className="grid gap-5 lg:grid-cols-3">
         {isManager && <Panel icon={ListChecks} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel"><InProgress items={inprog} /></Panel>}
         <div className={isManager ? "h-full" : "lg:col-span-2 h-full"}>
-          <WorkSummary />
+          <WorkSummary progress={inprog} />
         </div>
         <RecentActivity selfOnly={!isSuper} userId={user?.id} />
       </div>
 
+      {metricsResult.error && <p role="alert" className="text-red-300">{t("Ringkasan platform belum dapat diperbarui.")}</p>}
+      {progressResult.error && <p role="alert" className="text-red-300">{t("Pekerjaan berjalan belum dapat diperbarui.")}</p>}
       <section data-testid="admin-kpi-section">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">{t("Ringkasan Platform")}</div>
         </div>
-        {metrics === null ? (
+        {metrics === null && !metricsResult.error ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{Array.from({ length: isSuper ? 7 : 5 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />)}</div>
-        ) : (
+        ) : !metrics ? <p role="alert">{t("Ringkasan belum tersedia.")}</p> : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <MoneyKpiCard kind="sales" icon={Wallet} label={t("Sales Revenue")} sub={t("via Xendit")} accent="emerald" nonce={nonce} defaultPeriod="today" testid="kpi-sales-revenue" />
-            {isSuper && <MoneyKpiCard kind="withdrawal" icon={Coins} label={t("Requested Withdrawal")} accent="amber" nonce={nonce} defaultPeriod="month" testid="kpi-requested-withdrawal" />}
+            <MoneyKpiCard kind="sales" icon={Wallet} label={t("Sales Revenue")} sub={t("via Xendit")} accent="emerald" defaultPeriod="today" testid="kpi-sales-revenue" />
+            {isSuper && <MoneyKpiCard kind="withdrawal" icon={Coins} label={t("Requested Withdrawal")} accent="amber" defaultPeriod="month" testid="kpi-requested-withdrawal" />}
             {isSuper && <KpiCard icon={Icons.Landmark} label={t("Royalty Income")} value={fmtIDR(m.royalty_income?.value)} trend={m.royalty_income?.trend} sub={m.royalty_income?.period ? `${fmtEUR(m.royalty_income?.eur)} · ${m.royalty_income.period}` : t("impor CSV Believe")} accent="indigo" to="/admin/analytics" testid="kpi-royalty-income" />}
             <KpiCard icon={Building2} label={t("Total Label")} value={fmtNum(m.total_labels?.value)} trend={m.total_labels?.trend} sub={`+${m.total_labels?.added || 0} ${t("Bulan ini")}`} accent="rose" to="/admin/labels" testid={ADMIN_DASHBOARD.totalLabels} />
             <KpiCard icon={Users2} label={t("Total Artist")} value={fmtNum(m.total_artists?.value)} trend={m.total_artists?.trend} sub={`+${m.total_artists?.added || 0} ${t("Bulan ini")}`} accent="indigo" testid="kpi-total-artists" />

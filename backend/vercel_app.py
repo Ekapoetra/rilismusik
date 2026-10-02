@@ -4,6 +4,8 @@ Production cutover requires durable jobs and scheduled work to be migrated.
 The ordinary server.py entrypoint retains its existing worker behavior.
 """
 import os
+import logging
+import time
 from pathlib import Path
 from tempfile import gettempdir
 
@@ -53,7 +55,15 @@ async def restrict_migration_preview(request: Request, call_next):
                 "belum diaktifkan pada deployment percobaan."
             },
         )
-    return await call_next(request)
+    started = time.perf_counter()
+    response = await call_next(request)
+    duration = (time.perf_counter() - started) * 1000
+    response.headers["Server-Timing"] = f"app;dur={duration:.1f}"
+    response.headers["Cache-Control"] = "no-store"
+    route = request.scope.get("route")
+    logging.getLogger("rilismusik.performance").info("api_timing route=%s status=%s duration_ms=%.1f",
+        getattr(route, "path", "unmatched"), response.status_code, duration)
+    return response
 
 
 @app.get("/api/admin/deployment-check")

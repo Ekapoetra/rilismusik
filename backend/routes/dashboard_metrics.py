@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional
 
 from .deps import db, require_admin, has_permission
+from .query_concurrency import bounded_gather
 from models import now_iso
 
 dashboard_metrics_r = APIRouter(prefix="/admin/dashboard", tags=["dashboard-metrics"])
@@ -69,14 +70,14 @@ async def _est(coll):
     try:
         return await db[coll].estimated_document_count()
     except Exception:
-        return 0
+        raise HTTPException(503, "Ringkasan belum dapat dimuat. Coba lagi.") from None
 
 
 async def _count_fast(coll, match, ms=4000):
     try:
         return await db[coll].count_documents(match, maxTimeMS=ms)
     except Exception:
-        return 0
+        raise HTTPException(503, "Ringkasan belum dapat dimuat. Coba lagi.") from None
 
 
 async def _sum_by_date(coll, base_match, date_field, cs_dt, ce_dt, field="amount_idr"):
@@ -91,7 +92,7 @@ async def _sum_by_date(coll, base_match, date_field, cs_dt, ce_dt, field="amount
         async for r in cur:
             return float(r.get("s") or 0)
     except Exception:
-        return 0.0
+        raise HTTPException(503, "Nilai finansial belum dapat dimuat. Coba lagi.") from None
     return 0.0
 
 
@@ -120,41 +121,40 @@ async def _latest_royalty_income():
 
 
 @dashboard_metrics_r.get("/metrics")
-async def dashboard_metrics(period: str = Query("today"), user: dict = Depends(require_admin)):
+async def dashboard_metrics(period: str = Query("today"), include_money: bool = Query(True), user: dict = Depends(require_admin)):
     cs, ce, ps, pe = _period_windows(period)
     cs_dt, ce_dt, ps_dt, pe_dt = _period_windows_dt(period)
     can_withdraw = has_permission(user, "withdraw.view") or user.get("role") == "super_admin"
     can_royalty = has_permission(user, "royalty.view") or has_permission(user, "analytics.view") or user.get("role") == "super_admin"
-    out = {"period": period}
 
-    # Sales Revenue — pure Xendit income (paid payments) by paid_at.
-    sr_cur = await _sum("payments", {"provider": "xendit", "status": "paid", "paid_at": {"$gte": cs, "$lte": ce}})
-    sr_prev = await _sum("payments", {"provider": "xendit", "status": "paid", "paid_at": {"$gte": ps, "$lt": pe}})
-    out["sales_revenue"] = {"value": sr_cur, "currency": "IDR", "trend": _trend(sr_cur, sr_prev)}
+    async def totals(coll, base=None):
+        base = base or {}
+        total = await _count_fast(coll, base, ms=5000) if base else await _est(coll)
+        added = await _count_fast(coll, {**base, "created_at": {"$gte": cs, "$lte": ce}})
+        previous = await _count_fast(coll, {**base, "created_at": {"$gte": ps, "$lt": pe}})
+        return {"value": total, "added": added, "trend": _trend(added, previous)}
 
-    # Total labels / artists / releases — fast metadata totals + best-effort added-in-period trend.
-    for key, coll in (("total_labels", "labels"), ("total_artists", "artists"), ("total_releases", "releases")):
-        total = await _est(coll)
-        added_cur = await _count_fast(coll, {"created_at": {"$gte": cs, "$lte": ce}})
-        added_prev = await _count_fast(coll, {"created_at": {"$gte": ps, "$lt": pe}})
-        out[key] = {"value": total, "added": added_cur, "trend": _trend(added_cur, added_prev)}
+    async def sales():
+        current = await _sum("payments", {"provider": "xendit", "status": "paid", "paid_at": {"$gte": cs, "$lte": ce}})
+        previous = await _sum("payments", {"provider": "xendit", "status": "paid", "paid_at": {"$gte": ps, "$lt": pe}})
+        return {"value": current, "currency": "IDR", "trend": _trend(current, previous)}
 
-    # Active members — accounts that have been activated (claimed & active, not blacklisted).
-    active_match = {"account_status": "active", "blacklisted": {"$ne": True}}
-    active_total = await _count_fast("labels", active_match, ms=5000)
-    am_cur = await _count_fast("labels", {**active_match, "created_at": {"$gte": cs, "$lte": ce}})
-    am_prev = await _count_fast("labels", {**active_match, "created_at": {"$gte": ps, "$lt": pe}})
-    out["active_members"] = {"value": active_total, "added": am_cur, "trend": _trend(am_cur, am_prev)}
+    async def withdrawals():
+        current = await _withdrawal_total(cs_dt, ce_dt)
+        previous = await _withdrawal_total(ps_dt, pe_dt)
+        return {"value": current, "currency": "IDR", "trend": _trend(current, previous)}
 
-    if can_withdraw:
-        wd_cur = await _withdrawal_total(cs_dt, ce_dt)
-        wd_prev = await _withdrawal_total(ps_dt, pe_dt)
-        out["requested_withdrawal"] = {"value": wd_cur, "currency": "IDR", "trend": _trend(wd_cur, wd_prev)}
+    reads = {"total_labels": totals("labels"), "total_artists": totals("artists"),
+             "total_releases": totals("releases"),
+             "active_members": totals("labels", {"account_status": "active", "blacklisted": {"$ne": True}})}
+    if include_money:
+        reads["sales_revenue"] = sales()
+        if can_withdraw:
+            reads["requested_withdrawal"] = withdrawals()
     if can_royalty:
-        out["royalty_income"] = await _latest_royalty_income()
-
-    out["finance_visible"] = can_withdraw or can_royalty
-    return out
+        reads["royalty_income"] = _latest_royalty_income()
+    values = await bounded_gather(*reads.values())
+    return {"period": period, **dict(zip(reads, values)), "finance_visible": can_withdraw or can_royalty}
 
 
 _MONEY_KINDS = ("sales", "withdrawal")
@@ -224,7 +224,7 @@ async def in_progress(user: dict = Depends(require_admin)):
 
 # ---------------- Work Summary donut ----------------
 @dashboard_metrics_r.get("/work-summary")
-async def work_summary(period: str = Query("today"), user: dict = Depends(require_admin)):
+async def work_summary(period: str = Query("today"), include_progress: bool = Query(True), user: dict = Depends(require_admin)):
     from .work_service import WORK_TYPES
     cs, ce, _, _ = _period_windows(period)
     completed = await _count("work_items", {"status": "completed", "completed_at": {"$gte": cs, "$lte": ce}})
@@ -242,7 +242,7 @@ async def work_summary(period: str = Query("today"), user: dict = Depends(requir
                 overdue += 1
         except Exception:
             pass
-    ip = await in_progress(user)
+    ip = await in_progress(user) if include_progress else {"items": []}
     in_progress_count = len(ip["items"])
     total = completed + open_total + in_progress_count
     return {"period": period, "total": total, "completed": completed, "in_progress": in_progress_count,

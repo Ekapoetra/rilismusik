@@ -5,12 +5,15 @@ endpoints. A Work instance is OPEN while its source entity sits in the mapped op
 condition and becomes COMPLETED (idempotently) when the entity leaves that condition;
 Completed By/At are derived from trusted backend sources (activity_logs / entity fields).
 """
-import time
+import asyncio
 from datetime import datetime, timezone, date, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from pymongo import UpdateOne, ReturnDocument
+from pymongo.errors import DuplicateKeyError
+from .query_concurrency import bounded_gather
 
 from models import new_id, now_iso
 from .deps import db, log_activity, require_admin
@@ -62,7 +65,9 @@ DEFAULT_SLA_DAYS = {w["key"]: w["sla_days_default"] for w in WORK_TYPES}
 _MODULE_MAP = {"releases": "release", "withdraw_requests": "withdraw", "kyc_documents": "kyc",
                "support_tickets": "support", "payments": "payment", "wami_orders": "wami", "service_orders": "service",
                "addon_orders": "addon", "bank_account_change_requests": "bank_account", "bank_accounts": "bank_account"}
-_RECON = {"at": 0.0}
+_LEASE_ID = "work-reconciliation"
+_RECON_INTERVAL = timedelta(seconds=8)
+_LEASE_DURATION = timedelta(seconds=90)
 
 
 # ---------- config (stored in admin_ui_settings, lazily seeded) ----------
@@ -140,10 +145,12 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
             ref = f"{d.get('bank_name') or 'Rekening'} · {d.get('account_number') or ''}".strip(" ·")
             add("bank_account_change_requests", d, "created_at", ref or "Verifikasi rekening", d.get("label_id"), d.get("label_name"))
         # First-time bank input awaiting verification (registration/KYC path — no change request).
-        async for d in db.bank_accounts.find({"verified_status": "pending"}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "bank_name": 1, "account_number": 1}):
-            lab = await db.labels.find_one({"id": d.get("label_id")}, {"_id": 0, "label_name": 1})
+        banks = await db.bank_accounts.find({"verified_status": "pending"}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "bank_name": 1, "account_number": 1}).to_list(None)
+        names = {lab["id"]: lab.get("label_name") async for lab in db.labels.find(
+            {"id": {"$in": list({bank.get("label_id") for bank in banks})}}, {"_id": 0, "id": 1, "label_name": 1})} if banks else {}
+        for d in banks:
             ref = f"{d.get('bank_name') or 'Rekening'} · {d.get('account_number') or ''}".strip(" ·")
-            add("bank_accounts", d, "created_at", ref or "Verifikasi rekening awal", d.get("label_id"), (lab or {}).get("label_name"))
+            add("bank_accounts", d, "created_at", ref or "Verifikasi rekening awal", d.get("label_id"), names.get(d.get("label_id")))
     return out
 
 
@@ -177,39 +184,89 @@ async def _actor_info(actor_id: Optional[str], cache: Dict[str, Any]) -> Dict[st
 
 
 # ---------- reconciliation (idempotent) ----------
-async def reconcile_work(force: bool = False) -> None:
-    if not force and (time.time() - _RECON["at"]) < 8:
-        return
-    _RECON["at"] = time.time()
-    cache: Dict[str, Any] = {}
-    for wt in WORK_TYPES:
-        key = wt["key"]
-        current = await _sources(key)
-        current_keys = set()
-        for it in current:
-            dk = f"{key}:{it['source']}:{it['entity_id']}"
-            current_keys.add(dk)
-            await db.work_items.update_one(
-                {"dedupe_key": dk, "status": "open"},
-                {"$setOnInsert": {
-                    "id": new_id(), "dedupe_key": dk, "work_type": key, "source": it["source"],
-                    "entity_id": it["entity_id"], "entity_ref": it.get("ref"),
-                    "label_id": it.get("label_id"), "label_name": it.get("label_name"),
-                    "status": "open", "opened_at": it["opened_at"], "created_at": now_iso(),
-                }},
-                upsert=True,
-            )
-        async for wi in db.work_items.find({"work_type": key, "status": "open"}, {"_id": 0}):
-            if wi["dedupe_key"] in current_keys:
-                continue
-            actor, at, action = await _resolve_completion(wi["source"], wi["entity_id"])
-            info = await _actor_info(actor, cache)
-            await db.work_items.update_one(
-                {"id": wi["id"], "status": "open"},
-                {"$set": {"status": "completed", "completed_by": actor, "completed_by_name": info["name"],
-                          "completed_by_super": info["super"], "completed_at": at or now_iso(),
-                          "completion_action": action, "updated_at": now_iso()}},
-            )
+async def _renew_work_lease(owner):
+    now = datetime.now(timezone.utc)
+    result = await db.performance_state.update_one(
+        {"_id": _LEASE_ID, "owner": owner, "lease_until": {"$gt": now}},
+        {"$set": {"lease_until": now + _LEASE_DURATION}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(503, "Sinkronisasi pekerjaan sedang dicoba ulang.")
+
+
+async def reconcile_work(force: bool = False) -> dict:
+    """Bounded synchronous reconciliation; lease and success stamp survive instances.
+
+    No fire-and-forget task is used on Vercel. Existing cron calls use the same
+    lease. Other readers can read the stored projection while a lease is held.
+    """
+    now = datetime.now(timezone.utc)
+    owner = new_id()
+    query = {"_id": _LEASE_ID, "$and": [
+        {"$or": [{"lease_until": {"$lte": now}}, {"lease_until": {"$exists": False}}]},
+    ]}
+    if not force:
+        query["$and"].append({"$or": [{"last_success": {"$lte": now - _RECON_INTERVAL}}, {"last_success": {"$exists": False}}]})
+    try:
+        lease = await db.performance_state.find_one_and_update(
+            query, {"$set": {"owner": owner, "lease_until": now + _LEASE_DURATION}},
+            upsert=True, return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError:
+        state = await db.performance_state.find_one({"_id": _LEASE_ID}) or {}
+        # Mongo returns BSON datetimes as naive UTC by default.
+        until = state.get("lease_until")
+        if until and until.tzinfo is None:
+            until = until.replace(tzinfo=timezone.utc)
+        return {"synchronizing": bool(until and until > now), "last_success": state.get("last_success")}
+    try:
+        async with asyncio.timeout(45):
+            sources = await bounded_gather(*(_sources(wt["key"]) for wt in WORK_TYPES))
+            opens = await db.work_items.find({"status": "open"}, {"_id": 0}).to_list(None)
+            existing = {item["dedupe_key"] for item in opens}
+            current_keys = set()
+            writes = []
+            for wt, current in zip(WORK_TYPES, sources):
+                key = wt["key"]
+                for it in current:
+                    dk = f"{key}:{it['source']}:{it['entity_id']}"
+                    if dk in current_keys:
+                        continue
+                    current_keys.add(dk)
+                    if dk in existing:
+                        continue
+                    writes.append(UpdateOne({"dedupe_key": dk, "status": "open"}, {"$setOnInsert": {
+                        "id": new_id(), "dedupe_key": dk, "work_type": key, "source": it["source"],
+                        "entity_id": it["entity_id"], "entity_ref": it.get("ref"),
+                        "label_id": it.get("label_id"), "label_name": it.get("label_name"),
+                        "status": "open", "opened_at": it["opened_at"], "created_at": now_iso(),
+                    }}, upsert=True))
+            closing = [item for item in opens if item["work_type"] in WORK_TYPE_MAP and item["dedupe_key"] not in current_keys]
+            completions = await bounded_gather(*(_resolve_completion(item["source"], item["entity_id"]) for item in closing))
+            actors = {actor for actor, _, _ in completions if actor}
+            cache = {u["id"]: {"name": u.get("name") or u.get("email") or "—", "super": u.get("role") == "super_admin"}
+                     async for u in db.users.find({"id": {"$in": list(actors)}}, {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1})} if actors else {}
+            for wi, (actor, at, action) in zip(closing, completions):
+                info = cache.get(actor, {"name": "—" if actor else "Sistem", "super": False})
+                writes.append(UpdateOne({"id": wi["id"], "status": "open"}, {"$set": {
+                    "status": "completed", "completed_by": actor, "completed_by_name": info["name"],
+                    "completed_by_super": info["super"], "completed_at": at or now_iso(),
+                    "completion_action": action, "updated_at": now_iso(),
+                }}))
+            for offset in range(0, len(writes), 500):
+                await _renew_work_lease(owner)
+                await db.work_items.bulk_write(writes[offset:offset + 500], ordered=False)
+            await _renew_work_lease(owner)
+            finished = datetime.now(timezone.utc)
+            await db.performance_state.update_one({"_id": _LEASE_ID, "owner": owner},
+                {"$set": {"last_success": finished, "lease_until": finished}, "$unset": {"owner": ""}})
+            return {"synchronizing": False, "last_success": finished}
+    except BaseException as exc:
+        await db.performance_state.update_one({"_id": _LEASE_ID, "owner": owner},
+            {"$set": {"lease_until": datetime.now(timezone.utc)}, "$unset": {"owner": ""}})
+        if isinstance(exc, TimeoutError):
+            raise HTTPException(503, "Sinkronisasi pekerjaan belum selesai. Coba muat ulang.") from None
+        raise
 
 
 # ---------- aging ----------
@@ -250,18 +307,14 @@ async def _delegated_permissions() -> set:
         {"key": {"$ne": SUPER_ADMIN_ROLE_ID}, "active": {"$ne": False}},
         {"_id": 0, "id": 1, "key": 1, "permissions": 1},
     ).to_list(500)
+    role_values = {value for role in roles for value in (role.get("id"), role.get("key")) if value}
+    users = await db.users.find({"$or": [{"admin_role_id": {"$in": list(role_values)}}, {"role": {"$in": list(role_values)}}],
+        "status": {"$nin": ["disabled", "suspended"]}}, {"_id": 0, "admin_role_id": 1, "role": 1}).to_list(None)
+    assigned = {value for user in users for value in (user.get("admin_role_id"), user.get("role")) if value}
     delegated: set = set()
-    for r in roles:
-        perms = set(r.get("permissions") or [])
-        if not perms:
-            continue
-        has_active_user = await db.users.find_one(
-            {"$or": [{"admin_role_id": r["id"]}, {"admin_role_id": r.get("key")}, {"role": r.get("key")}],
-             "status": {"$nin": ["disabled", "suspended"]}},
-            {"_id": 0, "id": 1},
-        )
-        if has_active_user:
-            delegated |= perms
+    for role in roles:
+        if role.get("id") in assigned or role.get("key") in assigned:
+            delegated.update(role.get("permissions") or [])
     return delegated
 
 
@@ -276,7 +329,9 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
         team work (Team Monitor), never auto-owned via the super wildcard.
     Invariant: My Work ∩ Team Monitor = ∅ (per user). No Responsibility / gaps concept."""
     assert_admin_permission(user, "work.view")
-    await reconcile_work()
+    if scope not in {"my", "team", "all"}:
+        raise HTTPException(400, "Scope tidak dikenal")
+    synchronization = await reconcile_work()
     settings = await get_work_settings()
     is_super = user.get("role") == SUPER_ADMIN_ROLE_ID
     is_manage = has_permission(user, "work.manage")
@@ -294,8 +349,8 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
     def is_delegated(wt: Dict[str, Any]) -> bool:
         return wt["scope"] == "permission" and wt["permission"] in delegated_perms
 
-    def show_for(wt: Dict[str, Any]) -> bool:
-        if scope == "my":
+    def show_for(wt: Dict[str, Any], requested_scope: str) -> bool:
+        if requested_scope == "my":
             if is_super:
                 # Super Admin = fallback owner: permanent super_admin_only work + delegatable
                 # work that has NOT been effectively delegated to a regular admin.
@@ -306,26 +361,32 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
         # personally owned so My ∩ Team = ∅). Super Admin sees all delegated work here.
         return is_delegated(wt) and (is_super or wt["permission"] not in real_perms)
 
+    counts = {}
+    async for row in db.work_items.find({"status": "open"}, {"_id": 0, "work_type": 1, "opened_at": 1}):
+        counts.setdefault(row["work_type"], []).append(row)
     rank = {"critical": 0, "high": 1, "normal": 2, "low": 3}
-    items = []
-    for wt in WORK_TYPES:
-        key = wt["key"]
-        if not show_for(wt):
-            continue
-        opens = await db.work_items.find({"work_type": key, "status": "open"}, {"_id": 0, "opened_at": 1}).to_list(20000)
-        sla = int(settings["sla_days"].get(key, wt["sla_days_default"]))
-        overdue = sum(1 for o in opens if _is_overdue(o.get("opened_at"), sla))
-        oldest = min((o.get("opened_at") for o in opens if o.get("opened_at")), default=None)
-        items.append({
-            "work_type": key, "label_id": wt["label_id"], "label_en": wt["label_en"], "icon": wt["icon"],
-            "link": wt["link"], "permission": wt["permission"], "priority": wt["priority"],
-            "scope": wt["scope"], "delegated": is_delegated(wt), "open_count": len(opens),
-            "overdue_count": overdue, "oldest_open_at": oldest,
-            "oldest_age_days": _age_days(oldest) if oldest else 0,
-            "sla_days": sla, "can_act": True if is_super else (wt["scope"] == "permission" and wt["permission"] in real_perms),
-        })
-    items.sort(key=lambda d: (0 if d["overdue_count"] else 1, rank.get(d["priority"], 9), d.get("oldest_open_at") or "9999"))
-    return {"scope": scope, "items": items, "is_manager": bool(is_manage or is_super)}
+    def items_for(requested_scope):
+        items = []
+        for wt in WORK_TYPES:
+            key = wt["key"]
+            if not show_for(wt, requested_scope):
+                continue
+            opens = counts.get(key, [])
+            sla = int(settings["sla_days"].get(key, wt["sla_days_default"]))
+            overdue = sum(1 for row in opens if _is_overdue(row.get("opened_at"), sla))
+            oldest = min((row.get("opened_at") for row in opens if row.get("opened_at")), default=None)
+            items.append({"work_type": key, "label_id": wt["label_id"], "label_en": wt["label_en"], "icon": wt["icon"],
+                "link": wt["link"], "permission": wt["permission"], "priority": wt["priority"],
+                "scope": wt["scope"], "delegated": is_delegated(wt), "open_count": len(opens),
+                "overdue_count": overdue, "oldest_open_at": oldest,
+                "oldest_age_days": _age_days(oldest) if oldest else 0, "sla_days": sla,
+                "can_act": True if is_super else (wt["scope"] == "permission" and wt["permission"] in real_perms)})
+        items.sort(key=lambda item: (0 if item["overdue_count"] else 1, rank.get(item["priority"], 9), item.get("oldest_open_at") or "9999"))
+        return items
+    payload = {"scope": scope, "items": items_for("my" if scope == "all" else scope), "is_manager": bool(is_manage or is_super), **synchronization}
+    if scope == "all":
+        payload["team_items"] = items_for("team") if is_manage or is_super else []
+    return payload
 
 
 @work_r.get("/history")

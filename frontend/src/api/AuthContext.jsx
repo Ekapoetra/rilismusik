@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, formatApiError } from "@/api/client";
 
+import { resetSharedReads } from "./sharedRead";
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -9,6 +11,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const acceptAuthPayload = useCallback((data) => {
+    resetSharedReads();
     setUser(data.user);
     setProfile(data.label || data.artist || null);
     return data;
@@ -50,6 +53,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/auth/logout");
     } catch (_e) { /* ignore */ }
+    resetSharedReads();
     setUser(false);
     setProfile(null);
   };

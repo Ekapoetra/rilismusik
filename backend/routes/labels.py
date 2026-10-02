@@ -1,4 +1,5 @@
 """Label profile & dashboard router."""
+from .query_concurrency import bounded_gather
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
@@ -170,13 +171,21 @@ async def label_claim_request(body: LabelClaimRequestIn, user: dict = Depends(re
 async def label_dashboard(user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
     from .balance_utils import compute_label_balance_snapshot
-    balance = await compute_label_balance_snapshot(label_id=label["id"], label=label)
-    total_releases = await db.releases.count_documents({"label_id": label["id"]})
-    active_releases = await db.releases.count_documents({"label_id": label["id"], "status": {"$in": ["approved", "delivered", "live"]}})
-    total_tracks = await db.tracks.count_documents({"label_id": label["id"]})
-    total_artists = await db.artists.count_documents({"label_id": label["id"]})
-    active_tickets = await db.support_tickets.count_documents({"label_id": label["id"], "status": {"$nin": ["done", "rejected"]}})
-    pending_invoices = await db.payments.count_documents({"label_id": label["id"], "status": "pending"})
+    async def release_statuses():
+        return await db.releases.aggregate([
+            {"$match": {"label_id": label["id"]}},
+            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+        ]).to_list(None)
+    balance, release_counts, total_tracks, total_artists, active_tickets, pending_invoices = await bounded_gather(
+        compute_label_balance_snapshot(label_id=label["id"], label=label),
+        release_statuses(),
+        db.tracks.count_documents({"label_id": label["id"]}),
+        db.artists.count_documents({"label_id": label["id"]}),
+        db.support_tickets.count_documents({"label_id": label["id"], "status": {"$nin": ["done", "rejected"]}}),
+        db.payments.count_documents({"label_id": label["id"], "status": "pending"}),
+    )
+    total_releases = sum(row["count"] for row in release_counts)
+    active_releases = sum(row["count"] for row in release_counts if row["_id"] in {"approved", "delivered", "live"})
 
     # Latest UNWITHDRAWN royalty only. Admin analytics keeps lifetime history,
     # so its cache cannot be reused for this customer-facing number.
@@ -208,10 +217,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
         "delivered": "delivered",
         "live": "live",
     }
-    async for row in db.releases.aggregate([
-        {"$match": {"label_id": label["id"]}},
-        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
-    ]):
+    for row in release_counts:
         bucket = _bucket.get(row.get("_id"))
         if bucket:
             pipeline_counts[bucket] += int(row.get("count") or 0)
@@ -240,6 +246,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
     from .kyc_service import compute_kyc_state
     return {
         "label": {**redact_label_for_self(label), "kyc": await compute_kyc_state(user=user, label=label)},
+        "balance": balance,
         "pipeline": pipeline_counts,
         "live_today": live_today,
         "stats": {

@@ -1,77 +1,78 @@
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/api/AuthContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import LabelLayout from "@/components/shared/LabelLayout";
 import AdminLayout from "@/components/shared/AdminLayout";
 
-import Landing from "@/pages/Landing";
-import Login from "@/pages/auth/Login";
-import Register from "@/pages/auth/Register";
-import ForgotPassword from "@/pages/auth/ForgotPassword";
-import ResetPassword from "@/pages/auth/ResetPassword";
+const Landing = lazy(() => import("@/pages/Landing"));
+const Login = lazy(() => import("@/pages/auth/Login"));
+const Register = lazy(() => import("@/pages/auth/Register"));
+const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 
-import LabelDashboard from "@/pages/label/Dashboard";
-import LabelReleases from "@/pages/label/Releases";
-import UploadRelease from "@/pages/label/UploadRelease";
-import ReleaseDetail from "@/pages/label/ReleaseDetail";
-import LabelArtists from "@/pages/label/Artists";
-import LabelProfile from "@/pages/label/Profile";
-import LabelInvoices from "@/pages/label/Invoices";
-import LabelRoyalty from "@/pages/label/Royalty";
-import LabelWithdraw from "@/pages/label/Withdraw";
-import LabelSupportTickets from "@/pages/label/SupportTickets";
-import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
-import LabelContract from "@/pages/label/Contract";
-import LabelWami from "@/pages/label/Wami";
+const LabelDashboard = lazy(() => import("@/pages/label/Dashboard"));
+const LabelReleases = lazy(() => import("@/pages/label/Releases"));
+const UploadRelease = lazy(() => import("@/pages/label/UploadRelease"));
+const ReleaseDetail = lazy(() => import("@/pages/label/ReleaseDetail"));
+const LabelArtists = lazy(() => import("@/pages/label/Artists"));
+const LabelProfile = lazy(() => import("@/pages/label/Profile"));
+const LabelInvoices = lazy(() => import("@/pages/label/Invoices"));
+const LabelRoyalty = lazy(() => import("@/pages/label/Royalty"));
+const LabelWithdraw = lazy(() => import("@/pages/label/Withdraw"));
+const LabelSupportTickets = lazy(() => import("@/pages/label/SupportTickets"));
+const LabelSupportTicketDetail = lazy(() => import("@/pages/label/SupportTicketDetail"));
+const LabelContract = lazy(() => import("@/pages/label/Contract"));
+const LabelWami = lazy(() => import("@/pages/label/Wami"));
 
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminAnalytics from "@/pages/admin/Analytics";
-import AnalyticsAudit from "@/pages/admin/AnalyticsAudit";
-import AdminLabels from "@/pages/admin/Labels";
-import AdminLabelDetail from "@/pages/admin/LabelDetail";
-import RoyaltyAdjustments from "@/pages/admin/RoyaltyAdjustments";
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminAnalytics = lazy(() => import("@/pages/admin/Analytics"));
+const AnalyticsAudit = lazy(() => import("@/pages/admin/AnalyticsAudit"));
+const AdminLabels = lazy(() => import("@/pages/admin/Labels"));
+const AdminLabelDetail = lazy(() => import("@/pages/admin/LabelDetail"));
+const RoyaltyAdjustments = lazy(() => import("@/pages/admin/RoyaltyAdjustments"));
 import { AppPreferencesProvider } from "@/contexts/AppPreferencesContext";
 import { AudioPreviewProvider } from "@/contexts/AudioPreviewContext";
-import { RoleWebsitePreview } from "@/components/admin/access/RoleWebsitePreview";
-import AdminReleases from "@/pages/admin/Releases";
-import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
-import AdminArtists from "@/pages/admin/Artists";
-import AdminPayments from "@/pages/admin/Payments";
-import AdminAddonOrders from "@/pages/admin/AddonOrders";
-import AdminCMS from "@/pages/admin/CMS";
-import AdminUsers from "@/pages/admin/AdminUsers";
-import AdminActivityLogs from "@/pages/admin/ActivityLogs";
-import AdminRoyaltyImport from "@/pages/admin/RoyaltyImport";
-import AdminRoyaltyDetail from "@/pages/admin/RoyaltyDetail";
-import AdminWithdraw from "@/pages/admin/Withdraw";
-import AdminTickets from "@/pages/admin/Tickets";
-import AdminTicketDetail from "@/pages/admin/TicketDetail";
-import AdminContracts from "@/pages/admin/Contracts";
-import AdminWami from "@/pages/admin/Wami";
-import AdminMigrate from "@/pages/admin/Migrate";
-import AdminKycReviews from "@/pages/admin/KycReviews";
-import AdminAccessControl from "@/pages/admin/AccessControl";
-import MultiLabelMerge from "@/pages/admin/MultiLabelMerge";
-import MyCompensation from "@/pages/admin/MyCompensation";
-import CompensationAdmin from "@/pages/admin/CompensationAdmin";
-import MultiLabelRequest from "@/pages/MultiLabelRequest";
-import RateChangeQueue from "@/pages/admin/RateChangeQueue";
-import WorkQueue from "@/pages/admin/WorkQueue";
-import BankVerifications from "@/pages/admin/BankVerifications";
-import StaffManagement from "@/pages/admin/StaffManagement";
-import Attendance from "@/pages/admin/Attendance";
-import StaffConfiguration from "@/pages/admin/StaffConfiguration";
-import WorkspaceStatus from "@/pages/admin/WorkspaceStatus";
-import Performance from "@/pages/admin/Performance";
-import MyPerformance from "@/pages/admin/MyPerformance";
-import PerformanceConfig from "@/pages/admin/PerformanceConfig";
-import XenditReconciliation from "@/pages/admin/XenditReconciliation";
-import Refunds from "@/pages/admin/Refunds";
-import AdminUiSettings from "@/pages/admin/UiSettings";
-import AdminNotifications from "@/pages/admin/Notifications";
+const RoleWebsitePreview = lazy(() => import("@/components/admin/access/RoleWebsitePreview").then((module) => ({ default: module.RoleWebsitePreview })));
+const AdminReleases = lazy(() => import("@/pages/admin/Releases"));
+const AdminReleaseDetail = lazy(() => import("@/pages/admin/ReleaseDetail"));
+const AdminArtists = lazy(() => import("@/pages/admin/Artists"));
+const AdminPayments = lazy(() => import("@/pages/admin/Payments"));
+const AdminAddonOrders = lazy(() => import("@/pages/admin/AddonOrders"));
+const AdminCMS = lazy(() => import("@/pages/admin/CMS"));
+const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
+const AdminActivityLogs = lazy(() => import("@/pages/admin/ActivityLogs"));
+const AdminRoyaltyImport = lazy(() => import("@/pages/admin/RoyaltyImport"));
+const AdminRoyaltyDetail = lazy(() => import("@/pages/admin/RoyaltyDetail"));
+const AdminWithdraw = lazy(() => import("@/pages/admin/Withdraw"));
+const AdminTickets = lazy(() => import("@/pages/admin/Tickets"));
+const AdminTicketDetail = lazy(() => import("@/pages/admin/TicketDetail"));
+const AdminContracts = lazy(() => import("@/pages/admin/Contracts"));
+const AdminWami = lazy(() => import("@/pages/admin/Wami"));
+const AdminMigrate = lazy(() => import("@/pages/admin/Migrate"));
+const AdminKycReviews = lazy(() => import("@/pages/admin/KycReviews"));
+const AdminAccessControl = lazy(() => import("@/pages/admin/AccessControl"));
+const MultiLabelMerge = lazy(() => import("@/pages/admin/MultiLabelMerge"));
+const MyCompensation = lazy(() => import("@/pages/admin/MyCompensation"));
+const CompensationAdmin = lazy(() => import("@/pages/admin/CompensationAdmin"));
+const MultiLabelRequest = lazy(() => import("@/pages/MultiLabelRequest"));
+const RateChangeQueue = lazy(() => import("@/pages/admin/RateChangeQueue"));
+const WorkQueue = lazy(() => import("@/pages/admin/WorkQueue"));
+const BankVerifications = lazy(() => import("@/pages/admin/BankVerifications"));
+const StaffManagement = lazy(() => import("@/pages/admin/StaffManagement"));
+const Attendance = lazy(() => import("@/pages/admin/Attendance"));
+const StaffConfiguration = lazy(() => import("@/pages/admin/StaffConfiguration"));
+const WorkspaceStatus = lazy(() => import("@/pages/admin/WorkspaceStatus"));
+const Performance = lazy(() => import("@/pages/admin/Performance"));
+const MyPerformance = lazy(() => import("@/pages/admin/MyPerformance"));
+const PerformanceConfig = lazy(() => import("@/pages/admin/PerformanceConfig"));
+const XenditReconciliation = lazy(() => import("@/pages/admin/XenditReconciliation"));
+const Refunds = lazy(() => import("@/pages/admin/Refunds"));
+const AdminUiSettings = lazy(() => import("@/pages/admin/UiSettings"));
+const AdminNotifications = lazy(() => import("@/pages/admin/Notifications"));
 import { Toaster } from "@/components/ui/sonner";
 
-import ArtistDashboard from "@/pages/artist/Dashboard";
+const ArtistDashboard = lazy(() => import("@/pages/artist/Dashboard"));
 
 const LABEL_ROLES = ["label"];
 const ARTIST_ROLES = ["artist"];
@@ -80,7 +81,7 @@ const guard = (permission, element) => <ProtectedRoute permission={permission}>{
 
 function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<div role="status" className="p-8 text-center text-zinc-400">Memuat halaman…</div>}><Routes>
           {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
@@ -171,12 +172,12 @@ function AppRoutes() {
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    </Routes></Suspense>
   );
 }
 
 function App() {
-  if (window.location.pathname === "/admin/role-preview") return <MemoryRouter><AppPreferencesProvider preview><RoleWebsitePreview /></AppPreferencesProvider></MemoryRouter>;
+  if (window.location.pathname === "/admin/role-preview") return <MemoryRouter><AppPreferencesProvider preview><Suspense fallback={<div role="status">Memuat halaman…</div>}><RoleWebsitePreview /></Suspense></AppPreferencesProvider></MemoryRouter>;
   return <BrowserRouter><AppPreferencesProvider><AuthProvider><AudioPreviewProvider><AppRoutes /><Toaster /></AudioPreviewProvider></AuthProvider></AppPreferencesProvider></BrowserRouter>;
 }
 

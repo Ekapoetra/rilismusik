@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .query_concurrency import bounded_gather
 from .deps import db, db_bg, logger, require_admin, require_super_admin, SUPER_ADMIN
 from .analytics_eligibility import analytics_eligible_filter, ANALYTICS_MATCH_STATUSES, ANALYTICS_LINE_STATUSES
 from .admin_permission_service import assert_admin_permission
@@ -525,11 +526,11 @@ async def admin_monthly_analytics(
                 for r in rows
             ]
 
-        top_platforms = await _topn("$platform", None, None)
-        top_countries = await _topn("$country", None, None)
-        top_labels = await _topn("$label_id", "labels", "label_name")
-        top_artists = await _topn("$artist_id", "artists", "artist_name")
-        top_tracks = await _topn("$track_id", "tracks", "track_title")
+        top_platforms, top_countries, top_labels, top_artists, top_tracks = await bounded_gather(
+            _topn("$platform", None, None), _topn("$country", None, None),
+            _topn("$label_id", "labels", "label_name"), _topn("$artist_id", "artists", "artist_name"),
+            _topn("$track_id", "tracks", "track_title"),
+        )
 
         kpi = {
             "total_revenue_eur": round((kpi_doc or {}).get("revenue_eur") or 0, 4),
@@ -593,11 +594,9 @@ async def admin_monthly_analytics(
             return int(r.get("n") or 0)
         return 0
 
-    distinct_platforms = await _distinct_count("platform")
-    distinct_countries = await _distinct_count("country")
-    distinct_labels = await _distinct_count("label")
-    distinct_artists = await _distinct_count("artist")
-    distinct_tracks = await _distinct_count("track")
+    distinct_platforms, distinct_countries, distinct_labels, distinct_artists, distinct_tracks = await bounded_gather(
+        *(_distinct_count(dim) for dim in ("platform", "country", "label", "artist", "track"))
+    )
 
     async def _top_from_cache(dim: str, name_field: Optional[str]):
         pipe = [
@@ -620,11 +619,11 @@ async def admin_monthly_analytics(
             async for r in db_bg.monthly_analytics.aggregate(pipe)
         ]
 
-    top_platforms = await _top_from_cache("platform", None)
-    top_countries = await _top_from_cache("country", None)
-    top_labels = await _top_from_cache("label", "label_name")
-    top_artists = await _top_from_cache("artist", "artist_name")
-    top_tracks = await _top_from_cache("track", "track_title")
+    top_platforms, top_countries, top_labels, top_artists, top_tracks = await bounded_gather(
+        _top_from_cache("platform", None), _top_from_cache("country", None),
+        _top_from_cache("label", "label_name"), _top_from_cache("artist", "artist_name"),
+        _top_from_cache("track", "track_title"),
+    )
 
     kpi = {
         "total_revenue_eur": round((kpi_doc or {}).get("revenue_eur") or 0, 4),
