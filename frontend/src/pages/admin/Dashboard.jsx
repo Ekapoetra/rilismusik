@@ -352,11 +352,12 @@ function KpiCard({ icon: Icon, label, value, trend, sub, accent, to, testid }) {
 const KPI_ACCENT = { rose: "from-rose-500/15 to-rose-500/5 text-rose-300", indigo: "from-indigo-500/15 to-indigo-500/5 text-indigo-300", amber: "from-amber-500/15 to-amber-500/5 text-amber-300", emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300", pink: "from-pink-500/15 to-purple-500/15 text-pink-300" };
 
 // Money KPI with its own independent period dropdown (Today / This week / This month).
-function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid, nonce, defaultPeriod = "today" }) {
+function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid, defaultPeriod = "today" }) {
   const { t } = useAppPreferences();
   const [period, setPeriod] = useState(defaultPeriod);
   const result = usePollingRead("/admin/dashboard/money", { kind, period }, { refreshEvent: "rilismusik:new-notification" });
   const data = result.data;
+  const c = KPI_ACCENT[accent] || "text-zinc-400";
 
   return (
     <div className="rm-card h-full p-5" data-testid={testid}>
