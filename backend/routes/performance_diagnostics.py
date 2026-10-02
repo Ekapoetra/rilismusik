@@ -35,8 +35,14 @@ async def performance_check(include_explain: bool = Query(False), label_id: str 
     names = ("work_items", "monthly_analytics", "royalty_lines", "releases", "activity_logs")
     result = {"vercel_region": os.environ.get("VERCEL_REGION") or "unknown",
               "atlas_region": "Periksa region cluster pada akun Atlas; tidak disimpulkan dari hostname.",
+              "work_read_mode": os.environ.get("WORK_RECONCILE_ON_READ", "true"),
               "primary_max_pool_size": client.options.pool_options.max_pool_size,
               "collections": await bounded_gather(*(indexes(name) for name in names))}
+    try:
+        state = await db.performance_state.find_one({"_id": "work-reconciliation"}, {"_id": 0, "last_success": 1})
+        result["work_last_success"] = (state or {}).get("last_success")
+    except Exception:
+        result["work_state_error"] = "Status worker belum dapat dibaca."
     if include_explain:
         queries = {"work_open": ("work_items", {"status": "open"}),
                    "analytics_totals": ("monthly_analytics", {"dim": "total"})}

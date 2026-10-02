@@ -196,6 +196,34 @@ class PerformanceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('sales_revenue', result)
         self.assertIn('royalty_income', result)
 
+    async def test_worker_mode_reads_projection_without_reconciliation(self):
+        with patch.dict('os.environ', {'WORK_RECONCILE_ON_READ':'false'}), patch.object(work, 'reconcile_work', AsyncMock()) as reconcile:
+            self.assertTrue((await work.work_read_synchronization())['synchronizing'])
+            await self.db.performance_state.insert_one({'_id':work._LEASE_ID,'last_success':datetime.now(timezone.utc)})
+            result = await work.work_read_synchronization()
+            self.assertFalse(result['synchronizing']); self.assertTrue(result['worker_managed'])
+            await self.db.performance_state.update_one({'_id':work._LEASE_ID}, {'$set':{'last_success':datetime.now(timezone.utc)-timedelta(minutes=10)}})
+            self.assertTrue((await work.work_read_synchronization())['stale'])
+            reconcile.assert_not_called()
+
+    async def test_managed_worker_retries_failure_and_stops(self):
+        spec = importlib.util.spec_from_file_location('work_projection_worker', Path(__file__).parents[1] / 'scripts' / 'work_projection_worker.py')
+        worker = importlib.util.module_from_spec(spec); spec.loader.exec_module(worker)
+        stop = asyncio.Event()
+        calls = []
+        async def check():
+            calls.append(1)
+            if len(calls)==1: raise ValueError('private connection details must not be logged')
+            stop.set(); return {'synchronizing':False}
+        with patch.object(work, 'reconcile_work', check), self.assertLogs('work-worker', level='INFO') as logs:
+            await worker.run(0, stop)
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn('private connection details', '\n'.join(logs.output))
+
+    async def test_worker_mode_rejects_misconfiguration(self):
+        with patch.dict('os.environ', {'WORK_RECONCILE_ON_READ':'maybe'}):
+            with self.assertRaises(HTTPException): await work.work_read_synchronization()
+
     async def test_work_batches_1000_new_items_and_skips_existing(self):
         sources = [{'source':'releases','entity_id':str(i),'opened_at':'2026-01-01','ref':'R'} for i in range(1000)]
         async def discover(kind): return sources if kind == 'release_review' else []
@@ -324,6 +352,7 @@ class PerformanceHttpTests(unittest.TestCase):
             def __getitem__(self, name):
                 return SimpleNamespace(list_indexes=lambda: SimpleNamespace(to_list=AsyncMock(return_value=[{'name':'_id_','key':{'_id':1},'unique':True}])))
             command = database.command
+            performance_state = SimpleNamespace(find_one=AsyncMock(return_value={}))
         app.dependency_overrides[require_super_admin] = lambda: {'role':'super_admin'}
         try:
             with patch.object(diagnostics, 'db', MetadataDB()):

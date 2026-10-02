@@ -7,6 +7,7 @@ Completed By/At are derived from trusted backend sources (activity_logs / entity
 """
 import asyncio
 import hashlib
+import os
 from datetime import datetime, timezone, date, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -185,6 +186,26 @@ async def _actor_info(actor_id: Optional[str], cache: Dict[str, Any]) -> Dict[st
 
 
 # ---------- reconciliation (idempotent) ----------
+async def work_read_synchronization():
+    mode = os.environ.get("WORK_RECONCILE_ON_READ", "true").lower()
+    if mode == "true":
+        return await reconcile_work()
+    if mode != "false":
+        raise HTTPException(503, "Konfigurasi sinkronisasi pekerjaan tidak valid.")
+    state = await db.performance_state.find_one({"_id": _LEASE_ID}) or {}
+    until = state.get("lease_until")
+    if until and until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    last_success = state.get("last_success")
+    if last_success and last_success.tzinfo is None:
+        last_success = last_success.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    stale = not last_success or (now - last_success).total_seconds() > 120
+    return {"synchronizing": stale or bool(until and until > now), "stale": stale,
+            "last_success": state.get("last_success"), "worker_managed": True}
+
+
+
 async def _renew_work_lease(owner):
     now = datetime.now(timezone.utc)
     result = await db.performance_state.update_one(
@@ -350,7 +371,7 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
     assert_admin_permission(user, "work.view")
     if scope not in {"my", "team", "all"}:
         raise HTTPException(400, "Scope tidak dikenal")
-    synchronization = await reconcile_work()
+    synchronization = await work_read_synchronization()
     settings = await get_work_settings()
     is_super = user.get("role") == SUPER_ADMIN_ROLE_ID
     is_manage = has_permission(user, "work.manage")
@@ -411,7 +432,7 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
 @work_r.get("/history")
 async def work_history(work_type: Optional[str] = None, limit: int = 100, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "work.view")
-    await reconcile_work()
+    synchronization = await work_read_synchronization()
     query: Dict[str, Any] = {"status": "completed"}
     if work_type:
         query["work_type"] = work_type
@@ -420,7 +441,7 @@ async def work_history(work_type: Optional[str] = None, limit: int = 100, user: 
         wt = WORK_TYPE_MAP.get(r["work_type"], {})
         r["work_type_label_id"] = wt.get("label_id", r["work_type"])
         r["work_type_label_en"] = wt.get("label_en", r["work_type"])
-    return {"items": rows}
+    return {"items": rows, **synchronization}
 
 
 @work_r.get("/settings")

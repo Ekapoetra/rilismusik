@@ -20,16 +20,39 @@ Branch ini sudah mencakup persiapan Google login; PR optimasi ditumpuk di atas
 | Semua halaman di bundle awal | 61 halaman memakai React.lazy/Suspense; role preview juga dimuat terpisah. Route, permission guard, fitur dan URL tetap. |
 | Pengukuran belum tersedia | Header Server-Timing, log durasi dengan route template, skrip pembandingan, pemeriksaan indeks dan explain terbatas. |
 
-## Batas rekonsiliasi
+## Worker terpisah yang disiapkan
 
-Rekonsiliasi masih berjalan sinkron secara terbatas ketika snapshot perlu
-diperbarui. Reader lain dapat membaca snapshot tersimpan dengan indikator
-`synchronizing`. Tidak ada `asyncio.create_task` yang ditinggal setelah response.
-Cron server lama tetap dapat memakai fungsi yang sama, dengan lease yang sama.
-Mode preview tetap menonaktifkan worker/cron. Memindahkan seluruh sinkronisasi
-ke worker durable memerlukan layanan worker/queue production yang belum dipilih.
-Batch/lease memperbaiki jalur saat ini tanpa membuat pekerjaan background Vercel
-yang dapat hilang ketika instance berhenti.
+Mode default `WORK_RECONCILE_ON_READ=true` menjaga preview tetap dapat diuji
+mandiri: rekonsiliasi sinkron dibatasi 45 detik dan reader lain dapat membaca
+snapshot dengan indikator `synchronizing`. Tidak ada task yang ditinggal setelah
+response selesai.
+
+Untuk memisahkan pekerjaan dari GET, jalankan worker yang disiapkan pada runtime
+proses/container yang dikelola (restart otomatis, bukan proses background request
+Vercel):
+
+```bash
+python3 backend/scripts/work_projection_worker.py --interval 15
+# Alternatif build image dari akar repository:
+docker build -f backend/Dockerfile.work -t rilismusik-work .
+```
+
+Worker hanya membutuhkan `MONGO_URL` dan `DB_NAME` pada environment. Jangan
+menaruh URI dalam argumen CLI, image, commit atau log. Gunakan supervisi restart
+layanan hosting; loop saja di laptop bukan layanan worker production. Worker
+menemukan ulang state bisnis, memakai lease MongoDB yang sama, mempertahankan
+histori dan pulih lewat retry idempotent jika dihentikan. SIGTERM/SIGINT menghentikan
+loop setelah siklus aktif selesai. Tidak menjalankan scheduler pembayaran/import.
+
+Setelah worker memperlihatkan siklus sukses (`last_success` pada diagnostik/state
+MongoDB), isi `WORK_RECONCILE_ON_READ=false` pada backend web dan redeploy Preview.
+GET queue/history lalu hanya membaca proyeksi dan state lease. Gunakan interval
+15 detik; snapshot yang belum diperbarui selama lebih dari 120 detik ditandai stale.
+Jika worker belum
+pernah sukses, UI menampilkan loading, bukan menyimpulkan semua pekerjaan selesai.
+Mode web dan cron lama memakai lease bersama sehingga tidak menjalankan dua
+rekonsiliasi sekaligus. Worker belum di-host/diaktifkan dalam sesi ini karena
+runtime/account untuk proses terkelola belum tersedia.
 
 ## Verifikasi
 
@@ -40,6 +63,11 @@ adjustment dan reservasi, serta label berbeda. Lease diuji saat concurrent,
 expiry, failure, dan reopen pekerjaan; sejarah dan atribusi tetap dipertahankan.
 Mongomock bukan Atlas: hasil ini tidak membuktikan execution plan atau kecepatan
 jaringan live. CI juga menjalankan tes frontend, auth Google, preview dan build.
+
+Tes terverifikasi: 26 tes regresi/performance backend, 17 tes Google auth,
+9 tes preview dan 24 tes frontend. Build frontend berhasil; main JS gzip
+396,84 KB dibanding 748,89 KB sebelum optimasi (sekitar 47% lebih kecil).
+Ukuran main bukan total semua chunk atau jaminan durasi API.
 
 ## Pengujian live setelah deployment Preview
 
