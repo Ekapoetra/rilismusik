@@ -76,6 +76,8 @@ async def list_releases(
     status: Optional[str] = None,
     q: Optional[str] = None,
     wami: Optional[str] = None,
+    limit: int = Query(500, ge=1, le=500),
+    include_revenue: bool = Query(True),
     period_from: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
     period_to: Optional[str] = Query(None, description="Inclusive YYYY-MM"),
 ):
@@ -96,8 +98,10 @@ async def list_releases(
         filt["wami_registered"] = {"$ne": True}
     if q:
         filt["release_title"] = {"$regex": q, "$options": "i"}
-    items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(500)
+    items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
     await enrich_release_list(db, items)
+    if not include_revenue:
+        return items
     # Phase 21: enrich with revenue rollup + last_active_period
     from .revenue_rollup import rollup_revenue_by_id
     rollup = await rollup_revenue_by_id(
