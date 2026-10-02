@@ -9,6 +9,7 @@ export const GoogleAuthButton = ({ source, mode = "login", onLinked }) => {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const target = useRef(null);
+  const nonceRequest = useRef(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +22,12 @@ export const GoogleAuthButton = ({ source, mode = "login", onLinked }) => {
     let inFlight = false;
     setReady(false); setError("");
     const element = target.current;
-    Promise.all([loadGoogleIdentity(), api.get("/auth/google/nonce")])
+    // StrictMode may mount an effect twice. Reuse its challenge request so a
+    // late first response cannot overwrite the cookie used by the active SDK.
+    if (!nonceRequest.current || nonceRequest.current.attempt !== attempt) {
+      nonceRequest.current = { attempt, promise: api.get("/auth/google/nonce") };
+    }
+    Promise.all([loadGoogleIdentity(), nonceRequest.current.promise])
       .then(([identity, response]) => {
         if (!active) return;
         identity.initialize({

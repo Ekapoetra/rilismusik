@@ -8,7 +8,7 @@ import { loadGoogleIdentity } from "@/lib/googleIdentity";
 
 jest.mock("@/api/client", () => ({ api: { get: jest.fn(), post: jest.fn() }, formatApiError: (value) => String(value) }));
 jest.mock("@/api/AuthContext", () => ({ useAuth: jest.fn() }));
-jest.mock("react-router-dom", () => ({ useNavigate: jest.fn() }));
+jest.mock("react-router-dom", () => ({ useNavigate: jest.fn() }), { virtual: true });
 jest.mock("@/lib/googleIdentity", () => ({ loadGoogleIdentity: jest.fn() }));
 
 let container, root, identity, loginWithGoogle, navigate;
@@ -93,4 +93,10 @@ test("callbacks received after leaving the page cannot start login", async () =>
   await act(async () => root.render(null));
   await act(async () => callback({ credential: "stale-token" }));
   expect(loginWithGoogle).not.toHaveBeenCalled();
+});
+
+test("StrictMode shares a single nonce request between effect mounts", async () => {
+  await act(async () => root.render(<React.StrictMode><GoogleAuthButton source="login" /></React.StrictMode>));
+  expect(api.get).toHaveBeenCalledTimes(1);
+  expect(identity.initialize).toHaveBeenCalledTimes(1);
 });
