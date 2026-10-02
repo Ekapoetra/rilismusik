@@ -25,7 +25,8 @@ import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
 import LabelContract from "@/pages/label/Contract";
 import LabelWami from "@/pages/label/Wami";
 
-import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminDashboard from "@/pages/admin/V7Dashboard";
+import V7StaffOverview from "@/pages/admin/V7StaffOverview";
 import AdminAnalytics from "@/pages/admin/Analytics";
 import AnalyticsAudit from "@/pages/admin/AnalyticsAudit";
 import AdminLabels from "@/pages/admin/Labels";
@@ -116,6 +117,7 @@ function AppRoutes() {
           {/* Admin */}
           <Route element={<ProtectedRoute roles={ADMIN_ROLES}><AdminLayout /></ProtectedRoute>}>
             <Route path="/admin/dashboard" element={guard("dashboard.view", <AdminDashboard />)} />
+            <Route path="/admin/workspace" element={<V7StaffOverview />} />
             <Route
               path="/admin/analytics"
               element={
