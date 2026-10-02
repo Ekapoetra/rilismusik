@@ -1,6 +1,5 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
 import AdminDashboard from "./Dashboard";
 import { api } from "@/api/client";
 
@@ -8,6 +7,11 @@ let mockRole = "super_admin";
 let mockMetricsReady = true;
 let mockMoneyError = false;
 jest.mock("@/api/client", () => ({ api: { get: jest.fn() } }));
+// This render regression does not test navigation. CRA's Jest resolver predates
+// React Router 7's export map, so replace only its Link boundary in this test.
+jest.mock("react-router-dom", () => ({
+  Link: ({ to, children, ...props }) => require("react").createElement("a", { href: to, ...props }, children),
+}), { virtual: true });
 jest.mock("@/api/AuthContext", () => ({
   useAuth: () => ({ user: { id: "admin-1", name: "Admin", role: mockRole }, hasPermission: () => true }),
 }));
@@ -26,7 +30,7 @@ jest.mock("@/hooks/usePollingRead", () => ({
 
 let root, container;
 const element = (id) => container.querySelector(`[data-testid="${id}"]`);
-const render = async () => { await act(async () => root.render(<MemoryRouter><AdminDashboard /></MemoryRouter>)); };
+const render = async () => { await act(async () => root.render(<AdminDashboard />)); };
 beforeEach(() => {
   global.IS_REACT_ACT_ENVIRONMENT = true;
   mockRole = "super_admin"; mockMetricsReady = true; mockMoneyError = false;
