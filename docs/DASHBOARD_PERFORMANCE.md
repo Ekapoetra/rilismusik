@@ -9,7 +9,7 @@ Branch ini sudah mencakup persiapan Google login; PR optimasi ditumpuk di atas
 | Temuan audit | Implementasi |
 | --- | --- |
 | Antrean pekerjaan lambat | Satu snapshot untuk My Work/Team Monitor, discovery dibatasi dua operasi bersamaan, insert/complete batch 500, skip pekerjaan yang sudah terbuka, atribusi aktor dibaca batch. |
-| Rekonsiliasi bersamaan | Lease MongoDB dengan `_id` unik pada `performance_state`, expiry 90 detik, batas proses 45 detik, stamp sukses setelah selesai, pelepasan pada gagal. Lease pulih setelah instance berhenti. |
+| Rekonsiliasi bersamaan | Lease MongoDB dengan `_id` unik pada `performance_state`, expiry 90 detik, batas proses 45 detik, stamp sukses setelah selesai, pelepasan pada gagal. Lease pulih setelah instance berhenti. `_id` deterministik per siklus pekerjaan mencegah insert ganda pada retry, termasuk write lama yang masih berjalan. |
 | Request analitik/KYC berulang | KYC dibagi lewat provider layout; grafik enam bulan memakai hasil analitik utama ketika rentang sama. Shared request hanya selama in-flight, dibedakan akun/label/filter dan direset pada login/logout. Tidak menyimpan cache angka finansial setelah request selesai. |
 | Saldo dihitung dua kali | Dashboard mengembalikan snapshot otoritatif sebagai data awal hook saldo. Refresh berikutnya tetap memanggil helper otoritatif, tanpa mengubah formula pencairan. |
 | Lima rilisan mengambil 500 | Parameter server `limit=5&include_revenue=false`; pengayaan hanya lima rilisan dan rollup pendapatan tidak dijalankan. Default daftar penuh tetap 500 dan rollup tetap aktif. |

@@ -48,6 +48,7 @@ export default function AdminChatWidget() {
   useEffect(() => { labelFilterRef.current = labelFilter; }, [labelFilter]);
 
   const listsPending = useRef(false);
+  const threadPending = useRef(false);
   const loadLists = useCallback(async () => {
     if (listsPending.current || document.visibilityState === "hidden") return;
     listsPending.current = true;
@@ -60,13 +61,15 @@ export default function AdminChatWidget() {
 
   const loadThread = useCallback(async () => {
     const cur = activeRef.current;
-    if (!cur) return;
+    if (!cur || threadPending.current) return;
+    threadPending.current = true;
     try {
       const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`);
+      if (activeRef.current?.conversation_id !== cur.conversation_id) return;
       setMessages(data.messages || []);
       setTyping(data.typing || []);
       setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, status: data.status, title: data.label_name || a.title } : a);
-    } catch { /* */ }
+    } catch { /* */ } finally { threadPending.current = false; }
   }, []);
 
   useEffect(() => {

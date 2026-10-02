@@ -40,7 +40,7 @@ const PRIO_META = {
   low: { cls: "bg-zinc-500/15 text-zinc-300", label: "Rendah" },
 };
 
-function Greeting({ name, work, team, isManager, pending, error }) {
+function Greeting({ name, work, team, isManager, pending, error, canWork }) {
   const { t } = useAppPreferences();
   const now = new Date();
   const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
@@ -50,7 +50,8 @@ function Greeting({ name, work, team, isManager, pending, error }) {
   const teamOpen = team.reduce((s, w) => s + (w.open_count || 0), 0);
   const overdue = work.reduce((s, w) => s + (w.overdue_count || 0), 0);
   let message;
-  if (error) message = t("Daftar pekerjaan belum dapat diperbarui.");
+  if (!canWork) message = t("Selamat datang di dashboard.");
+  else if (error) message = t("Daftar pekerjaan belum dapat diperbarui.");
   else if (pending) message = t("Memuat daftar pekerjaan…");
   else if (openWork === 0 && (!isManager || teamOpen === 0)) message = t("Semua pekerjaan sudah tertangani. 🎉");
   else if (isManager && teamOpen > 0) message = `${t("Tim Anda punya")} ${teamOpen} ${t("pekerjaan terbuka")}${overdue ? `, ${overdue} ${t("lewat tempo")}` : ""}. ${t("Mari selesaikan yang prioritas.")}`;
@@ -151,9 +152,10 @@ function Pager({ page, pages, setPage, testid }) {
 
 const PAGE_SIZE = 4;
 
-function InProgress({ items }) {
+function InProgress({ items, error }) {
   const { t } = useAppPreferences();
   const [page, setPage] = useState(0);
+  if (error && items === null) return <p role="alert" className="text-red-300">{t("Pekerjaan berjalan belum dapat dimuat.")}</p>;
   if (items === null) return <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded bg-white/[0.04]" />)}</div>;
   if (!items.length) return <div className="py-6 text-center text-sm text-zinc-500" data-testid="admin-inprogress-empty">{t("Tidak ada pekerjaan berjalan.")}</div>;
   const pages = Math.ceil(items.length / PAGE_SIZE);
@@ -183,7 +185,7 @@ const DONUT = [
   { key: "open", label: "Open", color: "#a1a1aa" },
   { key: "overdue", label: "Overdue", color: "#fb7185" },
 ];
-function WorkSummary({ progress }) {
+function WorkSummary({ progress, progressError }) {
   const { t } = useAppPreferences();
   const [period, setPeriod] = useState("today");
   const result = usePollingRead("/admin/dashboard/work-summary", { period, include_progress: false });
@@ -197,7 +199,7 @@ function WorkSummary({ progress }) {
           {PERIODS.map((p) => <option key={p.k} value={p.k} className="bg-zinc-900">{t(p.l)}</option>)}
         </select>
       </div>
-      <div className="flex flex-1 items-center">{result.error ? <p role="alert" className="text-red-300">{t("Ringkasan kerja belum dapat diperbarui.")}</p> : <WorkSummaryChart data={data} />}</div>
+      <div className="flex flex-1 items-center">{result.error || progressError ? <p role="alert" className="text-red-300">{t("Ringkasan kerja belum dapat diperbarui.")}</p> : <WorkSummaryChart data={data} />}</div>
     </section>
   );
 }
@@ -392,7 +394,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <Greeting name={name} work={work} team={team} isManager={isManager} pending={workPending} error={workResult.error} />
+      <Greeting name={name} work={work} team={team} isManager={isManager} pending={workPending} error={workResult.error} canWork={canWork} />
       {workResult.error && <p role="alert" className="text-red-300">{t("Daftar pekerjaan belum dapat diperbarui. Data terakhir tetap ditampilkan.")}</p>}
       {workPending && <p role="status" className="text-zinc-400">{t("Memuat daftar pekerjaan…")}</p>}
 
@@ -409,16 +411,16 @@ export default function AdminDashboard() {
             </Panel>
           ) : (
             <Panel icon={Loader2} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel">
-              <InProgress items={inprog} />
+              <InProgress items={inprog} error={progressResult.error} />
             </Panel>
           )}
         </div>
       )}
 
       <div className="grid gap-5 lg:grid-cols-3">
-        {isManager && <Panel icon={ListChecks} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel"><InProgress items={inprog} /></Panel>}
+        {isManager && <Panel icon={ListChecks} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel"><InProgress items={inprog} error={progressResult.error} /></Panel>}
         <div className={isManager ? "h-full" : "lg:col-span-2 h-full"}>
-          <WorkSummary progress={inprog} />
+          <WorkSummary progress={inprog} progressError={progressResult.error} />
         </div>
         <RecentActivity selfOnly={!isSuper} userId={user?.id} />
       </div>

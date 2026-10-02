@@ -16,7 +16,7 @@ export const useRoyaltyBalance = (enabled = true, initialBalance) => {
       if (pending || document.visibilityState === "hidden" || Date.now() - lastRead < 15000) return;
       pending = true;
       try {
-        const { data } = await sharedRead(user?.id, "/withdraw/label/computed");
+        const { data } = await sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/withdraw/label/computed");
         if (active) { setBalance(data); setError(false); lastRead = Date.now(); }
       } catch { if (active) setError(true); }
       finally { pending = false; }
@@ -26,6 +26,6 @@ export const useRoyaltyBalance = (enabled = true, initialBalance) => {
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => { active = false; clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [enabled, initialBalance, user?.id]);
+  }, [enabled, initialBalance, user?.id, user?.active_label_id]);
   return { balance, error };
 };

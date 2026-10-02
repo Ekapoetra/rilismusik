@@ -6,13 +6,14 @@ condition and becomes COMPLETED (idempotently) when the entity leaves that condi
 Completed By/At are derived from trusted backend sources (activity_logs / entity fields).
 """
 import asyncio
+import hashlib
 from datetime import datetime, timezone, date, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pymongo import UpdateOne, ReturnDocument
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 from .query_concurrency import bounded_gather
 
 from models import new_id, now_iso
@@ -226,6 +227,12 @@ async def reconcile_work(force: bool = False) -> dict:
             existing = {item["dedupe_key"] for item in opens}
             current_keys = set()
             writes = []
+            new_keys = {f"{wt['key']}:{it['source']}:{it['entity_id']}" for wt, current in zip(WORK_TYPES, sources) for it in current} - existing
+            generations = {}
+            if new_keys:
+                async for previous in db.work_items.find({"status": "completed", "dedupe_key": {"$in": list(new_keys)}},
+                        {"_id": 0, "dedupe_key": 1, "id": 1}).sort("created_at", -1):
+                    generations.setdefault(previous["dedupe_key"], previous["id"])
             for wt, current in zip(WORK_TYPES, sources):
                 key = wt["key"]
                 for it in current:
@@ -235,7 +242,11 @@ async def reconcile_work(force: bool = False) -> dict:
                     current_keys.add(dk)
                     if dk in existing:
                         continue
-                    writes.append(UpdateOne({"dedupe_key": dk, "status": "open"}, {"$setOnInsert": {
+                    # _id uniqueness fences retries even if an old Mongo write
+                    # outlives its request/lease. A completed generation creates a
+                    # different id when the same business entity is reopened.
+                    identity = "work:" + hashlib.sha256(f"{dk}:{generations.get(dk, 'initial')}".encode()).hexdigest()
+                    writes.append(UpdateOne({"_id": identity, "status": "open"}, {"$setOnInsert": {
                         "id": new_id(), "dedupe_key": dk, "work_type": key, "source": it["source"],
                         "entity_id": it["entity_id"], "entity_ref": it.get("ref"),
                         "label_id": it.get("label_id"), "label_name": it.get("label_name"),
@@ -255,7 +266,15 @@ async def reconcile_work(force: bool = False) -> dict:
                 }}))
             for offset in range(0, len(writes), 500):
                 await _renew_work_lease(owner)
-                await db.work_items.bulk_write(writes[offset:offset + 500], ordered=False)
+                try:
+                    await db.work_items.bulk_write(writes[offset:offset + 500], ordered=False)
+                except BulkWriteError as exc:
+                    details = exc.details or {}
+                    errors = details.get("writeErrors") or []
+                    # Concurrent inserts/stale generations are fenced by _id.
+                    # All other write failures must prevent a success stamp.
+                    if not errors or details.get("writeConcernErrors") or any(not (error.get("code") == 11000 and (error.get("keyPattern") == {"_id": 1} or "index: _id_" in error.get("errmsg", ""))) for error in errors):
+                        raise
             await _renew_work_lease(owner)
             finished = datetime.now(timezone.utc)
             await db.performance_state.update_one({"_id": _LEASE_ID, "owner": owner},

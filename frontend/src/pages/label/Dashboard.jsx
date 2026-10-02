@@ -43,21 +43,21 @@ export default function LabelDashboardHome() {
 
   useEffect(() => {
     let active = true;
-    sharedRead(user?.id, "/label/dashboard").then((r) => { if (active) setData(r.data); }).catch(() => { if (active) setLoadError("Dashboard belum dapat dimuat. Muat ulang halaman untuk mencoba lagi."); });
-    sharedRead(user?.id, "/cms/landing").then((r) => { if (active) setHero(r.data?.label_dashboard_hero || {}); }).catch(() => {});
-    sharedRead(user?.id, "/withdraw/label").then((r) => { if (active) setWithdraws(Array.isArray(r.data) ? r.data : []); }).catch(() => {});
-    sharedRead(user?.id, "/label/account").then((r) => { if (active) setAccount(r.data); }).catch(() => {});
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/label/dashboard").then((r) => { if (active) setData(r.data); }).catch(() => { if (active) setLoadError("Dashboard belum dapat dimuat. Muat ulang halaman untuk mencoba lagi."); });
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/cms/landing").then((r) => { if (active) setHero(r.data?.label_dashboard_hero || {}); }).catch(() => {});
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/withdraw/label").then((r) => { if (active) setWithdraws(Array.isArray(r.data) ? r.data : []); }).catch(() => {});
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/label/account").then((r) => { if (active) setAccount(r.data); }).catch(() => {});
     return () => { active = false; };
-  }, [user?.id]);
+  }, [user?.id, user?.active_label_id]);
   useEffect(() => {
     if (!kyc?.is_verified) { setReleasesLoading(false); return undefined; }
     let active = true; setReleasesLoading(true);
-    sharedRead(user?.id, "/releases/", { limit: 5, include_revenue: false })
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/releases/", { limit: 5, include_revenue: false })
       .then((r) => { if (active) { setReleases(r.data); setReleaseError(false); } })
       .catch(() => { if (active) setReleaseError(true); })
       .finally(() => { if (active) setReleasesLoading(false); });
     return () => { active = false; };
-  }, [user?.id, kyc?.is_verified]);
+  }, [user?.id, user?.active_label_id, kyc?.is_verified]);
 
   const switchLabel = async (id) => {
     if (!id || id === account?.active_label_id) return;

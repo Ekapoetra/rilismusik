@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 import test_vercel_preview  # Configures offline environment before real router imports.
 from mongomock_motor import AsyncMongoMockClient
+from pymongo.errors import BulkWriteError
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from routes import work_service as work, labels, dashboard_metrics as metrics, admin_analytics as analytics
@@ -206,6 +207,40 @@ class PerformanceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bulk.await_count, 2)
         self.assertEqual(await self.db.work_items.count_documents({'status':'open'}), 1000)
 
+    async def test_work_duplicate_id_fencing_does_not_hide_other_write_errors(self):
+        original = self.db.work_items.bulk_write
+        async def discover(kind):
+            return [{'source':'releases','entity_id':'race','opened_at':'2026-01-01'}] if kind=='release_review' else []
+        async def committed_then_duplicate(writes, **kwargs):
+            await original(writes, **kwargs)
+            raise BulkWriteError({'writeErrors':[{'code':11000,'keyPattern':{'_id':1}}], 'writeConcernErrors':[]})
+        with patch.object(work, '_sources', discover), patch.object(self.db.work_items, 'bulk_write', committed_then_duplicate):
+            await work.reconcile_work(force=True)
+        self.assertEqual(await self.db.work_items.count_documents({'status':'open'}), 1)
+        for error in ({'code':11000,'keyPattern':{'dedupe_key':1}}, {'code':8}):
+            async def new_source(kind):
+                return [{'source':'releases','entity_id':'failure','opened_at':'2026-01-01'}] if kind=='release_review' else []
+            with patch.object(work, '_sources', new_source), patch.object(self.db.work_items, 'bulk_write', AsyncMock(side_effect=BulkWriteError({'writeErrors':[error]}))):
+                with self.assertRaises(BulkWriteError): await work.reconcile_work(force=True)
+
+    async def test_work_identity_is_stable_across_failed_retry(self):
+        async def discover(kind):
+            return [{'source':'releases','entity_id':'stable','opened_at':'2026-01-01'}] if kind=='release_review' else []
+        identities = []
+        original = self.db.work_items.bulk_write
+        async def failed(writes, **kwargs):
+            identities.append(writes[0]._filter['_id'])
+            raise TimeoutError()
+        async def succeeded(writes, **kwargs):
+            identities.append(writes[0]._filter['_id'])
+            return await original(writes, **kwargs)
+        with patch.object(work, '_sources', discover):
+            with patch.object(self.db.work_items, 'bulk_write', failed):
+                with self.assertRaises(HTTPException): await work.reconcile_work(force=True)
+            with patch.object(self.db.work_items, 'bulk_write', succeeded): await work.reconcile_work(force=True)
+        self.assertEqual(identities[0], identities[1])
+        self.assertEqual(await self.db.work_items.count_documents({'status':'open'}), 1)
+
     async def test_work_completion_reopen_preserves_history_and_actor(self):
         state = [{'source':'releases','entity_id':'new','opened_at':'2026-01-01','ref':'R'}]
         async def discover(kind): return list(state) if kind == 'release_review' else []
@@ -277,6 +312,30 @@ class PerformanceHttpTests(unittest.TestCase):
         try:
             for limit in (0,501): self.assertEqual(client.get(f'/api/releases/?limit={limit}').status_code, 422)
         finally: app.dependency_overrides.pop(require_kyc_for_label_user, None)
+
+    def test_diagnostics_returns_only_bounded_statistics(self):
+        from routes import performance_diagnostics as diagnostics
+        database = SimpleNamespace(command=AsyncMock(return_value={
+            'queryPlanner': {'winningPlan': {'stage':'FETCH','inputStage': {'stage':'IXSCAN','indexName':'status_1'}}},
+            'executionStats': {'nReturned':20,'executionTimeMillis':3,'totalKeysExamined':20,'totalDocsExamined':20},
+            'private_document': {'password':'secret'},
+        }))
+        class MetadataDB:
+            def __getitem__(self, name):
+                return SimpleNamespace(list_indexes=lambda: SimpleNamespace(to_list=AsyncMock(return_value=[{'name':'_id_','key':{'_id':1},'unique':True}])))
+            command = database.command
+        app.dependency_overrides[require_super_admin] = lambda: {'role':'super_admin'}
+        try:
+            with patch.object(diagnostics, 'db', MetadataDB()):
+                response = TestClient(app).get('/api/admin/performance-check?include_explain=true&label_id=l1')
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn('private_document', response.text); self.assertNotIn('secret', response.text)
+            self.assertEqual(len(response.json()['explain']), 3)
+            for call in database.command.await_args_list:
+                self.assertEqual(call.args[0]['explain']['maxTimeMS'], 1500)
+                self.assertEqual(call.args[0]['explain']['limit'], 20)
+            self.assertEqual(response.json()['explain'][0]['indexes'], ['status_1'])
+        finally: app.dependency_overrides.pop(require_super_admin, None)
 
     def test_api_timing_and_no_store(self):
         response = TestClient(app).get('/api/health')
