@@ -25,6 +25,7 @@ logger = logging.getLogger("rilismusik")
 from models import now_iso
 from routes.deps import UPLOAD_DIR, client, client_bg
 from routes.auth import auth
+from routes.google_identity import google_r
 from routes.labels import label_r
 from routes.releases import release_r
 from routes.artists import artist_r
@@ -122,6 +123,7 @@ api = APIRouter(prefix="/api")
 
 # Register routers
 api.include_router(auth)
+api.include_router(google_r)
 api.include_router(label_r)
 api.include_router(release_r)
 from routes.release_internal_cover import internal_cover_r

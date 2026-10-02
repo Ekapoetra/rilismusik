@@ -7,6 +7,7 @@ botocore==1.43.34
 dnspython==2.8.0
 email-validator==2.3.0
 fastapi==0.110.1
+google-auth==2.59.1
 httpx==0.28.1
 motor==3.3.1
 openpyxl==3.1.5

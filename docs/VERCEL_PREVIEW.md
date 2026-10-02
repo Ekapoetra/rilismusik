@@ -34,6 +34,8 @@ ditandai Production oleh Vercel, isi env pada lingkungan itu juga;
 | `SENDER_EMAIL`, `SENDER_NAME` | Nilai pengirim email yang sama. |
 | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Akses bucket lama agar audio, cover, dan dokumen yang sudah di R2 tetap terbaca. |
 | `R2_PUBLIC_BASE_URL` | Opsional, hanya jika sebelumnya memakai domain CDN R2. |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID Google bertipe Web application. |
+| `REACT_APP_GOOGLE_CLIENT_ID` | Client ID yang sama untuk tombol Google resmi; nilai ini bersifat publik. |
 
 `UPLOAD_DIR` lama tidak dipakai oleh entrypoint Vercel. Direktori sementara
 ditetapkan otomatis di `/tmp`; direktori ini bukan penyimpanan permanen.
@@ -47,8 +49,8 @@ Nama yang benar-benar dibaca kode meliputi `XENDIT_SECRET_KEY`,
 `XENDIT_API_URL`, `XENDIT_RETURN_URL_BASE`, `XENDIT_ALLOW_MOCK_PAY`,
 `XENDIT_WEBHOOK_ENABLED`, dan `XENDIT_WEBHOOK_VERIFICATION_TOKEN`.
 `XENDIT_RETURN_URL_BASE` harus mengikuti alamat frontend saat pembayaran
-diaktifkan nanti. Login Google masih memakai integrasi sesi Emergent;
-preview ini menguji login email/password terlebih dahulu.
+diaktifkan nanti. Login Google menggunakan Google Identity Services langsung;
+lihat [panduan konfigurasi Google](GOOGLE_LOGIN_VERCEL.md).
 
 ## Koneksi Atlas dan pemeriksaan
 

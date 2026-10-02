@@ -27,6 +27,7 @@ from routes.deps import db, require_super_admin
 
 _AUTH_WRITES = {
     "/api/auth/login", "/api/auth/logout", "/api/auth/refresh",
+    "/api/auth/google/id-token", "/api/auth/google/link",
 }
 
 
