@@ -64,7 +64,7 @@ expiry, failure, dan reopen pekerjaan; sejarah dan atribusi tetap dipertahankan.
 Mongomock bukan Atlas: hasil ini tidak membuktikan execution plan atau kecepatan
 jaringan live. CI juga menjalankan tes frontend, auth Google, preview dan build.
 
-Tes terverifikasi: 26 tes regresi/performance backend, 17 tes Google auth,
+Tes terverifikasi: 27 tes regresi/performance backend, 17 tes Google auth,
 9 tes preview dan 24 tes frontend. Build frontend berhasil; main JS gzip
 396,84 KB dibanding 748,89 KB sebelum optimasi (sekitar 47% lebih kecil).
 Ukuran main bukan total semua chunk atau jaminan durasi API.

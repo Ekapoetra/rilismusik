@@ -72,16 +72,11 @@ _RECON_INTERVAL = timedelta(seconds=8)
 _LEASE_DURATION = timedelta(seconds=90)
 
 
-# ---------- config (stored in admin_ui_settings, lazily seeded) ----------
+# ---------- config (stored in admin_ui_settings; read-only defaults) ----------
 async def get_work_settings() -> Dict[str, Any]:
     doc = await db.admin_ui_settings.find_one({"key": "work_settings"}, {"_id": 0, "sla_days": 1})
-    sla = (doc or {}).get("sla_days") or {}
-    changed = False
-    for k, v in DEFAULT_SLA_DAYS.items():
-        if k not in sla:
-            sla[k] = v; changed = True
-    if not doc or changed:
-        await db.admin_ui_settings.update_one({"key": "work_settings"}, {"$set": {"sla_days": sla}}, upsert=True)
+    # Defaults are read-only; only the explicit SLA update endpoint persists them.
+    sla = {**DEFAULT_SLA_DAYS, **((doc or {}).get("sla_days") or {})}
     return {"sla_days": sla}
 
 

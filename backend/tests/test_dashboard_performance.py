@@ -196,6 +196,14 @@ class PerformanceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('sales_revenue', result)
         self.assertIn('royalty_income', result)
 
+    async def test_work_settings_defaults_do_not_write_during_read(self):
+        with patch.object(self.db.admin_ui_settings, 'update_one', AsyncMock()) as update:
+            settings = await work.get_work_settings()
+            self.assertEqual(settings['sla_days'], work.DEFAULT_SLA_DAYS)
+            update.assert_not_called()
+        await self.db.admin_ui_settings.insert_one({'key':'work_settings','sla_days':{'release_review':5}})
+        self.assertEqual((await work.get_work_settings())['sla_days']['release_review'], 5)
+
     async def test_worker_mode_reads_projection_without_reconciliation(self):
         with patch.dict('os.environ', {'WORK_RECONCILE_ON_READ':'false'}), patch.object(work, 'reconcile_work', AsyncMock()) as reconcile:
             self.assertTrue((await work.work_read_synchronization())['synchronizing'])
