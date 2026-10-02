@@ -1,4 +1,4 @@
-import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/api/AuthContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import LabelLayout from "@/components/shared/LabelLayout";
@@ -9,7 +9,6 @@ import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
-import GoogleAuthCallback from "@/pages/auth/GoogleAuthCallback";
 
 import LabelDashboard from "@/pages/label/Dashboard";
 import LabelReleases from "@/pages/label/Releases";
@@ -80,8 +79,6 @@ const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_sup
 const guard = (permission, element) => <ProtectedRoute permission={permission}>{element}</ProtectedRoute>;
 
 function AppRoutes() {
-  const location = useLocation();
-  if (location.hash?.includes("session_id=")) return <GoogleAuthCallback />;
   return (
     <Routes>
           {/* Public */}
