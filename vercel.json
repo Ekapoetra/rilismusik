@@ -36,7 +36,7 @@
         }
       }
     },
-    "queue": {
+    "queue-jobs": {
       "root": "backend",
       "framework": "fastapi",
       "entrypoint": "queue_app:app",
@@ -50,13 +50,39 @@
               "topic": "rilismusik-jobs",
               "retryAfterSeconds": 60,
               "maxConcurrency": 1
-            },
+            }
+          ]
+        }
+      }
+    },
+    "queue-emails": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "queue_app:app",
+      "functions": {
+        "queue_app.py": {
+          "maxDuration": 800,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
+          "experimentalTriggers": [
             {
               "type": "queue/v2beta",
               "topic": "rilismusik-emails",
               "retryAfterSeconds": 60,
               "maxConcurrency": 4
-            },
+            }
+          ]
+        }
+      }
+    },
+    "queue-schedule": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "queue_app:app",
+      "functions": {
+        "queue_app.py": {
+          "maxDuration": 800,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
+          "experimentalTriggers": [
             {
               "type": "queue/v2beta",
               "topic": "rilismusik-schedule",

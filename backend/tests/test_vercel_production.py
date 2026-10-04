@@ -248,12 +248,17 @@ class QueueServiceTests(unittest.TestCase):
     def test_queue_configuration_is_separate_from_public_api(self):
         import json
         configuration = json.loads((Path(__file__).resolve().parents[2]/'vercel.json').read_text())
-        service = configuration['services']['queue']
-        self.assertEqual(service['entrypoint'], 'queue_app:app')
-        triggers = service['functions']['queue_app.py']['experimentalTriggers']
+        names = {'queue-jobs','queue-emails','queue-schedule'}
+        triggers=[]
+        for name in names:
+            service=configuration['services'][name]
+            self.assertEqual(service['entrypoint'], 'queue_app:app')
+            configured=service['functions']['queue_app.py']['experimentalTriggers']
+            self.assertEqual(len(configured), 1)
+            triggers.extend(configured)
         self.assertEqual({t['topic'] for t in triggers}, {'rilismusik-jobs','rilismusik-emails','rilismusik-schedule'})
         self.assertTrue(all(t['type']=='queue/v2beta' for t in triggers))
-        self.assertFalse(any(r['destination'].get('service')=='queue' for r in configuration['rewrites']))
+        self.assertFalse(any(r['destination'].get('service') in names for r in configuration['rewrites']))
 
 
 class ProductionRouteTests(unittest.TestCase):

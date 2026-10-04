@@ -4,7 +4,7 @@ The frontend and FastAPI API remain in the existing Vercel project. `vercel_prod
 
 ## Background processing
 
-An explicit private `queue` service in the same Vercel project runs Queues subscribers for imports, cached analytics, emails and scheduled work. Queue messages contain a task ID. Arguments reside in private R2; MongoDB records a dispatch outbox, execution lease and completion. Repeated completed deliveries do not execute again. Failed dispatches are recoverable. This does not promise exactly-once email delivery after a provider succeeds but a process terminates before recording completion.
+Explicit private queue services in the same Vercel project runs Queues subscribers for imports, cached analytics, emails and scheduled work. Queue messages contain a task ID. Arguments reside in private R2; MongoDB records a dispatch outbox, execution lease and completion. Repeated completed deliveries do not execute again. Failed dispatches are recoverable. This does not promise exactly-once email delivery after a provider succeeds but a process terminates before recording completion.
 
 CSV inputs already in R2 are streamed without staging multi-gigabyte files in `/tmp`. Checkpoints resume completed rows and deterministic row IDs prevent duplicate insertion after interruption. Analytics build in staging and preserve the previous live collection until the replacement is complete. Publishing royalty credits now uses an atomic per-label import marker to prevent duplicate balance increments if execution stops between the balance write and ledger insertion.
 
