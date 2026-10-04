@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Bulk preview and background synchronization for label royalty rates."""
 import asyncio
 import csv
@@ -246,9 +247,9 @@ async def commit_label_rate_import(body: RateImportCommitIn, user: dict = Depend
         "progress_labels_done": 0,
         "progress_labels_total": batch["summary"]["will_update"],
     })
-    asyncio.create_task(_run_rate_sync_job(
+    await run_background(_run_rate_sync_job,
         batch_id=body.batch_id, job_id=job_id, user_id=user["id"], reason=body.reason.strip(),
-    ))
+    )
     return {"batch_id": body.batch_id, "job_id": job_id, "status": "queued", "already_started": False}
 
 
@@ -421,9 +422,9 @@ async def resume_label_rate_jobs() -> None:
                 {"$set": {"status": "error", "error_message": "Batch preview tidak ditemukan saat resume", "updated_at": now_iso()}},
             )
             continue
-        asyncio.create_task(_run_rate_sync_job(
+        await run_background(_run_rate_sync_job,
             batch_id=job["batch_id"],
             job_id=job["id"],
             user_id=job.get("submitted_by") or "system",
             reason=batch.get("reason") or "Resume sinkronisasi bulk rate label",
-        ))
+        )

@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Manual admin entry for historical withdrawal settlement ranges."""
 import asyncio
 from datetime import date
@@ -117,9 +118,9 @@ async def queue_manual_legacy_withdrawal(body: ManualLegacyWithdrawIn, user: dic
         "submitted_at": submitted_at, "updated_at": submitted_at,
         "progress_phase": "queued", "request": body.model_dump(), "preview": preview,
     })
-    asyncio.create_task(_run_manual_legacy_withdrawal(
+    await run_background(_run_manual_legacy_withdrawal,
         job_id=job_id, body=body, preview=preview, manual_key=manual_key, user_id=user["id"],
-    ))
+    )
     return {"job_id": job_id, "status": "queued", "preview": preview}
 
 

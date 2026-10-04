@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Revenue rollup helpers.
 
 Phase 21: live aggregate against royalty_lines (slow on 1M+ rows).
@@ -174,7 +175,7 @@ async def rollup_revenue_by_id(
     if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") != "preview":
         try:
             from .admin_analytics import schedule_monthly_analytics_recompute
-            asyncio.create_task(schedule_monthly_analytics_recompute(reason=f"cache_miss:{dim}"))
+            await run_background(schedule_monthly_analytics_recompute, reason=f"cache_miss:{dim}")
         except Exception:
             pass
 

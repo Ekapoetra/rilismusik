@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Support tickets router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
 from typing import Optional, List, Dict, Any
@@ -230,11 +231,11 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
     )
     # Confirmation email to the label (best-effort).
     if label.get("email"):
-        asyncio.create_task(send_ticket_created_email(
+        await run_background(send_ticket_created_email,
             to=label["email"], label_name=label.get("label_name") or "Label",
             ticket_no=short_no, category_label=TICKET_CATEGORY_LABELS[body.category],
             ticket_id=ticket_id, subject_line=doc.get("subject"),
-        ))
+        )
     doc.pop("_id", None)
     return TicketCreatedOut(**doc)
 
@@ -467,10 +468,10 @@ async def _email_ticket_status(ticket: Dict[str, Any], status: str):
         return
     label = await db.labels.find_one({"id": ticket["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
     if label and label.get("email"):
-        asyncio.create_task(send_ticket_status_email(
+        await run_background(send_ticket_status_email,
             to=label["email"], label_name=label.get("label_name") or "Label",
             ticket_no=ticket.get("ticket_no") or "-", status=status, ticket_id=ticket["id"],
-        ))
+        )
 
 
 

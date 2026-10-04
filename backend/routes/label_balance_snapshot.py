@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Materialize source-of-truth available balances without blocking list requests."""
 import asyncio
 import time
@@ -49,7 +50,7 @@ async def start_label_balance_snapshot_refresh(*, force: bool = False, reason: s
         return {**(await snapshot_status()), "already_running": True}
     if not claimed.matched_count and not claimed.upserted_id:
         return {**(await snapshot_status()), "already_running": True}
-    asyncio.create_task(recompute_label_balance_snapshots())
+    await run_background(recompute_label_balance_snapshots)
     return {**(await snapshot_status()), "queued": True}
 
 

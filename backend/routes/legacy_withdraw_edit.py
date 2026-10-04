@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Guarded period-end edits for admin-only legacy withdrawal history."""
 import asyncio
 from typing import Any, Dict, Optional
@@ -358,7 +359,7 @@ async def queue_legacy_withdraw_edit(withdrawal_id: str, preview_id: str, user: 
         "submitted_by": user["id"], "submitted_at": now_iso(), "updated_at": now_iso(),
         "preview_id": preview_id, "preview": {key: value for key, value in preview.items() if key != "_id"},
     })
-    asyncio.create_task(_run_legacy_withdraw_edit(job_id=job_id, preview=preview, user_id=user["id"]))
+    await run_background(_run_legacy_withdraw_edit, job_id=job_id, preview=preview, user_id=user["id"])
     return {"job_id": job_id, "status": "queued", "preview": {key: value for key, value in preview.items() if key != "_id"}}
 
 

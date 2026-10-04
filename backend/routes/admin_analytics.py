@@ -1,3 +1,5 @@
+from background_runtime import run_background, serverless_runtime, JobContinuation
+import time
 """Admin analytics — monthly aggregates over royalty_lines.
 
 Why a separate file: the dashboard needs to slice 1M+ `royalty_lines` rows by
@@ -187,6 +189,11 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
         t0 = datetime.now(timezone.utc)
         job_id = job_id or new_id()
         staging = f"monthly_analytics_staging_{job_id.replace('-', '')}"
+        durable = serverless_runtime()
+        saved = await db_bg.rollup_health.find_one({"id": "monthly_analytics"}) if durable else None
+        checkpoint = (saved or {}).get("serverless_checkpoint") if (saved or {}).get("job_id") == job_id else None
+        checkpoint = checkpoint or {}
+        deadline = time.monotonic() + 540
         _last_recompute_meta.update({
             "running": True,
             "job_id": job_id,
@@ -210,12 +217,18 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
             upsert=True,
         )
         try:
-            await db_bg.drop_collection(staging)
-            total_docs = 0
-            per_dim_counts: Dict[str, int] = {}
-            source_periods: List[str] = []
+            if not checkpoint:
+                await db_bg.drop_collection(staging)
+            per_dim_counts: Dict[str, int] = dict(checkpoint.get("per_dim_counts") or {})
+            total_docs = sum(per_dim_counts.values())
+            source_periods: List[str] = list(checkpoint.get("source_periods") or [])
             batch_size = 5000
             for dim_index, dim in enumerate(DIMENSIONS):
+                if dim in per_dim_counts:
+                    continue
+                if durable:
+                    # A terminated attempt might have inserted half a dimension.
+                    await db_bg[staging].delete_many({"dim": dim})
                 phase = f"aggregating_{dim}"
                 progress = int(dim_index / len(DIMENSIONS) * 85)
                 _last_recompute_meta.update({"progress_phase": phase, "progress_pct": progress})
@@ -241,6 +254,13 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
                     dim_count += len(batch)
                     total_docs += len(batch)
                 per_dim_counts[dim] = dim_count
+                if durable:
+                    await db_bg.rollup_health.update_one({"id": "monthly_analytics", "job_id": job_id}, {"$set": {
+                        "serverless_checkpoint": {"per_dim_counts": dict(per_dim_counts), "source_periods": source_periods},
+                        "updated_at": now_iso(),
+                    }})
+                    if time.monotonic() >= deadline:
+                        raise JobContinuation("Analytics dimension checkpoint persisted")
 
             _last_recompute_meta.update({"progress_phase": "indexing", "progress_pct": 90})
             await db_bg.rollup_health.update_one(
@@ -296,6 +316,8 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
             logger.info("[ANALYTICS] recompute done in %.2fs — %d docs across %d dims",
                         duration, total_docs, len(DIMENSIONS))
             return dict(_last_recompute_meta)
+        except JobContinuation:
+            raise
         except Exception as e:
             logger.exception("[ANALYTICS] recompute FAILED: %s", e)
             _last_recompute_meta["last_error"] = f"{type(e).__name__}: {str(e)[:300]}"
@@ -325,12 +347,40 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
 async def _run_scheduled_recompute(*, job_id: str, reason: str) -> None:
     try:
         await recompute_monthly_analytics(job_id=job_id, reason=reason)
+    except JobContinuation:
+        raise
     except Exception:
         logger.exception("[ANALYTICS] scheduled rebuild %s failed", job_id)
 
 
 async def schedule_monthly_analytics_recompute(*, reason: str = "automatic") -> Dict[str, Any]:
     """Queue one rebuild per process and return immediately."""
+    if serverless_runtime():
+        from pymongo import ReturnDocument
+        from pymongo.errors import DuplicateKeyError
+        persisted = await db_bg.rollup_health.find_one({"id": "monthly_analytics"})
+        if not persisted:
+            try:
+                await db_bg.rollup_health.insert_one({"_id": "monthly_analytics", "id": "monthly_analytics", "running": False})
+            except DuplicateKeyError:
+                pass
+            persisted = await db_bg.rollup_health.find_one({"id": "monthly_analytics"})
+        job_id = new_id()
+        metadata = {"running": True, "job_id": job_id, "progress_pct": 0,
+                    "progress_phase": "queued", "reason": reason,
+                    "updated_at": now_iso(), "last_error": None}
+        claimed = await db_bg.rollup_health.find_one_and_update(
+            {"_id": persisted["_id"], "running": {"$ne": True}},
+            {"$set": metadata, "$unset": {"serverless_checkpoint": ""}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not claimed:
+            latest = await db_bg.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0})
+            return latest or {}
+        _last_recompute_meta.update(metadata)
+        await run_background(_run_scheduled_recompute, job_id=job_id, reason=reason,
+                             _dispatch_id=job_id.replace("-", ""))
+        return dict(_last_recompute_meta)
     if _last_recompute_meta.get("running"):
         return dict(_last_recompute_meta)
     job_id = new_id()
@@ -355,7 +405,7 @@ async def schedule_monthly_analytics_recompute(*, reason: str = "automatic") -> 
         }},
         upsert=True,
     )
-    asyncio.create_task(_run_scheduled_recompute(job_id=job_id, reason=reason))
+    await run_background(_run_scheduled_recompute, job_id=job_id, reason=reason)
     return dict(_last_recompute_meta)
 
 
@@ -393,7 +443,7 @@ async def admin_analytics_status(user: dict = Depends(require_admin)):
         pass
     # The local running state is newer than persisted state while the task is
     # being queued; otherwise persisted health wins across pod restarts.
-    if _last_recompute_meta.get("running"):
+    if _last_recompute_meta.get("running") and not serverless_runtime():
         meta.update(_last_recompute_meta)
     elif not meta:
         meta.update(_last_recompute_meta)

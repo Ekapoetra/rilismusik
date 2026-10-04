@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Paid add-on order tracking (visualizer, link preset, etc.).
 
 Add-ons purchased while submitting a release are line items on the release payment
@@ -26,13 +27,13 @@ async def _email_addon(order: Dict[str, Any], status: str, delivery_url: Optiona
         return
     label = await db.labels.find_one({"id": order["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
     if label and label.get("email"):
-        asyncio.create_task(send_addon_status_email(
+        await run_background(send_addon_status_email,
             to=label["email"], label_name=label.get("label_name") or "Label",
             product_name=order.get("product_name") or "Layanan Tambahan",
             release_title=order.get("release_title"), release_id=order.get("release_id"),
             status=status, delivery_url=delivery_url or order.get("delivery_url"),
             delivery_note=delivery_note or order.get("delivery_note"),
-        ))
+        )
 
 addon_admin_r = APIRouter(prefix="/admin/addon-orders", tags=["addon-orders"])
 addon_label_r = APIRouter(prefix="/label/addon-orders", tags=["addon-orders"])

@@ -2,7 +2,7 @@ name: Vercel migration preview
 
 on:
   push:
-    branches: [codex/vercel-preview]
+    branches: [codex/vercel-preview, codex/vercel-production]
   pull_request:
     paths:
       - "backend/**"
@@ -29,6 +29,7 @@ jobs:
       - run: python -m pip install -r backend/tests/requirements.txt
       - run: python -m unittest discover -s backend/tests -p test_dashboard_performance.py -v
       - run: python -m unittest discover -s backend/tests -p test_production_configuration.py -v
+      - run: python -m unittest discover -s backend/tests -p test_vercel_production.py -v
   frontend-build:
     runs-on: ubuntu-latest
     steps:

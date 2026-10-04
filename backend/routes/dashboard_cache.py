@@ -1,3 +1,5 @@
+from background_runtime import run_background, serverless_runtime
+import hashlib
 """Dashboard revenue cache with no dependency on route modules."""
 import asyncio
 import time
@@ -77,7 +79,7 @@ async def recompute() -> Dict[str, Any]:
 
 
 async def _warm_from_mongo() -> None:
-    if _cache["computed_at"]:
+    if _cache["computed_at"] and (not serverless_runtime() or time.time() - _cache["computed_at"] < 10):
         return
     try:
         persisted = await db.metrics_cache.find_one({"_id": "dashboard_revenue"}, {"_id": 0})
@@ -101,12 +103,19 @@ async def get_stale_while_revalidate() -> Dict[str, Any]:
         return await recompute()
     age = time.time() - _cache["computed_at"]
     if age > DASHBOARD_REVENUE_TTL_SEC and not _cache["refreshing"]:
-        asyncio.create_task(recompute())
+        try:
+            await schedule_recompute()
+        except Exception as exc:
+            logger.warning("Dashboard refresh dispatch failed (%s)", type(exc).__name__)
     result = snapshot()
     result["age_sec"] = int(age)
     return result
 
 
-def schedule_recompute() -> None:
+async def schedule_recompute() -> None:
     if not _cache["refreshing"]:
-        asyncio.create_task(recompute())
+        if serverless_runtime():
+            identity = hashlib.sha256(f"dashboard:{int(time.time() // 60)}".encode()).hexdigest()[:32]
+            await run_background(recompute, _dispatch_id=identity)
+        else:
+            await run_background(recompute)
