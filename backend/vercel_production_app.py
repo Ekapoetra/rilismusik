@@ -12,6 +12,7 @@ os.environ["RILISMUSIK_DEPLOYMENT_MODE"] = "vercel-production"
 os.environ["UPLOAD_DIR"] = str(Path(gettempdir()) / "rilismusik" / "uploads")
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from server import app
 from routes.deps import db, require_super_admin
 
@@ -50,7 +51,7 @@ async def deployment_check(user: dict = Depends(require_super_admin)):
 
 
 @app.get("/api/runtime-health")
-async def runtime_health():
+async def runtime_health(request: Request):
     """Public readiness reveals no account data or configuration secrets."""
     import hashlib
     from background_runtime import run_background, record_runtime_probe
@@ -64,9 +65,15 @@ async def runtime_health():
         task_id = hashlib.sha256(f"health:{deployment}".encode()).hexdigest()[:32]
         await run_background(record_runtime_probe, deployment=deployment, _dispatch_id=task_id)
         probe = await db_bg.serverless_probes.find_one({"_id": deployment}) or {}
-        return {"ok": probe.get("status") == "done", "database": "ready",
+        result = {"ok": probe.get("status") == "done", "database": "ready",
                 "background_jobs": "ready" if probe.get("status") == "done" else "checking",
                 "deployment_mode": "vercel-production"}
+        if 'text/html' in request.headers.get('accept', ''):
+            status = 'READY' if result['ok'] else 'CHECKING'
+            return HTMLResponse(f'<!doctype html><html lang="en"><title>Rilis Musik Runtime Health</title>'
+                f'<h1>Rilis Musik: {status}</h1><p>Database: ready</p>'
+                f'<p>Background jobs: {result["background_jobs"]}</p></html>')
+        return result
     except Exception as error:
         logging.getLogger("rilismusik").error("runtime readiness failed: %s", type(error).__name__)
         raise HTTPException(503, "Pemeriksaan sistem belum berhasil") from None
