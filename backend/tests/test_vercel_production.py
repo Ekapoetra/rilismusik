@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.update({"MONGO_URL": "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=100",
-    "DB_NAME": "vercel_production_test", "JWT_SECRET": "unit-test-only-secret",
+    "DB_NAME": "vercel_production_test", "UPLOAD_DIR": "/tmp/rilismusik/uploads", "RILISMUSIK_SERVERLESS_RUNTIME": "1", "JWT_SECRET": "unit-test-only-secret",
     "FRONTEND_URL": "https://preview.example.invalid", "SMTP_HOST": "smtp.example.invalid",
     "SMTP_PORT": "465", "SMTP_USER": "", "SMTP_PASSWORD": "", "SENDER_EMAIL": "test@example.invalid",
     "SENDER_NAME": "Test", "R2_ENDPOINT_URL": "", "R2_ACCESS_KEY_ID": "", "R2_SECRET_ACCESS_KEY": "", "R2_BUCKET": ""})
