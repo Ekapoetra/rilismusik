@@ -4,7 +4,7 @@ The frontend and FastAPI API remain in the existing Vercel project. `vercel_prod
 
 ## Background processing
 
-Private Vercel Queues subscribers run imports, cached analytics, emails and scheduled work. Queue messages contain a task ID. Arguments reside in private R2; MongoDB records a dispatch outbox, execution lease and completion. Repeated completed deliveries do not execute again. Failed dispatches are recoverable. This does not promise exactly-once email delivery after a provider succeeds but a process terminates before recording completion.
+An explicit private `queue` service in the same Vercel project runs Queues subscribers for imports, cached analytics, emails and scheduled work. Queue messages contain a task ID. Arguments reside in private R2; MongoDB records a dispatch outbox, execution lease and completion. Repeated completed deliveries do not execute again. Failed dispatches are recoverable. This does not promise exactly-once email delivery after a provider succeeds but a process terminates before recording completion.
 
 CSV inputs already in R2 are streamed without staging multi-gigabyte files in `/tmp`. Checkpoints resume completed rows and deterministic row IDs prevent duplicate insertion after interruption. Analytics build in staging and preserve the previous live collection until the replacement is complete. Publishing royalty credits now uses an atomic per-label import marker to prevent duplicate balance increments if execution stops between the balance write and ledger insertion.
 
@@ -20,4 +20,4 @@ Deploy the branch with Production environment variables. Keep the current mainte
 
 Required existing environment values: MongoDB (`MONGO_URL`, `DB_NAME`), auth (`JWT_SECRET`, `FRONTEND_URL`), R2 storage and SMTP; Xendit settings for live payment features. Google login needs matching frontend `REACT_APP_GOOGLE_CLIENT_ID` and backend `GOOGLE_CLIENT_ID`. Queue authentication uses Vercel's deployment identity, so no new queue secret is needed. `UPLOAD_DIR` and deployment mode are set by the Vercel entrypoint; the old preview environment value does not reactivate the preview write guard.
 
-Offline checks cover task replay, overlapping delivery, dispatch recovery, CSV continuation and exact money totals, interrupted publish credits, cross-instance analytics scheduling, upload ownership/content/role checks and production route authentication. Live queue availability and real Google OAuth require deployment verification.
+Offline checks cover task replay, overlapping delivery, dispatch recovery, CSV continuation and exact money totals, interrupted publish credits, cross-instance analytics scheduling, upload ownership/content/role checks and production route authentication. The Services builder uses explicit queue triggers instead of relying on automatic subscriber discovery. Live queue availability and real Google OAuth require deployment verification.

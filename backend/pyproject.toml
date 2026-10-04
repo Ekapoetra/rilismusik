@@ -28,15 +28,3 @@ dependencies = [
 
 [tool.vercel]
 entrypoint = "vercel_production_app:app"
-
-[[tool.vercel.subscribers]]
-entrypoint = "queue_worker"
-topics = ["rilismusik-jobs"]
-
-[[tool.vercel.subscribers]]
-entrypoint = "queue_worker"
-topics = ["rilismusik-emails"]
-
-[[tool.vercel.subscribers]]
-entrypoint = "queue_worker"
-topics = ["rilismusik-schedule"]

@@ -236,6 +236,26 @@ class R2StreamingTests(unittest.TestCase):
             self.assertTrue(raw.closed)
 
 
+class QueueServiceTests(unittest.TestCase):
+    def test_private_callback_passes_receipt_to_sdk(self):
+        import queue_app
+        with patch.object(queue_app, 'accept_and_handle', new_callable=AsyncMock) as handle, TestClient(queue_app.app) as client:
+            result = client.post('/callback', content=b'{"opaque":"callback"}', headers={'ce-vqsreceipthandle':'test-receipt', 'ce-vqsqueuename':'rilismusik-jobs', 'ce-vqsconsumergroup':'test-group'})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(handle.call_args.args[0], b'{"opaque":"callback"}')
+        self.assertEqual(handle.call_args.args[1]['ce-vqsreceipthandle'], 'test-receipt')
+        self.assertEqual(handle.call_args.kwargs['lease_duration'], 900)
+    def test_queue_configuration_is_separate_from_public_api(self):
+        import json
+        configuration = json.loads((Path(__file__).resolve().parents[2]/'vercel.json').read_text())
+        service = configuration['services']['queue']
+        self.assertEqual(service['entrypoint'], 'queue_app:app')
+        triggers = service['functions']['queue_app.py']['experimentalTriggers']
+        self.assertEqual({t['topic'] for t in triggers}, {'rilismusik-jobs','rilismusik-emails','rilismusik-schedule'})
+        self.assertTrue(all(t['type']=='queue/v2beta' for t in triggers))
+        self.assertFalse(any(r['destination'].get('service')=='queue' for r in configuration['rewrites']))
+
+
 class ProductionRouteTests(unittest.TestCase):
     def test_writes_reach_existing_authentication_without_preview_503(self):
         with patch('serverless_schedule.seed_schedule',new_callable=AsyncMock), TestClient(app) as client:
