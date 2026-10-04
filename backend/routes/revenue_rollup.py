@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Revenue rollup helpers.
 
 Phase 21: live aggregate against royalty_lines (slow on 1M+ rows).
@@ -12,6 +13,7 @@ we need "total revenue per N entities, optionally filtered by period range".
 Period filter format: YYYY-MM strings (matches `royalty_lines.period` and the
 cache's `monthly_analytics.period`).
 """
+import os
 from typing import Any, Dict, List, Optional
 
 from .deps import db_bg
@@ -168,11 +170,14 @@ async def rollup_revenue_by_id(
     import logging
     logger = logging.getLogger("rilismusik")
     logger.warning("[ROLLUP] cache empty for dim=%s, falling back to live", dim)
-    try:
-        from .admin_analytics import schedule_monthly_analytics_recompute
-        asyncio.create_task(schedule_monthly_analytics_recompute(reason=f"cache_miss:{dim}"))
-    except Exception:
-        pass
+    # A GET must not launch a cache rewrite during the migration preview.
+    # Missing source collections need to be imported before a rebuild helps.
+    if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") != "preview":
+        try:
+            from .admin_analytics import schedule_monthly_analytics_recompute
+            await run_background(schedule_monthly_analytics_recompute, reason=f"cache_miss:{dim}")
+        except Exception:
+            pass
 
     return await _rollup_live(
         field=DIM_FIELD_MAP[dim], ids=ids, period_from=period_from, period_to=period_to,

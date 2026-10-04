@@ -179,27 +179,28 @@ async def cleanup_expired_contentid_assets():
                 logger.warning("Expired Content ID asset cleanup will retry: %s", removed["id"])
 
 
+async def contentid_maintenance_once():
+    from .contentid_service import rollback_contentid
+    for collection in (db.contentid_assets, db.contentid_declarations):
+        await collection.create_index("id", unique=True)
+    await db.contentid_assets.create_index([("status", 1), ("expires_at", 1)])
+    await db.contentid_declarations.create_index("ticket_id")
+    await cleanup_expired_contentid_assets()
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    async for request in db.contentid_requests.find({"updated_at": {"$lt": stale}}, {"_id": 1}).limit(100):
+        ticket_id = request["_id"]
+        if await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0, "id": 1}):
+            await db.contentid_assets.update_many({"ticket_id": ticket_id, "status": "reserved"}, {"$set": {"status": "bound"}})
+            await db.contentid_requests.delete_one({"_id": ticket_id})
+        else:
+            await rollback_contentid(ticket_id)
+
+
 async def contentid_maintenance():
     import asyncio
-    from .contentid_service import rollback_contentid
-    indexed = False
     while True:
         try:
-            if not indexed:
-                for collection in (db.contentid_assets, db.contentid_declarations):
-                    await collection.create_index("id", unique=True)
-                await db.contentid_assets.create_index([("status", 1), ("expires_at", 1)])
-                await db.contentid_declarations.create_index("ticket_id")
-                indexed = True
-            await cleanup_expired_contentid_assets()
-            stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
-            async for request in db.contentid_requests.find({"updated_at": {"$lt": stale}}, {"_id": 1}).limit(100):
-                ticket_id = request["_id"]
-                if await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0, "id": 1}):
-                    await db.contentid_assets.update_many({"ticket_id": ticket_id, "status": "reserved"}, {"$set": {"status": "bound"}})
-                    await db.contentid_requests.delete_one({"_id": ticket_id})
-                else:
-                    await rollback_contentid(ticket_id)
+            await contentid_maintenance_once()
         except Exception as exc:
             logger.warning("Content ID maintenance will retry (%s)", type(exc).__name__)
         await asyncio.sleep(900)

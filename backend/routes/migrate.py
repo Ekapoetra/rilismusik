@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Bulk data migration endpoints (P0 — for initial production seed).
 
 Four CSV-based imports + claim management:
@@ -848,7 +849,7 @@ async def bulk_import_withdraws_legacy_period(
         },
     })
     import asyncio
-    asyncio.create_task(_run_legacy_withdraw_import_job(
+    await run_background(_run_legacy_withdraw_import_job,
         job_id=job_id,
         content=content,
         dry_run=dry_run,
@@ -856,7 +857,7 @@ async def bulk_import_withdraws_legacy_period(
         flip_royalty_lines=flip_royalty_lines,
         adjust_balances=adjust_balances,
         user=user,
-    ))
+    )
     return {
         "job_id": job_id,
         "status": "queued",
@@ -1087,7 +1088,7 @@ async def _analyze_legacy_withdraw_import(
             }},
         )
         import asyncio
-        asyncio.create_task(_commit_legacy_period_bg(
+        await run_background(_commit_legacy_period_bg,
             job_id=job_id,
             per_label_csv=per_label_csv,
             label_id_to_doc=label_id_to_doc,
@@ -1095,7 +1096,7 @@ async def _analyze_legacy_withdraw_import(
             flip_royalty_lines=flip_royalty_lines,
             adjust_balances=adjust_balances,
             user_id=user["id"],
-        ))
+        )
         commit_meta = {"applied": False, "queued": True, "job_id": job_id}
 
     # Sort unmatched alphabetically for easier review
@@ -1595,12 +1596,12 @@ async def backfill_royalty_period_from_row(
     # Invalidate metrics + analytics caches in the background so charts refresh
     import asyncio as _aio
     try:
-        schedule_dashboard_recompute()
+        await schedule_dashboard_recompute()
     except Exception:
         pass
     try:
         from routes.admin_analytics import schedule_monthly_analytics_recompute
-        _aio.create_task(schedule_monthly_analytics_recompute(reason="migration_complete"))
+        await run_background(schedule_monthly_analytics_recompute, reason="migration_complete")
     except Exception:
         pass
 
@@ -1675,10 +1676,10 @@ async def materialize_artists_from_royalty_lines(
         "options": {"dry_run": dry_run, "limit_combos": int(limit_combos or 0)},
     })
     import asyncio as _aio
-    _aio.create_task(_materialize_artists_bg(
+    await run_background(_materialize_artists_bg,
         job_id=job_id, dry_run=dry_run, limit_combos=int(limit_combos or 0),
         user_id=user["id"],
-    ))
+    )
     return {"ok": True, "job_id": job_id, "status": "queued", "kind": "materialize_artists"}
 
 
@@ -1854,7 +1855,7 @@ async def _materialize_artists_bg(
             import asyncio as _aio
             try:
                 from routes.admin_analytics import schedule_monthly_analytics_recompute
-                _aio.create_task(schedule_monthly_analytics_recompute(reason="backfill_complete"))
+                await run_background(schedule_monthly_analytics_recompute, reason="backfill_complete")
             except Exception:
                 pass
             await log_activity(

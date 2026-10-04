@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Background recalculation for unsettled royalty lines.
 
 The source revenue and import exchange rate stay immutable. Only royalty lines
@@ -338,14 +339,14 @@ async def run_global_recalculation_job(*, job_id: str) -> None:
 
 async def trigger_royalty_caches() -> None:
     import asyncio
-    schedule_dashboard_recompute()
+    await schedule_dashboard_recompute()
     try:
         from routes.admin_analytics import schedule_monthly_analytics_recompute
-        asyncio.create_task(schedule_monthly_analytics_recompute(reason="royalty_recalculation"))
+        await run_background(schedule_monthly_analytics_recompute, reason="royalty_recalculation")
     except Exception as exc:
         logger.warning("[ROYALTY RECALC] analytics cache trigger failed: %s", exc)
     try:
         from routes.label_balance_snapshot import start_label_balance_snapshot_refresh
-        asyncio.create_task(start_label_balance_snapshot_refresh(force=True, reason="royalty_recalculation"))
+        await run_background(start_label_balance_snapshot_refresh, force=True, reason="royalty_recalculation")
     except Exception as exc:
         logger.warning("[ROYALTY RECALC] label balance snapshot trigger failed: %s", exc)

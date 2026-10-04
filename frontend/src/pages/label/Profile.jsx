@@ -6,6 +6,7 @@ import { BankAccountPanel } from "@/components/label/BankAccountPanel";
 import { KycPanel } from "@/components/label/KycPanel";
 import { ClaimLabelCard } from "@/components/label/ClaimLabelCard";
 import { LabelLogo } from "@/components/shared/LabelLogo";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 export default function LabelProfile() {
   const { refresh, user } = useAuth();
@@ -83,6 +84,14 @@ export default function LabelProfile() {
       </div>
 
       <BankAccountPanel onChanged={load} />
+
+      <div className="rm-card p-6 space-y-3 max-w-md">
+        <h2 className="font-display font-bold text-lg">Login dengan Google</h2>
+        {user?.google_subject ? <p className="text-sm text-emerald-300">Akun Google sudah terhubung.</p> : <>
+          <p className="text-sm text-zinc-400">Hubungkan akun Google dengan email yang sama agar bisa masuk tanpa mengetik password.</p>
+          <GoogleAuthButton source="profile" mode="link" onLinked={refresh} />
+        </>}
+      </div>
 
       {canClaim && <ClaimLabelCard claimStatus={user?.claim_status} onSubmitted={() => { load(); refresh(); }} />}
     </div>

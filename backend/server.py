@@ -23,8 +23,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("rilismusik")
 
 from models import now_iso
-from routes.deps import UPLOAD_DIR, client
+from routes.deps import UPLOAD_DIR, client, client_bg
 from routes.auth import auth
+from routes.google_identity import google_r
+from routes.performance_diagnostics import performance_r
 from routes.labels import label_r
 from routes.releases import release_r
 from routes.artists import artist_r
@@ -67,6 +69,8 @@ import storage_service
 
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
+from routes.direct_uploads import direct_upload_r
+app.include_router(direct_upload_r, prefix="/api")
 
 
 def expand_origin_variants(origins: list[str]) -> list[str]:
@@ -122,6 +126,8 @@ api = APIRouter(prefix="/api")
 
 # Register routers
 api.include_router(auth)
+api.include_router(google_r)
+api.include_router(performance_r)
 api.include_router(label_r)
 api.include_router(release_r)
 from routes.release_internal_cover import internal_cover_r
@@ -226,6 +232,9 @@ async def on_startup():
     Kubernetes readiness timeout (60-300s) and triggers a restart loop.
     """
     import asyncio
+    if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") == "preview" or os.environ.get("RILISMUSIK_SERVERLESS_RUNTIME") == "1":
+        logger.info("Serverless startup: legacy in-process scheduler and recovery are disabled")
+        return
     asyncio.create_task(_bootstrap_async())
     from routes.contentid_assets import contentid_maintenance
     app.state.contentid_maintenance_task = asyncio.create_task(contentid_maintenance())
@@ -290,3 +299,4 @@ async def on_shutdown():
             await task
     stop_scheduler()
     client.close()
+    client_bg.close()

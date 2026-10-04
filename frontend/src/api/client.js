@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL.replace(/\/$/, "");
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const IS_BROWSER = typeof window !== "undefined";
 // Every deployed frontend is served by the same ingress as `/api`. Always use
 // a relative browser URL so apex/www aliases cannot turn auth into cross-origin.
@@ -10,6 +10,31 @@ export const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
+});
+
+// Stage large files directly in the existing private R2 bucket. Finalization
+// returns the existing upload route's response, including all its validation.
+api.interceptors.request.use(async (config) => {
+  if (typeof FormData === "undefined" || !(config.data instanceof FormData)) return config;
+  const entries = Array.from(config.data.entries());
+  const files = entries.filter(([, value]) => typeof Blob !== "undefined" && value instanceof Blob);
+  if (files.length !== 1 || files[0][0] !== "file" || files[0][1].size <= 3 * 1024 * 1024) return config;
+  const file = files[0][1];
+  const fields = Object.fromEntries(entries.filter(([name]) => name !== "file"));
+  const initiated = await api.post("/uploads/initiate", {
+    target: config.url, filename: file.name || "upload", content_type: file.type || "application/octet-stream",
+    size: file.size, fields, query: config.params || {},
+  }, { signal: config.signal });
+  await axios.put(initiated.data.url, file, {
+    headers: { "Content-Type": initiated.data.content_type }, withCredentials: false,
+    signal: config.signal, onUploadProgress: config.onUploadProgress,
+  });
+  config.url = "/uploads/finalize";
+  config.data = { upload_id: initiated.data.upload_id };
+  config.params = undefined;
+  config.headers.set("Content-Type", "application/json");
+  config.timeout = Math.max(config.timeout || 0, 240000);
+  return config;
 });
 
 // Intercept 401: try refresh once

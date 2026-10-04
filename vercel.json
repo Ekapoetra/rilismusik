@@ -1,0 +1,123 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    }
+  ],
+  "services": {
+    "web": {
+      "root": "frontend",
+      "framework": "create-react-app",
+      "installCommand": "yarn install --non-interactive",
+      "buildCommand": "CI=false yarn build",
+      "outputDirectory": "build",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "api": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "vercel_production_app:app",
+      "functions": {
+        "vercel_production_app.py": {
+          "maxDuration": 300,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}"
+        }
+      }
+    },
+    "queue-jobs": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "queue_app:app",
+      "functions": {
+        "queue_app.py": {
+          "maxDuration": 800,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "rilismusik-jobs",
+              "retryAfterSeconds": 60,
+              "maxConcurrency": 1
+            }
+          ]
+        }
+      }
+    },
+    "queue-emails": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "queue_app:app",
+      "functions": {
+        "queue_app.py": {
+          "maxDuration": 800,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "rilismusik-emails",
+              "retryAfterSeconds": 60,
+              "maxConcurrency": 4
+            }
+          ]
+        }
+      }
+    },
+    "queue-schedule": {
+      "root": "backend",
+      "framework": "fastapi",
+      "entrypoint": "queue_app:app",
+      "functions": {
+        "queue_app.py": {
+          "maxDuration": 800,
+          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "rilismusik-schedule",
+              "retryAfterSeconds": 60,
+              "maxConcurrency": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/health",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
+  ]
+}

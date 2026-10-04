@@ -1,3 +1,5 @@
+from background_runtime import run_background, serverless_runtime, JobContinuation
+import time
 """Admin analytics — monthly aggregates over royalty_lines.
 
 Why a separate file: the dashboard needs to slice 1M+ `royalty_lines` rows by
@@ -27,6 +29,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .query_concurrency import bounded_gather
 from .deps import db, db_bg, logger, require_admin, require_super_admin, SUPER_ADMIN
 from .analytics_eligibility import analytics_eligible_filter, ANALYTICS_MATCH_STATUSES, ANALYTICS_LINE_STATUSES
 from .admin_permission_service import assert_admin_permission
@@ -186,6 +189,11 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
         t0 = datetime.now(timezone.utc)
         job_id = job_id or new_id()
         staging = f"monthly_analytics_staging_{job_id.replace('-', '')}"
+        durable = serverless_runtime()
+        saved = await db_bg.rollup_health.find_one({"id": "monthly_analytics"}) if durable else None
+        checkpoint = (saved or {}).get("serverless_checkpoint") if (saved or {}).get("job_id") == job_id else None
+        checkpoint = checkpoint or {}
+        deadline = time.monotonic() + 540
         _last_recompute_meta.update({
             "running": True,
             "job_id": job_id,
@@ -209,12 +217,18 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
             upsert=True,
         )
         try:
-            await db_bg.drop_collection(staging)
-            total_docs = 0
-            per_dim_counts: Dict[str, int] = {}
-            source_periods: List[str] = []
+            if not checkpoint:
+                await db_bg.drop_collection(staging)
+            per_dim_counts: Dict[str, int] = dict(checkpoint.get("per_dim_counts") or {})
+            total_docs = sum(per_dim_counts.values())
+            source_periods: List[str] = list(checkpoint.get("source_periods") or [])
             batch_size = 5000
             for dim_index, dim in enumerate(DIMENSIONS):
+                if dim in per_dim_counts:
+                    continue
+                if durable:
+                    # A terminated attempt might have inserted half a dimension.
+                    await db_bg[staging].delete_many({"dim": dim})
                 phase = f"aggregating_{dim}"
                 progress = int(dim_index / len(DIMENSIONS) * 85)
                 _last_recompute_meta.update({"progress_phase": phase, "progress_pct": progress})
@@ -240,6 +254,13 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
                     dim_count += len(batch)
                     total_docs += len(batch)
                 per_dim_counts[dim] = dim_count
+                if durable:
+                    await db_bg.rollup_health.update_one({"id": "monthly_analytics", "job_id": job_id}, {"$set": {
+                        "serverless_checkpoint": {"per_dim_counts": dict(per_dim_counts), "source_periods": source_periods},
+                        "updated_at": now_iso(),
+                    }})
+                    if time.monotonic() >= deadline:
+                        raise JobContinuation("Analytics dimension checkpoint persisted")
 
             _last_recompute_meta.update({"progress_phase": "indexing", "progress_pct": 90})
             await db_bg.rollup_health.update_one(
@@ -295,6 +316,8 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
             logger.info("[ANALYTICS] recompute done in %.2fs — %d docs across %d dims",
                         duration, total_docs, len(DIMENSIONS))
             return dict(_last_recompute_meta)
+        except JobContinuation:
+            raise
         except Exception as e:
             logger.exception("[ANALYTICS] recompute FAILED: %s", e)
             _last_recompute_meta["last_error"] = f"{type(e).__name__}: {str(e)[:300]}"
@@ -324,12 +347,40 @@ async def recompute_monthly_analytics(*, job_id: Optional[str] = None, reason: s
 async def _run_scheduled_recompute(*, job_id: str, reason: str) -> None:
     try:
         await recompute_monthly_analytics(job_id=job_id, reason=reason)
+    except JobContinuation:
+        raise
     except Exception:
         logger.exception("[ANALYTICS] scheduled rebuild %s failed", job_id)
 
 
 async def schedule_monthly_analytics_recompute(*, reason: str = "automatic") -> Dict[str, Any]:
     """Queue one rebuild per process and return immediately."""
+    if serverless_runtime():
+        from pymongo import ReturnDocument
+        from pymongo.errors import DuplicateKeyError
+        persisted = await db_bg.rollup_health.find_one({"id": "monthly_analytics"})
+        if not persisted:
+            try:
+                await db_bg.rollup_health.insert_one({"_id": "monthly_analytics", "id": "monthly_analytics", "running": False})
+            except DuplicateKeyError:
+                pass
+            persisted = await db_bg.rollup_health.find_one({"id": "monthly_analytics"})
+        job_id = new_id()
+        metadata = {"running": True, "job_id": job_id, "progress_pct": 0,
+                    "progress_phase": "queued", "reason": reason,
+                    "updated_at": now_iso(), "last_error": None}
+        claimed = await db_bg.rollup_health.find_one_and_update(
+            {"_id": persisted["_id"], "running": {"$ne": True}},
+            {"$set": metadata, "$unset": {"serverless_checkpoint": ""}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not claimed:
+            latest = await db_bg.rollup_health.find_one({"id": "monthly_analytics"}, {"_id": 0})
+            return latest or {}
+        _last_recompute_meta.update(metadata)
+        await run_background(_run_scheduled_recompute, job_id=job_id, reason=reason,
+                             _dispatch_id=job_id.replace("-", ""))
+        return dict(_last_recompute_meta)
     if _last_recompute_meta.get("running"):
         return dict(_last_recompute_meta)
     job_id = new_id()
@@ -354,7 +405,7 @@ async def schedule_monthly_analytics_recompute(*, reason: str = "automatic") -> 
         }},
         upsert=True,
     )
-    asyncio.create_task(_run_scheduled_recompute(job_id=job_id, reason=reason))
+    await run_background(_run_scheduled_recompute, job_id=job_id, reason=reason)
     return dict(_last_recompute_meta)
 
 
@@ -392,7 +443,7 @@ async def admin_analytics_status(user: dict = Depends(require_admin)):
         pass
     # The local running state is newer than persisted state while the task is
     # being queued; otherwise persisted health wins across pod restarts.
-    if _last_recompute_meta.get("running"):
+    if _last_recompute_meta.get("running") and not serverless_runtime():
         meta.update(_last_recompute_meta)
     elif not meta:
         meta.update(_last_recompute_meta)
@@ -525,11 +576,11 @@ async def admin_monthly_analytics(
                 for r in rows
             ]
 
-        top_platforms = await _topn("$platform", None, None)
-        top_countries = await _topn("$country", None, None)
-        top_labels = await _topn("$label_id", "labels", "label_name")
-        top_artists = await _topn("$artist_id", "artists", "artist_name")
-        top_tracks = await _topn("$track_id", "tracks", "track_title")
+        top_platforms, top_countries, top_labels, top_artists, top_tracks = await bounded_gather(
+            _topn("$platform", None, None), _topn("$country", None, None),
+            _topn("$label_id", "labels", "label_name"), _topn("$artist_id", "artists", "artist_name"),
+            _topn("$track_id", "tracks", "track_title"),
+        )
 
         kpi = {
             "total_revenue_eur": round((kpi_doc or {}).get("revenue_eur") or 0, 4),
@@ -593,11 +644,9 @@ async def admin_monthly_analytics(
             return int(r.get("n") or 0)
         return 0
 
-    distinct_platforms = await _distinct_count("platform")
-    distinct_countries = await _distinct_count("country")
-    distinct_labels = await _distinct_count("label")
-    distinct_artists = await _distinct_count("artist")
-    distinct_tracks = await _distinct_count("track")
+    distinct_platforms, distinct_countries, distinct_labels, distinct_artists, distinct_tracks = await bounded_gather(
+        *(_distinct_count(dim) for dim in ("platform", "country", "label", "artist", "track"))
+    )
 
     async def _top_from_cache(dim: str, name_field: Optional[str]):
         pipe = [
@@ -620,11 +669,11 @@ async def admin_monthly_analytics(
             async for r in db_bg.monthly_analytics.aggregate(pipe)
         ]
 
-    top_platforms = await _top_from_cache("platform", None)
-    top_countries = await _top_from_cache("country", None)
-    top_labels = await _top_from_cache("label", "label_name")
-    top_artists = await _top_from_cache("artist", "artist_name")
-    top_tracks = await _top_from_cache("track", "track_title")
+    top_platforms, top_countries, top_labels, top_artists, top_tracks = await bounded_gather(
+        _top_from_cache("platform", None), _top_from_cache("country", None),
+        _top_from_cache("label", "label_name"), _top_from_cache("artist", "artist_name"),
+        _top_from_cache("track", "track_title"),
+    )
 
     kpi = {
         "total_revenue_eur": round((kpi_doc or {}).get("revenue_eur") or 0, 4),

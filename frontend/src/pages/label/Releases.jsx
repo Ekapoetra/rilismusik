@@ -79,7 +79,11 @@ export default function LabelReleases() {
       {/* Table */}
       <SubmissionQuota />
       {view === "cover" ? (
-        <ReleaseCoverGrid items={items} basePath="/label/releases" prefix="label-release" />
+        <ReleaseCoverGrid items={items} basePath="/label/releases" prefix="label-release"
+          renderActions={(r) => <>
+            <Link to={`/label/releases/${r.id}`} className="text-xs font-semibold rm-gradient-text" data-testid={`label-release-detail-${r.id}`}>Detail →</Link>
+            {["draft", "rejected"].includes(r.status) && <button type="button" onClick={() => deleteRelease(r)} disabled={deletingId === r.id} className="ml-auto rounded p-2 text-red-300 hover:bg-red-500/10 disabled:opacity-40" aria-label={`Hapus ${r.release_title}`} data-testid={`label-release-delete-${r.id}`}><Trash2 className="h-4 w-4" /></button>}
+          </>} />
       ) : (
       <div className="rm-card overflow-hidden">
         <div className="hidden md:grid grid-cols-12 px-5 py-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500 bg-white/[0.03] border-b border-white/5">

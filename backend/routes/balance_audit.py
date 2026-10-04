@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Global label-balance audit and source-of-truth reconciliation."""
 import asyncio
 import re
@@ -179,9 +180,9 @@ async def start_balance_audit(
         "phase": "queued",
         "scope_label_ids": requested_scope,
     })
-    asyncio.create_task(_run_balance_audit_preview(
+    await run_background(_run_balance_audit_preview,
         job_id=job_id, label_ids=requested_scope,
-    ))
+    )
     return {"job_id": job_id, "status": "queued", "already_running": False}
 
 
@@ -371,9 +372,9 @@ async def commit_balance_reconciliation(body: BalanceAuditCommitIn, user: dict =
         "phase": "queued",
         "stale_recalculation_jobs_closed": stale_recalc["closed"],
     })
-    asyncio.create_task(_run_balance_reconciliation(
+    await run_background(_run_balance_reconciliation,
         job_id=job_id, preview_job_id=body.preview_job_id, user_id=user["id"],
-    ))
+    )
     return {"job_id": job_id, "status": "queued", "already_started": False}
 
 
@@ -1097,12 +1098,12 @@ async def resume_balance_audit_jobs() -> None:
     }, {"_id": 0, "id": 1, "kind": 1, "preview_job_id": 1, "submitted_by": 1, "scope_label_ids": 1}).to_list(10)
     for job in jobs:
         if job["kind"] == "balance_audit_preview":
-            asyncio.create_task(_run_balance_audit_preview(
+            await run_background(_run_balance_audit_preview,
                 job_id=job["id"], label_ids=job.get("scope_label_ids"),
-            ))
+            )
         elif job.get("preview_job_id"):
-            asyncio.create_task(_run_balance_reconciliation(
+            await run_background(_run_balance_reconciliation,
                 job_id=job["id"],
                 preview_job_id=job["preview_job_id"],
                 user_id=job.get("submitted_by") or "system",
-            ))
+            )

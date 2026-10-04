@@ -1,3 +1,6 @@
+from background_runtime import run_background, serverless_runtime, JobContinuation
+import time
+from pymongo import UpdateOne
 """Royalty CSV import & label/artist reports router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
 from typing import Optional, List, Dict, Any
@@ -244,14 +247,14 @@ async def admin_upload_royalty_csv(
     if process_async:
         # Spawn background processing — return immediately
         import asyncio
-        asyncio.create_task(_process_csv_import_bg(
+        await run_background(_process_csv_import_bg,
             import_id=import_id,
             file_path=str(target),
             period=period,
             rate_eur_idr=rate_eur_idr,
             fee_percent=fee_percent,
             user_id=user["id"],
-        ))
+        )
         await log_activity(user["id"], "upload_royalty_csv_async", "royalty", import_id, after={"size_mb": round(total_size / 1024 / 1024, 2)})
         import_doc.pop("_id", None)
         return import_doc
@@ -307,7 +310,7 @@ class RepairSourceFinalizeIn(BaseModel):
 
 
 @royalty_r.post("/admin/imports/initiate")
-async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depends(require_admin)):
+async def admin_initiate_large_upload(body: InitiateUploadIn, request: Request, user: dict = Depends(require_admin)):
     """Step 1 of large-file upload: returns a presigned PUT URL so the browser
     can upload the CSV DIRECTLY to Cloudflare R2 — bypassing the Kubernetes
     ingress body-size limit (~100 MB default). Use for files > 50 MB.
@@ -323,6 +326,10 @@ async def admin_initiate_large_upload(body: InitiateUploadIn, user: dict = Depen
             raise HTTPException(status_code=400, detail="Format period harus YYYY-MM")
     if not storage_service.is_configured():
         raise HTTPException(status_code=500, detail="Cloud storage belum dikonfigurasi")
+
+    if serverless_runtime():
+        from .direct_uploads import ensure_upload_origin
+        await ensure_upload_origin(request)
 
     import_id = new_id()
     fname = body.filename or "upload.csv"
@@ -396,10 +403,12 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
 
     # Stage to local disk so the existing streaming parser can read it
     ext = ".csv.gz" if r2_key.endswith(".gz") else ".csv"
-    local_path = UPLOAD_DIR / "csv" / f"{import_id}{ext}"
-    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path = "r2://" + r2_key if serverless_runtime() else UPLOAD_DIR / "csv" / f"{import_id}{ext}"
+    if not serverless_runtime():
+        local_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        await storage_service.download_to_file(key=r2_key, local_path=str(local_path))
+        if not serverless_runtime():
+            await storage_service.download_to_file(key=r2_key, local_path=str(local_path))
     except Exception as e:
         logger.exception("R2 download failed for %s: %s", import_id, e)
         await db.royalty_imports.update_one(
@@ -442,14 +451,14 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
         {"$set": {"status": "processing", "file_size_bytes": file_size, "started_at": now, "updated_at": now}},
     )
     import asyncio
-    asyncio.create_task(_process_csv_import_bg(
+    await run_background(_process_csv_import_bg,
         import_id=import_id,
         file_path=str(local_path),
         period=imp.get("period_start"),
         rate_eur_idr=imp["exchange_rate_eur_idr"],
         fee_percent=imp["fee_percent"],
         user_id=user["id"],
-    ))
+    )
     await log_activity(user["id"], "finalize_royalty_import", "royalty", import_id,
                        after={"size_mb": round(file_size / 1024 / 1024, 2)})
     out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
@@ -459,19 +468,19 @@ async def admin_finalize_large_upload(import_id: str, user: dict = Depends(requi
 # ============================================================
 # Streaming CSV processor (shared by sync + async paths)
 # ============================================================
-def _trigger_dashboard_recompute():
+async def _trigger_dashboard_recompute():
     """Phase 29 — fire-and-forget rebuild of the dashboard revenue cache +
     monthly_analytics rollup. Called right after an import finishes processing
     so Artist Management / Katalog / Analytics sync automatically without any
     manual tool."""
     import asyncio as _aio
     try:
-        schedule_dashboard_recompute()
+        await schedule_dashboard_recompute()
     except Exception:
         pass
     try:
         from routes.admin_analytics import schedule_monthly_analytics_recompute  # lazy
-        _aio.create_task(schedule_monthly_analytics_recompute(reason="import_processed"))
+        await run_background(schedule_monthly_analytics_recompute, reason="import_processed")
     except Exception:
         pass
 
@@ -550,6 +559,16 @@ async def _process_csv_import_inline(
     }
     flush_counter = {"n": 0}
     now = now_iso()
+    durable = serverless_runtime()
+    checkpoint = {}
+    if durable:
+        saved = await db_bg.royalty_imports.find_one({"id": import_id}, {"serverless_checkpoint": 1}) or {}
+        checkpoint = saved.get("serverless_checkpoint") or {}
+        counters.update(checkpoint.get("counters") or {})
+        period_counts.update(checkpoint.get("period_counts") or {})
+    resume_row = int(checkpoint.get("source_row") or 0)
+    source_row = 0
+    deadline = time.monotonic() + 540
 
     async def _flush(*, force_progress: bool = False):
         """Bulk-flush accumulated docs. All writes go through db_bg (CSOT-free).
@@ -571,12 +590,18 @@ async def _process_csv_import_inline(
             await db_bg.artists.insert_many(new_artist_batch, ordered=False)
             new_artist_batch.clear()
         if line_batch:
-            await db_bg.royalty_lines.insert_many(line_batch, ordered=False)
+            if durable:
+                await db_bg.royalty_lines.bulk_write([
+                    UpdateOne({"_id": item["_id"]}, {"$setOnInsert": item}, upsert=True)
+                    for item in line_batch
+                ], ordered=False)
+            else:
+                await db_bg.royalty_lines.insert_many(line_batch, ordered=False)
             counters["total_lines"] += len(line_batch)
             line_batch.clear()
         flush_counter["n"] += 1
         # Throttled progress write (every N flushes, OR on demand).
-        if force_progress or flush_counter["n"] % PROGRESS_EVERY_N_FLUSHES == 0:
+        if durable or force_progress or flush_counter["n"] % PROGRESS_EVERY_N_FLUSHES == 0:
             await db_bg.royalty_imports.update_one(
                 {"id": import_id},
                 {"$set": {
@@ -592,6 +617,8 @@ async def _process_csv_import_inline(
                     "total_revenue_eur": round(counters["total_revenue_eur"], 4),
                     "total_label_idr": counters["total_label_idr"],
                     "period_breakdown": period_counts,
+                    **({"serverless_checkpoint": {"source_row": source_row,
+                         "counters": dict(counters), "period_counts": dict(period_counts)}} if durable else {}),
                     "updated_at": now_iso(),
                 }},
             )
@@ -601,6 +628,14 @@ async def _process_csv_import_inline(
             headers = hdrs
             col_idx = detect_columns(headers)
             continue
+
+        source_row += 1
+        if source_row <= resume_row:
+            continue
+        if durable and source_row % BATCH_SIZE == 0 and time.monotonic() >= deadline:
+            source_row -= 1
+            await _flush(force_progress=True)
+            raise JobContinuation("CSV checkpoint persisted")
 
         raw = _match_line(row_dict, col_idx, headers)
         revenue_eur = raw["revenue_eur"]
@@ -759,6 +794,7 @@ async def _process_csv_import_inline(
         legacy_settled = bool(legacy_cutoff and line_period and line_period <= legacy_cutoff)
         stored_match_status = "replacement_staged" if staged_replacement else match_status
         line_batch.append({
+            **({"_id": f"csv:{import_id}:{source_row}"} if durable else {}),
             "id": new_id(), "import_id": import_id, "period": line_period,
             "isrc": raw["isrc"], "upc": raw["upc"],
             "track_title_raw": raw["track_title"], "artist_name_raw": raw["artist_name"],
@@ -818,6 +854,7 @@ async def _process_csv_import_inline(
             "period_end": sorted_periods[-1] if sorted_periods else None,
             "is_multi_period": is_multi_period,
             "progress_pct": 100,
+            **({"serverless_csv_complete": True} if durable else {}),
             "status": ("replacement_preview" if staged_replacement else "pending_review") if sorted_periods else "error",
             "error_message": None if sorted_periods else "Semua baris ditolak karena kolom 'Bulan laporan' kosong atau tidak valid.",
             "finished_at": now_iso(),
@@ -829,7 +866,7 @@ async def _process_csv_import_inline(
     # so Artis / Katalog / Label / Analytics pages show the new data without
     # waiting for publish or any manual tool.
     if not staged_replacement:
-        _trigger_dashboard_recompute()
+        await _trigger_dashboard_recompute()
 
     final = await db_bg.royalty_imports.find_one({"id": import_id}, {"_id": 0})
     return final
@@ -852,6 +889,8 @@ async def _process_csv_import_bg(
         await log_activity(
             user_id, "upload_royalty_csv_async_finished", "royalty", import_id,
         )
+    except JobContinuation:
+        raise
     except Exception as e:
         logger.exception("Background CSV import %s failed: %s", import_id, e)
         err_update = {
@@ -870,7 +909,8 @@ async def _process_csv_import_bg(
             except Exception as inner:
                 logger.exception("Failed to record error_state for %s (both clients): %s", import_id, inner)
     finally:
-        Path(file_path).unlink(missing_ok=True)
+        if not str(file_path).startswith("r2://"):
+            Path(file_path).unlink(missing_ok=True)
 
 
 @royalty_r.get("/admin/imports")
@@ -1012,7 +1052,7 @@ async def admin_recalculate_all_unwithdrawn(user: dict = Depends(require_admin))
         "progress_labels_total": 0,
     })
     import asyncio
-    asyncio.create_task(run_global_recalculation_job(job_id=job_id))
+    await run_background(run_global_recalculation_job, job_id=job_id)
     await log_activity(user["id"], "recalculate_all_unwithdrawn", "royalty", job_id)
     return {"ok": True, "job_id": job_id, "status": "queued", "already_running": False}
 
@@ -1056,7 +1096,7 @@ async def admin_publish_import(import_id: str, body: RoyaltyImportPublishIn, use
             }},
         )
         import asyncio
-        asyncio.create_task(_publish_bg(import_id=import_id, user_id=user["id"]))
+        await run_background(_publish_bg, import_id=import_id, user_id=user["id"])
         out = await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
         logger.info("[PUBLISH] %s queued for background by user %s", import_id, user["email"])
         return out
@@ -1139,11 +1179,14 @@ async def _publish_bg(*, import_id: str, user_id: str):
                 # Already credited in a previous run — count it but don't double-add
                 continue
             await db_bg.labels.update_one(
-                {"id": label_id},
-                {"$inc": {"balance_pending_idr": amount_idr}, "$set": {"updated_at": now_iso()}},
+                {"id": label_id, "royalty_published_import_ids": {"$ne": import_id}},
+                {"$inc": {"balance_pending_idr": amount_idr},
+                 "$addToSet": {"royalty_published_import_ids": import_id},
+                 "$set": {"updated_at": now_iso()}},
             )
-            await db_bg.balance_transactions.insert_one({
-                "id": new_id(),
+            await db_bg.balance_transactions.update_one(
+                {"id": f"royalty-pending:{import_id}:{label_id}"}, {"$setOnInsert": {
+                "id": f"royalty-pending:{import_id}:{label_id}",
                 "label_id": label_id,
                 "type": "royalty_pending",
                 "amount_idr": amount_idr,
@@ -1151,7 +1194,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
                 "reference_id": import_id,
                 "description": f"Royalti periode {period_label} ke saldo pending",
                 "created_at": now_iso(),
-            })
+            }}, upsert=True)
             credited.append(r)
             if (i + 1) % 5 == 0 or i == len(per_label) - 1:
                 pct = 5 + int((i + 1) / total_labels * 70)
@@ -1231,7 +1274,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
         # Best-effort: invalidate the dashboard revenue cache so admins see the
         # new totals immediately on next dashboard load instead of waiting 60s.
         try:
-            schedule_dashboard_recompute()
+            await schedule_dashboard_recompute()
         except Exception:
             pass
 
@@ -1241,7 +1284,7 @@ async def _publish_bg(*, import_id: str, user_id: str):
         try:
             from routes.admin_analytics import schedule_monthly_analytics_recompute  # lazy
             import asyncio as _aio2
-            _aio2.create_task(schedule_monthly_analytics_recompute(reason=f"publish:{import_id}"))
+            await run_background(schedule_monthly_analytics_recompute, reason=f"publish:{import_id}")
         except Exception:
             pass
 
@@ -1333,7 +1376,7 @@ async def admin_mark_dana_received(import_id: str, user: dict = Depends(require_
         raise HTTPException(status_code=409, detail="Status import berubah. Muat ulang lalu coba kembali.")
 
     import asyncio
-    asyncio.create_task(_mark_dana_received_bg(import_id=import_id, user_id=user["id"]))
+    await run_background(_mark_dana_received_bg, import_id=import_id, user_id=user["id"])
     return await db.royalty_imports.find_one({"id": import_id}, {"_id": 0})
 
 
@@ -1555,7 +1598,7 @@ async def admin_reset_demo_royalty_data(
         "updated_at": now_iso(),
     })
     import asyncio as _aio
-    _aio.create_task(_reset_royalty_data_bg(job_id=job_id, user_id=user["id"]))
+    await run_background(_reset_royalty_data_bg, job_id=job_id, user_id=user["id"])
     return {"ok": True, "job_id": job_id, "status": "queued", "kind": "reset_royalty_data"}
 
 
@@ -1643,7 +1686,7 @@ async def _reset_royalty_data_bg(*, job_id: str, user_id: str):
             report["reseed_error"] = str(e)
 
         await log_activity(user_id, "reset_demo_royalty", "system", "all", after=report)
-        _trigger_dashboard_recompute()
+        await _trigger_dashboard_recompute()
         await db_bg.migrate_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "done", "phase": "done", "result": report,
@@ -2167,7 +2210,7 @@ async def _reset_import_for_retry(import_id: str) -> None:
             "error_message": None,
             "finished_at": None,
             "updated_at": now_iso(),
-        }},
+        }, "$unset": {"serverless_checkpoint": "", "serverless_task_id": ""}},
     )
 
 
@@ -2200,14 +2243,14 @@ async def admin_retry_import(import_id: str, user: dict = Depends(require_admin)
 
     await _reset_import_for_retry(import_id)
     import asyncio
-    asyncio.create_task(_process_csv_import_bg(
+    await run_background(_process_csv_import_bg,
         import_id=import_id,
         file_path=file_path,
         period=imp.get("period_start") if imp.get("is_multi_period") is False else None,
         rate_eur_idr=imp["exchange_rate_eur_idr"],
         fee_percent=imp["fee_percent"],
         user_id=user["id"],
-    ))
+    )
     await log_activity(user["id"], "retry_royalty_import", "royalty", import_id)
     return {"ok": True, "import_id": import_id, "status": "processing"}
 
@@ -2259,9 +2302,9 @@ async def admin_repair_reporting_period(import_id: str, user: dict = Depends(req
         }},
     )
     import asyncio
-    asyncio.create_task(_repair_reporting_period_bg(
+    await run_background(_repair_reporting_period_bg,
         import_id=import_id, job_id=job_id, user_id=user["id"],
-    ))
+    )
     return {"ok": True, "job_id": job_id, "status": "queued", "already_running": False}
 
 
@@ -2619,6 +2662,9 @@ async def admin_force_finalize_import(import_id: str, user: dict = Depends(requi
             detail=f"Force-finalize hanya untuk status processing / error (status saat ini: {imp.get('status')}).",
         )
 
+    if imp.get("serverless_task_id") and not imp.get("serverless_csv_complete"):
+        raise HTTPException(409, "Impor antrean belum selesai membaca seluruh CSV. Jangan finalisasi dari data parsial.")
+
     stats = await _recompute_import_stats_from_lines(import_id)
     if stats["total_lines"] == 0:
         # No rows ever made it into Mongo — mark as error so admin can re-upload.
@@ -2649,7 +2695,7 @@ async def admin_force_finalize_import(import_id: str, user: dict = Depends(requi
         user["id"], "force_finalize_royalty_import", "royalty", import_id,
         after={"total_lines": stats["total_lines"], "matched_lines": stats["matched_lines"]},
     )
-    _trigger_dashboard_recompute()
+    await _trigger_dashboard_recompute()
     return {"ok": True, "import_id": import_id, "status": "pending_review", **stats}
 
 
@@ -2705,7 +2751,7 @@ async def admin_delete_import(import_id: str, user: dict = Depends(require_super
     )
 
     import asyncio
-    asyncio.create_task(_delete_import_bg(import_id=import_id, user_id=user["id"]))
+    await run_background(_delete_import_bg, import_id=import_id, user_id=user["id"])
 
     return Response(
         status_code=202,
@@ -2778,13 +2824,13 @@ async def _delete_import_bg(*, import_id: str, user_id: str):
 
         # 5) Best-effort cache refresh
         try:
-            schedule_dashboard_recompute()
+            await schedule_dashboard_recompute()
         except Exception:
             pass
         try:
             from routes.admin_analytics import schedule_monthly_analytics_recompute
             import asyncio as _aio2
-            _aio2.create_task(schedule_monthly_analytics_recompute(reason=f"delete_import:{import_id}"))
+            await run_background(schedule_monthly_analytics_recompute, reason=f"delete_import:{import_id}")
         except Exception:
             pass
 
@@ -2849,7 +2895,7 @@ async def resume_interrupted_imports():
         period = None
         if imp.get("is_multi_period") is False and imp.get("period_start"):
             period = imp["period_start"]
-        asyncio.create_task(_process_csv_import_bg(
+        await run_background(_process_csv_import_bg,
             import_id=import_id,
             file_path=file_path,
             period=period,
@@ -2857,7 +2903,7 @@ async def resume_interrupted_imports():
             fee_percent=imp["fee_percent"],
             user_id=imp.get("uploaded_by") or "system",
             staged_replacement=bool(imp.get("replacement_stage")),
-        ))
+        )
         logger.info("resume_interrupted_imports: %s resumed from %s", import_id, file_path)
 
     # 2) Resume stuck publish (idempotent — safe to re-run)
@@ -2872,10 +2918,10 @@ async def resume_interrupted_imports():
     if stuck_publishing:
         logger.info("resume_interrupted_imports: found %d stuck publishing import(s)", len(stuck_publishing))
         for imp in stuck_publishing:
-            asyncio.create_task(_publish_bg(
+            await run_background(_publish_bg,
                 import_id=imp["id"],
                 user_id=imp.get("uploaded_by") or "system",
-            ))
+            )
             logger.info("resume_interrupted_imports: %s publish resumed", imp["id"])
 
     # 3) Resume stuck dana-received processing (idempotent per label).
@@ -2888,10 +2934,10 @@ async def resume_interrupted_imports():
         logger.exception("resume_interrupted_imports: cannot query receiving: %s", exc)
         return
     for imp in stuck_receiving:
-        asyncio.create_task(_mark_dana_received_bg(
+        await run_background(_mark_dana_received_bg,
             import_id=imp["id"],
             user_id=imp.get("uploaded_by") or "system",
-        ))
+        )
         logger.info("resume_interrupted_imports: %s dana-received resumed", imp["id"])
 
     # 4) Reconcile legacy imports where dana_received_at exists but the status
@@ -2936,10 +2982,10 @@ async def resume_interrupted_imports():
                     },
                 },
             )
-            asyncio.create_task(_mark_dana_received_bg(
+            await run_background(_mark_dana_received_bg,
                 import_id=imp["id"],
                 user_id=imp.get("uploaded_by") or "system",
-            ))
+            )
             logger.info("resume_interrupted_imports: %s stale received processing resumed", imp["id"])
 
     # 5) Resume interrupted reporting-period repairs. Re-running is safe: each
@@ -2970,11 +3016,11 @@ async def resume_interrupted_imports():
             {"id": imp["id"]},
             {"$set": {"period_repair_job_id": repair_job_id, "updated_at": now_iso()}},
         )
-        asyncio.create_task(_repair_reporting_period_bg(
+        await run_background(_repair_reporting_period_bg,
             import_id=imp["id"],
             job_id=repair_job_id,
             user_id=imp.get("uploaded_by") or "system",
-        ))
+        )
         logger.info("resume_interrupted_imports: %s period repair resumed", imp["id"])
 
     # 6) Resume a killed Analytics rebuild, or automatically rebuild when the

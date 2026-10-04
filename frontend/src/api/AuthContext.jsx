@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, formatApiError } from "@/api/client";
 
+import { resetSharedReads } from "./sharedRead";
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -9,6 +11,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const acceptAuthPayload = useCallback((data) => {
+    resetSharedReads();
     setUser(data.user);
     setProfile(data.label || data.artist || null);
     return data;
@@ -28,10 +31,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (window.location.hash?.includes("session_id=")) {
-      setLoading(false);
-      return;
-    }
     refresh();
   }, [refresh]);
 
@@ -45,8 +44,8 @@ export function AuthProvider({ children }) {
     return acceptAuthPayload(data);
   };
 
-  const exchangeGoogleSession = useCallback(async (sessionId) => {
-    const { data } = await api.post("/auth/google/session", { session_id: sessionId });
+  const loginWithGoogle = useCallback(async (credential) => {
+    const { data } = await api.post("/auth/google/id-token", { credential });
     return acceptAuthPayload(data);
   }, [acceptAuthPayload]);
 
@@ -54,6 +53,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/auth/logout");
     } catch (_e) { /* ignore */ }
+    resetSharedReads();
     setUser(false);
     setProfile(null);
   };
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
   const isAdmin = Boolean(user?.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user?.role));
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, exchangeGoogleSession, logout, hasPermission, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, loginWithGoogle, logout, hasPermission, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

@@ -47,40 +47,50 @@ export default function AdminChatWidget() {
   useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => { labelFilterRef.current = labelFilter; }, [labelFilter]);
 
+  const listsPending = useRef(false);
+  const threadPending = useRef(false);
   const loadLists = useCallback(async () => {
+    if (listsPending.current || document.visibilityState === "hidden") return;
+    listsPending.current = true;
+    try {
     if (isSupport) { try { const { data } = await api.get("/chat/admin/labels", { params: { status: backendStatusFor(labelFilterRef.current) } }); setLabelInbox(data.items || []); } catch { /* */ } }
     // Presence updates only refresh indicators — they NEVER trigger sound/notification.
     try { const { data } = await api.get("/chat/admin/admins"); setAdminDir(data.items || []); } catch { /* */ }
+    } finally { listsPending.current = false; }
   }, [isSupport]);
 
   const loadThread = useCallback(async () => {
     const cur = activeRef.current;
-    if (!cur) return;
+    if (!cur || threadPending.current) return;
+    threadPending.current = true;
     try {
       const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`);
+      if (activeRef.current?.conversation_id !== cur.conversation_id) return;
       setMessages(data.messages || []);
       setTyping(data.typing || []);
       setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, status: data.status, title: data.label_name || a.title } : a);
-    } catch { /* */ }
+    } catch { /* */ } finally { threadPending.current = false; }
   }, []);
 
   useEffect(() => {
-    const beat = () => api.post("/chat/heartbeat").catch(() => {});
+    const beat = () => { if (document.visibilityState !== "hidden") api.post("/chat/heartbeat").catch(() => {}); };
     beat();
     const hb = setInterval(beat, 20000);
+    let unreadPending = false;
     const poll = setInterval(async () => {
+      if (unreadPending || document.visibilityState === "hidden") return;
+      unreadPending = true;
       try {
         const { data } = await api.get("/chat/unread");
         receiveChat(data);
         setUnread(data.unread || 0);
-      } catch { /* */ }
+      } catch { /* */ } finally { unreadPending = false; }
     }, 4000);
     return () => { clearInterval(hb); clearInterval(poll); };
   }, [receiveChat]);
 
-  useEffect(() => { loadLists(); const timer = setInterval(() => { if (!openRef.current) loadLists(); }, 15000); return () => clearInterval(timer); }, [loadLists]);
   useEffect(() => { if (!open) return; loadLists(); const timer = setInterval(loadLists, 4000); return () => clearInterval(timer); }, [open, loadLists, labelFilter]);
-  useEffect(() => { if (!open || !activeConversationId) return; loadThread(); const timer = setInterval(loadThread, 3000); return () => clearInterval(timer); }, [open, activeConversationId, loadThread]);
+  useEffect(() => { if (!open || !activeConversationId) return; loadThread(); const timer = setInterval(() => { if (document.visibilityState !== "hidden") loadThread(); }, 3000); return () => clearInterval(timer); }, [open, activeConversationId, loadThread]);
 
   // Header Quick Chat integration: open on request, and broadcast unread count for the header badge.
   useEffect(() => { const toggleChat = () => setOpen((o) => !o); window.addEventListener(OPEN_CHAT_EVENT, toggleChat); return () => window.removeEventListener(OPEN_CHAT_EVENT, toggleChat); }, []);

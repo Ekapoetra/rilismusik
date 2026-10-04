@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { sharedRead } from "@/api/sharedRead";
+import { useLabelKyc } from "@/contexts/LabelKycContext";
 import { api, fileUrl } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { LABEL_DASHBOARD } from "@/constants/testIds";
@@ -26,22 +28,36 @@ export default function LabelDashboardHome() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [releases, setReleases] = useState([]);
-  const [kyc, setKyc] = useState(null);
+  const { kyc, loading: kycLoading, error: kycError } = useLabelKyc();
+  const [loadError, setLoadError] = useState("");
+  const [releaseError, setReleaseError] = useState(false);
+  const [releasesLoading, setReleasesLoading] = useState(true);
   const [hero, setHero] = useState(null);
   const [withdraws, setWithdraws] = useState([]);
   const [account, setAccount] = useState(null);
   const [claimDismissed, setClaimDismissed] = useState(false);
-  const analytics = useLabelAnalytics();
-  const { balance: liveBalance } = useRoyaltyBalance(Boolean(kyc?.is_verified));
+  const analytics = useLabelAnalytics({ enabled: Boolean(kyc?.is_verified) });
+  const trendAnalytics = useLabelAnalytics({ enabled: Boolean(kyc?.is_verified) && analytics.windowValue !== "6", windowValue: "6", labelId: analytics.labelId });
+  const trend = (analytics.windowValue === "6" ? analytics.data : trendAnalytics.data)?.monthly || null;
+  const { balance: liveBalance, error: balanceError } = useRoyaltyBalance(Boolean(kyc?.is_verified && data), data?.balance);
 
   useEffect(() => {
-    api.get("/label/dashboard").then((r) => setData(r.data)).catch(() => {});
-    api.get("/releases/").then((r) => setReleases(r.data.slice(0, 5))).catch(() => {});
-    api.get("/label/kyc").then((r) => setKyc(r.data)).catch(() => setKyc({ is_verified: true, checks: [] }));
-    api.get("/cms/landing").then((r) => setHero(r.data?.label_dashboard_hero || {})).catch(() => setHero({}));
-    api.get("/withdraw/label").then((r) => setWithdraws(Array.isArray(r.data) ? r.data : [])).catch(() => {});
-    api.get("/label/account").then((r) => setAccount(r.data)).catch(() => {});
-  }, []);
+    let active = true;
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/label/dashboard").then((r) => { if (active) setData(r.data); }).catch(() => { if (active) setLoadError("Dashboard belum dapat dimuat. Muat ulang halaman untuk mencoba lagi."); });
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/cms/landing").then((r) => { if (active) setHero(r.data?.label_dashboard_hero || {}); }).catch(() => {});
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/withdraw/label").then((r) => { if (active) setWithdraws(Array.isArray(r.data) ? r.data : []); }).catch(() => {});
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/label/account").then((r) => { if (active) setAccount(r.data); }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.id, user?.active_label_id]);
+  useEffect(() => {
+    if (!kyc?.is_verified) { setReleasesLoading(false); return undefined; }
+    let active = true; setReleasesLoading(true);
+    sharedRead(JSON.stringify([user?.id, user?.active_label_id]), "/releases/", { limit: 5, include_revenue: false })
+      .then((r) => { if (active) { setReleases(r.data); setReleaseError(false); } })
+      .catch(() => { if (active) setReleaseError(true); })
+      .finally(() => { if (active) setReleasesLoading(false); });
+    return () => { active = false; };
+  }, [user?.id, user?.active_label_id, kyc?.is_verified]);
 
   const switchLabel = async (id) => {
     if (!id || id === account?.active_label_id) return;
@@ -65,24 +81,21 @@ export default function LabelDashboardHome() {
   }, [data?.label?.id]);
   const dismissClaim = () => { if (data?.label?.id) localStorage.setItem(`rm:claim_dismissed:${data.label.id}`, "1"); setClaimDismissed(true); };
 
-  const [trend, setTrend] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   useEffect(() => {
     if (!kyc?.is_verified) return;
-    const params = { window: "6" };
-    if (analytics.labelId && analytics.labelId !== "all") params.label_id = analytics.labelId;
-    api.get("/label/analytics", { params }).then((r) => setTrend(r.data.monthly || [])).catch(() => setTrend([]));
     const key = `rm:verified_seen:${data?.label?.id || "x"}`;
     if (!localStorage.getItem(key)) setCelebrate(true);
-  }, [kyc?.is_verified, data?.label?.id, analytics.labelId]);
+  }, [kyc?.is_verified, data?.label?.id]);
   const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
+  if (!data && loadError) return <div role="alert" className="rm-card p-6 text-red-300">{loadError}</div>;
   if (!data) return <DashboardSkeleton />;
   const { label } = data;
   const pipeline = data.pipeline || { draft: 0, review: 0, delivered: 0, live: 0 };
   const stats = { ...data.stats, ...(liveBalance || {}) };
   const totalUnwithdrawn = stats.balance_available_idr + stats.balance_pending_idr + stats.balance_withdraw_requested_idr;
-  const locked = kyc ? !kyc.is_verified : false;
+  const locked = kycLoading || kycError || !kyc?.is_verified;
   const checks = kyc?.checks || [];
   const stepsDone = checks.filter((c) => c.complete).length;
   const stepsTotal = checks.length || 1;
@@ -274,6 +287,7 @@ export default function LabelDashboardHome() {
         </section>
       </div>
 
+      {balanceError && <p role="alert" className="text-sm text-amber-300">Saldo belum dapat diperbarui. Menampilkan hasil terakhir.</p>}
       {/* Recent releases */}
       <LabelAddonOrders title="Layanan Tambahan" showRelease hideWhenEmpty />
 
@@ -282,7 +296,7 @@ export default function LabelDashboardHome() {
           <h3 className="font-display text-lg font-bold tracking-tight">Rilisan Terbaru</h3>
           <Link to="/label/releases" className="text-sm font-semibold rm-gradient-text">Lihat semua →</Link>
         </div>
-        {releases.length === 0 ? (
+        {releasesLoading ? <p role="status">Memuat rilisan…</p> : releaseError ? <p role="alert" className="text-red-300">Rilisan belum dapat dimuat.</p> : releases.length === 0 ? (
           <div className="py-8 text-center text-sm text-zinc-500">
             Belum ada rilisan. <Link to="/label/releases/upload" className="font-semibold rm-gradient-text">Ajukan sekarang</Link>
           </div>

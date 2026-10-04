@@ -1,0 +1,46 @@
+name: Vercel migration preview
+
+on:
+  push:
+    branches: [codex/vercel-preview, codex/vercel-production]
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "vercel.json"
+      - ".github/workflows/vercel-preview-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: python -m pip install -r backend/requirements.txt
+      - run: python -m unittest discover -s backend/tests -p test_vercel_preview.py -v
+      - run: python -m unittest discover -s backend/tests -p test_google_identity.py -v
+      - run: python -m pip install -r backend/tests/requirements.txt
+      - run: python -m unittest discover -s backend/tests -p test_dashboard_performance.py -v
+      - run: python -m unittest discover -s backend/tests -p test_production_configuration.py -v
+      - run: python -m unittest discover -s backend/tests -p test_vercel_production.py -v
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --global yarn@1.22.22
+      - run: yarn install --non-interactive
+        working-directory: frontend
+      - run: CI=true yarn test --watchAll=false --runInBand
+        working-directory: frontend
+      - run: CI=false yarn build
+        working-directory: frontend

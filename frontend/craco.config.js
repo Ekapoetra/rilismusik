@@ -72,6 +72,7 @@ if (config.enableHealthCheck) {
 }
 
 let webpackConfig = {
+  jest: { configure: { moduleNameMapper: { "^@/(.*)$": "<rootDir>/src/$1" } } },
   babel: { plugins: [require.resolve("./scripts/ui-i18n-plugin.cjs")] },
   eslint: {
     configure: {
