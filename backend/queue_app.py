@@ -1,5 +1,7 @@
 """Private queue callback service. Vercel triggers make this function nonpublic."""
 import threading
+import logging
+import traceback
 from fastapi import FastAPI, HTTPException, Request
 from vercel.queue import accept_and_handle, subscribe
 import queue_worker
@@ -28,7 +30,14 @@ def register_delivery_group(topic: str, group: str):
 
 @app.post('/{path:path}')
 async def callback(request: Request, path: str):
-    register_delivery_group(request.headers.get('ce-vqsqueuename', ''),
-                            request.headers.get('ce-vqsconsumergroup', ''))
-    await accept_and_handle(await request.body(), request.headers, lease_duration=900)
+    try:
+        register_delivery_group(request.headers.get('ce-vqsqueuename', ''),
+                                request.headers.get('ce-vqsconsumergroup', ''))
+        await accept_and_handle(await request.body(), request.headers, lease_duration=900)
+    except Exception as error:
+        # Log locations and exception class only: delivery bodies and credentials
+        # must never be copied into runtime logs.
+        frames = ','.join(f'{frame.name}:{frame.lineno}' for frame in traceback.extract_tb(error.__traceback__))
+        logging.getLogger(__name__).error('queue_callback_failed type=%s frames=%s', type(error).__name__, frames)
+        raise
     return {'ok': True}
