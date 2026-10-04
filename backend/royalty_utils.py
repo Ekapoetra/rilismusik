@@ -276,6 +276,24 @@ def _open_csv_text(path: str):
     """
     import gzip
     is_gz = path.endswith(".gz")
+    if path.startswith("r2://"):
+        # Streaming avoids placing a multi-GB CSV on a function's ephemeral disk.
+        import storage_service
+        response = storage_service._client().get_object(Bucket=storage_service.R2_BUCKET, Key=path[5:])
+        body = response["Body"]
+        binary = gzip.GzipFile(fileobj=body) if is_gz else body
+        buffered = io.BufferedReader(binary)
+        raw_sample = buffered.peek(8192)[:8192]
+        try:
+            import codecs
+            sample_text = codecs.getincrementaldecoder("utf-8-sig")().decode(raw_sample, final=False)
+            encoding = "utf-8-sig"
+        except UnicodeDecodeError:
+            sample_text = raw_sample.decode("latin-1", errors="replace")
+            encoding = "latin-1"
+        text_stream = io.TextIOWrapper(buffered, encoding=encoding, errors="replace", newline="")
+        text_stream._rilismusik_source = body
+        return text_stream, sample_text
     # Read first 8 KB to sniff delimiter + decode
     if is_gz:
         with gzip.open(path, "rb") as f:
@@ -284,7 +302,8 @@ def _open_csv_text(path: str):
         with open(path, "rb") as f:
             raw_sample = f.read(8192)
     try:
-        sample_text = raw_sample.decode("utf-8-sig")
+        import codecs
+        sample_text = codecs.getincrementaldecoder("utf-8-sig")().decode(raw_sample, final=False)
         encoding = "utf-8-sig"
     except UnicodeDecodeError:
         sample_text = raw_sample.decode("latin-1", errors="replace")
@@ -331,6 +350,9 @@ def iter_csv_file(path: str):
             }
     finally:
         stream.close()
+        source = getattr(stream, "_rilismusik_source", None)
+        if source is not None:
+            source.close()
 
 
 def calculate_line(

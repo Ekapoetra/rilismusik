@@ -69,6 +69,8 @@ import storage_service
 
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
+from routes.direct_uploads import direct_upload_r
+app.include_router(direct_upload_r, prefix="/api")
 
 
 def expand_origin_variants(origins: list[str]) -> list[str]:
@@ -230,8 +232,8 @@ async def on_startup():
     Kubernetes readiness timeout (60-300s) and triggers a restart loop.
     """
     import asyncio
-    if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") == "preview":
-        logger.info("Preview startup: bootstrap, scheduler and background recovery are disabled")
+    if os.environ.get("RILISMUSIK_DEPLOYMENT_MODE") == "preview" or os.environ.get("RILISMUSIK_SERVERLESS_RUNTIME") == "1":
+        logger.info("Serverless startup: legacy in-process scheduler and recovery are disabled")
         return
     asyncio.create_task(_bootstrap_async())
     from routes.contentid_assets import contentid_maintenance

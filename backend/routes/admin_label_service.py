@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Label administration business logic, independent from FastAPI routes."""
 import asyncio
 import secrets
@@ -134,10 +135,10 @@ async def update_label(label_id: str, body: LabelStatusUpdate, user: dict) -> di
         await db.labels.update_one({"id": label_id}, operation)
         await log_activity(user["id"], "update_label", "label", label_id, before=label, after=update)
     if job_id:
-        asyncio.create_task(run_label_recalculation_job(
+        await run_background(run_label_recalculation_job,
             job_id=job_id, label_id=label_id,
             percentage=float(body.royalty_percentage_default),
-        ))
+        )
     result = await db.labels.find_one({"id": label_id}, {"_id": 0})
     if job_id:
         result.update({"royalty_recalculation_job_id": job_id, "royalty_recalculation_status": "queued"})

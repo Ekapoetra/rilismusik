@@ -216,7 +216,10 @@ async def watchdog_stuck_royalty_imports():
         # Lazy-import the helper to avoid a circular import (cron_jobs ← royalty).
         from .royalty import _recompute_import_stats_from_lines
         stuck = await db.royalty_imports.find(
-            {"status": "processing", "updated_at": {"$lt": cutoff}},
+            {"status": "processing", "updated_at": {"$lt": cutoff},
+             # Queue-owned CSVs can have valid partial checkpoints. Finalizing
+             # those from a partial row count would publish incomplete revenue.
+             "serverless_task_id": {"$exists": False}},
             {"_id": 0, "id": 1, "filename": 1, "updated_at": 1},
         ).to_list(50)
         if not stuck:

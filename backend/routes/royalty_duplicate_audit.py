@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Read-only duplicate royalty import audit with per-period and per-label impact."""
 import asyncio
 import hashlib
@@ -275,7 +276,7 @@ async def start_duplicate_audit(user: dict = Depends(require_admin)):
         "submitted_by": user["id"], "submitted_at": submitted_at, "updated_at": submitted_at,
         "phase": "queued", "progress_groups_done": 0, "progress_groups_total": 0,
     })
-    asyncio.create_task(_run_duplicate_audit(job_id))
+    await run_background(_run_duplicate_audit, job_id)
     return {"job_id": job_id, "status": "queued", "already_running": False}
 
 
@@ -310,4 +311,4 @@ async def resume_duplicate_audit_jobs() -> None:
         {"_id": 0, "id": 1},
     ).to_list(10)
     for job in jobs:
-        asyncio.create_task(_run_duplicate_audit(job["id"]))
+        await run_background(_run_duplicate_audit, job["id"])

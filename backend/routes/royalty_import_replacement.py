@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Guarded replacement of a selected royalty import with mandatory preview."""
 import asyncio
 from collections import defaultdict
@@ -450,7 +451,7 @@ async def _run_replacement_commit(job_id: str) -> None:
             "status": "done", "phase": "done", "result": result,
             "finished_at": now_iso(), "updated_at": now_iso(),
         }})
-        _trigger_dashboard_recompute()
+        await _trigger_dashboard_recompute()
         await log_activity(job.get("submitted_by") or "system", "replace_royalty_import", "royalty", new_id_value, before={
             "old_import_id": old_id, "filename": old_snapshot.get("filename"),
         }, after=result)
@@ -541,11 +542,11 @@ async def finalize_replacement(old_import_id: str, replacement_import_id: str, u
     await db_bg.royalty_imports.update_one({"id": replacement_import_id}, {"$set": {
         "status": "processing", "file_size_bytes": actual_size, "started_at": now_iso(), "updated_at": now_iso(),
     }})
-    asyncio.create_task(_process_csv_import_bg(
+    await run_background(_process_csv_import_bg,
         import_id=replacement_import_id, file_path=str(local_path), period=None,
         rate_eur_idr=float(replacement["exchange_rate_eur_idr"]), fee_percent=0,
         user_id=user["id"], staged_replacement=True,
-    ))
+    )
     return {"replacement_import_id": replacement_import_id, "status": "processing"}
 
 
@@ -569,7 +570,7 @@ async def preview_replacement(old_import_id: str, replacement_import_id: str, us
         "old_import_id": old_import_id, "replacement_import_id": replacement_import_id,
         "submitted_by": user["id"], "submitted_at": now_iso(), "updated_at": now_iso(), "phase": "queued",
     })
-    asyncio.create_task(_run_replacement_preview(job_id, old_import_id, replacement_import_id))
+    await run_background(_run_replacement_preview, job_id, old_import_id, replacement_import_id)
     return {"job_id": job_id, "status": "queued", "already_running": False}
 
 
@@ -645,7 +646,7 @@ async def commit_replacement(
     await db_bg.royalty_imports.update_many({"id": {"$in": [old_import_id, replacement_import_id]}}, {
         "$set": {"status": "replacement_committing", "replacement_commit_job_id": job_id, "updated_at": now_iso()},
     })
-    asyncio.create_task(_run_replacement_commit(job_id))
+    await run_background(_run_replacement_commit, job_id)
     return {"job_id": job_id, "status": "queued", "already_running": False}
 
 
@@ -679,4 +680,4 @@ async def resume_replacement_jobs() -> None:
         "kind": "royalty_import_replacement_commit", "status": {"$in": list(ACTIVE_REPLACEMENT_STATUSES)},
     }, {"_id": 0, "id": 1}).to_list(20)
     for job in jobs:
-        asyncio.create_task(_run_replacement_commit(job["id"]))
+        await run_background(_run_replacement_commit, job["id"])

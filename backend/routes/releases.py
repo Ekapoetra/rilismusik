@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Releases & track upload router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
@@ -620,19 +621,19 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     ).to_list(100)
     for admin_doc in admin_emails:
         if admin_doc.get("email"):
-            asyncio.create_task(send_release_submission_email(
+            await run_background(send_release_submission_email,
                 to=admin_doc["email"], label_name=label.get("label_name") or "Label",
                 release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
-            ))
+            )
     # Confirmation email to the label (best-effort).
     if label.get("email"):
-        asyncio.create_task(send_release_status_email(
+        await run_background(send_release_status_email,
             to=label["email"], label_name=label.get("label_name") or "Label",
             release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
             kind="submitted",
             artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
             cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
-        ))
+        )
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -685,11 +686,11 @@ async def _bill_release_ppr(rel: dict, release_id: str, user: dict):
     label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
     label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
     if label_user and label_user.get("email"):
-        asyncio.create_task(send_release_invoice_email(
+        await run_background(send_release_invoice_email,
             to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
             release_title=rel.get("release_title") or "Rilisan", amount_idr=total_amount,
             payment_id=invoice_doc["id"], release_id=release_id,
-        ))
+        )
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -862,14 +863,14 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     if body.action == "mark_live":
         label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "email": 1})
         if label_doc and label_doc.get("email"):
-            asyncio.create_task(send_release_live_email(
+            await run_background(send_release_live_email,
                 to=label_doc["email"], label_name=rel.get("label_name") or "Label",
                 release_title=rel.get("release_title") or "Rilisan",
                 artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
                 release_id=release_id,
                 cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
                 release_date=(body.release_date if getattr(body, "release_date", None) else rel.get("release_date")),
-            ))
+            )
     # Lifecycle status emails to the label (best-effort).
     _status_email_kind = {
         "start_review": "under_review", "need_revision": "need_revision",
@@ -878,13 +879,13 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     if _status_email_kind:
         label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "email": 1})
         if label_doc and label_doc.get("email"):
-            asyncio.create_task(send_release_status_email(
+            await run_background(send_release_status_email,
                 to=label_doc["email"], label_name=rel.get("label_name") or "Label",
                 release_title=rel.get("release_title") or "Rilisan", release_id=release_id,
                 kind=_status_email_kind, note=body.note,
                 artist_name=rel.get("primary_artist_name") or rel.get("artist_name"),
                 cover_url=rel.get("internal_cover_url") if rel.get("imported_legacy") else rel.get("cover_url"),
-            ))
+            )
     return await db.releases.find_one({"id": release_id}, {"_id": 0})
 
 
@@ -1091,11 +1092,11 @@ async def admin_create_shortfall_invoice(release_id: str, user: dict = Depends(r
     label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "label_name": 1, "user_id": 1})
     label_user = await db.users.find_one({"id": (label_doc or {}).get("user_id")}, {"_id": 0, "email": 1})
     if label_user and label_user.get("email"):
-        asyncio.create_task(send_release_invoice_email(
+        await run_background(send_release_invoice_email,
             to=label_user["email"], label_name=(label_doc or {}).get("label_name") or "Label",
             release_title=rel.get("release_title") or "Rilisan", amount_idr=amount,
             payment_id=invoice_doc["id"], release_id=release_id,
-        ))
+        )
     return {"invoice": invoice_doc, "state": await _shortfall_state(release_id)}
 
 

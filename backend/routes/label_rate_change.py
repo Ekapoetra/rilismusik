@@ -1,3 +1,4 @@
+from background_runtime import run_background
 """Sensitive Action: Label Rate/Fee Change — request → approval → apply workflow.
 
 Separates the DIRECT change (labels.rate) from the request/approval flow
@@ -84,7 +85,7 @@ async def _apply_rate_change(*, label: dict, percentage: float, reason: str, act
                        before={"royalty_percentage_default": current},
                        after={"royalty_percentage_default": percentage, "reason": reason})
     if job_id:
-        asyncio.create_task(run_label_recalculation_job(job_id=job_id, label_id=label_id, percentage=percentage))
+        await run_background(run_label_recalculation_job, job_id=job_id, label_id=label_id, percentage=percentage)
     return job_id
 
 
