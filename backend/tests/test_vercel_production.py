@@ -237,6 +237,17 @@ class R2StreamingTests(unittest.TestCase):
 
 
 class QueueServiceTests(unittest.TestCase):
+    def test_provider_group_with_encoded_underscores_matches_real_sdk(self):
+        import queue_app
+        from vercel.queue._internal.push import parse_push_delivery_metadata
+        from vercel.queue._internal.subscribers import infer_subscriber_transport
+        group = 'queue-jobs_Sfastapi'
+        queue_app.register_delivery_group('rilismusik-jobs', group)
+        metadata = parse_push_delivery_metadata({'ce-type':'com.vercel.queue.v2beta',
+            'ce-vqsqueuename':'rilismusik-jobs', 'ce-vqsconsumergroup':group,
+            'ce-vqsmessageid':'offline-test', 'ce-vqsregion':'iad1'})
+        self.assertIsNotNone(infer_subscriber_transport(metadata))
+
     def test_private_callback_passes_receipt_to_sdk(self):
         import queue_app
         with patch.object(queue_app, 'accept_and_handle', new_callable=AsyncMock) as handle, TestClient(queue_app.app) as client:

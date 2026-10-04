@@ -4,6 +4,7 @@ import logging
 import traceback
 from fastapi import FastAPI, HTTPException, Request
 from vercel.queue import accept_and_handle, subscribe
+from vercel.queue._internal.names import SanitizedName
 import queue_worker
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -25,7 +26,9 @@ def register_delivery_group(topic: str, group: str):
             handler = _handlers[topic]
             async def receive(payload: dict[str, str]):
                 await handler(payload)
-            _consumers[key] = subscribe(topic=topic, consumer_group=group)(receive)
+            # The provider already encodes this name. A plain string would
+            # encode its underscores a second time and fail delivery matching.
+            _consumers[key] = subscribe(topic=topic, consumer_group=SanitizedName(group))(receive)
 
 
 @app.post('/{path:path}')
