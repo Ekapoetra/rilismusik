@@ -18,7 +18,7 @@ from pymongo.errors import DuplicateKeyError
 
 from auth_utils import create_access_token, create_refresh_token, set_auth_cookies
 from models import now_iso, new_id
-from .deps import db, get_current_user, public_user, redact_label_for_self, LABEL_ROLE
+from .deps import db, logger, get_current_user, public_user, redact_label_for_self, log_activity, LABEL_ROLE
 
 google_r = APIRouter(prefix="/auth/google", tags=["auth"])
 CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
@@ -120,7 +120,7 @@ async def _check_label_user(user: dict):
     return label
 
 
-async def _bind_and_consume(user: dict, claims: dict, credential: str):
+async def _bind_and_consume(user: dict, claims: dict, credential: str, *, mark_email_verified: bool = True):
     # _id uniqueness also works when preview index seeding is disabled.
     # Use Google's stable subject, not Emergent's historical provider id.
     binding = {"_id": claims["sub"], "user_id": user["id"], "created_at": now_iso()}
@@ -143,9 +143,14 @@ async def _bind_and_consume(user: dict, claims: dict, credential: str):
         raise HTTPException(409, "Sesi Google sudah digunakan. Muat ulang tombol Google.") from None
     fields = {
         "google_subject": claims["sub"], "google_picture": claims.get("picture"),
+        "google_email": claims["email"].lower().strip(),
         "google_last_login_at": now_iso(), "updated_at": now_iso(),
     }
-    if not user.get("email_verified_at"):
+    if not user.get("google_linked_at"):
+        fields["google_linked_at"] = now_iso()
+    # Connecting Google from the profile is only a sign-in method; it never
+    # changes the account's verification state (email or Verifikasi Akun).
+    if mark_email_verified and not user.get("email_verified_at"):
         fields["email_verified_at"] = now_iso()
     result = await db.users.update_one({"id": user["id"], "$or": [
         {"google_subject": {"$exists": False}}, {"google_subject": None},
@@ -189,7 +194,11 @@ async def google_link(body: GoogleCredentialIn, response: Response, request: Req
         raise HTTPException(403, "Pilih akun Google dengan email yang sama seperti akun label Anda.")
     if user.get("google_subject") and user["google_subject"] != claims["sub"]:
         raise HTTPException(409, "Akun ini sudah terhubung ke akun Google lain.")
-    await _bind_and_consume(user, claims, body.credential)
+    await _bind_and_consume(user, claims, body.credential, mark_email_verified=False)
+    try:
+        await log_activity(user["id"], "google_link", "user", user["id"], after={"google_email": user.get("google_email")})
+    except Exception as exc:  # noqa: BLE001 - the link itself already succeeded
+        logger.warning("google link audit log failed: %s", type(exc).__name__)
     response.delete_cookie(NONCE_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
     response.headers["Cache-Control"] = "no-store"
-    return {"ok": True}
+    return {"ok": True, "google_email": user.get("google_email"), "google_linked_at": user.get("google_linked_at")}

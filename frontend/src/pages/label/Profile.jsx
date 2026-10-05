@@ -6,7 +6,7 @@ import { BankAccountPanel } from "@/components/label/BankAccountPanel";
 import { KycPanel } from "@/components/label/KycPanel";
 import { ClaimLabelCard } from "@/components/label/ClaimLabelCard";
 import { LabelLogo } from "@/components/shared/LabelLogo";
-import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { GoogleConnectCard } from "@/components/label/GoogleConnectCard";
 
 export default function LabelProfile() {
   const { refresh, user } = useAuth();
@@ -47,6 +47,7 @@ export default function LabelProfile() {
             Permintaan klaim untuk label lama <b className="text-zinc-200">{profile.claim_legacy_name}</b> sedang diproses tim kami. Admin akan menghubungkan data lama Anda dalam 1-3 hari kerja. Anda akan menerima notifikasi setelah akun terhubung.
           </p>
         </div>
+        <GoogleConnectCard />
       </div>
     );
   }
@@ -67,6 +68,8 @@ export default function LabelProfile() {
 
       <KycPanel profile={profile} onReload={load} />
 
+      <GoogleConnectCard />
+
       <div className="rm-card p-6 space-y-4">
         <div className="flex items-center gap-2 font-display font-bold text-lg tracking-tight"><Building2 className="w-5 h-5" /> Info Label</div>
         <div className="grid md:grid-cols-2 gap-3">
@@ -84,14 +87,6 @@ export default function LabelProfile() {
       </div>
 
       <BankAccountPanel onChanged={load} />
-
-      <div className="rm-card p-6 space-y-3 max-w-md">
-        <h2 className="font-display font-bold text-lg">Login dengan Google</h2>
-        {user?.google_subject ? <p className="text-sm text-emerald-300">Akun Google sudah terhubung.</p> : <>
-          <p className="text-sm text-zinc-400">Hubungkan akun Google dengan email yang sama agar bisa masuk tanpa mengetik password.</p>
-          <GoogleAuthButton source="profile" mode="link" onLinked={refresh} />
-        </>}
-      </div>
 
       {canClaim && <ClaimLabelCard claimStatus={user?.claim_status} onSubmitted={() => { load(); refresh(); }} />}
     </div>
