@@ -4,7 +4,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
-import { uploadChatAttachment } from "./chatUtils";
+import { uploadChatAttachment, mergeMessages, lastMessageAt } from "./chatUtils";
 import { useIncomingChat, NewChatNotice } from "./NewChatNotice";
 
 export default function LabelChatWidget() {
@@ -16,28 +16,43 @@ export default function LabelChatWidget() {
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const chatNotice = useIncomingChat(() => setOpen(true));
   const receiveChat = chatNotice.receive;
   const openRef = useRef(false);
   const convRef = useRef(null);
+  const messagesRef = useRef([]);
+  const threadPending = useRef(false);
   useEffect(() => { openRef.current = open; }, [open]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
+  // First load returns the newest page; later polls only fetch the recent tail.
   const loadThread = useCallback(async () => {
+    if (threadPending.current) return;
+    threadPending.current = true;
     try {
-      const { data } = await api.get("/chat/label/thread");
-      setMessages(data.messages || []);
+      const since = lastMessageAt(messagesRef.current);
+      const { data } = await api.get("/chat/label/thread", { params: since ? { since } : {} });
+      setMessages((current) => mergeMessages(current, data.messages, data.incremental));
       setSupportOnline(!!data.support_online);
       setWithinHours(!!data.within_hours);
       setTyping(data.typing || []);
       convRef.current = data.conversation_id;
-    } catch { /* label may not be ready */ }
+    } catch { /* label may not be ready */ } finally {
+      threadPending.current = false;
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
     const beat = () => api.post("/chat/heartbeat").catch(() => {});
     beat();
     const hb = setInterval(beat, 20000);
+    // Hidden tabs keep checking (less often) so the chat sound still plays.
+    let tick = 0;
     const poll = setInterval(async () => {
+      tick += 1;
+      if (document.visibilityState === "hidden" && tick % 4 !== 0) return;
       try {
         const { data } = await api.get("/chat/unread");
         const n = data.unread || 0;
@@ -52,13 +67,17 @@ export default function LabelChatWidget() {
     if (!open) return;
     loadThread();
     setUnread(0);
-    const t = setInterval(loadThread, 3000);
+    const t = setInterval(() => { if (document.visibilityState !== "hidden") loadThread(); }, 3000);
     return () => clearInterval(t);
   }, [open, loadThread]);
 
   const send = async (body, attachment) => {
     setBusy(true);
-    try { await api.post("/chat/label/thread", { body, attachment }); await loadThread(); }
+    try {
+      const { data } = await api.post("/chat/label/thread", { body, attachment });
+      setMessages((current) => mergeMessages(current, [data], true));
+      loadThread();
+    }
     catch { toast.error("Gagal mengirim pesan"); }
     finally { setBusy(false); }
   };
@@ -77,7 +96,7 @@ export default function LabelChatWidget() {
             <button onClick={() => setOpen(false)} className="text-zinc-400 hover:text-white" data-testid="label-chat-close"><X className="h-4 w-4" /></button>
           </div>
           <div className="min-h-0 flex-1">
-            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online sekarang" : withinHours ? "Dalam jam operasional" : "Di luar jam operasional — dibalas pada jam kerja"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} typing={typing} onType={onType} onUpload={onUpload} />
+            <ChatThread title="Tim Support" subtitle={supportOnline ? "Online sekarang" : withinHours ? "Dalam jam operasional" : "Di luar jam operasional — dibalas pada jam kerja"} online={supportOnline} messages={messages} myId={user?.id} onSend={send} busy={busy} typing={typing} onType={onType} onUpload={onUpload} loading={!loaded} />
           </div>
         </div>
       )}

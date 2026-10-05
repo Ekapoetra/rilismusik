@@ -1,4 +1,5 @@
 """KYC readiness, private document handling, and feature authorization."""
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -36,20 +37,26 @@ async def compute_kyc_state(*, user: Dict[str, Any], label: Optional[Dict[str, A
         label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0})
     if not label:
         raise HTTPException(status_code=404, detail="Label belum diset")
-    bank = await db.bank_accounts.find_one(
-        {"label_id": label["id"]},
-        {"_id": 0, "bank_name": 1, "account_number": 1, "account_holder_name": 1, "verified_status": 1},
-    )
-    contract = await db.contracts.find_one(
-        _active_contract_query(label["id"]), {"_id": 0, "id": 1, "status": 1, "start_date": 1, "end_date": 1},
-        sort=[("created_at", -1)],
-    )
-    doc = None
-    if label.get("kyc_document_id"):
-        doc = await db.kyc_documents.find_one(
+    # These reads are independent; running them together keeps every
+    # KYC-gated request at one database round trip instead of three.
+    async def current_document():
+        if not label.get("kyc_document_id"):
+            return None
+        return await db.kyc_documents.find_one(
             {"id": label["kyc_document_id"], "label_id": label["id"], "is_current": True},
             {"_id": 0, "storage_key": 0, "sha256": 0},
         )
+    bank, contract, doc = await asyncio.gather(
+        db.bank_accounts.find_one(
+            {"label_id": label["id"]},
+            {"_id": 0, "bank_name": 1, "account_number": 1, "account_holder_name": 1, "verified_status": 1},
+        ),
+        db.contracts.find_one(
+            _active_contract_query(label["id"]), {"_id": 0, "id": 1, "status": 1, "start_date": 1, "end_date": 1},
+            sort=[("created_at", -1)],
+        ),
+        current_document(),
+    )
     checks = [
         {"key": "pic_name", "label": "Nama Penanggung Jawab", "complete": bool(str(label.get("pic_name") or "").strip()), "action_path": "/label/profile"},
         {"key": "label_name", "label": "Nama Label", "complete": bool(str(label.get("label_name") or "").strip()), "action_path": "/label/profile"},

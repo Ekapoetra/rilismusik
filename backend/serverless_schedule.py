@@ -8,8 +8,15 @@ from pymongo.errors import DuplicateKeyError
 from vercel.queue import send
 from background_runtime import run_background, recover_pending_dispatches
 
+# Every API request passes through seed_schedule. The tick chain renews itself
+# every 60 s through the queue, so one instance only needs to re-check the
+# shared schedule document occasionally instead of writing it on every request.
+SEED_CHECK_INTERVAL_SECONDS = 30
+_next_seed_check = 0.0
+
 
 async def seed_schedule(host: str):
+    global _next_seed_check
     if os.environ.get("VERCEL_ENV") != "production" or host not in {
         "rilismusik.com", "www.rilismusik.com", "rilismusik.vercel.app",
     }:
@@ -19,7 +26,15 @@ async def seed_schedule(host: str):
     if not deployment:
         return
     now = time.time()
-    await db_bg.serverless_schedule.update_one({"_id": "active"}, {"$set": {"deployment": deployment}}, upsert=True)
+    if now < _next_seed_check:
+        return
+    # Reserve the slot before awaiting so concurrent requests skip the check.
+    _next_seed_check = now + SEED_CHECK_INTERVAL_SECONDS
+    active = await db_bg.serverless_schedule.find_one({"_id": "active"}, {"deployment": 1, "tick_until": 1}) or {}
+    if active.get("deployment") == deployment and float(active.get("tick_until") or 0) >= now:
+        return
+    if active.get("deployment") != deployment:
+        await db_bg.serverless_schedule.update_one({"_id": "active"}, {"$set": {"deployment": deployment}}, upsert=True)
     claimed = await db_bg.serverless_schedule.update_one({
         "_id": "active", "$or": [{"tick_until": {"$lt": now}}, {"tick_until": {"$exists": False}}],
     }, {"$set": {"tick_until": now + 180}})
@@ -39,6 +54,7 @@ async def process_tick(payload: dict):
     from routes.label_balance_snapshot import start_label_balance_snapshot_refresh
     from routes.contentid_assets import contentid_maintenance_once
     from routes.direct_uploads import cleanup_expired_direct_uploads
+    from routes.royalty_report_export import cleanup_expired_report_exports
     from routes.staff import finalize_yesterday_attendance
     await recover_pending_dispatches()
     now = datetime.now(timezone.utc)
@@ -48,6 +64,7 @@ async def process_tick(payload: dict):
         (notify_completed_background_jobs, 300, {}),
         (contentid_maintenance_once, 900, {}),
         (cleanup_expired_direct_uploads, 900, {}),
+        (cleanup_expired_report_exports, 900, {}),
         (cron.check_subscription_expiry_job, 3600, {}),
         (start_label_balance_snapshot_refresh, 3600, {"reason": "hourly_scheduler"}),
         (cron.send_payment_reminders_job, 10800, {}),

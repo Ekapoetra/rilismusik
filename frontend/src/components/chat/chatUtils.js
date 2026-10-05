@@ -34,3 +34,21 @@ export async function uploadChatAttachment(file) {
   const { data } = await api.post("/chat/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
   return data;
 }
+
+// Merge a full or incremental thread response into the current list. Polls
+// repeat a short overlap, so messages are de-duplicated by id and kept in
+// chronological order; a full response replaces the list.
+export function mergeMessages(current, incoming, incremental) {
+  if (!incremental) return incoming || [];
+  if (!incoming?.length) return current;
+  const byId = new Map(current.map((m) => [m.id, m]));
+  let changed = false;
+  for (const m of incoming) {
+    if (!byId.has(m.id)) changed = true;
+    byId.set(m.id, m);
+  }
+  if (!changed) return current;
+  return Array.from(byId.values()).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+}
+
+export const lastMessageAt = (messages) => (messages?.length ? messages[messages.length - 1].created_at : undefined);

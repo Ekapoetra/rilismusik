@@ -1,4 +1,6 @@
 """Realtime (polling-based) chat: label↔support inbox and admin↔admin internal DMs, with presence."""
+import asyncio
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -9,7 +11,7 @@ from pydantic import BaseModel, Field
 
 import storage_service
 from models import now_iso, new_id
-from .deps import db, get_current_user, is_admin_identity, admin_user_ids, notify, ADMIN_ROLES
+from .deps import db, logger, get_current_user, is_admin_identity, admin_user_ids, notify, ADMIN_ROLES
 from .admin_permission_service import has_permission
 
 chat_r = APIRouter(prefix="/chat", tags=["chat"])
@@ -18,6 +20,54 @@ TYPING_WINDOW_SECONDS = 6
 ATTACH_EXTS = {"jpg", "jpeg", "png", "webp", "gif", "pdf", "txt", "doc", "docx"}
 IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MAX_ATTACH_BYTES = 15 * 1024 * 1024
+MESSAGE_PAGE = 500
+# Incremental polls re-read a short overlap so a message stamped by another
+# instance with a slightly earlier clock is never skipped; ids de-duplicate.
+SINCE_OVERLAP_SECONDS = 60
+DIRECTORY_CACHE_SECONDS = 60
+_cache: Dict[str, tuple] = {}
+_chat_index_state: Dict[str, Any] = {"task": None, "retry_at": 0.0}
+
+
+async def _create_chat_indexes() -> bool:
+    try:
+        await asyncio.gather(
+            db.chat_messages.create_index([("conversation_id", 1), ("created_at", -1)]),
+            db.chat_messages.create_index([("conversation_id", 1), ("sender_id", 1)]),
+            db.chat_conversations.create_index("id"),
+            db.chat_conversations.create_index([("kind", 1), ("label_id", 1)]),
+            db.chat_conversations.create_index([("kind", 1), ("participant_ids", 1)]),
+            db.chat_conversations.create_index([("kind", 1), ("last_message_at", -1)]),
+            db.chat_presence.create_index("user_id"),
+            db.chat_typing.create_index([("conversation_id", 1), ("user_id", 1)]),
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 - chat keeps working without them
+        logger.warning("chat index check failed: %s", type(exc).__name__)
+        return False
+
+
+def ensure_chat_indexes() -> None:
+    """Chat collections are polled every few seconds; without these indexes
+    every poll scans the whole collection. Idempotent and started at most once
+    per instance (retried after 10 minutes on failure) without delaying the
+    request that triggers it."""
+    task = _chat_index_state["task"]
+    if task is not None and (not task.done() or (not task.cancelled() and task.result())):
+        return
+    if time.monotonic() < _chat_index_state["retry_at"]:
+        return
+    _chat_index_state["retry_at"] = time.monotonic() + 600
+    _chat_index_state["task"] = asyncio.create_task(_create_chat_indexes())
+
+
+async def _cached(key: str, loader, ttl: int = DIRECTORY_CACHE_SECONDS):
+    hit = _cache.get(key)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
+    value = await loader()
+    _cache[key] = (time.monotonic() + ttl, value)
+    return value
 
 
 class ChatAttachment(BaseModel):
@@ -61,12 +111,15 @@ async def _presence_map(user_ids: List[str]) -> Dict[str, bool]:
 
 
 async def _support_user_ids() -> List[str]:
+    # Not cached: this decides who receives label message previews, so role
+    # changes and suspensions must apply to the very next message.
     return await admin_user_ids(("super_admin", "admin_support"))
 
 
 async def _support_staff_ids() -> List[str]:
-    """Support staff only (excludes super_admin) — used for label-facing online status."""
-    return await admin_user_ids(("admin_support",))
+    """Support staff only (excludes super_admin) — used for label-facing online status.
+    Cached briefly because every open label chat polls it."""
+    return await _cached("support_staff_ids", lambda: admin_user_ids(("admin_support",)))
 
 
 DEFAULT_CHAT_SETTINGS = {
@@ -80,9 +133,15 @@ DEFAULT_CHAT_SETTINGS = {
 }
 
 
-async def _get_chat_settings() -> Dict[str, Any]:
+async def _load_chat_settings() -> Dict[str, Any]:
     doc = await db.app_settings.find_one({"id": "chat_settings"}, {"_id": 0})
     return {**DEFAULT_CHAT_SETTINGS, **(doc or {})}
+
+
+async def _get_chat_settings() -> Dict[str, Any]:
+    """Settings for label-facing reads, cached briefly because every open label
+    chat polls them. The admin settings screen reads the database directly."""
+    return dict(await _cached("chat_settings", _load_chat_settings, ttl=30))
 
 
 def _operational_now(settings: Dict[str, Any]) -> bool:
@@ -102,9 +161,9 @@ def _operational_now(settings: Dict[str, Any]) -> bool:
 
 
 async def _label_support_status() -> Dict[str, Any]:
-    settings = await _get_chat_settings()
+    settings, staff_ids = await asyncio.gather(_get_chat_settings(), _support_staff_ids())
     within = _operational_now(settings)
-    presence = await _presence_map(await _support_staff_ids())
+    presence = await _presence_map(staff_ids)
     return {"support_online": bool(within and any(presence.values())), "within_hours": within}
 
 
@@ -142,18 +201,50 @@ async def _ensure_internal_conversation(a: str, b: str) -> Dict[str, Any]:
     return conv
 
 
-async def _messages(conversation_id: str) -> List[Dict[str, Any]]:
-    return await db.chat_messages.find({"conversation_id": conversation_id}, {"_id": 0}).sort("created_at", 1).to_list(500)
+def _since_floor(since: Optional[str]) -> Optional[str]:
+    if not since:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(since).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (ts - timedelta(seconds=SINCE_OVERLAP_SECONDS)).isoformat()
+
+
+async def _messages(conversation_id: str, since: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Newest messages in chronological order (a full thread or, with `since`,
+    only the recent tail)."""
+    query: Dict[str, Any] = {"conversation_id": conversation_id}
+    floor = _since_floor(since)
+    if floor:
+        query["created_at"] = {"$gte": floor}
+    newest = await db.chat_messages.find(query, {"_id": 0}).sort("created_at", -1).limit(MESSAGE_PAGE).to_list(MESSAGE_PAGE)
+    newest.reverse()
+    return newest
+
+
+async def _unread_by_conversation(conversation_ids: List[str], user_id: str) -> Dict[str, int]:
+    if not conversation_ids:
+        return {}
+    rows = await db.chat_messages.aggregate([
+        {"$match": {"conversation_id": {"$in": conversation_ids}, "sender_id": {"$ne": user_id}, "read_by": {"$ne": user_id}}},
+        {"$group": {"_id": "$conversation_id", "count": {"$sum": 1}}},
+    ]).to_list(None)
+    return {row["_id"]: row["count"] for row in rows}
 
 
 async def _mark_read(conversation_id: str, user_id: str) -> None:
-    await db.chat_messages.update_many(
-        {"conversation_id": conversation_id, "sender_id": {"$ne": user_id}, "read_by": {"$ne": user_id}},
-        {"$addToSet": {"read_by": user_id}},
-    )
-    await db.notifications.update_many(
-        {"user_id": user_id, "type": "chat_message", "read_at": None, "meta.conversation_id": conversation_id},
-        {"$set": {"read_at": now_iso()}},
+    await asyncio.gather(
+        db.chat_messages.update_many(
+            {"conversation_id": conversation_id, "sender_id": {"$ne": user_id}, "read_by": {"$ne": user_id}},
+            {"$addToSet": {"read_by": user_id}},
+        ),
+        db.notifications.update_many(
+            {"user_id": user_id, "type": "chat_message", "read_at": None, "meta.conversation_id": conversation_id},
+            {"$set": {"read_at": now_iso()}},
+        ),
     )
 
 
@@ -247,12 +338,17 @@ class UnreadChatOut(BaseModel):
 
 @chat_r.get("/unread", response_model=UnreadChatOut)
 async def unread(user: dict = Depends(get_current_user)):
+    ensure_chat_indexes()
     conv_ids = await _user_conversation_ids(user)
-    latest = await db.chat_messages.find_one({
-        "conversation_id": {"$in": conv_ids}, "sender_id": {"$nin": [user["id"], "system"]},
-    }, {"_id": 0, "id": 1, "created_at": 1}, sort=[("created_at", -1)]) if conv_ids else None
-    return UnreadChatOut(unread=await _unread_count(conv_ids, user["id"]),
-                         latest_incoming_id=(latest or {}).get("id"), latest_incoming_at=(latest or {}).get("created_at"))
+    if not conv_ids:
+        return UnreadChatOut(unread=0)
+    latest, count = await asyncio.gather(
+        db.chat_messages.find_one({
+            "conversation_id": {"$in": conv_ids}, "sender_id": {"$nin": [user["id"], "system"]},
+        }, {"_id": 0, "id": 1, "created_at": 1}, sort=[("created_at", -1)]),
+        _unread_count(conv_ids, user["id"]),
+    )
+    return UnreadChatOut(unread=count, latest_incoming_id=(latest or {}).get("id"), latest_incoming_at=(latest or {}).get("created_at"))
 
 
 @chat_r.post("/upload")
@@ -281,16 +377,20 @@ async def set_typing(conversation_id: str, user: dict = Depends(get_current_user
 
 # ---------------- Label side ----------------
 @chat_r.get("/label/thread")
-async def label_thread(user: dict = Depends(get_current_user)):
+async def label_thread(user: dict = Depends(get_current_user), since: Optional[str] = None):
     if is_admin_identity(user):
         raise HTTPException(status_code=403, detail="Hanya untuk akun label")
+    ensure_chat_indexes()
     label = await db.labels.find_one({"user_id": user["id"]}, {"_id": 0, "id": 1, "label_name": 1, "user_id": 1})
     if not label:
         raise HTTPException(status_code=404, detail="Label belum tersedia")
     conv = await _ensure_support_conversation(label)
-    await _mark_read(conv["id"], user["id"])
-    status = await _label_support_status()
-    return {"conversation_id": conv["id"], "messages": await _messages(conv["id"]), "support_online": status["support_online"], "within_hours": status["within_hours"], "typing": await _typing_names(conv["id"], user["id"])}
+    messages, status, typing, _ = await asyncio.gather(
+        _messages(conv["id"], since), _label_support_status(),
+        _typing_names(conv["id"], user["id"]), _mark_read(conv["id"], user["id"]),
+    )
+    return {"conversation_id": conv["id"], "messages": messages, "incremental": bool(_since_floor(since)),
+            "support_online": status["support_online"], "within_hours": status["within_hours"], "typing": typing}
 
 
 @chat_r.post("/label/thread")
@@ -336,11 +436,15 @@ async def admin_label_inbox(user: dict = Depends(get_current_user), status: str 
         pass  # both active and archived
     else:
         query["status"] = {"$ne": "resolved"}
+    ensure_chat_indexes()
     convs = await db.chat_conversations.find(query, {"_id": 0}).sort("last_message_at", -1).to_list(2000)
-    presence = await _presence_map([c.get("label_user_id") for c in convs])
+    presence, unread_map = await asyncio.gather(
+        _presence_map([c.get("label_user_id") for c in convs]),
+        _unread_by_conversation([c["id"] for c in convs], user["id"]),
+    )
     items = []
     for conv in convs:
-        unread = await db.chat_messages.count_documents({"conversation_id": conv["id"], "sender_id": {"$ne": user["id"]}, "read_by": {"$ne": user["id"]}})
+        unread = unread_map.get(conv["id"], 0)
         items.append({
             "conversation_id": conv["id"], "label_id": conv.get("label_id"),
             "label_name": conv.get("label_name"), "online": presence.get(conv.get("label_user_id"), False),
@@ -357,14 +461,16 @@ async def admin_directory(user: dict = Depends(get_current_user)):
         {"$or": [{"role": {"$in": list(ADMIN_ROLES)}}, {"admin_role_id": {"$exists": True, "$ne": None}}], "id": {"$ne": user["id"]}, "status": {"$nin": ["suspended", "disabled"]}, "deleted_at": {"$in": [None]}},
         {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1},
     ).to_list(1000)
-    presence = await _presence_map([a["id"] for a in admins])
-    my_convs = await db.chat_conversations.find({"kind": "internal", "participant_ids": user["id"]}, {"_id": 0}).to_list(2000)
+    presence, my_convs = await asyncio.gather(
+        _presence_map([a["id"] for a in admins]),
+        db.chat_conversations.find({"kind": "internal", "participant_ids": user["id"]}, {"_id": 0}).to_list(2000),
+    )
+    unread_map = await _unread_by_conversation([c["id"] for c in my_convs], user["id"])
     conv_by_other = {}
     for conv in my_convs:
         other = next((pid for pid in conv.get("participant_ids", []) if pid != user["id"]), None)
         if other:
-            unread = await db.chat_messages.count_documents({"conversation_id": conv["id"], "sender_id": {"$ne": user["id"]}, "read_by": {"$ne": user["id"]}})
-            conv_by_other[other] = {"conversation_id": conv["id"], "unread": unread, "last_message_at": conv.get("last_message_at")}
+            conv_by_other[other] = {"conversation_id": conv["id"], "unread": unread_map.get(conv["id"], 0), "last_message_at": conv.get("last_message_at")}
     items = [{
         "user_id": a["id"], "name": a.get("name") or a.get("email"), "role": a.get("role"),
         "online": presence.get(a["id"], False),
@@ -382,8 +488,8 @@ async def admin_open_internal(other_id: str, user: dict = Depends(get_current_us
     if not other or not is_admin_identity(other):
         raise HTTPException(status_code=404, detail="Admin tidak ditemukan")
     conv = await _ensure_internal_conversation(user["id"], other_id)
-    await _mark_read(conv["id"], user["id"])
-    return {"conversation_id": conv["id"], "title": other.get("name"), "messages": await _messages(conv["id"])}
+    messages, _ = await asyncio.gather(_messages(conv["id"]), _mark_read(conv["id"], user["id"]))
+    return {"conversation_id": conv["id"], "title": other.get("name"), "messages": messages}
 
 
 async def _authorize_conversation(conversation_id: str, user: dict) -> Dict[str, Any]:
@@ -400,18 +506,20 @@ async def _authorize_conversation(conversation_id: str, user: dict) -> Dict[str,
 
 
 @chat_r.get("/admin/thread/{conversation_id}")
-async def admin_thread(conversation_id: str, user: dict = Depends(get_current_user)):
+async def admin_thread(conversation_id: str, user: dict = Depends(get_current_user), since: Optional[str] = None):
     _require_admin(user)
+    ensure_chat_indexes()
     conv = await _authorize_conversation(conversation_id, user)
-    await _mark_read(conv["id"], user["id"])
-    online = None
-    if conv["kind"] == "support":
-        presence = await _presence_map([conv.get("label_user_id")])
-        online = presence.get(conv.get("label_user_id"), False)
+    label_user_id = conv.get("label_user_id") if conv["kind"] == "support" else None
+    messages, typing, presence, _ = await asyncio.gather(
+        _messages(conv["id"], since), _typing_names(conv["id"], user["id"]),
+        _presence_map([label_user_id]), _mark_read(conv["id"], user["id"]),
+    )
+    online = presence.get(label_user_id, False) if conv["kind"] == "support" else None
     return {
         "conversation_id": conv["id"], "kind": conv["kind"], "label_name": conv.get("label_name"),
         "online": online, "status": conv.get("status", "active"),
-        "messages": await _messages(conv["id"]), "typing": await _typing_names(conv["id"], user["id"]),
+        "messages": messages, "incremental": bool(_since_floor(since)), "typing": typing,
     }
 
 
@@ -448,7 +556,7 @@ async def get_chat_settings(user: dict = Depends(get_current_user)):
     _require_admin(user)
     if not _is_support(user):
         raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
-    return await _get_chat_settings()
+    return await _load_chat_settings()
 
 
 @chat_r.put("/admin/settings")
@@ -458,4 +566,5 @@ async def update_chat_settings(body: ChatSettingsIn, user: dict = Depends(get_cu
         raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
     doc = {"id": "chat_settings", **body.model_dump()}
     await db.app_settings.update_one({"id": "chat_settings"}, {"$set": doc}, upsert=True)
+    _cache["chat_settings"] = (time.monotonic() + 30, {**DEFAULT_CHAT_SETTINGS, **doc})
     return doc

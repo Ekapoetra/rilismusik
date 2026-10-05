@@ -109,6 +109,16 @@ async def seed_indexes_and_admins():
     await db_bg.wami_orders.create_index("label_id")
     await db_bg.wami_orders.create_index("track_id")
     await db_bg.wami_orders.create_index("status")
+    # Chat is polled every few seconds by every open dashboard.
+    await db_bg.chat_messages.create_index([("conversation_id", 1), ("created_at", -1)])
+    await db_bg.chat_messages.create_index([("conversation_id", 1), ("sender_id", 1)])
+    await db_bg.chat_conversations.create_index("id")
+    await db_bg.chat_conversations.create_index([("kind", 1), ("label_id", 1)])
+    await db_bg.chat_conversations.create_index([("kind", 1), ("participant_ids", 1)])
+    await db_bg.chat_conversations.create_index([("kind", 1), ("last_message_at", -1)])
+    await db_bg.chat_presence.create_index("user_id")
+    await db_bg.chat_typing.create_index([("conversation_id", 1), ("user_id", 1)])
+    await db_bg.report_exports.create_index("expires_epoch")
 
     # ---- Migrate legacy "annual_subscription" labels without subscription_tier to VIP ----
     try:

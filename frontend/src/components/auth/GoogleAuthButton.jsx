@@ -64,7 +64,7 @@ export const GoogleAuthButton = ({ source, mode = "login", onLinked }) => {
     return () => { active = false; element?.replaceChildren(); };
   }, [clientId, attempt, loginWithGoogle, navigate, mode, onLinked, linked]);
 
-  if (!clientId) return <p className="text-center text-xs text-zinc-500">Login Google belum tersedia. Gunakan email dan password.</p>;
+  if (!clientId) return <p className="text-center text-xs text-zinc-500">{mode === "link" ? "Hubungkan Google belum tersedia saat ini." : "Login Google belum tersedia. Gunakan email dan password."}</p>;
   if (linked) return <p role="status" className="text-sm text-emerald-300">Akun Google berhasil dihubungkan.</p>;
   return <div className="space-y-2" data-testid={`${source}-google-auth-button`}>
     <div ref={target} className={`flex min-h-[40px] w-full justify-center ${busy ? "pointer-events-none opacity-60" : ""}`} aria-busy={busy} />

@@ -3,7 +3,7 @@ import time
 from pymongo import UpdateOne
 """Royalty CSV import & label/artist reports router."""
 from fastapi import APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form, Query
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime, timezone, timedelta, date
 import os
 import csv
@@ -50,6 +50,7 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
 from .royalty_recalculation import close_stale_recalculation_jobs, run_global_recalculation_job
 from .dashboard_cache import reset as reset_dashboard_revenue, schedule_recompute as schedule_dashboard_recompute
+from . import royalty_report_export as report_export
 
 # =============================================================================
 #                              ROYALTY (ADMIN + LABEL/ARTIST)
@@ -1825,7 +1826,10 @@ async def label_royalty_lines(
         filt["track_id"] = track_id
     if artist_id:
         filt["artist_id"] = artist_id
-    items = await db.royalty_lines.find(filt, {"_id": 0}).sort("label_idr", -1).limit(limit).to_list(limit)
+    limit = max(1, min(limit, 2000))
+    # Uncapped client: "Semua periode" on a long history can exceed the short
+    # request CSOT; the server-side limit still bounds the query.
+    items = await db_bg.royalty_lines.find(filt, {"_id": 0}).sort("label_idr", -1).limit(limit).max_time_ms(60000).to_list(limit)
     # Hide sensitive fields from label/artist responses
     if user["role"] in (LABEL_ROLE, ARTIST_ROLE):
         items = [strip_sensitive(it) for it in items]
@@ -1837,52 +1841,20 @@ async def label_royalty_export_csv(
     user: dict = Depends(require_kyc_for_label_user),
     period: Optional[str] = None,
 ):
-    """Stream CSV export of royalty lines for the current label/period."""
+    """CSV export of royalty lines for the current label/period (direct download)."""
     from fastapi.responses import StreamingResponse
-    filt: Dict[str, Any] = {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
-    if user["role"] == LABEL_ROLE:
-        label = await get_label_by_user(user)
-        filt["label_id"] = label["id"]
-    elif user["role"] == ARTIST_ROLE:
-        filt["artist_id"] = user["id"]
-    else:
-        raise HTTPException(status_code=403, detail="Tidak diperbolehkan")
+    base = await _royalty_report_scope(user)
     if period:
-        filt["period"] = period
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow([
-        "period", "release_title", "track_title", "artist_name", "platform", "country",
-        "isrc", "upc", "streams", "royalty_idr", "status", "sudah_dicairkan",
-    ])
-    status_label = {"pending": "Tertunda", "available": "Tersedia", "withdrawn": "Sudah Dicairkan"}
-    cursor = db.royalty_lines.find(filt, {"_id": 0}).sort("period", -1)
-    async for it in cursor:
-        st = it.get("status")
-        writer.writerow([
-            it.get("period"),
-            it.get("release_title_raw"),
-            it.get("track_title_raw"),
-            it.get("artist_name_raw"),
-            it.get("platform"),
-            it.get("country"),
-            it.get("isrc"),
-            it.get("upc"),
-            it.get("quantity"),
-            it.get("label_idr"),
-            status_label.get(st, st),
-            "Ya" if st == "withdrawn" else "Belum",
-        ])
-    buf.seek(0)
-    filename = f"royalty_{period or 'all'}.csv"
-    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+        base["period"] = period
+    data = await report_export.build_csv_bytes(base)
+    filename = report_export.report_filename("csv", period, None)
+    return StreamingResponse(iter([data]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 def _royalty_report_base(user: dict) -> Dict[str, Any]:
     """Filter untuk laporan royalti label/artis: pending/available/withdrawn & bukan legacy.
     Sertakan 'withdrawn' agar laporan tetap bisa diunduh setelah pencairan (data pasca cut-off)."""
-    return {"status": {"$in": ["pending", "available", "withdrawn"]}, "legacy_settled": {"$ne": True}}
+    return report_export.report_base()
 
 
 async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
@@ -1901,159 +1873,17 @@ async def _royalty_report_scope(user: dict) -> Dict[str, Any]:
 async def label_report_artists(user: dict = Depends(require_kyc_for_label_user)):
     """Daftar nama artis yang punya data royalti (non-legacy) untuk filter laporan."""
     base = await _royalty_report_scope(user)
-    names = await db.royalty_lines.distinct("artist_name_raw", base)
+    names = await db_bg.royalty_lines.distinct("artist_name_raw", base)
     return sorted([n for n in names if n])
 
 
-def _safe_sheet_title(name: str, used: set) -> str:
-    import re
-    title = re.sub(r"[\\/*?:\[\]]", " ", str(name or "Artis")).strip()[:28] or "Artis"
-    candidate = title
-    i = 1
-    while candidate.lower() in used:
-        suffix = f" {i}"
-        candidate = title[: 28 - len(suffix)] + suffix
-        i += 1
-    used.add(candidate.lower())
-    return candidate
+_safe_sheet_title = report_export.safe_sheet_title
 
 
 async def _build_royalty_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], artist: Optional[str]) -> bytes:
     """Bangun workbook Excel berhias: sheet Ringkasan + 1 sheet detail per artis.
     Angka diberi pemisah ribuan, ada bingkai, header berwarna, dan kolom 'Sudah Dicairkan'."""
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-    from openpyxl.utils import get_column_letter
-
-    PINK, INK, GREEN, ZEBRA = "FF1F8E", "111827", "E7F7EF", "FBF3F8"
-    thin = Side(style="thin", color="E5E7EB")
-    BORDER = Border(left=thin, right=thin, top=thin, bottom=thin)
-    HEAD_FONT = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
-    HEAD_FILL = PatternFill("solid", fgColor=PINK)
-    TITLE_FONT = Font(name="Calibri", bold=True, size=16, color=INK)
-    SUB_FONT = Font(name="Calibri", italic=True, size=10, color="6B7280")
-    KEY_FONT = Font(name="Calibri", bold=True, color=INK)
-    CENTER = Alignment(horizontal="center", vertical="center")
-    LEFT = Alignment(horizontal="left", vertical="center", wrap_text=False)
-    IDR_FMT, NUM_FMT = '"Rp"#,##0', '#,##0'
-    STATUS_LABEL = {"pending": "Tertunda", "available": "Tersedia", "withdrawn": "Sudah Dicairkan"}
-
-    columns = ["Periode", "Rilisan", "Track", "Artis", "Platform", "Negara",
-               "ISRC", "UPC", "Streams", "Royalti IDR", "Status", "Sudah Dicairkan"]
-    widths = [11, 26, 26, 22, 14, 12, 16, 16, 12, 15, 16, 15]
-
-    if artist:
-        artist_names = [artist]
-    else:
-        artist_names = sorted([n for n in await db.royalty_lines.distinct("artist_name_raw", base) if n])
-
-    overall = {"total_idr": 0, "total_streams": 0, "total_lines": 0}
-    async for row in db_bg.royalty_lines.aggregate([
-        {"$match": base},
-        {"$group": {"_id": None, "total_idr": {"$sum": "$label_idr"},
-                    "total_streams": {"$sum": "$quantity"}, "total_lines": {"$sum": 1}}},
-    ], allowDiskUse=True):
-        overall = {"total_idr": row["total_idr"], "total_streams": row["total_streams"], "total_lines": row["total_lines"]}
-
-    per_artist = []
-    async for row in db_bg.royalty_lines.aggregate([
-        {"$match": base},
-        {"$group": {"_id": "$artist_name_raw", "total_idr": {"$sum": "$label_idr"},
-                    "streams": {"$sum": "$quantity"}, "lines": {"$sum": 1}}},
-        {"$sort": {"total_idr": -1}},
-    ], allowDiskUse=True):
-        per_artist.append({"artist": row["_id"] or "Tanpa Nama", "total_idr": row["total_idr"],
-                           "streams": row["streams"], "lines": row["lines"]})
-
-    wb = Workbook()
-    used_titles = set()
-
-    # ---------------- Ringkasan ----------------
-    ws = wb.active
-    ws.title = "Ringkasan"
-    used_titles.add("ringkasan")
-    scope_label = "Semua Artis" if not artist else artist
-    ws.merge_cells("A1:D1")
-    ws["A1"] = "Laporan Royalti"
-    ws["A1"].font = TITLE_FONT
-    ws.merge_cells("A2:D2")
-    ws["A2"] = "Royalti legacy (sebelum bergabung) tidak termasuk"
-    ws["A2"].font = SUB_FONT
-    meta = [("Periode", period or "Semua periode"), ("Cakupan", scope_label)]
-    r = 4
-    for k, v in meta:
-        ws.cell(r, 1, k).font = KEY_FONT
-        ws.cell(r, 2, v)
-        r += 1
-    r += 1
-    totals = [("Total Royalti IDR", overall["total_idr"], IDR_FMT),
-              ("Total Streams", overall["total_streams"], NUM_FMT),
-              ("Total Baris", overall["total_lines"], NUM_FMT)]
-    for k, v, fmt in totals:
-        ws.cell(r, 1, k).font = KEY_FONT
-        c = ws.cell(r, 2, v); c.number_format = fmt
-        r += 1
-    r += 1
-    ws.cell(r, 1, "Ringkasan per Artis").font = TITLE_FONT
-    r += 1
-    head_row = r
-    for j, h in enumerate(["Artis", "Streams", "Royalti IDR", "Baris"], start=1):
-        c = ws.cell(head_row, j, h); c.font = HEAD_FONT; c.fill = HEAD_FILL; c.alignment = CENTER; c.border = BORDER
-    r += 1
-    for i, a in enumerate(per_artist):
-        row_cells = [a["artist"], a["streams"], a["total_idr"], a["lines"]]
-        fills = None if i % 2 == 0 else PatternFill("solid", fgColor=ZEBRA)
-        for j, val in enumerate(row_cells, start=1):
-            c = ws.cell(r, j, val); c.border = BORDER
-            if fills:
-                c.fill = fills
-            if j == 2 or j == 4:
-                c.number_format = NUM_FMT
-            if j == 3:
-                c.number_format = IDR_FMT
-        r += 1
-    for j, w in enumerate([26, 14, 16, 10], start=1):
-        ws.column_dimensions[get_column_letter(j)].width = w
-    ws.freeze_panes = "A1"
-
-    # ---------------- Detail per artis ----------------
-    for name in artist_names:
-        title = _safe_sheet_title(name, used_titles)
-        sheet = wb.create_sheet(title=title)
-        for j, h in enumerate(columns, start=1):
-            c = sheet.cell(1, j, h); c.font = HEAD_FONT; c.fill = HEAD_FILL; c.alignment = CENTER; c.border = BORDER
-            sheet.column_dimensions[get_column_letter(j)].width = widths[j - 1]
-        sheet.freeze_panes = "A2"
-        rownum = 2
-        cursor = db.royalty_lines.find({**base, "artist_name_raw": name}, {"_id": 0}).sort("period", -1)
-        async for it in cursor:
-            status = it.get("status")
-            withdrawn = status == "withdrawn"
-            values = [it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
-                      it.get("artist_name_raw"), it.get("platform"), it.get("country"),
-                      it.get("isrc"), it.get("upc"), it.get("quantity") or 0,
-                      it.get("label_idr") or 0, STATUS_LABEL.get(status, status),
-                      "Ya" if withdrawn else "Belum"]
-            zebra = PatternFill("solid", fgColor=ZEBRA) if rownum % 2 else None
-            paid_fill = PatternFill("solid", fgColor=GREEN) if withdrawn else None
-            for j, val in enumerate(values, start=1):
-                c = sheet.cell(rownum, j, val); c.border = BORDER
-                if j == 9:
-                    c.number_format = NUM_FMT
-                elif j == 10:
-                    c.number_format = IDR_FMT
-                elif j == 12:
-                    c.alignment = CENTER
-                if paid_fill and j == 12:
-                    c.fill = paid_fill
-                elif zebra:
-                    c.fill = zebra
-            rownum += 1
-
-    out = io.BytesIO()
-    wb.save(out)
-    out.seek(0)
-    return out.getvalue()
+    return await report_export.build_workbook_bytes(base=base, period=period, artist=artist)
 
 
 @royalty_r.get("/export.xlsx")
@@ -2073,13 +1903,46 @@ async def label_royalty_export_xlsx(
         base["artist_name_raw"] = artist
 
     data = await _build_royalty_workbook_bytes(base=base, period=period, artist=artist)
-    safe = "".join(c for c in (artist or "semua") if c.isalnum() or c in ("-", "_"))[:30] or "semua"
-    filename = f"royalti_{safe}_{period or 'all'}.xlsx"
+    filename = report_export.report_filename("xlsx", period, artist)
     return StreamingResponse(
         iter([data]),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type=report_export.CONTENT_TYPES["xlsx"],
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+class RoyaltyExportLinkIn(BaseModel):
+    format: Literal["csv", "xlsx"] = "xlsx"
+    period: Optional[str] = Field(default=None, max_length=7)
+    artist: Optional[str] = Field(default=None, max_length=300)
+
+
+@royalty_r.post("/export-link")
+async def label_royalty_export_link(body: RoyaltyExportLinkIn, user: dict = Depends(require_kyc_for_label_user)):
+    """Siapkan file laporan (CSV/Excel) dan kembalikan link unduhan sementara.
+
+    Laporan mencakup royalti setelah cut-off legacy, termasuk yang sudah
+    dicairkan. File disimpan privat di R2 agar laporan besar tidak terkena batas
+    ukuran respons Vercel dan tidak bergantung pada cookie saat link dibuka.
+    """
+    from urllib.parse import urlencode
+    base = await _royalty_report_scope(user)
+    if body.period:
+        base["period"] = body.period
+    if body.artist and body.format == "xlsx":
+        base["artist_name_raw"] = body.artist
+    lines = await db_bg.royalty_lines.count_documents(base)
+    if not lines:
+        scope = f" periode {body.period}" if body.period else ""
+        raise HTTPException(status_code=404, detail=f"Belum ada data royalti{scope} setelah periode legacy untuk diunduh.")
+    artist = body.artist if body.format == "xlsx" else None
+    filename = report_export.report_filename(body.format, body.period, artist)
+    if not storage_service.is_configured():
+        query = urlencode({k: v for k, v in {"period": body.period, "artist": artist}.items() if v})
+        return {"url": f"/api/royalty/export.{body.format}" + (f"?{query}" if query else ""), "filename": filename, "lines": lines}
+    data = await report_export.build_report(fmt=body.format, base=base, period=body.period, artist=artist)
+    url = await report_export.publish_report_file(actor_id=user["id"], fmt=body.format, data=data, filename=filename)
+    return {"url": url, "filename": filename, "lines": lines}
 
 
 @royalty_r.post("/artists/{artist_id}/send-report")
@@ -2106,7 +1969,7 @@ async def label_send_artist_report(
     if period:
         base["period"] = period
 
-    line_count = await db.royalty_lines.count_documents(base)
+    line_count = await db_bg.royalty_lines.count_documents(base)
     if line_count == 0:
         raise HTTPException(status_code=400, detail=f"Tidak ada data royalti (non-legacy) untuk artis “{artist_name}”{f' pada periode {period}' if period else ''}.")
 

@@ -38,6 +38,7 @@ TASKS = frozenset({
     'routes.royalty:_publish_bg',
     'routes.royalty:_repair_reporting_period_bg',
     'routes.royalty:_reset_royalty_data_bg',
+    'routes.royalty_report_export:cleanup_expired_report_exports',
     'routes.royalty_duplicate_audit:_run_duplicate_audit',
     'routes.royalty_import_replacement:_run_replacement_commit',
     'routes.royalty_import_replacement:_run_replacement_preview',
