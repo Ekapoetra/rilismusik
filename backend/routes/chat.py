@@ -111,11 +111,14 @@ async def _presence_map(user_ids: List[str]) -> Dict[str, bool]:
 
 
 async def _support_user_ids() -> List[str]:
-    return await _cached("support_user_ids", lambda: admin_user_ids(("super_admin", "admin_support")))
+    # Not cached: this decides who receives label message previews, so role
+    # changes and suspensions must apply to the very next message.
+    return await admin_user_ids(("super_admin", "admin_support"))
 
 
 async def _support_staff_ids() -> List[str]:
-    """Support staff only (excludes super_admin) — used for label-facing online status."""
+    """Support staff only (excludes super_admin) — used for label-facing online status.
+    Cached briefly because every open label chat polls it."""
     return await _cached("support_staff_ids", lambda: admin_user_ids(("admin_support",)))
 
 
@@ -130,11 +133,15 @@ DEFAULT_CHAT_SETTINGS = {
 }
 
 
+async def _load_chat_settings() -> Dict[str, Any]:
+    doc = await db.app_settings.find_one({"id": "chat_settings"}, {"_id": 0})
+    return {**DEFAULT_CHAT_SETTINGS, **(doc or {})}
+
+
 async def _get_chat_settings() -> Dict[str, Any]:
-    async def load():
-        doc = await db.app_settings.find_one({"id": "chat_settings"}, {"_id": 0})
-        return {**DEFAULT_CHAT_SETTINGS, **(doc or {})}
-    return dict(await _cached("chat_settings", load, ttl=30))
+    """Settings for label-facing reads, cached briefly because every open label
+    chat polls them. The admin settings screen reads the database directly."""
+    return dict(await _cached("chat_settings", _load_chat_settings, ttl=30))
 
 
 def _operational_now(settings: Dict[str, Any]) -> bool:
@@ -549,7 +556,7 @@ async def get_chat_settings(user: dict = Depends(get_current_user)):
     _require_admin(user)
     if not _is_support(user):
         raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
-    return await _get_chat_settings()
+    return await _load_chat_settings()
 
 
 @chat_r.put("/admin/settings")
@@ -559,5 +566,5 @@ async def update_chat_settings(body: ChatSettingsIn, user: dict = Depends(get_cu
         raise HTTPException(status_code=403, detail="Hanya staff Support atau Super Admin")
     doc = {"id": "chat_settings", **body.model_dump()}
     await db.app_settings.update_one({"id": "chat_settings"}, {"$set": doc}, upsert=True)
-    _cache.pop("chat_settings", None)
+    _cache["chat_settings"] = (time.monotonic() + 30, {**DEFAULT_CHAT_SETTINGS, **doc})
     return doc

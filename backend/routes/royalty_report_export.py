@@ -82,7 +82,9 @@ async def build_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], a
     """Styled workbook: a summary sheet plus one detail sheet per artist.
 
     Written in openpyxl write-only mode so memory stays flat for labels with a
-    long history of (withdrawn) royalty lines.
+    long history of (withdrawn) royalty lines. Each write-only sheet streams to
+    its own temp file, so a sheet is closed as soon as it is complete; keeping
+    one open per artist would exhaust file descriptors on large catalogues.
     """
     from openpyxl import Workbook
     from openpyxl.cell import WriteOnlyCell
@@ -116,8 +118,6 @@ async def build_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], a
     )
     overall = (overall_rows or [{}])[0]
 
-    wb = Workbook(write_only=True)
-
     def styled(sheet, value, *, font=None, fill=None, border=None, fmt=None, align=None):
         c = WriteOnlyCell(sheet, value=value)
         if font: c.font = font
@@ -130,34 +130,9 @@ async def build_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], a
     def header_row(sheet, labels):
         return [styled(sheet, h, font=HEAD_FONT, fill=HEAD_FILL, border=BORDER, align=CENTER) for h in labels]
 
-    # ---------------- Ringkasan ----------------
+    wb = Workbook(write_only=True)
     used_titles = {"ringkasan"}
-    ws = wb.create_sheet("Ringkasan")
-    for j, w in enumerate([26, 14, 16, 10], start=1):
-        ws.column_dimensions[get_column_letter(j)].width = w
-    ws.append([styled(ws, "Laporan Royalti", font=TITLE_FONT)])
-    ws.append([styled(ws, "Royalti legacy (sebelum bergabung) tidak termasuk", font=SUB_FONT)])
-    ws.append([])
-    ws.append([styled(ws, "Periode", font=KEY_FONT), period or "Semua periode"])
-    ws.append([styled(ws, "Cakupan", font=KEY_FONT), artist or "Semua Artis"])
-    ws.append([])
-    for label, key, fmt in (("Total Royalti IDR", "total_idr", IDR_FMT),
-                            ("Total Streams", "total_streams", NUM_FMT),
-                            ("Total Baris", "total_lines", NUM_FMT)):
-        ws.append([styled(ws, label, font=KEY_FONT), styled(ws, overall.get(key) or 0, fmt=fmt)])
-    ws.append([])
-    ws.append([styled(ws, "Ringkasan per Artis", font=TITLE_FONT)])
-    ws.append(header_row(ws, ["Artis", "Streams", "Royalti IDR", "Baris"]))
-    for i, row in enumerate(artist_rows):
-        fill = ZEBRA_FILL if i % 2 else None
-        ws.append([
-            styled(ws, row["_id"] or "Tanpa Nama", border=BORDER, fill=fill),
-            styled(ws, row.get("streams") or 0, border=BORDER, fill=fill, fmt=NUM_FMT),
-            styled(ws, row.get("total_idr") or 0, border=BORDER, fill=fill, fmt=IDR_FMT),
-            styled(ws, row.get("lines") or 0, border=BORDER, fill=fill, fmt=NUM_FMT),
-        ])
 
-    # ---------------- Detail per artis ----------------
     def new_detail_sheet(name):
         sheet = wb.create_sheet(title=safe_sheet_title(name, used_titles))
         for j, w in enumerate(widths, start=1):
@@ -166,33 +141,84 @@ async def build_workbook_bytes(*, base: Dict[str, Any], period: Optional[str], a
         sheet.append(header_row(sheet, columns))
         return sheet
 
-    sheet, current, rownum = None, object(), 2
-    async for it in _lines(base, [("artist_name_raw", 1), ("period", -1)]):
-        name = it.get("artist_name_raw") or "Tanpa Nama"
-        if name != current:
-            sheet, current, rownum = new_detail_sheet(name), name, 2
-        status = it.get("status")
-        withdrawn = status == "withdrawn"
-        zebra = ZEBRA_FILL if rownum % 2 else None
-        values = [it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
-                  it.get("artist_name_raw"), it.get("platform"), it.get("country"),
-                  it.get("isrc"), it.get("upc"), it.get("quantity") or 0,
-                  it.get("label_idr") or 0, STATUS_LABEL.get(status, status),
-                  "Ya" if withdrawn else "Belum"]
-        cells = []
-        for j, val in enumerate(values, start=1):
-            fill = PAID_FILL if withdrawn and j == 12 else zebra
-            cells.append(styled(sheet, val, border=BORDER, fill=fill,
-                                fmt=NUM_FMT if j == 9 else IDR_FMT if j == 10 else None,
-                                align=CENTER if j == 12 else None))
-        sheet.append(cells)
-        rownum += 1
-    if sheet is None and artist:
-        new_detail_sheet(artist)
+    try:
+        # ---------------- Ringkasan ----------------
+        ws = wb.create_sheet("Ringkasan")
+        for j, w in enumerate([26, 14, 16, 10], start=1):
+            ws.column_dimensions[get_column_letter(j)].width = w
+        ws.append([styled(ws, "Laporan Royalti", font=TITLE_FONT)])
+        ws.append([styled(ws, "Royalti legacy (sebelum bergabung) tidak termasuk", font=SUB_FONT)])
+        ws.append([])
+        ws.append([styled(ws, "Periode", font=KEY_FONT), period or "Semua periode"])
+        ws.append([styled(ws, "Cakupan", font=KEY_FONT), artist or "Semua Artis"])
+        ws.append([])
+        for label, key, fmt in (("Total Royalti IDR", "total_idr", IDR_FMT),
+                                ("Total Streams", "total_streams", NUM_FMT),
+                                ("Total Baris", "total_lines", NUM_FMT)):
+            ws.append([styled(ws, label, font=KEY_FONT), styled(ws, overall.get(key) or 0, fmt=fmt)])
+        ws.append([])
+        ws.append([styled(ws, "Ringkasan per Artis", font=TITLE_FONT)])
+        ws.append(header_row(ws, ["Artis", "Streams", "Royalti IDR", "Baris"]))
+        for i, row in enumerate(artist_rows):
+            fill = ZEBRA_FILL if i % 2 else None
+            ws.append([
+                styled(ws, row["_id"] or "Tanpa Nama", border=BORDER, fill=fill),
+                styled(ws, row.get("streams") or 0, border=BORDER, fill=fill, fmt=NUM_FMT),
+                styled(ws, row.get("total_idr") or 0, border=BORDER, fill=fill, fmt=IDR_FMT),
+                styled(ws, row.get("lines") or 0, border=BORDER, fill=fill, fmt=NUM_FMT),
+            ])
+        ws.close()
 
-    out = io.BytesIO()
-    wb.save(out)
-    return out.getvalue()
+        # ---------------- Detail per artis ----------------
+        # Rows arrive grouped by artist, so each sheet is finished before the next starts.
+        sheet, current, rownum = None, object(), 2
+        async for it in _lines(base, [("artist_name_raw", 1), ("period", -1)]):
+            name = it.get("artist_name_raw") or "Tanpa Nama"
+            if name != current:
+                if sheet is not None:
+                    sheet.close()
+                sheet, current, rownum = new_detail_sheet(name), name, 2
+            status = it.get("status")
+            withdrawn = status == "withdrawn"
+            zebra = ZEBRA_FILL if rownum % 2 else None
+            values = [it.get("period"), it.get("release_title_raw"), it.get("track_title_raw"),
+                      it.get("artist_name_raw"), it.get("platform"), it.get("country"),
+                      it.get("isrc"), it.get("upc"), it.get("quantity") or 0,
+                      it.get("label_idr") or 0, STATUS_LABEL.get(status, status),
+                      "Ya" if withdrawn else "Belum"]
+            cells = []
+            for j, val in enumerate(values, start=1):
+                fill = PAID_FILL if withdrawn and j == 12 else zebra
+                cells.append(styled(sheet, val, border=BORDER, fill=fill,
+                                    fmt=NUM_FMT if j == 9 else IDR_FMT if j == 10 else None,
+                                    align=CENTER if j == 12 else None))
+            sheet.append(cells)
+            rownum += 1
+        if sheet is None and artist:
+            new_detail_sheet(artist)
+
+        out = io.BytesIO()
+        wb.save(out)
+        return out.getvalue()
+    except BaseException:
+        _discard_workbook(wb)
+        raise
+
+
+def _discard_workbook(wb) -> None:
+    """Release the temp files of a write-only workbook that failed to build."""
+    for sheet in wb.worksheets:
+        try:
+            if not sheet.closed:
+                sheet.close()
+        except Exception:  # noqa: BLE001 - best effort while the original error propagates
+            pass
+        writer = getattr(sheet, "_writer", None)
+        if writer is not None:
+            try:
+                writer.cleanup()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 async def build_report(*, fmt: str, base: Dict[str, Any], period: Optional[str], artist: Optional[str]) -> bytes:
@@ -215,16 +241,25 @@ async def publish_report_file(*, actor_id: str, fmt: str, data: bytes, filename:
 
 
 async def cleanup_expired_report_exports():
-    """Delete generated report files after their retention window."""
+    """Delete generated report files after their retention window.
+
+    A tracking record is removed only after its object is deleted (S3 deletes
+    are idempotent, so a missing object also counts), so a failed delete is
+    retried on the next run and the collection only holds recent exports.
+    """
     removed = 0
-    async for document in db_bg.report_exports.find({
-        "expires_epoch": {"$lt": time.time()}, "cleaned": {"$ne": True},
-    }).limit(200):
+    async for document in db_bg.report_exports.find({"expires_epoch": {"$lt": time.time()}}).limit(200):
         key = document.get("key", "")
         if not key.startswith(f"{EXPORT_PREFIX}{document['_id']}/"):
             continue
-        await storage_service.delete_object(key=key)
-        await db_bg.report_exports.update_one({"_id": document["_id"]}, {"$set": {"cleaned": True}})
+        try:
+            await asyncio.to_thread(storage_service._delete_object_sync, key=key)
+        except Exception as exc:  # noqa: BLE001 - keep the record so the next run retries
+            await db_bg.report_exports.update_one({"_id": document["_id"]}, {
+                "$inc": {"delete_attempts": 1}, "$set": {"last_error": type(exc).__name__},
+            })
+            continue
+        await db_bg.report_exports.delete_one({"_id": document["_id"]})
         removed += 1
     if removed:
         logger.info("[EXPORT] removed %d expired report files", removed)

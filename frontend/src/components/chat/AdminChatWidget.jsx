@@ -51,9 +51,16 @@ export default function AdminChatWidget() {
   useEffect(() => { labelFilterRef.current = labelFilter; }, [labelFilter]);
 
   const listsPending = useRef(false);
-  // Tracks the conversation currently being fetched, so switching to another
-  // conversation loads it immediately instead of waiting for the next poll.
+  // Every open/close of a conversation starts a new generation. Responses from
+  // an older generation are dropped, and the in-flight guard is per generation,
+  // so reopening (or switching) always sends its own full load.
+  const threadGen = useRef(0);
   const threadPending = useRef(null);
+  const startThread = () => {
+    threadGen.current += 1;
+    messagesRef.current = { conversationId: null, items: [] };
+    return threadGen.current;
+  };
   const loadLists = useCallback(async () => {
     if (listsPending.current || document.visibilityState === "hidden") return;
     listsPending.current = true;
@@ -66,19 +73,23 @@ export default function AdminChatWidget() {
 
   const loadThread = useCallback(async () => {
     const cur = activeRef.current;
-    if (!cur || threadPending.current === cur.conversation_id) return;
-    threadPending.current = cur.conversation_id;
+    if (!cur) return;
+    const gen = threadGen.current;
+    const pendingKey = `${gen}:${cur.conversation_id}`;
+    if (threadPending.current === pendingKey) return;
+    threadPending.current = pendingKey;
     try {
       const known = messagesRef.current.conversationId === cur.conversation_id ? messagesRef.current.items : [];
       const since = lastMessageAt(known);
       const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`, { params: since ? { since } : {} });
-      if (activeRef.current?.conversation_id !== cur.conversation_id) return;
-      setMessages((current) => mergeMessages(since ? current : [], data.messages, data.incremental));
+      if (gen !== threadGen.current || activeRef.current?.conversation_id !== cur.conversation_id) return;
+      // An incremental tail is only meaningful on top of the history it was built from.
+      setMessages((current) => (data.incremental && !current.length ? current : mergeMessages(since ? current : [], data.messages, data.incremental)));
       setTyping(data.typing || []);
       setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, status: data.status, title: data.label_name || a.title } : a);
     } catch { /* */ } finally {
-      if (threadPending.current === cur.conversation_id) threadPending.current = null;
-      if (activeRef.current?.conversation_id === cur.conversation_id) setThreadLoading(false);
+      if (threadPending.current === pendingKey) threadPending.current = null;
+      if (gen === threadGen.current) setThreadLoading(false);
     }
   }, []);
 
@@ -108,14 +119,26 @@ export default function AdminChatWidget() {
 
   const openLabel = (item) => {
     if (active?.conversation_id === item.conversation_id) return;
+    startThread();
     setMessages([]); setTyping([]); setThreadLoading(true);
     setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
   };
   const openInternal = async (a) => {
+    const gen = startThread();
+    // Stop polling the previous conversation while the new one is opened.
+    const previous = activeRef.current;
+    activeRef.current = null;
     setMessages([]); setTyping([]); setThreadLoading(true);
-    try { const { data } = await api.post(`/chat/admin/internal/${a.user_id}`); setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online }); setMessages(data.messages || []); }
-    catch { toast.error(t("Gagal membuka chat")); }
-    finally { setThreadLoading(false); }
+    try {
+      const { data } = await api.post(`/chat/admin/internal/${a.user_id}`);
+      if (gen !== threadGen.current) return;
+      setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online });
+      setMessages(data.messages || []);
+    }
+    catch {
+      if (gen === threadGen.current) { activeRef.current = previous; toast.error(t("Gagal membuka chat")); }
+    }
+    finally { if (gen === threadGen.current) setThreadLoading(false); }
   };
   const send = async (body, attachment) => {
     setBusy(true);
@@ -197,7 +220,7 @@ export default function AdminChatWidget() {
           title={active.title} subtitle={active.kind === "support" ? (active.status === "resolved" ? t("Arsip • Inbox Support") : t("Inbox Support Label")) : t("Chat internal admin")}
           online={active.online} messages={messages} myId={user?.id} onSend={send} busy={busy}
           typing={typing} onType={onType} onUpload={onUpload} loading={threadLoading}
-          onBack={() => { setActive(null); setMessages([]); setTyping([]); }}
+          onBack={() => { startThread(); setActive(null); setMessages([]); setTyping([]); setThreadLoading(false); }}
           disabled={supportReadOnly} disabledText={t("Super Admin memantau. Balasan wajib oleh staff Support.")}
           headerActions={active.kind === "support" && isSupport && active.status !== "resolved" ? (
             <button type="button" onClick={resolve} title={t("Tandai selesai & arsipkan")} className="flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-400/20" data-testid="admin-chat-resolve"><CheckCircle2 className="h-3.5 w-3.5" /> {t("Selesai")}</button>

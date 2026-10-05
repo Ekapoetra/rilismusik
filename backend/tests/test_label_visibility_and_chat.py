@@ -156,20 +156,50 @@ class RoyaltyReportExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("setelah periode legacy", raised.exception.detail)
         self.assertEqual(self.objects, {})
 
-    async def test_expired_report_files_are_removed(self):
+    async def test_expired_report_files_are_removed_and_failed_deletes_retry(self):
         deleted = []
 
-        async def delete(*, key):
+        def delete(*, key):
+            if "fail" in key:
+                raise RuntimeError("r2 unavailable")
             deleted.append(key)
 
         await self.db.report_exports.insert_many([
             {"_id": "a" * 32, "key": f"report-exports/{'a' * 32}/x.csv", "expires_epoch": 1},
             {"_id": "b" * 32, "key": f"report-exports/{'b' * 32}/y.csv", "expires_epoch": 10 ** 12},
             {"_id": "c" * 32, "key": "cover/not-an-export.png", "expires_epoch": 1},
+            {"_id": "d" * 32, "key": f"report-exports/{'d' * 32}/fail.csv", "expires_epoch": 1},
         ])
-        with patch.object(storage_service, "delete_object", side_effect=delete):
+        with patch.object(storage_service, "_delete_object_sync", side_effect=delete):
             self.assertEqual(await report_export.cleanup_expired_report_exports(), 1)
         self.assertEqual(deleted, [f"report-exports/{'a' * 32}/x.csv"])
+        remaining = {doc["_id"]: doc async for doc in self.db.report_exports.find({})}
+        self.assertNotIn("a" * 32, remaining)
+        self.assertEqual(remaining["d" * 32]["delete_attempts"], 1)
+        self.assertIn("b" * 32, remaining)
+        self.assertIn("c" * 32, remaining)
+
+    async def test_workbook_closes_each_artist_sheet_before_the_next(self):
+        from openpyxl import Workbook, load_workbook
+        await self.db.royalty_lines.insert_many([
+            {"label_id": "l1", "period": "2026-04", "status": "available", "artist_name_raw": f"Artis {i:03}",
+             "track_title_raw": f"Lagu {i}", "quantity": i, "label_idr": i}
+            for i in range(60)
+        ])
+        open_when_created = []
+        original = Workbook.create_sheet
+
+        def tracking_create_sheet(workbook, *args, **kwargs):
+            open_when_created.append(sum(1 for ws in workbook.worksheets if not ws.closed))
+            return original(workbook, *args, **kwargs)
+
+        base = await royalty._royalty_report_scope(self.user)
+        with patch.object(Workbook, "create_sheet", tracking_create_sheet):
+            data = await report_export.build_workbook_bytes(base=base, period=None, artist=None)
+        self.assertEqual(max(open_when_created), 0)
+        wb = load_workbook(io.BytesIO(data))
+        self.assertEqual(len(wb.sheetnames), 1 + 2 + 60)
+        self.assertEqual(wb["Artis 059"]["C2"].value, "Lagu 59")
 
 
 class ChatReadTests(unittest.IsolatedAsyncioTestCase):
@@ -209,6 +239,16 @@ class ChatReadTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["incremental"])
         # One-minute overlap: the newest message plus the one stamped a minute before.
         self.assertEqual([m["id"] for m in result["messages"]], [f"m{chat.MESSAGE_PAGE + 18}", f"m{chat.MESSAGE_PAGE + 19}"])
+
+    async def test_admin_settings_screen_reads_saved_values_not_the_poll_cache(self):
+        admin = {"id": "sa", "role": "super_admin", "is_admin": True}
+        chat._cache["chat_settings"] = (float("inf"), {**chat.DEFAULT_CHAT_SETTINGS, "auto_reply_message": "lama"})
+        await self.db.app_settings.insert_one({"id": "chat_settings", "auto_reply_message": "baru"})
+        with patch.object(chat, "_require_admin"), patch.object(chat, "_is_support", return_value=True):
+            settings = await chat.get_chat_settings(user=admin)
+            self.assertEqual(settings["auto_reply_message"], "baru")
+            await chat.update_chat_settings(chat.ChatSettingsIn(auto_reply_message="terbaru"), user=admin)
+        self.assertEqual((await chat._get_chat_settings())["auto_reply_message"], "terbaru")
 
     async def test_unread_counts_are_grouped_per_conversation(self):
         await self.db.chat_messages.insert_one({"id": "x", "conversation_id": "c2", "sender_id": "lu",

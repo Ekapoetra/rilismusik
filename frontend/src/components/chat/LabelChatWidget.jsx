@@ -48,8 +48,11 @@ export default function LabelChatWidget() {
     const beat = () => api.post("/chat/heartbeat").catch(() => {});
     beat();
     const hb = setInterval(beat, 20000);
+    // Hidden tabs keep checking (less often) so the chat sound still plays.
+    let tick = 0;
     const poll = setInterval(async () => {
-      if (document.visibilityState === "hidden") return;
+      tick += 1;
+      if (document.visibilityState === "hidden" && tick % 4 !== 0) return;
       try {
         const { data } = await api.get("/chat/unread");
         const n = data.unread || 0;
