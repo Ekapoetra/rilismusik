@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Send, ArrowLeft, Paperclip, X, FileText, Loader2 } from "lucide-react";
+import { fileUrl } from "@/api/client";
 import { timeLabel } from "./chatUtils";
-
-const BACKEND = process.env.REACT_APP_BACKEND_URL;
-const fileUrl = (u) => (u?.startsWith("http") ? u : `${BACKEND}${u}`);
 
 export const OnlineDot = ({ online }) => (
   <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${online ? "bg-emerald-400 ring-2 ring-emerald-400/30 shadow-[0_0_6px_rgba(52,211,153,0.9)]" : "bg-zinc-600"}`} title={online ? "Online" : "Offline"} />
@@ -21,7 +19,7 @@ const Attachment = ({ attachment, messageId }) => {
   );
 };
 
-export const ChatThread = ({ title, subtitle, online, messages, myId, onSend, busy, onBack, disabled, disabledText, typing = [], onType, onUpload, headerActions }) => {
+export const ChatThread = ({ title, subtitle, online, messages, myId, onSend, busy, onBack, disabled, disabledText, typing = [], onType, onUpload, headerActions, loading = false }) => {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -61,7 +59,9 @@ export const ChatThread = ({ title, subtitle, online, messages, myId, onSend, bu
         {headerActions}
       </div>
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3" data-testid="chat-thread-messages">
-        {(messages || []).length === 0 && <div className="grid h-full place-items-center text-xs text-zinc-600">Belum ada pesan. Mulai percakapan.</div>}
+        {(messages || []).length === 0 && (loading
+          ? <div className="grid h-full place-items-center text-xs text-zinc-500" role="status" data-testid="chat-thread-loading"><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat pesan…</span></div>
+          : <div className="grid h-full place-items-center text-xs text-zinc-600">Belum ada pesan. Mulai percakapan.</div>)}
         {(messages || []).map((m) => {
           const mine = m.sender_id === myId;
           return (

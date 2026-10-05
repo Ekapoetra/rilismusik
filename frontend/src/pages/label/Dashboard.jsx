@@ -204,7 +204,7 @@ export default function LabelDashboardHome() {
       {/* KPI primary — mobile 2x2 */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard testId={LABEL_DASHBOARD.balanceAvailable} label="Saldo Siap Ditarik" value={fmtIDR(stats.balance_available_idr)} icon={Wallet} accent="emerald" locked={locked} />
-        <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_period} icon={Disc3} accent="emerald" locked={locked} />
+        <StatCard testId="label-dashboard-latest-revenue" label="Pendapatan Terbaru" value={analytics.data?.latest_report_revenue_hidden && !analytics.data?.latest_report?.revenue_idr ? "—" : fmtIDR(analytics.data?.latest_report?.revenue_idr)} sub={analytics.data?.latest_report_revenue_hidden ? `${analytics.data?.latest_period} · royalti legacy tidak ditampilkan` : analytics.data?.latest_period} icon={Disc3} accent="emerald" locked={locked} />
         <StatCard testId="label-dashboard-latest-streams" label="Stream Terbaru" value={fmtNum(analytics.data?.latest_report?.streams)} sub={analytics.data?.latest_period} icon={Play} accent="blue" />
         <StatCard testId={LABEL_DASHBOARD.totalReleases} label="Rilisan Aktif" value={`${fmtNum(stats.active_releases)}`} sub={`${fmtNum(stats.total_tracks)} track`} icon={Disc3} accent="violet" />
       </div>
@@ -242,7 +242,7 @@ export default function LabelDashboardHome() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <p className="mt-2 text-[11px] text-zinc-500">Berdasarkan laporan royalti aktif (tidak termasuk riwayat legacy yang sudah cut-off).</p>
+          <p className="mt-2 text-[11px] text-zinc-500">Berdasarkan laporan royalti yang sudah dipublish, termasuk stream periode legacy (cut-off). Nilai royalti legacy tidak ditampilkan.</p>
         </section>
       )}
 

@@ -6,7 +6,7 @@ import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
 import { ChatSettingsPanel } from "./ChatSettingsPanel";
-import { uploadChatAttachment } from "./chatUtils";
+import { uploadChatAttachment, mergeMessages, lastMessageAt } from "./chatUtils";
 import { useIncomingChat, NewChatNotice } from "./NewChatNotice";
 import { OPEN_CHAT_EVENT, CHAT_UNREAD_EVENT } from "@/components/shared/QuickChatButton";
 
@@ -38,17 +38,22 @@ export default function AdminChatWidget() {
   const [typing, setTyping] = useState([]);
   const [unread, setUnread] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [threadLoading, setThreadLoading] = useState(false);
   const chatNotice = useIncomingChat(() => setOpen(true));
   const receiveChat = chatNotice.receive;
   const openRef = useRef(false);
   const activeRef = useRef(null);
+  const messagesRef = useRef({ conversationId: null, items: [] });
   const labelFilterRef = useRef("active");
   useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => { messagesRef.current = { conversationId: activeConversationId, items: messages }; }, [messages, activeConversationId]);
   useEffect(() => { labelFilterRef.current = labelFilter; }, [labelFilter]);
 
   const listsPending = useRef(false);
-  const threadPending = useRef(false);
+  // Tracks the conversation currently being fetched, so switching to another
+  // conversation loads it immediately instead of waiting for the next poll.
+  const threadPending = useRef(null);
   const loadLists = useCallback(async () => {
     if (listsPending.current || document.visibilityState === "hidden") return;
     listsPending.current = true;
@@ -61,15 +66,20 @@ export default function AdminChatWidget() {
 
   const loadThread = useCallback(async () => {
     const cur = activeRef.current;
-    if (!cur || threadPending.current) return;
-    threadPending.current = true;
+    if (!cur || threadPending.current === cur.conversation_id) return;
+    threadPending.current = cur.conversation_id;
     try {
-      const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`);
+      const known = messagesRef.current.conversationId === cur.conversation_id ? messagesRef.current.items : [];
+      const since = lastMessageAt(known);
+      const { data } = await api.get(`/chat/admin/thread/${cur.conversation_id}`, { params: since ? { since } : {} });
       if (activeRef.current?.conversation_id !== cur.conversation_id) return;
-      setMessages(data.messages || []);
+      setMessages((current) => mergeMessages(since ? current : [], data.messages, data.incremental));
       setTyping(data.typing || []);
       setActive((a) => a && a.conversation_id === cur.conversation_id ? { ...a, online: data.online, status: data.status, title: data.label_name || a.title } : a);
-    } catch { /* */ } finally { threadPending.current = false; }
+    } catch { /* */ } finally {
+      if (threadPending.current === cur.conversation_id) threadPending.current = null;
+      if (activeRef.current?.conversation_id === cur.conversation_id) setThreadLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -96,14 +106,25 @@ export default function AdminChatWidget() {
   useEffect(() => { const toggleChat = () => setOpen((o) => !o); window.addEventListener(OPEN_CHAT_EVENT, toggleChat); return () => window.removeEventListener(OPEN_CHAT_EVENT, toggleChat); }, []);
   useEffect(() => { window.dispatchEvent(new CustomEvent(CHAT_UNREAD_EVENT, { detail: unread })); }, [unread]);
 
-  const openLabel = (item) => setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
+  const openLabel = (item) => {
+    if (active?.conversation_id === item.conversation_id) return;
+    setMessages([]); setTyping([]); setThreadLoading(true);
+    setActive({ conversation_id: item.conversation_id, title: item.label_name, kind: "support", online: item.online, status: item.status });
+  };
   const openInternal = async (a) => {
-    try { const { data } = await api.post(`/chat/admin/internal/${a.user_id}`); setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online }); setMessages(data.messages || []); setTyping([]); }
+    setMessages([]); setTyping([]); setThreadLoading(true);
+    try { const { data } = await api.post(`/chat/admin/internal/${a.user_id}`); setActive({ conversation_id: data.conversation_id, title: data.title || a.name, kind: "internal", online: a.online }); setMessages(data.messages || []); }
     catch { toast.error(t("Gagal membuka chat")); }
+    finally { setThreadLoading(false); }
   };
   const send = async (body, attachment) => {
     setBusy(true);
-    try { await api.post(`/chat/admin/thread/${active.conversation_id}`, { body, attachment }); await loadThread(); }
+    try {
+      const conversationId = active.conversation_id;
+      const { data } = await api.post(`/chat/admin/thread/${conversationId}`, { body, attachment });
+      if (activeRef.current?.conversation_id === conversationId) setMessages((current) => mergeMessages(current, [data], true));
+      loadThread();
+    }
     catch (e) { toast.error(e.response?.data?.detail || t("Gagal mengirim pesan")); }
     finally { setBusy(false); }
   };
@@ -175,7 +196,7 @@ export default function AdminChatWidget() {
         <ChatThread
           title={active.title} subtitle={active.kind === "support" ? (active.status === "resolved" ? t("Arsip • Inbox Support") : t("Inbox Support Label")) : t("Chat internal admin")}
           online={active.online} messages={messages} myId={user?.id} onSend={send} busy={busy}
-          typing={typing} onType={onType} onUpload={onUpload}
+          typing={typing} onType={onType} onUpload={onUpload} loading={threadLoading}
           onBack={() => { setActive(null); setMessages([]); setTyping([]); }}
           disabled={supportReadOnly} disabledText={t("Super Admin memantau. Balasan wajib oleh staff Support.")}
           headerActions={active.kind === "support" && isSupport && active.status !== "resolved" ? (

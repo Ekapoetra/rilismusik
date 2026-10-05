@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, API_BASE, formatApiError } from "@/api/client";
+import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
-import { Download, Music, Globe2, TrendingUp, Info, BadgeCheck } from "lucide-react";
+import { Download, Music, Globe2, TrendingUp, Info, BadgeCheck, Loader2 } from "lucide-react";
 
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 
@@ -18,6 +18,10 @@ export default function LabelRoyalty() {
   const [reportArtists, setReportArtists] = useState([]);
   const [reportArtist, setReportArtist] = useState("");
   const [err, setErr] = useState("");
+  const [monthsLoaded, setMonthsLoaded] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [exporting, setExporting] = useState("");
+  const [exportErr, setExportErr] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -27,7 +31,8 @@ export default function LabelRoyalty() {
         setMonths(response.data);
         setPeriod((current) => current || response.data[0] || "");
       })
-      .catch((error) => active && setErr(formatApiError(error.response?.data?.detail)));
+      .catch((error) => active && setErr(formatApiError(error.response?.data?.detail)))
+      .finally(() => active && setMonthsLoaded(true));
     api.get("/royalty/report-artists")
       .then((response) => active && setReportArtists(response.data || []))
       .catch(() => {});
@@ -35,7 +40,12 @@ export default function LabelRoyalty() {
   }, []);
 
   useEffect(() => {
+    // Wait for the period list so the first load is the latest period, not a
+    // heavier all-period read that is immediately replaced.
+    if (!monthsLoaded) return undefined;
+    if (months.length === 0) { setLoadingData(false); return undefined; }
     let active = true;
+    setLoadingData(true);
     const params = { period: period || undefined, ...Object.fromEntries(Object.entries(filter).filter(([, value]) => value)) };
     Promise.all([
       api.get("/royalty/summary", { params: { period: period || undefined } }),
@@ -45,24 +55,23 @@ export default function LabelRoyalty() {
       setSummary(summaryResponse.data);
       setLines(linesResponse.data);
       setErr("");
-    }).catch((error) => active && setErr(formatApiError(error.response?.data?.detail)));
+    }).catch((error) => active && setErr(formatApiError(error.response?.data?.detail)))
+      .finally(() => active && setLoadingData(false));
     return () => { active = false; };
-  }, [period, filter]);
+  }, [period, filter, monthsLoaded, months.length]);
 
-  const exportUrl = useMemo(() => {
-    const p = new URLSearchParams();
-    if (period) p.set("period", period);
-    return `${API_BASE}/royalty/export.csv?${p.toString()}`;
-  }, [period]);
-
-  const excelUrl = useMemo(() => {
-    const p = new URLSearchParams();
-    if (period) p.set("period", period);
-    if (reportArtist) p.set("artist", reportArtist);
-    return `${API_BASE}/royalty/export.xlsx?${p.toString()}`;
-  }, [period, reportArtist]);
-
-  if (!summary) return <div className="text-zinc-500">Memuat…</div>;
+  // The server prepares the file and returns a short-lived private link, so
+  // large reports are not limited by the API response size or an old cookie.
+  const download = async (format) => {
+    if (exporting) return;
+    setExporting(format); setExportErr("");
+    try {
+      const { data } = await api.post("/royalty/export-link", { format, period: period || null, artist: format === "xlsx" ? reportArtist || null : null }, { timeout: 300000 });
+      window.location.assign(data.url);
+    } catch (error) {
+      setExportErr(formatApiError(error.response?.data?.detail || "Laporan belum dapat diunduh. Coba lagi."));
+    } finally { setExporting(""); }
+  };
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -81,15 +90,19 @@ export default function LabelRoyalty() {
             <option value="">Semua artis</option>
             {reportArtists.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
-          <a href={excelUrl} className="rm-btn-primary flex items-center gap-2 text-sm" data-testid="royalty-export-excel"><Download className="w-4 h-4" /> Download Excel</a>
-          <a href={exportUrl} className="rm-btn-ghost flex items-center gap-2 text-sm" data-testid="royalty-export-csv"><Download className="w-4 h-4" /> Export CSV</a>
+          <button type="button" onClick={() => download("xlsx")} disabled={Boolean(exporting)} className="rm-btn-primary flex items-center gap-2 text-sm disabled:opacity-60" data-testid="royalty-export-excel">{exporting === "xlsx" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} {exporting === "xlsx" ? "Menyiapkan…" : "Download Excel"}</button>
+          <button type="button" onClick={() => download("csv")} disabled={Boolean(exporting)} className="rm-btn-ghost flex items-center gap-2 text-sm disabled:opacity-60" data-testid="royalty-export-csv">{exporting === "csv" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} {exporting === "csv" ? "Menyiapkan…" : "Export CSV"}</button>
         </div>
       </div>
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="royalty-error">{err}</div>}
+      {exportErr && <div role="alert" className="rounded-2xl bg-amber-500/15 text-amber-200 px-4 py-3 text-sm" data-testid="royalty-export-error">{exportErr}</div>}
+      <p className="text-xs text-zinc-500">Laporan mencakup royalti setelah periode legacy, termasuk yang sudah dicairkan.</p>
 
       {user?.role === "label" && <section className="flex flex-wrap items-center justify-between gap-4 border-y border-white/10 py-5" data-testid="royalty-available-section"><div className="min-w-0"><div className="text-xs text-zinc-500">Saldo tersedia</div><div className="mt-1 break-words font-display text-3xl font-bold text-emerald-300" data-testid="royalty-available-balance">{balance ? fmtIDR(balance.balance_available_idr) : "—"}</div>{balanceError && <p role="status" className="mt-1 text-xs text-amber-300" data-testid="royalty-balance-refresh-error">Saldo terbaru belum dapat dimuat.</p>}</div><Link to="/label/withdraw" className="rm-btn-ghost" data-testid="royalty-withdraw-link">Tarik Saldo</Link></section>}
 
-      {months.length === 0 ? (
+      {!monthsLoaded || (months.length > 0 && !summary) ? (
+        loadingData || !monthsLoaded ? <RoyaltySkeleton /> : null
+      ) : months.length === 0 ? (
         <RoyaltyEmptyState claimStatus={user?.claim_status} rejectReason={user?.claim_reject_reason} />
       ) : (
         <>
@@ -184,6 +197,9 @@ function Row({ k, v, sub }) {
   return <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0"><div className="text-sm">{k}{sub && <div className="text-[10px] text-zinc-500">{sub}</div>}</div><div className="font-bold text-sm">{v}</div></div>;
 }
 function Empty() { return <div className="text-sm text-zinc-500 py-4">Belum ada data.</div>; }
+function RoyaltySkeleton() {
+  return <div className="space-y-4" role="status" aria-label="Memuat laporan royalti" data-testid="royalty-loading"><div className="grid grid-cols-2 md:grid-cols-3 gap-4">{[0, 1, 2].map((i) => <div key={i} className="h-24 rounded-2xl bg-white/[0.04] animate-pulse" />)}</div><div className="grid md:grid-cols-2 gap-4"><div className="h-48 rounded-2xl bg-white/[0.04] animate-pulse" /><div className="h-48 rounded-2xl bg-white/[0.04] animate-pulse" /></div></div>;
+}
 
 function RoyaltyEmptyState({ claimStatus, rejectReason }) {
   if (claimStatus === "pending_link") {
