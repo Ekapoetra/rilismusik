@@ -120,7 +120,7 @@ async def _check_label_user(user: dict):
     return label
 
 
-async def _bind_and_consume(user: dict, claims: dict, credential: str, *, mark_email_verified: bool = True):
+async def _bind_and_consume(user: dict, claims: dict, credential: str):
     # _id uniqueness also works when preview index seeding is disabled.
     # Use Google's stable subject, not Emergent's historical provider id.
     binding = {"_id": claims["sub"], "user_id": user["id"], "created_at": now_iso()}
@@ -148,10 +148,9 @@ async def _bind_and_consume(user: dict, claims: dict, credential: str, *, mark_e
     }
     if not user.get("google_linked_at"):
         fields["google_linked_at"] = now_iso()
-    # Connecting Google from the profile is only a sign-in method; it never
-    # changes the account's verification state (email or Verifikasi Akun).
-    if mark_email_verified and not user.get("email_verified_at"):
-        fields["email_verified_at"] = now_iso()
+    # Google is only a sign-in method. Neither connecting nor signing in with
+    # it changes the account's verification state (email or Verifikasi Akun);
+    # a linked Google address may also differ from the account email.
     result = await db.users.update_one({"id": user["id"], "$or": [
         {"google_subject": {"$exists": False}}, {"google_subject": None},
         {"google_subject": claims["sub"]},
@@ -194,7 +193,7 @@ async def google_link(body: GoogleCredentialIn, response: Response, request: Req
         raise HTTPException(403, "Pilih akun Google dengan email yang sama seperti akun label Anda.")
     if user.get("google_subject") and user["google_subject"] != claims["sub"]:
         raise HTTPException(409, "Akun ini sudah terhubung ke akun Google lain.")
-    await _bind_and_consume(user, claims, body.credential, mark_email_verified=False)
+    await _bind_and_consume(user, claims, body.credential)
     try:
         await log_activity(user["id"], "google_link", "user", user["id"], after={"google_email": user.get("google_email")})
     except Exception as exc:  # noqa: BLE001 - the link itself already succeeded

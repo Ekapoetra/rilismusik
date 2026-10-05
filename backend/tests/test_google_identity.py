@@ -105,7 +105,8 @@ class GoogleIdentityTests(unittest.TestCase):
         self.assertEqual(self.db.google_identities.docs[0]["_id"], "google-sub-1")
         self.assertNotIn("credential", self.db.google_auth_sessions.docs[0])
         self.assertEqual(response.json()["user"]["google_subject"], "google-sub-1")
-        self.assertTrue(response.json()["user"]["email_verified_at"])
+        # Google sign-in never changes the account's verification state.
+        self.assertIsNone(response.json()["user"].get("email_verified_at"))
 
     def test_forged_signature_is_rejected(self):
         token = self.token().split(".")
@@ -210,6 +211,20 @@ class GoogleIdentityTests(unittest.TestCase):
         with patch.object(google, "log_activity", AsyncMock()):
             self.assertEqual(self.client.post("/api/auth/google/link", json={"credential": self.token()}).status_code, 200)
         self.assertEqual(self.db.users.docs[0]["email_verified_at"], "2026-01-01T00:00:00+00:00")
+
+    def test_google_login_after_profile_link_keeps_email_unverified(self):
+        self.db.users.docs[0].update(email="owner@company.example", email_verified_at=None)
+        self.assertEqual(self.login(self.token(email="owner@company.example")).status_code, 403)
+        self.nonce = self.client.get("/api/auth/google/nonce").json()["nonce"]
+        async def current(): return copy.deepcopy(self.db.users.docs[0])
+        app.dependency_overrides[google.get_current_user] = current
+        with patch.object(google, "log_activity", AsyncMock()):
+            linked = self.client.post("/api/auth/google/link", json={"credential": self.token(email="owner@company.example")})
+        self.assertEqual(linked.status_code, 200, linked.text)
+        for email in ("owner@company.example", "changed@company.example"):
+            self.nonce = self.client.get("/api/auth/google/nonce").json()["nonce"]
+            self.assertEqual(self.login(self.token(email=email)).status_code, 200)
+            self.assertIsNone(self.db.users.docs[0]["email_verified_at"])
 
     def test_other_google_subject_cannot_replace_existing_binding(self):
         self.db.users.docs[0]["google_subject"]="different-sub"
