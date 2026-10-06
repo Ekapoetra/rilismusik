@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import HTTPException
@@ -154,6 +155,29 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _return_url_base() -> str:
+    """HTTPS origin the browser returns to after checkout.
+
+    Xendit rejects anything that is not a full HTTPS URL ("Please provide a
+    valid HTTPS URL"). Tolerate common env typos (quotes, missing scheme,
+    trailing slash) and report a clear configuration error otherwise.
+    """
+    raw = _required_env("XENDIT_RETURN_URL_BASE").strip().strip("'\"").strip().rstrip("/")
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    parsed = urlsplit(raw)
+    host = parsed.hostname or ""
+    if (parsed.scheme not in ("https", "http") or "." not in host or " " in raw
+            or parsed.username or parsed.password or parsed.query or parsed.fragment):
+        logger.error("[XENDIT] XENDIT_RETURN_URL_BASE is not a usable HTTPS origin")
+        raise HTTPException(
+            status_code=503,
+            detail="Alamat kembali pembayaran belum benar. Admin perlu mengisi XENDIT_RETURN_URL_BASE dengan https://domain-aplikasi.",
+        )
+    # Xendit only accepts HTTPS; a plain http value is upgraded.
+    return f"https://{parsed.netloc}{parsed.path.rstrip('/')}"
+
+
 def xendit_configured() -> bool:
     return bool(os.environ.get("XENDIT_SECRET_KEY", "").strip())
 
@@ -267,8 +291,11 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
 def build_session_payload(payment: Dict[str, Any]) -> Dict[str, Any]:
     # Browser return URL only — not a callback/webhook. Keep it separate from
     # preview FRONTEND_URL so production payments always return to the live app.
-    frontend_url = _required_env("XENDIT_RETURN_URL_BASE").rstrip("/")
-    return_url = f"{frontend_url}{payment.get('return_path') or '/label/invoices'}?payment_id={payment['id']}"
+    frontend_url = _return_url_base()
+    return_path = payment.get("return_path") or "/label/invoices"
+    if not return_path.startswith("/"):
+        return_path = f"/{return_path}"
+    return_url = f"{frontend_url}{return_path}?payment_id={payment['id']}"
     amount = int(payment["amount"])
     description = str(payment.get("description") or payment.get("type") or "Pembayaran RILIS MUSIK")[:255]
     configured_items = payment.get("line_items") or []

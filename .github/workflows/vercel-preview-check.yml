@@ -31,6 +31,7 @@ jobs:
       - run: python -m unittest discover -s backend/tests -p test_production_configuration.py -v
       - run: python -m unittest discover -s backend/tests -p test_vercel_production.py -v
       - run: python -m unittest discover -s backend/tests -p test_label_visibility_and_chat.py -v
+      - run: python -m unittest discover -s backend/tests -p test_xendit_return_url.py -v
   frontend-build:
     runs-on: ubuntu-latest
     steps:
