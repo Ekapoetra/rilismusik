@@ -27,14 +27,20 @@ function check(req){
   return Number.isFinite(age)&&age>=0&&age<MAX_AGE;
 }
 
-/* Middleware: menolak dengan 503 bila gerbang belum dikonfigurasi,
-   401 bila sesi belum ada — klien menampilkan layar masuk. */
+/* Siapa pun yang sudah melewati Deployment Protection Vercel membawa cookie
+   sesi Vercel; itu dianggap akses yang sah — PROTO_PASSWORD jadi opsional. */
+const VERCEL_COOKIE=/_vercel_(jwt|share|password)=/;
+const viaVercel=req=>VERCEL_COOKIE.test(req.headers.cookie||'');
+
+function authed(req){return viaVercel(req)||(enabled()&&check(req));}
+
+/* Middleware: menolak dengan 401 bila belum lolos proteksi Vercel maupun
+   sesi PROTO_PASSWORD — klien menampilkan layar masuk / petunjuk. */
 function guard(req,res,next){
-  if(!enabled())return res.status(503).json({ok:false,error:'preview_not_configured',message:'PROTO_PASSWORD belum diatur pada deployment ini.'});
-  if(!check(req))return res.status(401).json({ok:false,error:'auth_required'});
+  if(!authed(req))return res.status(401).json({ok:false,error:'auth_required'});
   next();
 }
 
 function passwordOk(candidate){return enabled()&&eq(String(candidate),process.env.PROTO_PASSWORD);}
 
-module.exports={guard,check,issue,clear,enabled,passwordOk};
+module.exports={guard,check,issue,clear,enabled,passwordOk,viaVercel,authed};

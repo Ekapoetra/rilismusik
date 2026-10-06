@@ -61,6 +61,13 @@
   save10.__api131=true;
  }
 
+ function pill(state,msg){
+  let el=document.getElementById('rm-api-pill');
+  if(!el){el=document.createElement('button');el.id='rm-api-pill';el.type='button';el.style.cssText='position:fixed;right:14px;bottom:14px;z-index:390;display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:20px;border:1px solid var(--line,#ddd);background:var(--surface,#fff);color:var(--muted,#777);font-size:10px;font-family:inherit;cursor:default';document.body.appendChild(el);}
+  const color=state==='on'?'var(--green,#217659)':state==='warn'?'var(--amber,#946219)':'var(--muted,#777)';
+  el.innerHTML=`<i style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block"></i>${msg}`;
+ }
+
  async function boot(){
   let health;
   try{health=await fetch(BASE+'/health',{signal:AbortSignal.timeout(3000)});}catch{return;}
@@ -68,10 +75,11 @@
   api.online=true;
   try{
    const st=await (await fetch(BASE+'/auth/status')).json();
-   if(st.required&&!st.session){api.online=false;loginScreen();return;}
+   if(st.required&&!st.session){api.online=false;pill('warn',T('Simulasi lokal','Local simulation'));loginScreen();return;}
    await hydrate();
    if(api.online)wrapSave();
-  }catch(e){api.lastError=String(e&&e.code||e);}
+   pill(api.lastError?'warn':'on',api.lastError?T('Simulasi lokal — API menolak','Local simulation — API refused'):T('Terhubung database','Database connected'));
+  }catch(e){api.lastError=String(e&&e.code||e);pill('warn',T('Simulasi lokal','Local simulation'));}
  }
 
  api.push=push;api.hydrate=hydrate;api.loginScreen=loginScreen;

@@ -25,7 +25,7 @@ function okJourney(j){
 
 app.get('/api/health',(req,res)=>res.json({ok:true,service:'rilismusik-proto-api'}));
 
-app.get('/api/auth/status',(req,res)=>res.json({ok:true,required:auth.enabled(),session:auth.enabled()?auth.check(req):false}));
+app.get('/api/auth/status',(req,res)=>res.json({ok:true,required:!auth.authed(req)&&auth.enabled(),session:auth.authed(req),vercel:auth.viaVercel(req)}));
 
 app.post('/api/auth/login',(req,res)=>{
   if(!auth.enabled())return res.status(503).json({ok:false,error:'preview_not_configured'});
