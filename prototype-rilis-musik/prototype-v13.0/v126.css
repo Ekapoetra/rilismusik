@@ -1,0 +1,71 @@
+/* State ownership: foreground and background change together at the first gesture. */
+body.release126 #app .masthead124{padding-top:0!important;background:var(--bg)!important;--header-ink126:var(--text);--header-search126:var(--soft);--header-line126:color-mix(in srgb,var(--text) 42%,transparent);--header-fill126:var(--text);--header-fill-ink126:var(--surface)}
+body.release126 #app .masthead124.has-hero124:not(.is-collapsed124){background:#071e31!important;--header-ink126:#f2f7fb;--header-search126:#183a52;--header-line126:#dbeafa80;--header-fill126:#f2f7fb;--header-fill-ink126:#10283a}
+body.release126 #app .masthead124.is-collapsed124{background:color-mix(in srgb,var(--bg) 96%,transparent)!important}
+body.release126 #app .masthead124>.header.header124{z-index:3!important;overflow:visible!important;transition:none!important;background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+body.release126 #app .hero-clip124{z-index:0!important}
+body.release126 #app .masthead124.is-collapsed124 .hero-inner124{visibility:hidden}
+body.release126 #app .header.header124 :is(.header-brand122 strong,.tools>.iconbtn){color:var(--header-ink126)!important}
+body.release126 #app .header.header124 .search-bar6{width:180px!important;color:var(--header-ink126)!important;background:var(--header-search126)!important}
+body.release126 #app .header.header124 .search-bar6 :is(span,svg,kbd){color:inherit!important}
+body.release126 #app .header.header124 :is(.crumb,.header-path){color:var(--header-ink126)!important}
+body.release126 #app .header.header124 :is(.crumb,.header-path) :is(span,b,i){color:inherit!important}
+body.release126 #app .header.header124 .header-left{gap:16px!important;justify-content:flex-start!important}
+body.release126 #app .header-popover{color:var(--text)!important;background:var(--surface)!important;opacity:1!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;z-index:120!important}
+
+/* Compact outlined capsules, with a filled hover and selected state. */
+.header-controls126{display:flex;align-items:center;min-width:0;flex:none;color:var(--header-ink126)}
+.control-links126{display:flex;align-items:center;gap:8px}
+body.release126 #app .header-controls126 .control-pill126,body.release126 #app .control-menu-toggle126{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:6px 13px!important;border:1px solid var(--header-line126)!important;border-radius:999px!important;background:transparent!important;color:var(--header-ink126)!important;font-size:12px!important;font-weight:400!important;line-height:1.4;white-space:nowrap;box-shadow:none!important;transition:background-color .16s ease,color .16s ease,border-color .16s ease}
+body.release126 #app .header-controls126 .control-pill126:is(:hover,.active),body.release126 #app .control-menu-toggle126:is(:hover,[aria-expanded=true]){background:var(--header-fill126)!important;color:var(--header-fill-ink126)!important;border-color:var(--header-fill126)!important}
+body.release126 #app .control-menu-toggle126{display:none}
+.control-menu-toggle126>svg{width:17px;height:17px;stroke:currentColor}
+body.release126 #app .control-menu126{left:var(--control-left126)!important;right:auto!important;top:calc(var(--bar-height124) - 2px)!important;width:var(--control-width126)!important;padding:12px!important;max-width:calc(100vw - 32px);border-radius:18px!important}
+.control-menu126 #control-menu126{display:flex;flex-direction:column;gap:8px}
+body.release126 #app .control-menu126 .control-pill126{width:100%;min-height:40px;padding:8px 14px;text-align:left;display:block;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);font-size:13px!important;font-weight:400!important}
+body.release126 #app .control-menu126 .control-pill126:is(:hover,.active){background:var(--text);color:var(--surface);border-color:var(--text)}
+.control-search126{display:grid;gap:5px;margin-top:14px}.control-search126>small{color:var(--muted);padding:5px 10px}.control-search126 svg{width:18px;height:18px;flex:none}
+.control-navigation-note126{padding:12px 16px;border-radius:12px;background:var(--soft);color:var(--muted);font-size:13px!important;line-height:1.6}
+
+/* Shared secondary navigation; workspace and theme sliders keep their design. */
+body.release124.release126 :is(.side-children button,.nav-child115,button[role=tab],.tabs121>button,.module-tabs>button,.profile-tabs103>button){border:1px solid color-mix(in srgb,var(--text) 35%,transparent)!important;border-radius:999px!important;background:transparent!important;color:var(--text)!important;box-shadow:none!important;font-size:13px!important;font-weight:400!important;min-height:34px;padding:6px 14px!important;transition:background-color .16s ease,color .16s ease,border-color .16s ease}
+body.release124.release126 :is(.side-children button,.nav-child115,button[role=tab],.tabs121>button,.module-tabs>button,.profile-tabs103>button):is(:hover,.active,[aria-selected=true]){background:var(--text)!important;color:var(--surface)!important;border-color:var(--text)!important}
+body.release124.release126 .nav-child115 svg{color:inherit!important;stroke:currentColor!important}
+body.release126 :is(.tabs115,.tabs114,.tabs121,.profile-tabs103,.module-tabs){gap:8px!important;background:transparent!important;border:0!important;padding:4px 0!important;flex-wrap:wrap;box-shadow:none!important}
+body.release126 :is(.tabs115,.tabs114,.tabs121,.profile-tabs103,.module-tabs)::before{display:none!important}
+body.release126 :is(.tabs,.tabs115,.tabs114,.tabs121,.profile-tabs103,.module-tabs,nav[role=tablist])>.switch-indicator104{display:none!important}
+body.release126 .nav-child115{width:calc(100% - 18px)!important;margin:4px 0 4px 18px!important}
+body.release126 :is(.side-children button,.nav-child115,button[role=tab],.tabs121>button,.control-pill126,.control-menu-toggle126):focus-visible{outline:2px solid currentColor!important;outline-offset:3px}
+
+/* Direction-only chevrons keep the circular controls. */
+body.release126 :is(.arrow-circle125,.stat-open8,.detail-arrow124){transition:background-color .16s ease,color .16s ease,border-color .16s ease!important}
+body.release125.release126 :is(.arrow-circle125,.stat-open8,.detail-arrow124):hover{background:#151719!important;border-color:#151719!important;color:#fff!important}
+[data-theme=dark] body.release125.release126 :is(.arrow-circle125,.stat-open8,.detail-arrow124):hover{background:#f5f6f7!important;border-color:#f5f6f7!important;color:#151719!important}
+body.release126 :is(.arrow-circle125,.stat-open8,.detail-arrow124) .action-arrow124{stroke:currentColor!important;color:inherit!important}
+body.release126 .row115:hover .arrow115{background:#151719!important;color:#fff!important}
+[data-theme=dark] body.release126 .row115:hover .arrow115{background:#f5f6f7!important;color:#151719!important}
+.inline-chevron126{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;line-height:1;flex:none}.inline-chevron126>svg{width:18px!important;height:18px!important}
+body.release126 .metric-trend125>i .action-arrow124{width:12px!important;height:12px!important;stroke:currentColor!important;color:inherit!important;stroke-width:2}
+
+/* Reference palette; only the two requested bullet states pulse. */
+body.release126 .status111.status111[data-tone]{border:0!important;outline:0!important;box-shadow:none!important;animation:none!important}
+body.release126 .status111.status111[data-tone=neutral]{--status111:#647078;background:#eff2f4!important;color:#647078!important}
+body.release126 .status111.status111[data-tone=mustard]{--status111:#cc6419;background:#fff1e7!important;color:#cc6419!important}
+body.release126 .status111.status111[data-tone=red]{--status111:#c83255;background:#fdebf0!important;color:#c83255!important}
+body.release126 .status111.status111[data-tone=green]{--status111:#168366;background:#e3fcf2!important;color:#168366!important}
+body.release126 .status111.status111[data-tone=blue]{--status111:#2e689e;background:#eaf2fb!important;color:#2e689e!important}
+[data-theme=dark] body.release126 .status111.status111[data-tone=neutral]{--status111:#b8c1c7;background:#303537!important;color:#b8c1c7!important}
+[data-theme=dark] body.release126 .status111.status111[data-tone=mustard]{--status111:#ffb56e;background:#3b2b21!important;color:#ffb56e!important}
+[data-theme=dark] body.release126 .status111.status111[data-tone=red]{--status111:#ffa0b5;background:#402830!important;color:#ffa0b5!important}
+[data-theme=dark] body.release126 .status111.status111[data-tone=green]{--status111:#8bddb9;background:#203730!important;color:#8bddb9!important}
+[data-theme=dark] body.release126 .status111.status111[data-tone=blue]{--status111:#a6d2f2;background:#223542!important;color:#a6d2f2!important}
+body.release126 .status111.status111[data-tone]::before{content:''!important;display:block!important;position:static!important;inset:auto!important;padding:0!important;width:4px!important;height:4px!important;min-width:4px!important;flex:none!important;border:0!important;outline:0!important;border-radius:50%!important;background:currentColor!important;mask:none!important;-webkit-mask:none!important;transform:none!important;opacity:1!important;box-shadow:none!important;animation:none!important}
+body.release126 .status111.status111 :is(svg,.status-dot9,.pulse){display:none!important}
+body.release126 .status111.status111[data-pulse126=true]::before{animation:status-dot126 2.4s ease-out infinite!important}
+@keyframes status-dot126{0%,100%{filter:drop-shadow(0 0 0 transparent)}45%{filter:drop-shadow(0 0 2px currentColor)}70%{filter:drop-shadow(0 0 3px transparent)}}
+@media(max-width:1250px){body.release126 #app .header.header124 .search-bar6{width:145px!important}.control-links126{gap:6px}body.release126 #app .header-controls126 .control-pill126{padding-inline:10px!important;font-size:12px!important}body.release126 #app .header.header124 .header-left{gap:12px!important}}
+@media(max-width:1190px){body.release126 #app .header-controls126 .control-links126{display:none}body.release126 #app .control-menu-toggle126{display:inline-flex}}
+@media(max-width:900px){body.release126 #app .header.header124 .search-bar6{width:40px!important}}
+@media(max-width:760px){body.release126 .workspace-body122{display:grid!important;grid-template-columns:64px minmax(0,1fr)!important}body.release126 .workspace-body122>.side5{position:sticky!important;left:auto!important;top:calc(var(--masthead-height124) + 8px)!important;width:64px!important;min-width:64px!important;max-width:64px!important;align-self:start;z-index:2}body.release126 .side5 .side-scroll{width:64px!important}body.release126 .side5 .side-link{width:58px!important;min-width:0!important;margin-inline:auto!important}body.release126 .workspace-body122>.main{min-width:0!important;width:100%!important;margin:0!important}}
+@media(max-width:580px){body.release126 #app .header.header124 .search-bar6{width:34px!important}body.release126 #app .header.header124.has-controls126 .header-top{grid-template-columns:72px minmax(0,1fr)!important}body.release126 #app .header.header124 .header-left{gap:6px!important}body.release126 #app .control-menu-toggle126{width:32px;min-width:32px;height:32px;min-height:32px;padding:6px!important}body.release126 #app .control-menu-toggle126>span{display:none}body.release126 .nav-child115{width:38px!important;margin-left:0!important;padding:8px!important}}
+@media(prefers-reduced-motion:reduce){body.release126 .status111.status111[data-pulse126=true]::before{animation:none!important}body.release126 :is(.control-pill126,.control-menu-toggle126,.arrow-circle125,.stat-open8,.detail-arrow124,button[role=tab]){transition:none!important}}

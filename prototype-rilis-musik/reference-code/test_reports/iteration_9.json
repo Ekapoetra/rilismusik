@@ -1,0 +1,37 @@
+{
+  "summary": "Refactor verification (monolith 3228-line server.py -> 14 router modules + deps.py + cms_defaults.py + seed.py + cron_jobs.py, slim 101-line server.py). Backend boot clean: GET /api/health=ok, APScheduler 'Scheduler started' with both jobs (check_subscription_expiry_job, check_contract_expiry_job) registered and executing. Full Phase 2+3+4+5+6 pytest regression suite: 100 passed / 1 intentional skip (PPR cover-upload constraint) / 0 failures (same 100/101 result as pre-refactor). Added new /app/backend/tests/test_refactor_smoke.py with 14 targeted tests covering refactor-specific risks: health, super_admin + 4 sub_admin logins, register+logout, all 12 CMS landing keys, 5 admin endpoints (dashboard/labels/releases/artists/payments), cron-trigger role matrix (super_admin + finance OK on subscription-check; super_admin + release OK on contract-check; wrong-role 403), label dashboard redaction of royalty_percentage_default/history/default_royalty_share, withdraw window, notifications shape, AND specifically the cross-label release isolation that proves the label_user_ids -> label_uids rename in releases.py admin action did not break anything. Result: 14/14 PASS. Zero refactor regressions detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/releases/{id} (other label)", "issue": "Returns 403 'Bukan rilisan Anda' rather than 404 as referenced in the test plan. Minor information-disclosure tradeoff (confirms existence) — pre-existing behavior, NOT a refactor regression. Consider returning 404 for symmetric isolation in a future hardening pass."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_refactor_smoke.py",
+    "/app/test_reports/pytest/iter9_smoke.xml",
+    "/app/test_reports/pytest/iter9_refactor_smoke.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor is clean: 14 routers + deps.py share state via dependency injection (no module-level mutable globals). server.py 101 lines = app factory + router includes + scheduler hooks only.",
+    "Confirmed releases.py admin_release_action rename label_user_ids -> label_uids works in practice (cross-label release isolation test passes; both label A owner GET 200 and label B GET 403 paths exercised).",
+    "APScheduler properly initialized in cron_jobs.start_scheduler() and shut down in stop_scheduler(); verified in /var/log/supervisor/backend.err.log on every restart cycle during testing.",
+    "All notify/notify_many/admin_user_ids/label_user_ids helpers moved to deps.py — no duplicate definitions remain; ticket-comment notification tests and contract-creates-notification tests both pass, confirming the moved helpers wire correctly.",
+    "Carry-over (not refactor-related): SUBSCRIPTION_PRICES constant + CMS pricing block remain two sources of truth; PATCH /api/admin/labels/{id} still does not accept subscription_tier (low-priority, pre-existing)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_refactor_smoke.py (new)"
+  ],
+  "success_rate": {"backend": "100% (114/115 effective pass; 1 intentional skip; 0 failures across Phase2/3/4/5/6 + refactor smoke)", "frontend": "skipped per request"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (OK). finance1/support1/release1/marketing1@rilismusik.com / {Role}#2026 (OK). Demo labels via /api/admin/labels?q=<Khizanah|Mustafa|WANWE> / Demo#2026 (OK).",
+  "seed_data_creation": "None. Existing fixtures + demo labels reused.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Refactor verified zero-regression. Test files of record: test_phase2_royalty_withdraw.py (18), test_phase3_tickets.py (22), test_phase4_addons.py (20), test_phase5_redaction_cron.py (21), test_phase6_subscription_wami_legal.py (20 + 1 skip), test_refactor_smoke.py (14 new). Total = 115 collected / 114 pass / 1 intentional skip. Three API-contract clarifications discovered while writing smoke tests (none are bugs, just facts for next agent): (1) /api/auth/register requires pic_name (not contact_name); (2) /api/withdraw/window returns {phase, day, month, request_open, payment_window, message} (no is_open key); (3) /api/releases/{id} for non-owner returns 403 'Bukan rilisan Anda', not 404. Refactor smoke now asserts the correct shapes.",
+  "rca of the issue": "N/A — no issues found. The refactor moved code without changing behavior; both the pre-existing pytest suite (100/101) and the new targeted smoke tests for refactor-specific risks (14/14) confirm functional parity. Only the documented one-line rename (label_user_ids -> label_uids in releases.py admin_release_action) was a behavior-impacting change, and it was exercised end-to-end via the cross-label isolation test."
+}

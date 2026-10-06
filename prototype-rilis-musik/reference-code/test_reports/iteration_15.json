@@ -1,0 +1,33 @@
+{
+  "summary": "Re-ran Phase 13 destructive reset suite after main agent's 1-line fix to ADMIN_ROLES (added 'admin_marketing' in /app/backend/auth_utils.py:119). All 14/14 backend pytest cases PASS (was 13/14). Idempotent reset confirmed across 3 consecutive runs — users_deleted_non_admin = 0 every time. Super admin + all 4 seeded sub-admins (release, finance, support, marketing) login OK after multiple resets.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "seed.py:90-93", "issue": "Inverse-drift residue: ADMIN_ROLES contains 'admin_content' but seed.py does NOT seed an admin_content user. content1@rilismusik.com returns 401 on login. Not blocking reset correctness, but the admin_content role is currently unused/orphaned. Either remove 'admin_content' from ADMIN_ROLES or add a content1 seed row matching the other 4 sub-admins."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase13_reset_all_data.py",
+    "/app/test_reports/pytest/iter15_phase13.xml"
+  ],
+  "action_items": [
+    "Optional cleanup: seed admin_content (content1@rilismusik.com / Content#2026) in /app/backend/routes/seed.py to match ADMIN_ROLES, OR drop 'admin_content' from ADMIN_ROLES if unused."
+  ],
+  "critical_code_review_comments": [
+    "ADMIN_ROLES now correctly includes admin_marketing — fix verified by 3-run consecutive reset showing users_deleted_non_admin=0 each time.",
+    "Minor inverse drift remains: admin_content listed in ADMIN_ROLES but never seeded. Low priority — no functional impact on reset endpoint."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026; finance1@rilismusik.com / Finance#2026; marketing1@rilismusik.com / Marketing#2026 (all working)",
+  "seed_data_creation": "Test created and destroyed: 1 label account TEST_reset_<ts>@example.com, 1 release draft, 1 royalty import + 2 lines, 1 R2 PNG. Plus 3 extra idempotent resets executed for stress validation. DB now in clean state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 13 destructive reset is now fully green (14/14). Verified across 3 back-to-back resets that users_deleted_non_admin/labels/royalty_imports all return 0 on idempotent runs (was 1 before fix). All 4 seeded sub-admins (release/finance/support/marketing) plus super_admin survive resets and can re-login. Remaining minor: 'admin_content' role in ADMIN_ROLES has no corresponding seed user — content1@rilismusik.com returns 401. Recommend either dropping admin_content from ADMIN_ROLES or seeding the user, but not blocking.",
+  "rca_of_the_issue": "Original bug RCA (iteration 14): ADMIN_ROLES set in auth_utils.py omitted 'admin_marketing'. Reset endpoint preserves users via {role: {$nin: list(ADMIN_ROLES)}} — so admin_marketing kept getting deleted then re-seeded → users_deleted_non_admin=1 every run. Mitigation applied by main agent: added 'admin_marketing' to ADMIN_ROLES set (line 119). Verified: now 0 deletions on idempotent re-runs and admin_marketing persists across resets."
+}

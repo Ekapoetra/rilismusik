@@ -1,0 +1,40 @@
+{
+  "summary": "Tested requested dashboard withdraw breakdown changes on preview: backend regressions passed, new API/cache checks passed, frontend admin dashboard renders three Rupiah metrics with invariant intact, stale banner absent, and no desktop/mobile horizontal overflow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase51_dashboard_withdraw_breakdown.py",
+    "/app/backend/tests/test_phase16_4_delete_import_and_dashboard_cache.py",
+    "/app/backend/tests/test_iter41_admin_dashboard_withdraw_api.py",
+    "/app/test_reports/pytest/iter41_dashboard_full.xml"
+  ],
+  "action_items": [
+    "Proceed with production redeploy for this dashboard breakdown change.",
+    "Post-deploy, run quick smoke on /api/admin/dashboard and Admin Dashboard UI to confirm preview parity."
+  ],
+  "critical_code_review_comments": [
+    "dashboard_cache aggregation uses OR condition for withdrawn status + legacy_settled and sums once via single $cond branch, preventing double-count.",
+    "admin_dashboard_service maps withdrawn/unwithdrawn fields into API response and excludes Mongo ObjectId from last_csv_import projection.",
+    "Frontend Dashboard uses dedicated data-testid values for total/withdrawn/unwithdrawn metrics and keeps production banners disabled (empty PRODUCTION_BANNERS)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter41_admin_dashboard_withdraw_api.py",
+    "/app/test_reports/iteration_41.json"
+  ],
+  "success_rate": {
+    "backend": "100% (14 passed, 1 skipped)",
+    "frontend": "100% (requested dashboard UI/integration checks passed)"
+  },
+  "seed_data_creation": "Inserted one temporary royalty_lines document and temporarily modified metrics_cache dashboard_revenue doc during tests; both restored/cleaned.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URL and credentials from frontend/.env and /app/memory/test_credentials.md were used. Pytest suite executed: phase51 + phase16_4 + iter41 API regression. Frontend Playwright verified admin dashboard metrics: Rp71.400 total, Rp0 withdrawn, Rp71.400 unwithdrawn; invariant true and no stale 'belum live' banner text.",
+  "rca of the issue": "No blocking issue reproduced in this scope. Requested withdraw split logic, persistence, API contract, and UI rendering behaved as expected on preview. No API flow is MOCKED."
+}

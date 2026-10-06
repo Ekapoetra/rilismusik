@@ -1,0 +1,59 @@
+{
+  "summary": "Executed required backend regressions, added focused phase64 scoped audit tests, validated admin UI role visibility + scoped preview on public URL, and ran frontend production build. Core reconciliation behavior passed; one fixture-baseline assertion failed: phase64 current available balance is Rp2.111.571 instead of expected Rp3.311.210.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/admin/balance-audit/preview",
+        "issue": "Phase64 baseline mismatch: scoped preview row current_available_idr returned 2,111,571 (and UI showed Rp2.111.571→Rp5.117.660), while requested fixture expectation is 3,311,210→5,117,660.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Finance scoped preview for phase64-24migo",
+        "issue": "Preview UI rendered expected target Rp5.117.660 and counts correctly, but displayed current available Rp2.111.571 instead of requested Rp3.311.210 baseline.",
+        "affected_selectors": [
+          "[data-testid='admin-balance-audit-row-phase64-24migo']",
+          "[data-testid='admin-balance-audit-expected-available-phase64-24migo']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase55_orphan_withdrawn_recovery.py",
+    "/app/backend/tests/test_phase57_import_line_status_recovery.py",
+    "/app/backend/tests/test_phase38_balance_reconciliation.py",
+    "/app/backend/tests/test_iter52_legacy_withdraw_edit.py",
+    "/app/backend/tests/test_iter54_phase64_scoped_24migo.py",
+    "/app/test_reports/pytest/iter54_required_regressions.xml",
+    "/app/test_reports/pytest/iter54_phase64_scoped.xml"
+  ],
+  "action_items": [
+    "Recreate/reset phase64 baseline fixture so current_available_idr is Rp3.311.210 before scoped preview verification.",
+    "If story requires exact legacy baseline numbers, add deterministic fixture reset utility and run it before QA/regression.",
+    "After fixture reset, rerun /app/backend/tests/test_iter54_phase64_scoped_24migo.py to confirm both baseline and commit tests pass."
+  ],
+  "critical_code_review_comments": [
+    "Scoped preview path correctly enables enhanced projection (label_ids scope) with line-level fallback exchange-rate handling and mismatch detection; global path keeps lightweight aggregation behavior.",
+    "Commit flow correctly rechecks active-withdraw and paid-without-period guards before applying reconciliation, and re-preview after commit was clean in tested phase64 flow.",
+    "Role gating for Label Detail audit section is correct in UI: Finance can see/use controls, Support does not see audit controls."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter54_phase64_scoped_24migo.py",
+    "/app/test_reports/iteration_54.json"
+  ],
+  "success_rate": {
+    "backend": "93% (13/14 tests passed across required regressions + phase64 targeted; 1 baseline assertion failed)",
+    "frontend": "95% (public URL load, finance/support role checks, scoped preview render, mobile overflow check passed)"
+  },
+  "seed_data_creation": "No new permanent seed data added. Per instruction, phase64 prefixed data was cleaned after testing (labels/lines/imports/withdraw/jobs/rows/transactions).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase64 data has been cleaned (count now zero for phase64 labels/lines/imports/withdraw). To rerun exact phase64 assertions, recreate fixture first. Required regressions (phase55/57/38/iter52) all passed. Frontend build passed.",
+  "rca of the issue": "RCA for failed baseline assertion: API logic produced correct expected_available_idr=5,117,660 and correctly identified 15 wrongly_settled + 15 calculation mismatch lines, but fixture state no longer matches requested starting balance. Observed current_available_idr=2,111,571 indicates baseline data drift/reset mismatch rather than reconciliation algorithm failure. Reproduction: run scoped preview for label phase64-24migo and inspect row.current_available_idr. Mitigation: add deterministic fixture reset step before QA to enforce requested baseline values."
+}

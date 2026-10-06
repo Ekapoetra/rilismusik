@@ -1,0 +1,49 @@
+{
+  "summary": "Phase 6 (3-tier subscription + WAMI add-on + legal entity CMS) tested end-to-end. Backend pytest: 18/21 passed, 2 intentional skips (no /api/payments/release/{id} endpoint exists — verified via 404 — and one PPR-via-submit skip due to required cover upload), 1 real failure: Phase-5 redaction regression — `fee_percent_applied` is now LEAKED to label on GET /api/royalty/lines (current royalty_utils.py SENSITIVE_FIELDS comment explicitly excludes it 'OK to show — transparency' which contradicts the Phase 6 spec note that fee_percent_applied MUST still be stripped). Frontend smoke (Landing, /label/invoices, /label/wami, /admin/wami, /admin/cms LegalEntity tab) all render correctly — banner & footer copy match spec, all 8 legal-entity fields visible in CMS form. Two CMS data-backfill issues discovered: pricing.annual_normal_price and pricing.wami_addon_price are MISSING from the live landing_settings doc because seed_landing is idempotent and never backfilled the new Phase-6 keys (legal_entity itself was backfilled correctly). Subscription tier flow verified: annual_normal=Rp350.000, annual_vip=Rp500.000, mock-pay persists tier + subscription_status='active' + expires_at ~+365d. WAMI: paid path (Rp100.000, invoice generated, status='unpaid', is_free_vip=false), VIP-free path (amount_idr=0, status='pending', invoice=null, free_vip=true, admin notif created), LIVE-required (400 'rilisan LIVE'), duplicate prevention (400 'sudah memiliki pendaftaran WAMI aktif'), label/admin listings, admin status updates (in_progress→registered→rejected) with label notifications and wami_<status> types. Webhook handler still works for subscription (already_paid idempotent) and wami_addon (marks paid + flips order to pending).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/royalty/lines (as label)", "issue": "fee_percent_applied is NOT stripped from label-facing responses. Phase-6 spec explicitly says it must still be redacted; royalty_utils.py line ~110 comment 'fee_percent_applied is OK to show — transparency' contradicts the spec.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/payments/release/{release_id}", "issue": "Endpoint mentioned in Phase-6 spec does NOT exist (returns 404). Pay-per-release invoices are created automatically inside POST /api/releases/{id}/submit when label is unsubscribed; the spec wording should be corrected OR a dedicated endpoint added."},
+      {"endpoint": "GET /api/cms/landing -> pricing", "issue": "pricing.annual_normal_price (350000) and pricing.wami_addon_price (100000) are MISSING from the persisted landing_settings doc because seed_landing only inserts on missing key. Only legacy keys pay_per_release_price + annual_subscription_price exist. Frontend likely falls back to hard-coded constants. Needs a one-shot migration to backfill new Phase-6 pricing keys."},
+      {"endpoint": "PATCH /api/admin/labels/{id}", "issue": "Body schema does not accept subscription_tier — admins cannot downgrade/change a label's tier via the admin API (test had to bypass via direct DB write to reset state). Consider extending LabelStatusUpdate."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "admin/CMS.jsx Legal Entity tab", "issue": "Only NIB + WhatsApp inputs have data-testid (`admin-cms-legal-nib`, `admin-cms-legal-whatsapp`). The other 6 fields (company_name, address_line1, address_line2, city, postal_code, country) lack data-testids despite being visible in the UI — blocks reliable automated testing of those fields.", "selector": "[data-testid='admin-cms-legal-company_name'] etc.", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase6_subscription_wami_legal.py",
+    "/app/test_reports/pytest/phase6_results.xml"
+  ],
+  "action_items": [
+    "FIX (HIGH): Restore fee_percent_applied in INTERNAL_PERCENT_FIELDS in /app/backend/royalty_utils.py — Phase-6 spec requires it stripped from label/artist responses.",
+    "FIX (MEDIUM): Backfill landing_settings.pricing with annual_normal_price=350000 and wami_addon_price=100000 (seed_landing is idempotent; add a startup migration or a manual one-shot script).",
+    "FIX (MEDIUM): Add data-testid to remaining 6 inputs in admin/CMS.jsx Legal Entity tab (company_name, address_line1, address_line2, city, postal_code, country).",
+    "CLARIFY: Either implement POST /api/payments/release/{release_id} as a stand-alone PPR-invoice endpoint, or correct the Phase-6 spec to point at /api/releases/{id}/submit.",
+    "ENHANCE: Allow admins to change subscription_tier via PATCH /api/admin/labels/{id} (currently only royalty_percentage_default + account_status accepted)."
+  ],
+  "critical_code_review_comments": [
+    "server.py L1000: VIP check is `payment_type=='annual_subscription' AND subscription_tier=='annual_vip'` — does NOT check subscription_status/expiry. An EXPIRED VIP label with stale tier still gets free WAMI. Add `subscription_status=='active' AND subscription_expires_at>now` guard.",
+    "server.py L985-1060 (/payments/wami): no validation that body.release_id matches the track's release; the field is in spec but absent from CreateWamiOrderIn model. Spec says payload contains both release_id + track_id — server ignores release_id entirely. Either drop it from spec or add cross-check.",
+    "server.py L1090-1108 (mock_pay annual_subscription): always sets `subscription_status='active'` and resets expires_at to now+365d even if the label's existing expiry is already in the future — silently truncates remaining time of an already-active subscription on tier change. Consider adding/extending rather than replacing.",
+    "server.py L1029 + L1109 (_admin_user_ids): notifications target only super_admin + admin_release for WAMI but the comment in admin_update_wami also restricts updates to those two roles — consistent, but admin_finance has no visibility into WAMI revenue. Consider notifying finance for paid orders.",
+    "royalty_utils.py L110-117: in-line comment 'fee_percent_applied is OK to show — transparency' directly contradicts the Phase-6 redaction spec. Either update the spec OR move fee_percent_applied back into INTERNAL_PERCENT_FIELDS.",
+    "server.py L2900-2903: SUBSCRIPTION_PRICES dict + CMS pricing block are two sources of truth — they currently agree but can drift. Consider deriving CMS values from constants on startup."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase6_subscription_wami_legal.py (NEW — 21 tests: 18 pass, 2 skip, 1 fail-as-regression)"
+  ],
+  "success_rate": {"backend": "86% (18/21; 2 skips intentional, 1 real Phase-5 redaction regression)", "frontend": "95% (all 5 pages render correctly; only missing 6 data-testids on CMS legal entity inputs)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (OK). Demo labels resolved via /admin/labels?q= and Demo#2026 password — Khizanah (annual_vip), Mustafa (annual_normal → upgraded to VIP by tests, reset via direct DB write each run), WANWE (pay_per_release → upgraded by tests).",
+  "seed_data_creation": "Created 1 TEST_phase6_draft release on WANWE per run (draft only, never submitted). WAMI orders are reused across runs and cleaned to status=cancelled where blocking. Test directly resets Mustafa's subscription_tier to 'annual_normal' in MongoDB before paid-WAMI assertions (since /admin/labels PATCH doesn't accept subscription_tier).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase-6 test file: /app/backend/tests/test_phase6_subscription_wami_legal.py — uses direct MongoDB connection via pymongo for state resets (subscription_tier downgrade) because admin/labels PATCH cannot change tier. The single failure (`fee_percent_applied` leak) is a Phase-5 regression NOT a Phase-6 bug — Phase-6 spec just re-asserts the original rule. royalty_utils.py contains a stale comment saying it's intentional — main agent must reconcile spec vs code. Frontend Legal Entity tab works visually but missing 6 data-testids. Two pricing CMS keys (annual_normal_price, wami_addon_price) need a seed migration. Phase-5 tests in /app/backend/tests/test_phase5_redaction_cron.py should be re-run after the redaction fix — they may now also reveal the same regression.",
+  "rca of the issue": "Redaction regression RCA: Phase-5 originally included fee_percent_applied in INTERNAL_PERCENT_FIELDS. Sometime before Phase-6 the constant was moved out with the comment 'fee_percent_applied (5% distributor fee) is OK to show — transparency.' (royalty_utils.py:110-117). Either the comment was added incorrectly during a refactor OR the spec changed but Phase-6 review_request did not get updated. Reproduction: login as Mustafa (label) → GET /api/royalty/lines?limit=2 → inspect response[0].keys() → fee_percent_applied present. Mitigation: add 'fee_percent_applied' back to INTERNAL_PERCENT_FIELDS in royalty_utils.py (1-line fix) OR update Phase-6 spec to drop fee_percent_applied from the forbidden list."
+}

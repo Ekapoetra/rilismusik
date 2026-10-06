@@ -1,0 +1,128 @@
+# RILIS MUSIK — Prioritized Roadmap
+
+## Status sesi — 2026-09-10
+- **P0 dokumentasi selesai:** pengguna memilih `p0` saja. Pembaruan ROADMAP yang tertunda telah dicocokkan dengan PRD, catatan implementasi, laporan akhir Iter66/67/69/70, dan hasil JUnit tersimpan; tidak ada perubahan kode aplikasi, akun, integrasi, atau data bisnis pada sesi ini.
+- Verifikasi di atas adalah pemeriksaan bukti pengujian sesi sebelumnya, **bukan pengujian ulang aplikasi** atau persetujuan pengguna atas fitur. Temuan awal Iter69/70 memakai laporan follow-up sebagai status akhir.
+- Langkah berikutnya: verifikasi pengguna atas lima perubahan Iter70. Investigasi SMTP (P1) dan implementasi backlog (P2) tetap ditunda sampai diminta.
+- Sinkronisasi status backlog: email royalti bulanan, notifikasi penyelesaian background, serta edit/hapus/arsip add-on sudah tercatat selesai pada Phase43/45 dan bagian Completed; jangan membangunnya ulang berdasarkan ringkasan handoff. Keandalan pengiriman SMTP tetap isu terpisah.
+
+## P0 — Verifikasi pengguna
+- **2026-09-10 — Iter70 selesai di preview:** verifikasi URL Web Artist/YouTube opsional, featuring independen per track, kuota 7 rilisan/hari reset 00.00 WIB (resubmit rilisan yang sama pada hari sama tidak dihitung dua kali), cover legacy internal oleh pemilik/admin berizin, dan tiket Takedown Selesai → Taken Down. Delapan kelompok skenario backend tercakup melalui 7 lulus pada uji awal + 1 uji ulang cover lulus; bukan satu full-suite rerun. Browser dan build akhir lulus menurut `test_reports/iteration_70_followup.json`. Email saat beban paralel belum dinyatakan andal.
+
+### Catatan verifikasi terdahulu — status pengguna belum dikonfirmasi
+- Daftar historis berikut dipertahankan sebagai referensi; bukan instruksi menjalankan perubahan data atau seluruh langkah lama dalam sesi P0 dokumentasi ini.
+- **2026-09-09 — Iter68–69 Content ID letter complete:** user acceptance of mandatory creator/KTP/signature flow and generated declaration wording; use label Support → Tiket Baru → Pengajuan Content ID, then admin ticket → Surat Pernyataan Hak Cipta.14/14 backend, real drawn-signature browser and private download/responsive tests passed. Manual Believe forwarding only; no certified e-signature integration.
+- **2026-09-09 — Iter67 selesai:** user acceptance nama seluruh artis utama/featuring pada daftar label, UPC + panel ISRC/track pada daftar admin, serta Finance/Pengelola Paket → Label → Detail → Paket & Langganan. Permission `labels.package` tersedia untuk role lain. Role baru tersedia tanpa membuat akun staf otomatis; tetapkan pada pengguna yang dipilih.5/5 backend+24/24 checkpoint frontend lulus; tidak mengubah paket label pengguna untuk pengujian.
+- **2026-09-09 — P0 UI/UX refresh selesai pada preview:** user acceptance atas ID/EN, Light/Dark/Auto WIB, sidebar/logo, simulasi role, player audio bawah, chat/suara. Iter65/66 + follow-up menutup temuan; build akhir lulus. Tidak ada saldo/CSV pengguna diubah, P1/P2 tidak dikerjakan. Rincian `UI_REFRESH_TASK.md` dan `test_reports/iteration_66_followup.json`.
+- **2026-09-08, prioritas terbaru:** user acceptance empat workflow support label yang baru. Implementasi/10 tes backend/UI lengkap sudah lulus, fixture bersih; bukan perubahan langsung metadata rilisan.
+- **2026-09-08, prioritas terbaru:** user acceptance Inject Saldo untuk satu label dengan referensi Believe terverifikasi dan batas legacy per label. Implementasi final + 17 tes fitur/keuangan + 5 regresi + UI sudah lulus; tidak ada blocker aplikasi yang diketahui. Tidak melakukan perubahan saldo pengguna secara otomatis.
+- **2026-09-08, prioritas aktif:** verifikasi pengguna atas perbaikan tombol hapus admin pada `/admin/releases` dan detail untuk draft/rejected. Implementasi serta uji preview Iteration 61 sudah lulus; tidak perlu perubahan data produksi untuk pemeriksaan visual.
+- Redeploy Phase 72 lalu pastikan dropdown lonceng solid dan Log Aktivitas menampilkan nama pengguna/fallback ID.
+- Redeploy Phase 71 lalu verifikasi lonceng hanya di sticky header kanan atas, halaman Riwayat Notifikasi, scope Semua Admin untuk Super Admin, scope pribadi untuk admin biasa, dan lebar mobile tanpa overflow.
+- Redeploy Phase 70 dan cek badge Status KYC untuk label verified, pending, rejected, dan legacy pada desktop/mobile.
+- Redeploy Phase 69, cek migrasi role bawaan, buat satu role kustom read-only, assign ke admin uji, lalu validasi navigation filtering, action denial, sidebar rail, dan Admin UI settings.
+- Redeploy Phase 68 lalu validasi satu artis lama tanpa sosial, satu artis tersimpan multi-link, satu artis baru dari submit, snapshot admin, dan template WhatsApp pada setiap transisi status.
+- Redeploy Phase 67 lalu cek pencarian nama label lintas periode di Admin Withdraw serta rendering logo/fallback pada Admin Label Management, Dashboard, dan Profil label.
+- Redeploy Phase 66 lalu verifikasi satu akun label legacy: isi profil/rekening/kontrak/logo, unggah KTP, review melalui Super Admin/Admin Support, dan pastikan fitur inti baru terbuka setelah approve.
+- Pastikan bucket R2 production tetap privat untuk prefix `kyc-private/`; akses KTP harus melalui endpoint pemilik/reviewer dan `/api/files/kyc-private/*` wajib 404.
+- Redeploy Phase 65 lalu uji satu draft SINGLE dan satu EP pada akun internal: metadata, exact cover/WAV validation, revision edit, PPR invoice email/notifikasi, payment sandbox, Deliver to Believe, UPC/ISRC, Live, dan Takedown.
+- Setelah redeploy Phase 64: buka Label Management → 24migo → Audit & Sesuaikan Saldo → Preview. Pastikan cutoff Mei 2026, periode Juni–Juli, persentase 35%, dan target sekitar Rp5.117.660 sebelum commit. Setelah commit, audit ulang harus `Sesuai` dan withdrawal web tidak berubah.
+- Redeploy Phase 63 lalu cocokkan satu bulan pemasukan Xendit dengan invoice paid, satu bulan Dana Keluar/Tertunda dengan histori Withdraw, dan verifikasi urutan default Release Management.
+- Redeploy Phase 62 lalu pilih satu withdrawal legacy yang cutoff-nya diketahui. Review preview saldo/baris sebelum commit, verifikasi saldo label sesudahnya, dan pastikan withdrawal web tidak menampilkan tombol edit.
+- Redeploy Phase 61, lalu verifikasi satu pembayaran nyata bernominal kecil: metode pembayaran terbaca, label menerima receipt, admin menerima notifikasi, dan kartu tindak lanjut muncul bila layanannya memerlukan aksi.
+- Redeploy Phase 60, lalu uji satu file kecil terlebih dahulu melalui Royalty Detail → Ganti File Import. Periksa preview per label sebelum mengetik `GANTI DATA`.
+- Gunakan Audit File Ganda sebelum mengganti file yang dicurigai duplikat; commit penggantian menghapus import lama permanen dan hanya Super Admin yang dapat menjalankannya.
+- Redeploy Phase 59 lalu buka Royalty Import → Audit File Ganda → Mulai Audit. Kirim hasil pasangan `MEI 2026.csv` vs `Mei 2022.csv` sebelum tindakan data apa pun.
+- Jangan menghapus atau mengarsipkan duplikat sebelum dampak saldo aktif dan riwayat pembayaran selesai direview.
+- Redeploy Phase 58 diagnostic-only, lalu jangan menjalankan audit/commit. Main agent akan membaca endpoint diagnosis F - Audio secara read-only dan menentukan akar masalah berdasarkan status/periode nyata.
+- Redeploy Phase 57. Audit baru membandingkan status setiap baris dengan status induk laporan dan akan menemukan draft/pending yang tertinggal pada laporan yang sudah diterima.
+- Setelah deploy, Audit Ulang F - Audio harus menampilkan data salah status atau perubahan perkiraan saldo. Jangan commit bila tetap nol; gunakan hasil itu sebagai bukti untuk investigasi data lebih lanjut.
+- Redeploy Phase 56. Audit ulang harus mendeteksi F - Audio yang pasca-Januari masih bertanda sudah dibayar walau statusnya bukan withdrawn.
+- Setelah deploy, jalankan Audit Ulang → cari `F - Audio` → pastikan kolom Royalti Salah Status tidak nol → jalankan koreksi → Audit Ulang lagi hingga nol dan verifikasi saldo terhadap Rp1.253.286.
+- Redeploy perbaikan stale-job terbaru. Pekerjaan global lama yang berhenti di 70/1.720 sejak 23 Agustus akan ditutup otomatis saat commit audit berikutnya.
+- Setelah deploy, klik Audit Ulang sebelum koreksi agar hasil sementara memakai data terbaru; tidak perlu menunggu pekerjaan lama tersebut.
+- Redeploy Phase 55 global orphan-withdrawn audit/recovery. Perubahan tidak menyentuh saldo production sebelum Admin Finance/Super Admin menjalankan commit eksplisit.
+- Setelah deploy, buka Withdraw → Audit Saldo Label, jalankan preview global, cari `F - Audio`, lalu pastikan orphan `withdrawn` setelah cutoff efektif Januari 2026 muncul sebelum commit.
+- Review semua label berstatus `Riwayat belum lengkap`; label dengan paid withdrawal tanpa `period_to` sengaja diblokir dan harus diperbaiki manual sebelum pemulihan.
+- Setelah commit audit yang sudah direview, jalankan Audit Ulang dan verifikasi F - Audio tidak lagi memiliki orphan, pending = Rp0, serta saldo available sesuai perhitungan Feb–Jul.
+- Redeploy Phase 54 immediately to remove the `/api/admin/labels` 524 timeout and restore visible Label Management rows.
+- After deploy, wait for the background balance snapshot to finish, then verify KSO list/detail parity.
+- Redeploy the Label Management balance parity fix; production currently still displays the stale stored balance until redeploy.
+- Post-deploy, verify KSO Music Distribution list balance equals its detail withdrawable balance.
+- Redeploy preview auth frontend/backend so production receives Google Login, improved password reset, and merge-safe R2 CORS startup behavior.
+- After redeploy, perform one real Google login using an already-registered label email and verify both apex/`www` callback paths.
+- Retry the latest royalty CSV upload from production `www`; the shared bucket preflight is already repaired.
+- Redeploy current preview code so production mendapat perbaikan login apex/`www` dan konfigurasi official Hostinger mailbox.
+- Redeploy juga membawa fitur Admin Withdraw → Tambah Riwayat Manual Legacy.
+- Redeploy juga membawa kolom Rupiah `Saldo Available` pada daftar Label Management.
+- Redeploy membawa default sort saldo terbesar, pilihan sort label/email/saldo, dan kolom bulan withdraw terakhir.
+- Redeploy membawa breakdown Admin Dashboard: Total Bagian Label, Sudah Withdraw, dan Belum Withdraw.
+- Redeploy membawa pencarian label server-side agar seluruh label production dapat ditemukan, termasuk label lama di luar 1.000 hasil awal.
+- Setelah redeploy, smoke test login/me/refresh pada `https://rilismusik.com` dan `https://www.rilismusik.com` dari Windows dan macOS.
+- Run one controlled production release-submission email and one manually triggered monthly summary, then confirm Hostinger delivery logs.
+- Run a controlled user acceptance pass for multi-device auth, bank approval, PPR invoice, and PDF download.
+
+## P1 — Product follow-up
+- **2026-09-10 — SMTP timeout saat submit paralel (belum ditangani):** Iter70 mencatat sebagian koneksi email notifikasi timeout; penyimpanan rilisan, kuota, dan notifikasi in-app tetap berhasil. Investigasi antrean, pembatasan konkurensi, timeout, dan retry pada pengiriman email perlu persetujuan lingkup terpisah. Bukti: `test_reports/iteration_70_followup.json` dan `memory/RELEASE_WORKFLOW_UPDATES.md`. Hindari uji massal yang mengirim email nyata; pengujian beban berikutnya harus mengisolasi transport email. Pengguna memilih P0 saja; tidak ada klaim perbaikan SMTP.
+- Insiden notifikasi **preview** Iter64: cleanup lama terlalu luas sudah diperbaiki dan sentinel lulus; bila notifikasi historis perlu dipulihkan, gunakan backup valid. Jumlah terdampak tidak tercatat; jangan mengarang timestamp/read-state. Data tiket/rilisan tetap utuh.
+- Add Admin Finance UI for monthly email delivery status/retry (backend status endpoint already exists).
+- Add explicit bank-change history timeline and cancellation before approval.
+- Add bulk download/archive for generated copyright letters.
+- Add migration/report for legacy PPR releases whose invoices were created before the new post-approval flow.
+
+## P2 — Quality & operations
+- Optional private PDF preview for label before final Content ID ticket submission. This is not required for the completed admin-download workflow.
+- Opsional: perluasan glosarium istilah musik/royalti ID/EN berdasarkan masukan tim operasional; katalog lokal sudah berjalan, belum ada review linguistik manual setiap kalimat.
+- Opsional: template balasan admin untuk tiap kategori Support Ticket.
+- Opsional: ekspor riwayat penyesuaian royalti ke Excel/CSV untuk pemeriksaan keuangan (audit history sudah tersedia dalam aplikasi).
+- Opsional: pisahkan izin `releases.delete` dari `releases.review` bila admin membutuhkan kontrol penghapusan lebih ketat; belum diimplementasikan agar kebijakan izin saat ini tetap konsisten.
+- Tambahkan fingerprint/checksum saat upload royalty CSV ke R2 agar file duplikat ditolak sebelum masuk proses import.
+- Link remaining CMS settings dynamically across all landing sections.
+- Move FastAPI deprecated `on_event` startup/shutdown hooks to lifespan handlers.
+- Add background job notification deep-links by exact job kind instead of the generic migration page.
+- Add an optional daily operations digest for failed imports, failed emails, and pending approvals.
+- Integrasi kalender hari libur nasional Indonesia untuk jam operasional chat.
+- Ringkasan admin pagi hari melalui email/Telegram; melengkapi digest operasional opsional di atas, belum diimplementasikan.
+- Estimasi tanggal saldo royalti berikutnya dapat ditarik.
+- Ekspor grafik tren stream sebagai gambar.
+- Penjadwalan otomatis laporan Excel artis saat periode royalti diterbitkan; pengiriman manual sudah tersedia.
+- Riwayat tanggal terakhir pengiriman laporan pada kartu Manajemen Artis.
+
+## Completed in current cycle
+- Iter70 (2026-09-10): URL Web Artist/YouTube opsional dengan validasi bila diisi; featuring per-track tersimpan terpisah dari featuring rilisan; kuota atomik 7 rilisan per label/hari WIB dengan retry hari sama, indikator dashboard/daftar/wizard; cover web asli dan cover legacy privat khusus tampilan internal; penyelesaian tiket Takedown menyinkronkan status Live → Taken Down secara idempoten tanpa panggilan DSP otomatis. Memperbaiki upload cover 500 tanpa melonggarkan KYC dan race pemuatan detail tiket yang menimpa pilihan status/catatan admin. Bukti akhir: `test_reports/iteration_70_followup.json`, `test_reports/pytest/iter70_internal_cover_retest.xml`, dan `memory/RELEASE_WORKFLOW_UPDATES.md`. Browser 320/768/1024/1440 dan build lulus pada sesi implementasi; fixture milik pengujian dibersihkan. SMTP tetap P1.
+- Iter68–69 (2026-09-09): creator-specific Content ID statements from user DOCX; mandatory KTP/NIK, uploaded or drawn signature, single/multiple creator song assignment, formal unbranded PDF with KTP appendix, private R2/authorized downloads/audits, idempotency and staged cleanup. Distinct from any generic CMS-stamped copyright document backlog: this claim letter intentionally has NO letterhead/stamp/letter number. `test_reports/iteration_69_final_followup.json` closes initial test findings.
+- Iter67 (2026-09-09): read-only batched release-list credits/track identifiers, legacy track fallback, full wrapping names, UPC and expandable/copyable per-track ISRC; granular manual package permission+restricted built-in role, confirmation/reason/audit/revision protection and no auto invoices. Fixed Finance legacy-role bridge rejection. `test_reports/iteration_67.json`, build succeeded, fixtures retired.
+- Iter65–66 + follow-up (2026-09-09):11-point UI refresh, compiler/catalog repair, isolated role website simulation, real bottom WAV player/download, WIB auto boundaries/timer/persistence, theme branding, notification/chat/online sound, obsolete tab/reset removal. Backend5/5, build, browser and scoped320–1440px checks passed; final findings/dispositions in `test_reports/iteration_66_followup.json`.
+- Iteration 64 (2026-09-08): autofill UPC/ISRC/subjek, empat alasan takedown, enam kolom metadata prefilled + reason-only, dua Content ID multi-URL/originality, kategori baru dibatasi enam dengan history kompatibel, rendering admin/label, dynamic support permissions. Final 10/10 backend dan UI desktop/mobile passed. Lihat `SUPPORT_TICKET_WORKFLOW.md` untuk catatan penting cleanup notifikasi preview.
+- Iterations 62–63 (2026-09-08): PRD Royalty Balance Adjustment / Legacy Reconciliation, preview/konfirmasi/idempotensi/audit/void, batas legacy per label, sumber saldo terpisah dalam satu perhitungan, cashout >Rp1 juta penuh, perlindungan paid/active/concurrency, serta UI role-limited dan mobile. Final 17/17 tes baru + 5 regresi lulus; fixture bersih. Detail di `ROYALTY_ADJUSTMENT_IMPLEMENTATION.md`.
+- Iteration 61 (2026-09-08): tombol hapus daftar/detail ADMIN, endpoint hapus admin dengan izin dinamis, konfirmasi aman, regression label ownership/KYC, dan file-shared/status-race safeguards. Backend 6/6, browser desktop/mobile, build, serta tes service ulang 2/2 lulus; akun/fixture sementara dibersihkan.
+- Phase 72 membuat dropdown lonceng solid serta menampilkan nama pelaku pada Log Aktivitas dengan fallback ID untuk akun yang tidak tersedia.
+- Phase 71 memindahkan lonceng admin ke sticky header kanan atas dan menambahkan log notifikasi terfilter, scope audit Super Admin, RBAC, serta layout mobile bebas overflow.
+- Phase 70 menambahkan kolom Status KYC responsif pada Admin Label Management dengan badge Indonesia dan tooltip alasan penolakan.
+- Phase 69 menambahkan dynamic admin RBAC, role/user editor, Admin UI bilingual navigation builder, nested subtab, desktop icon rail, dan mobile drawer.
+- Phase 68 menambahkan identitas sosial wajib artis, reusable artist profile dari submission, snapshot sosial admin, WhatsApp follow-up status-aware, dan lokalisasi workflow rilisan.
+- Phase 67 menambahkan pencarian withdrawal lintas seluruh periode berdasarkan nama label serta identitas logo/fallback konsisten di tiga area utama.
+- Phase 66 menambahkan mandatory KYC seluruh label, checklist profil, logo/KTP R2 privat, reviewer queue, approve/reject, dashboard counter, backend feature gate, dan frontend blurred lockout.
+- Phase 65 menambahkan complete release metadata wizard, strict asset validation, revision-safe editing, full Admin detail, role-safe workflow actions, conditional Annual/PPR state machine, invoice notification, Believe delivery, UPC/ISRC Live gate, Reject, dan Takedown.
+- Phase 64 menambahkan scoped per-label reconciliation dengan exact active-rate projection, mandatory preview, post-cutoff status recovery, web-withdraw protection, dan reusable Label Detail workflow.
+- Phase 63 menambahkan release operational-priority ordering, pemasukan Xendit bulanan/tahunan, serta ringkasan dan filter arus dana Withdraw.
+- Phase 62 menambahkan guarded edit bulan laporan terakhir untuk legacy withdrawal, mandatory preview, background commit, direct-web immutability, rekonsiliasi saldo/status line, dan audit revision.
+- Phase 60 menambahkan selected-file replacement: upload R2 staging, mandatory preview, hard-delete lama setelah commit, adjustment paid history, recalculation active withdrawal, resume/idempotency, dan refresh saldo/analytics.
+- Phase 59 menambahkan audit file ganda background yang hanya membaca data, membandingkan periode, menghitung dampak label/saldo/riwayat, dan memperjelas total file multi-periode pada UI.
+- Phase 57 menyelaraskan draft/pending berdasarkan status induk laporan, memperbaiki alur Dana Diterima agar selalu memproses keduanya, dan menjaga draft pada laporan yang belum diterbitkan.
+- Phase 56 memulihkan penanda `legacy_settled=true` yang salah pada status draft/pending/available setelah batas tarik, mempertahankan status asli, dan menghitung ulang bagian label.
+- Phase 55 mendeteksi withdrawn orphan setelah cutoff paid untuk seluruh label, memblokir riwayat ambigu, memulihkan baris secara guarded, menghitung ulang rate terkini, dan memperbarui snapshot saldo.
+- RCA production F - Audio membuktikan formula 50% benar; sumber selisih adalah komposisi royalty lines aktif/withdrawn dan stored pending negatif, bukan potongan tambahan.
+- Label Management available balance now uses the same live source-of-truth computation as Label Detail.
+- Password reset email hardening, existing-label Google Login, and production R2 apex/`www` CORS repair.
+- Manual legacy withdraw dengan amount otomatis, background settlement, rekonsiliasi saldo, dan label visibility guard.
+- Multi-device JWT sessions and global revocation.
+- Login password visibility.
+- Safe admin deletion/restoration and `admin_marketing` access.
+- Two-sided bank-account approval.
+- Expanded release metadata and submission notifications.
+- Post-approval combined PPR invoice.
+- Content ID YouTube link.
+- Add-on edit/delete/archive.
+- Copyright PDF with CMS signature/stamp.
+- Monthly royalty emails and background completion notifications.

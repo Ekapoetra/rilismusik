@@ -1,0 +1,13 @@
+{
+  "name": "rilis-musik-prototype-handoff",
+  "version": "13.0.0",
+  "private": true,
+  "scripts": {
+    "preview": "node serve.cjs",
+    "build": "node prototype-v13.0/build.cjs",
+    "verify": "node prototype-v13.0/qa/verify130.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

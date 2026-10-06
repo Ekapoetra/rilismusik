@@ -1,0 +1,13 @@
+PARKED DECISIONS — DO NOT TREAT PROPOSALS AS APPROVED
+
+Token: name accepted as a direction; proposed prices, two-wallet split, allocation, monthly grants, album bundle rates/conversion and migration were parked after the user rejected the latest pricing proposal. Preserve current credit mechanics until reopened.
+Packages: Basic/Studio/Pro/Business direction accepted; Studio/Pro benefits were discussed, WAMI/promotion quotas desired, but final quantities, pricing/capacity/revisions, upgrade/downgrade/prorata and detailed Business are not finished. Legacy benefits keep expiry and valid purchased rights.
+Emblems: purpose/royalty thresholds and deletion/redesign were discussed then parked. No new reward based on untrusted legacy cumulative royalty data. Do not silently remove old earned rights or automate historic bonuses.
+Legacy activation/claim/migration: ownership evidence, contact recovery, existing KTP/contracts, balances and historic rights need a verified transition. Keep M01-G01/G02/G03 from the historical notes visible until explicitly resolved.
+Money: master-child ownership of historical income after reassignment; legacy balances and bank snapshots; distributor partial/FX receipts; adjustments after payment; reconciliation of company cash versus label liabilities. Production/server enforcement remains work to do.
+Staff confirmation: WAMI form/required documents/catalog reuse/acceptance evidence/eligibility; work time targets and KPI weights; promotion image active work versus rendering/video duration; capacity per service.
+Insights per role: contents for growth/interesting facts are not fully finalized. Do not duplicate operational attention warnings as insights.
+Artist verification basis remains deferred. Seasonal-theme administration and broad layout customization are not approved. Office 3D is cancelled, not parked.
+AI-agent services are a package/service direction to evaluate; no live autonomous service or paid entitlement has been implemented by merely describing it.
+
+See context-history/analysis-v10/PACKAGE-DECISIONS.md and context-history/RANCANGAN-VERSI-BERIKUTNYA.md for the discussion trail. Later explicit instructions override earlier suggestions; if evidence is incomplete say so.

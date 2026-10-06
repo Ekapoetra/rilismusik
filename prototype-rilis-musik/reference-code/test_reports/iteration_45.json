@@ -1,0 +1,46 @@
+{
+  "summary": "Executed requested backend + frontend verification for Phase55 orphan-withdrawn recovery and balance-audit workflow on preview environment. All targeted regression suites passed and UI audit panel interactions rendered successfully.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Admin Withdraw list",
+        "issues": [
+          "Tailwind class typo `bg-amber-500/100/15` in STATUS_PILL.requested likely invalid and may cause inconsistent badge styling."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase55_orphan_withdrawn_recovery.py",
+    "/app/backend/tests/test_phase38_balance_reconciliation.py",
+    "/app/backend/tests/test_iter33_balance_audit_api.py",
+    "/app/test_reports/pytest/iter45_balance_audit_regressions.xml"
+  ],
+  "action_items": [
+    "Fix requested-status pill class typo in `/app/frontend/src/pages/admin/Withdraw.jsx` (`bg-amber-500/100/15`).",
+    "Optional: suppress/handle expected pre-login `/api/auth/me` 401 console noise if cleaner logs are desired."
+  ],
+  "critical_code_review_comments": [
+    "Balance audit preview correctly derives effective cutoff as max(label.last_withdrawn_period, max paid period_to), with missing paid period_to guarded via `blocked_withdraw_history`.",
+    "Commit path restores only withdrawn lines strictly after effective cutoff, clears legacy settlement flags, tags restored lines, and recalculates unsettled lines using current label percentage.",
+    "Audit/rows endpoints consistently project `_id: 0`, and ObjectId serialization leakage was not reproduced in tested flows."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_45.json"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 passed)",
+    "frontend": "100% (requested audit panel flow passed)"
+  },
+  "seed_data_creation": "No standalone seed script executed. Backend regression tests created isolated temporary labels/royalty lines/withdraw data and cleaned up in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Playwright validated login -> /admin/withdraw -> Audit Saldo panel toggle -> preview run -> summary cards (including orphan/blocked-history/cutoff-sync), blocked-history filter, orphan columns, and confirmation text visibility. Commit button rendering was visible but intentionally not executed in UI to avoid broad global data mutation; commit behavior already validated via backend regression tests.",
+  "rca of the issue": "Original discrepancy risk stemmed from withdrawn royalty lines existing after paid cutoff without comprehensive guard/recovery logic. Current implementation mitigates by deriving effective cutoff from paid history, blocking ambiguous paid history (missing period_to), and only restoring post-cutoff withdrawn lines before recalculating current-rate balances. No unresolved API failures were reproduced in this run. No application API flow is MOCKED."
+}

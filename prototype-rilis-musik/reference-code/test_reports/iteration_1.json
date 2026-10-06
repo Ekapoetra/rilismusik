@@ -1,0 +1,50 @@
+{
+  "summary": "Comprehensive backend pytest (27 tests, 26 pass + 1 xfail) covering auth/register/login/me/logout/forgot+reset, super-admin seed login, release draft validation (today+7 rule), submit guards (cover/contract), payment (Rp35k pay-per-release + Rp500k subscription) with mock-pay activation, admin dashboard/labels/release actions, CMS landing GET+PATCH persistence, admin-user creation with role guard, artist sub-account creation+login+role restrictions, and activity logs. Fixed 2 critical backend bugs while testing (MongoDB _id serialization in /auth/register response and in /admin/activity-logs). Frontend smoke-tested landing page (simulator + FAQ work) and admin login from UI (could not confirm redirect within 3s wait).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/register", "issue": "Returned 500 because label_doc still contained MongoDB ObjectId _id after insert_one before being returned in JSON. FIXED by popping _id after insert.", "priority": "CRITICAL"},
+      {"endpoint": "GET /api/admin/activity-logs", "issue": "Returned 500 because log_activity stored `before`/`after` dicts that included the source document's _id ObjectId (e.g. in admin_update_label `before=label` had _id). Subsequent list endpoint hit ObjectId serialization. FIXED by stripping _id in log_activity helper.", "priority": "CRITICAL"},
+      {"endpoint": "POST /api/auth/login", "issue": "Brute-force lockout is ineffective behind the K8s ingress. `identifier = f\"{request.client.host}:{email}\"` resolves to different internal pod IPs (10.208.138.130, .133, etc.) per request because uvicorn does not honour X-Forwarded-For by default. Verified by running 7 wrong logins for one email and observing the DB has two distinct identifier rows. Lockout never engages in production-like env.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/auth/forgot-password", "issue": "Returns `reset_token` in response body (by design for MVP per dev notes). Remove before going to production."},
+      {"endpoint": "POST /api/auth/register", "issue": "Returns `verification_token` in response (by design for MVP). Remove before production."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Admin login from /login UI", "issue": "After filling superadmin@rilismusik.com / SuperAdmin#2026 and clicking Masuk, URL stayed at /login after 3s wait. Backend login API works fine (confirmed via pytest). Could be: (a) AuthContext does not redirect to /admin/dashboard for super_admin role, (b) submit handler bound to wrong button, or (c) need longer wait. Main agent should verify the login button onClick and the role-based redirect logic in AuthContext/Login.jsx.", "affected_selectors": ["button:has-text('Masuk')", "form on /login"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_rilismusik_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "VERIFY admin login UI redirect to /admin/dashboard works in browser (backend API confirmed working).",
+    "Fix brute-force lockout to derive client IP from `X-Forwarded-For` / `X-Real-IP` header (or trust proxy via ProxyHeadersMiddleware with trusted_hosts='*') so identifier is stable across pods.",
+    "Before production: remove `verification_token` and `reset_token` from API response bodies once an email provider is integrated.",
+    "Optional: in /api/releases/draft and similar paths, fix /api/releases/ list endpoint with trailing slash and CORS preflight handling for consistency."
+  ],
+  "critical_code_review_comments": [
+    "log_activity was inserting raw Mongo docs (containing ObjectId) into activity_logs; fixed but also reconsider storing only diffs/key fields rather than entire `label` document.",
+    "register endpoint returned `label_doc` mutated by Motor with _id — pattern recurs elsewhere; consider helper to strip _id from any doc before returning.",
+    "Brute-force counter resets count to 0 after lock (line 219), so after the 15-min window the attacker has a clean slate — fine but document.",
+    "CORS allows credentials with `allow_origins=[frontend_url, 'http://localhost:3000']` — good. Verify FRONTEND_URL env always matches deployed origin.",
+    "Email verification + password reset tokens are returned in API responses (MVP-only). Mark TODO before prod.",
+    "/api/releases/ uses trailing slash — frontend axios calls should match to avoid 307 redirect issues."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fixed _id leak in register + log_activity)",
+    "/app/backend/tests/test_rilismusik_api.py (new comprehensive pytest suite)"
+  ],
+  "success_rate": {"backend": "96% (26/27, 1 xfail security issue)", "frontend": "partial — landing OK, admin login redirect not confirmed"},
+  "test_credentials": "Super Admin superadmin@rilismusik.com / SuperAdmin#2026 (works via API). Test labels are generated dynamically with TEST_ prefix.",
+  "seed_data_creation": "Tests create disposable TEST_*@example.com labels/artists; no cleanup implemented but all are prefixed.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/test_rilismusik_api.py — run with `pytest -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. The xfail in test_brute_force_lockout_after_5 documents a real K8s-ingress issue that requires fixing client-IP detection. Frontend: landing page, simulator and FAQ work; admin login UI flow needs verification — backend `/api/auth/login` confirmed working with super-admin creds.",
+  "rca_of_the_issue": "Two related serialization bugs: Motor's insert_one mutates the dict in place with an ObjectId at `_id`, so any code path that returned a recently-inserted document (auth/register response, log_activity's `before` field from a non-projected find_one) leaked ObjectId into FastAPI's JSON encoder which then raises 500. Mitigation: always project `{'_id': 0}` when reading or pop after insert; activity-log helper now strips _id from both before/after."
+}

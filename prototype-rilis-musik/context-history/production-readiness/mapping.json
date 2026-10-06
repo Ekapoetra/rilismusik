@@ -1,0 +1,243 @@
+{
+  "version": "12.0",
+  "date": "2026-10-03",
+  "scope": "Pemetaan statis kesiapan penerapan, berdasarkan prototipe terbit dan salinan repo lokal. Bukan pengujian atau penerapan produksi.",
+  "statuses": {
+    "ready_design": "Siap sebagai rancangan",
+    "needs_integration": "Membutuhkan integrasi",
+    "needs_team_decision": "Membutuhkan keputusan tim"
+  },
+  "sources": {
+    "release": "prototype-v12.0/qa/release-verification.json",
+    "qa": "prototype-v12.0/qa/verification120.json",
+    "navigation": "production-readiness-v12.0-2026-10-03/navigation.json",
+    "roadmap": "repo-reference-v10/memory/ROADMAP.md",
+    "decisions": "RANCANGAN-VERSI-BERIKUTNYA.md",
+    "packagesDiscussion": "analysis-v10/PACKAGE-DECISIONS.md",
+    "staffDiscussion": "analysis-v10/STAFF-OPERATIONS-INPUT.md",
+    "insightsDiscussion": "analysis-v10/INSIGHT-DRAFT.md",
+    "wamiDiscussion": "analysis-v10/WAMI-CREDIT-GUIDE-DISCUSSION.md",
+    "auth": "repo-reference-v10/backend/routes/auth.py",
+    "models": "repo-reference-v10/backend/models.py",
+    "kyc": "repo-reference-v10/backend/routes/kyc.py",
+    "kycService": "repo-reference-v10/backend/routes/kyc_service.py",
+    "labels": "repo-reference-v10/backend/routes/labels.py",
+    "adminLabels": "repo-reference-v10/backend/routes/admin_label_service.py",
+    "claims": "repo-reference-v10/backend/routes/migrate.py",
+    "bankChange": "repo-reference-v10/backend/routes/bank_change_service.py",
+    "bankDirectory": "repo-reference-v10/backend/bank_data.py",
+    "contracts": "repo-reference-v10/backend/routes/contracts.py",
+    "dashboard": "repo-reference-v10/backend/routes/admin_dashboard_service.py",
+    "labelDashboard": "repo-reference-v10/backend/routes/label_analytics.py",
+    "work": "repo-reference-v10/backend/routes/work_service.py",
+    "releases": "repo-reference-v10/backend/routes/releases.py",
+    "releaseWorkflow": "repo-reference-v10/backend/routes/release_workflow_service.py",
+    "royalty": "repo-reference-v10/backend/routes/royalty.py",
+    "royaltyAdjustments": "repo-reference-v10/backend/routes/royalty_adjustments.py",
+    "royaltyDuplicate": "repo-reference-v10/backend/routes/royalty_duplicate_audit.py",
+    "withdraw": "repo-reference-v10/backend/routes/withdraw.py",
+    "multiLabel": "repo-reference-v10/backend/routes/multi_label_merge.py",
+    "payments": "repo-reference-v10/backend/routes/payments.py",
+    "fulfillment": "repo-reference-v10/backend/payment_service.py",
+    "refunds": "repo-reference-v10/backend/routes/refund_service.py",
+    "reconciliation": "repo-reference-v10/backend/routes/xendit_reconciliation.py",
+    "entitlements": "repo-reference-v10/backend/routes/entitlements.py",
+    "packages": "repo-reference-v10/backend/routes/label_package_service.py",
+    "addons": "repo-reference-v10/backend/routes/addon_orders.py",
+    "wami": "repo-reference-v10/backend/routes/wami.py",
+    "tickets": "repo-reference-v10/backend/routes/tickets.py",
+    "takedown": "repo-reference-v10/backend/routes/ticket_takedown_service.py",
+    "contentid": "repo-reference-v10/backend/routes/contentid_service.py",
+    "cms": "repo-reference-v10/backend/routes/cms.py",
+    "permissions": "repo-reference-v10/backend/routes/admin_permission_service.py",
+    "access": "repo-reference-v10/backend/routes/admin_access.py",
+    "deps": "repo-reference-v10/backend/routes/deps.py",
+    "staff": "repo-reference-v10/backend/routes/staff.py",
+    "performance": "repo-reference-v10/backend/routes/performance_service.py",
+    "compensation": "repo-reference-v10/backend/routes/compensation_service.py",
+    "chat": "repo-reference-v10/backend/routes/chat.py",
+    "notifications": "repo-reference-v10/backend/routes/notifications.py",
+    "storage": "repo-reference-v10/backend/storage_service.py",
+    "startup": "repo-reference-v10/backend/server.py",
+    "layout": "repo-reference-v10/frontend/src/components/shared/AdminLayout.jsx",
+    "profile": "repo-reference-v10/frontend/src/pages/label/Profile.jsx",
+    "protoDashboard": "prototype-v12.0/v106.js",
+    "protoWork": "prototype-v12.0/v114-integrations.js",
+    "protoLabels": "prototype-v12.0/v102.js",
+    "protoIdentity": "prototype-v12.0/pending-model.js",
+    "protoOnboarding": "prototype-v12.0/v105-onboarding.js",
+    "protoClaims": "prototype-v12.0/v120.js",
+    "protoDocument": "prototype-v12.0/document-workflow.js",
+    "protoDirectory": "prototype-v12.0/directories-integration.js",
+    "protoRoyalty": "prototype-v12.0/v107-model.js",
+    "protoWithdraw": "prototype-v12.0/v108-model.js",
+    "protoRelease": "prototype-v12.0/v105-model.js",
+    "protoTransactions": "prototype-v12.0/transactions113-model.js",
+    "protoAddons": "prototype-v12.0/addons111-model.js",
+    "protoWami": "prototype-v12.0/wami11-model.js",
+    "protoTickets": "prototype-v12.0/tickets112-model.js",
+    "protoCredit": "prototype-v12.0/credit11-model.js",
+    "protoCommerce": "prototype-v12.0/v104-commerce.js",
+    "protoRewards": "prototype-v12.0/v119.js",
+    "protoSystem": "prototype-v12.0/system115-model.js",
+    "protoAccess": "prototype-v12.0/staff114-model.js",
+    "protoStaff": "prototype-v12.0/v7.js",
+    "protoCompensation": "prototype-v12.0/v6.js",
+    "protoPreferences": "prototype-v12.0/v111-ui.js",
+    "protoGuide": "prototype-v12.0/v11-policy.js",
+    "protoHistory": "prototype-v12.0/v115-activity.js",
+    "protoStudio": "prototype-v12.0/preview-studio.js",
+    "protoPersistence": "prototype-v12.0/storage117.js",
+    "artists": "repo-reference-v10/backend/routes/artists.py",
+    "artistDashboard": "repo-reference-v10/frontend/src/pages/artist/Dashboard.jsx",
+    "appRoutes": "repo-reference-v10/frontend/src/App.js"
+  },
+  "menus": [
+    {
+      "name": "Dashboard", "status": "needs_integration", "prototype": ["protoDashboard"], "repo": ["dashboard", "labelDashboard"],
+      "foundation": "Ringkasan admin dan analitik label sudah memiliki sumber server.",
+      "remaining": "Hubungkan kartu, atensi dan grafik ke sumber yang sama dengan halaman detail; pisahkan data Platform dan Staff. Peta memerlukan Lokasi terstruktur. Isi Wawasan per peran masih menunggu pembahasan.", "decisions": ["insights"]
+    },
+    {
+      "name": "Pekerjaan Saya", "status": "needs_integration", "prototype": ["protoWork"], "repo": ["work"],
+      "foundation": "Antrean, riwayat dan konfigurasi waktu pekerjaan tersedia.",
+      "remaining": "Samakan status dan penanggung jawab rilisan, tiket, layanan, klaim, serta penarikan. Pengalihan mempertahankan tahap dan tenggat; target waktu baru perlu verifikasi staf.", "decisions": ["staffRules"]
+    },
+    {
+      "name": "Manajemen Label", "status": "needs_integration", "prototype": ["protoLabels", "protoWork"], "repo": ["adminLabels", "labels", "packages"],
+      "foundation": "Daftar, rincian label dan perubahan paket administratif sudah tersedia.",
+      "remaining": "Petakan akun pemilik, label anak, status operasional, izin dokumen dan saldo kredit tersedia. Jangan menyamakan paket lama dengan paket baru berdasarkan namanya.", "decisions": ["transition", "packages"]
+    },
+    {
+      "name": "Kontrak Label", "status": "needs_integration", "prototype": ["protoRoyalty", "protoIdentity"], "repo": ["contracts", "kycService"],
+      "foundation": "Unggah, daftar, rincian, perpanjangan dan pengakhiran kontrak tersedia.",
+      "remaining": "Terapkan menu pengelolaan khusus Super Admin dan kaitkan persetujuan aktivasi dengan versi dokumen. Pertahankan kontrak dan bukti lama yang sah.", "decisions": ["transition"]
+    },
+    {
+      "name": "Pemantauan Royalti", "status": "needs_integration", "prototype": ["protoRoyalty", "protoRewards"], "repo": ["royalty", "dashboard"],
+      "foundation": "Perhitungan royalti dan ringkasan keuangan dapat digunakan sebagai dasar.",
+      "remaining": "Tambahkan sumber server untuk emblem, Bonus dari Rilis Musik, status klaim bonus dan kredit tersedia. Hubungkan pembayaran ke pencapaian tepat sekali. Pisahkan saldo awal historis dari hadiah baru.", "decisions": ["historicRewards"]
+    },
+    {
+      "name": "Standar & Penanda", "status": "ready_design", "prototype": ["protoGuide", "protoCredit"], "repo": ["models", "entitlements"],
+      "foundation": "Susunan panduan indikator dan penggunaan kredit tersedia dalam prototipe.",
+      "remaining": "Port komponen panduan dan ambil aturan dari konfigurasi versi yang sama dengan proses layanan. Angka penggunaan kredit masih memerlukan verifikasi staf.", "decisions": ["creditServices"]
+    },
+    {
+      "name": "Rilisan", "status": "needs_integration", "prototype": ["protoRelease"], "repo": ["releases", "releaseWorkflow"],
+      "foundation": "Draft, metadata, cover, WAV, revisi, distribusi, UPC/ISRC dan tayang tersedia.",
+      "remaining": "Tambahkan reservasi dan penyelesaian kredit per lagu, tayang parsial EP/Album, hasil distributor serta jadwal Standard/Express/MAX. Validator repo masih menetapkan minimal tujuh hari untuk semua layanan.", "decisions": ["creditServices", "staffRules"]
+    },
+    {
+      "name": "Royalti", "status": "needs_integration", "prototype": ["protoRoyalty"], "repo": ["royalty", "royaltyAdjustments", "royaltyDuplicate"],
+      "foundation": "Impor, pemetaan, publikasi, duplikasi dan penyesuaian mempunyai layanan server.",
+      "remaining": "Petakan status laporan, kurs/rate, sumber penerimaan, koreksi dan pembukuan lama ke UI baru. Buktikan kesamaan saldo dari laporan asal sampai hak akun pemilik.", "decisions": ["royaltyCorrections", "masterHistory"]
+    },
+    {
+      "name": "Penarikan", "status": "needs_integration", "prototype": ["protoWithdraw"], "repo": ["withdraw", "multiLabel"],
+      "foundation": "Penarikan penuh, saldo gabungan, rekening snapshot dan riwayat pembayaran tersedia.",
+      "remaining": "Ambang baru inklusif Rp1 juta; satu pengajuan dan satu pembayaran eksternal milik master. Sesuaikan penundaan/perbaikan, status pembayaran belum pasti, memo bank, serta bukti transfer opsional yang tidak diwajibkan dalam rancangan baru.", "decisions": ["transition", "masterHistory", "royaltyCorrections"]
+    },
+    {
+      "name": "Transaksi", "status": "needs_integration", "prototype": ["protoTransactions"], "repo": ["payments", "fulfillment", "refunds", "reconciliation"],
+      "foundation": "Xendit, konfirmasi status, pemenuhan sekali, refund manual dan pencocokan sudah tersedia.",
+      "remaining": "Tambahkan pembelian kredit, paket menunggu aktivasi, pemenuhan parsial, kasus penelusuran dan refund penuh/sebagian lintas jenis pembelian. Refund lama berfokus pada pembayaran rilisan ditolak/dihapus.", "decisions": ["packages", "refundPolicy"]
+    },
+    {
+      "name": "Layanan Tambahan", "status": "needs_integration", "prototype": ["protoAddons"], "repo": ["addons", "payments"],
+      "foundation": "Produk, pembayaran, daftar pesanan, status dan hasil layanan tersedia.",
+      "remaining": "Hubungkan satuan layanan, kelengkapan, revisi, penawaran penyelesaian dan hasil parsial dengan pesanan asal. Jangan mengenakan kredit layanan sebelum tarif serta satuannya disetujui.", "decisions": ["creditServices", "refundPolicy"]
+    },
+    {
+      "name": "Registrasi WAMI", "status": "needs_team_decision", "prototype": ["protoWami"], "repo": ["wami", "payments"],
+      "foundation": "Pesanan, pembayaran/benefit, status, hasil dan impor migrasi WAMI tersedia.",
+      "remaining": "Staf perlu memastikan kolom/dokumen wajib, data katalog yang boleh dipakai ulang, syarat tayang dan bukti hasil. Sesudah itu hubungkan tahapan dan tindak lanjut versi baru.", "decisions": ["wami", "creditServices"]
+    },
+    {
+      "name": "Tiket Bantuan", "status": "needs_integration", "prototype": ["protoTickets"], "repo": ["tickets", "contentid", "takedown"],
+      "foundation": "Kasus, percakapan, lampiran, Content ID dan hubungan takedown tersedia.",
+      "remaining": "Samakan kategori dan tahap; permintaan kelengkapan harus eksplisit. Katalog berubah setelah hasil terkonfirmasi. Bedakan pelepasan klaim video dan penonaktifan Content ID; verifikasi persyaratan distributor.", "decisions": ["contentId"]
+    },
+    {
+      "name": "Sistem", "status": "needs_integration", "prototype": ["protoSystem", "protoHistory"], "repo": ["cms", "access", "work", "deps"],
+      "foundation": "Konten publik, navigasi, pengaturan pekerjaan dan log aktivitas tersedia.",
+      "remaining": "Tambahkan draf/publikasi/versi, kalender per tahap, tinjauan dampak pekerjaan berjalan dan riwayat yang menyamarkan data sensitif. Navigasi tidak memberikan izin tindakan.", "decisions": ["staffRules"]
+    },
+    {
+      "name": "Penyesuaian Data Label", "status": "needs_integration", "prototype": ["protoIdentity", "protoDirectory", "protoDocument"], "repo": ["adminLabels", "labels", "bankChange", "kyc"],
+      "foundation": "Pengelolaan label, perubahan rekening dan peninjauan dokumen menjadi dasar.",
+      "remaining": "Buat perubahan identitas terstruktur dengan nilai lama/usulan, versi, alasan dan akses KTP. Super Admin tidak mengganti nomor rekening. Dukung simpan koreksi atau usulan konfirmasi label dan pertahankan alamat asli selama transisi.", "decisions": ["transition"]
+    },
+    {
+      "name": "Paket & Kredit", "status": "needs_team_decision", "prototype": ["protoCommerce", "protoCredit"], "repo": ["entitlements", "packages", "payments"],
+      "foundation": "Repo mengenal Pay Per Release, Annual Normal, Annual VIP dan Multi Label.",
+      "remaining": "Tentukan padanan hak paket lama, harga/benefit paket baru, bulanan/tahunan dan pergantian paket. Tambahkan buku kredit, versi aturan, penawaran serta konfigurasi server; perubahan nama paket tidak cukup.", "decisions": ["packages", "transition", "creditServices"]
+    },
+    {
+      "name": "Ringkasan Tim", "status": "needs_team_decision", "prototype": ["protoStaff"], "repo": ["performance", "work"],
+      "foundation": "Perhitungan kinerja, konfigurasi dan periode server tersedia.",
+      "remaining": "Validasi target, bobot, definisi keterlambatan, sampel dan pekerjaan menunggu pihak luar bersama tim. Tampilkan angka dari sumber kerja nyata; jangan memakai contoh sebagai KPI.", "decisions": ["staffRules"]
+    },
+    {
+      "name": "Profil Saya", "status": "needs_integration", "prototype": ["protoAccess", "protoStaff"], "repo": ["staff", "auth"],
+      "foundation": "Profil pengguna, rincian staff dan data hubungan kerja tersedia.",
+      "remaining": "Satukan identitas akun dengan data staff server dan riwayat perubahan. Pisahkan izin mengedit profil sendiri dari data hubungan kerja atau kompensasi.", "decisions": []
+    },
+    {
+      "name": "Absensi", "status": "needs_integration", "prototype": ["protoStaff"], "repo": ["staff"],
+      "foundation": "Bukti login, kalender, evaluasi kehadiran, izin/cuti dan koreksi tersedia.",
+      "remaining": "Hubungkan kondisi UI dengan sumber server dan buktikan hitungan waktu WIB, koreksi serta periodenya. Aturan yang sudah berjalan perlu dipertahankan sampai perubahan disepakati.", "decisions": ["staffRules"]
+    },
+    {
+      "name": "Kompensasi", "status": "needs_integration", "prototype": ["protoCompensation"], "repo": ["compensation", "staff"],
+      "foundation": "Perhitungan, gaji, tunjangan, bonus kerja dan periode kompensasi tersedia.",
+      "remaining": "Bandingkan hasil prototipe dengan formula dan riwayat server. Pertahankan periode final serta hak staff yang sudah tercatat. Integrasi UI tidak mengesahkan perubahan formula payroll.", "decisions": []
+    },
+    {
+      "name": "Staff & Akses", "status": "needs_integration", "prototype": ["protoAccess", "protoWork"], "repo": ["access", "permissions", "auth", "deps"],
+      "foundation": "Akun admin, peran, izin dan pemeriksaan server tersedia.",
+      "remaining": "Petakan izin dan cakupan label baru, undangan, akses dokumen/rekening, pencabutan sesi serta pengalihan pekerjaan. Pratinjau akses tidak boleh mengirim perubahan.", "decisions": []
+    },
+    {
+      "name": "Preferensi", "status": "ready_design", "prototype": ["protoPreferences"], "repo": ["layout", "access"],
+      "foundation": "Frontend dan pengaturan UI lama tersedia; aturan dua pilihan tema telah dibahas.",
+      "remaining": "Port tema otomatis berdasarkan waktu, pilihan manual light/dark, bahasa, suara dan switch bersama. Jam otomatis saat ini memakai waktu lokal browser; zona waktunya harus diperiksa terhadap acuan layanan. Bedakan preferensi pribadi dari konfigurasi navigasi semua akun.", "decisions": []
+    },
+    {
+      "name": "Profil Label", "status": "needs_integration", "prototype": ["protoIdentity", "protoOnboarding", "protoDirectory"], "repo": ["profile", "labels", "kycService", "bankChange", "contracts"],
+      "foundation": "Identitas, logo, rekening dan kontrak label mempunyai sumber server.",
+      "remaining": "Tambahkan Lokasi dalam identitas, email identitas, normalisasi isian, dokumen asli/hasil proses, perubahan identitas menunggu pemeriksaan dan rekening dengan nama bank manual bila tidak terdaftar.", "decisions": ["transition"]
+    },
+    {
+      "name": "Riwayat", "status": "needs_integration", "prototype": ["protoHistory", "protoTransactions"], "repo": ["notifications", "deps"],
+      "foundation": "Notifikasi serta catatan aktivitas dan transaksi sudah tersimpan di server.",
+      "remaining": "Hubungkan aktivitas label, kredit, bonus, pengajuan dan pembayaran melalui referensi kasus yang sama. Filter hak akun dan hindari menampilkan dokumen atau rekening lengkap di log umum.", "decisions": []
+    }
+  ],
+  "crossCutting": [
+    {"name": "Registrasi, sambutan, aktivasi dan Klaim Label", "status": "needs_integration", "prototype": ["protoOnboarding", "protoClaims"], "repo": ["auth", "claims", "kycService", "payments"], "remaining": "Kontrak lama diwajibkan saat registrasi dan checkout memerlukan verifikasi lengkap. Sesuaikan dengan eksplorasi dashboard, pembelian sebelum aktivasi, kontrak dalam aktivasi serta klaim yang dapat diperbaiki. Metode pembuktian kepemilikan menunggu tim.", "decisions": ["claims", "transition"]},
+    {"name": "Buku kredit, Bonus dari Rilis Musik dan emblem", "status": "needs_integration", "prototype": ["protoCredit", "protoRewards", "protoRelease"], "repo": ["fulfillment", "royalty"], "remaining": "Pada berkas model/rute yang ditelusuri belum ditemukan layanan yang setara dengan buku kredit baru. Perlu sumber server untuk lot kredit, reservasi, konsumsi, pengembalian, kedaluwarsa dan bonus. Klaim bonus dua hari dan kredit aktif setelah klaim; hadiah level mengikuti rancangan yang disetujui, tanpa pemberian historis massal otomatis.", "decisions": ["historicRewards", "creditServices"]},
+    {"name": "Bank dan inventaris Lokasi", "status": "needs_integration", "prototype": ["protoDirectory"], "repo": ["bankDirectory", "models"], "remaining": "Gunakan kode bank/wilayah dan nama tampilan yang stabil, pertahankan input bank luar daftar, serta hierarki provinsi–kabupaten/kota–kecamatan–kode pos. Peta menggunakan lokasi terisi, bukan perkiraan dari alamat atau KTP.", "decisions": ["transition"]},
+    {"name": "Dokumen, foto dan media", "status": "needs_integration", "prototype": ["protoDocument", "protoRelease"], "repo": ["kyc", "storage", "releases"], "remaining": "Hubungkan penyimpanan privat dan pemeriksaan akses untuk dokumen asli serta hasil crop/orientasi; terapkan batas berkas di server. Foto artis opsional dan aset historis kosong. Kebijakan centang artis tetap diparkir.", "decisions": []},
+    {"name": "Chat, notifikasi dan pencarian", "status": "needs_integration", "prototype": ["protoWork", "protoHistory"], "repo": ["chat", "notifications", "permissions"], "remaining": "Hubungkan panel bersama ke data server, cakupan akun, tautan kasus dan status baca. Uji panel buka/tutup, pencabutan izin dan pengiriman ulang. Keandalan SMTP perlu dicek terhadap status terbaru tim.", "decisions": []},
+    {"name": "Komponen UI dan perangkat", "status": "ready_design", "prototype": ["protoPreferences", "protoDashboard"], "repo": ["layout"], "remaining": "Port DNA kartu, panel kanan, switch, tipografi, indikator dan grafik sebagai komponen bersama. Uji Safari/iPad fisik, keyboard, kontras, reduced motion dan formulir panjang pada frontend terintegrasi.", "decisions": []},
+    {"name": "Penyimpanan, izin dan pemulihan", "status": "needs_integration", "prototype": ["protoPersistence", "protoAccess"], "repo": ["deps", "permissions", "storage"], "remaining": "Browser bukan sumber resmi akun, saldo atau keputusan. Implementasi server memerlukan versi data, operasi konsisten lintas catatan, pencegahan tindakan ganda, pencadangan serta pemulihan yang terbukti.", "decisions": []},
+    {"name": "Studio Pratinjau", "status": "ready_design", "prototype": ["protoStudio"], "repo": [], "remaining": "Siap sebagai alat simulasi internal. Pisahkan data contoh dan pergantian akun simulasi dari layanan serta akun produksi; pengemasan frontend produksi perlu memastikan pemisahan ini.", "decisions": []},
+    {"name": "Akun Artis dari website lama", "status": "needs_team_decision", "prototype": ["navigation"], "repo": ["artistDashboard", "appRoutes", "artists", "auth"], "remaining": "Repo memiliki role artist dan rute Dashboard Artis, sedangkan navigasi bawaan V12.0 mencakup Label, Admin dan Super Admin. Tim perlu menentukan kelanjutan akses akun Artis sebelum mengganti rute akun lama. Role artist berbeda dari tipe label independent_artist; kebijakan centang artis tetap diparkir.", "decisions": ["artistAccess"]}
+  ],
+  "decisions": [
+    {"id": "transition", "topic": "Peralihan label lama", "question": "Hak apa yang tetap berjalan selama pembaruan data, apa yang perlu dilengkapi, dan bagaimana paket, saldo, kredit, kontrak serta pekerjaan lama diakui?", "requiredFor": "Peralihan akun lama dan perubahan persyaratan operasional."},
+    {"id": "packages", "topic": "Paket dan perubahan paket", "question": "Apa padanan hak paket lama, benefit/harga baru, durasi, ketentuan perubahan paket dan perlindungan sisa masa aktif?", "requiredFor": "Pemberlakuan paket baru serta migrasi langganan."},
+    {"id": "creditServices", "topic": "Standar penggunaan kredit", "question": "Staf memverifikasi jumlah kredit layanan, waktu penanganan, biaya layanan dan pemisahan kredit rilisan/layanan sebelum tarif tambahan diberlakukan.", "requiredFor": "Angka konfigurasi final dan pembayaran layanan tambahan dengan kredit."},
+    {"id": "historicRewards", "topic": "Emblem dan hadiah historis", "question": "Bagaimana pengakuan level label lama dan anggaran hadiah historis Gold I sampai Diamond III diselesaikan?", "requiredFor": "Pemberian hadiah historis. Hak label bermasalah tetap mengikuti keputusan pengguna; tidak ada pengecualian baru."},
+    {"id": "claims", "topic": "Klaim label lama", "question": "Tim menetapkan bukti kepemilikan, pemeriksa, pemulihan hubungan yang salah dan penanganan konflik pemohon.", "requiredFor": "Penghubungan akun nyata ke label dan hak historisnya."},
+    {"id": "wami", "topic": "Persyaratan WAMI", "question": "Pastikan kolom/dokumen wajib, penggunaan ulang metadata, syarat tayang dan bentuk konfirmasi penerimaan dari staf.", "requiredFor": "Pengajuan WAMI nyata dengan formulir baru."},
+    {"id": "contentId", "topic": "Cakupan dan persyaratan Content ID", "question": "Pastikan dokumen pencipta, cakupan pelepasan klaim video, penonaktifan referensi serta penanganan tiket lama yang maknanya belum jelas.", "requiredFor": "Penerusan permintaan baru dan pemetaan tiket historis."},
+    {"id": "refundPolicy", "topic": "Pengembalian dana", "question": "Tentukan kelayakan penuh/sebagian serta perlakuan hak/layanan yang sudah dipakai; alasan kasus tidak otomatis berarti berhak menerima refund.", "requiredFor": "Keputusan uang dikembalikan pada kasus nyata."},
+    {"id": "masterHistory", "topic": "Hak historis pada perubahan master", "question": "Siapa berhak melihat dan menerima pendapatan sebelum/sesudah perubahan hubungan anak label?", "requiredFor": "Perubahan kepemilikan/cakupan multi-label. Satu pengajuan saldo gabungan sudah disepakati."},
+    {"id": "royaltyCorrections", "topic": "Koreksi dan penerimaan royalti", "question": "Tentukan penyelesaian selisih setelah pembayaran serta penerimaan Believe parsial/valas tanpa mengubah hak historis secara diam-diam.", "requiredFor": "Kasus tersebut saat terjadi pada pembukuan nyata."},
+    {"id": "staffRules", "topic": "Target kerja dan KPI Staff", "question": "Staf memverifikasi kalender, target respons, bobot, sampel dan pengecualian waktu menunggu pihak luar.", "requiredFor": "Pemberlakuan target/KPI baru. Formula payroll lama tidak diubah melalui pemetaan ini."},
+    {"id": "insights", "topic": "Isi Wawasan tiap akun", "question": "Daftar kandidat tetap draf; tentukan informasi, penerima, periode dan sumbernya pada pembahasan tersendiri.", "requiredFor": "Isi Wawasan baru; bukan penghambat integrasi menu inti."},
+    {"id": "artistAccess", "topic": "Kelanjutan akun Artis lama", "question": "Apakah rute dan akses akun Artis yang sudah ada dipertahankan, atau akan memiliki rancangan tersendiri? Jangan mengubah role atau hak mereka otomatis.", "requiredFor": "Penggantian navigasi atau autentikasi website lama secara keseluruhan."}
+  ]
+}

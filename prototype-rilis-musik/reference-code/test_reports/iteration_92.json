@@ -1,0 +1,55 @@
+{
+  "summary": "Backend-only testing of Multi Label (Rp1.5jt/tahun) — Phase 2 account/switcher + Phase 3 free WAMI/account-scoped quota + Phase 1 RBAC regression. Seeded and cleaned up multilabel-qa fixture. 7 core Multi Label assertions PASS, 1 SKIPPED as-instructed (account-wide 8th-submission 429 requires a submittable-release fixture that is out of scope), 2 FAILURES are pre-existing demo_ppr seed regressions (missing logo_storage_key & bank verification_status) that block the KYC gate on /label/account and /releases/submission-quota — NOT a Multi Label code defect.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/label/account (single-label regression)", "issue": "demo_ppr@rilismusik.com fails KYC gate with missing_keys=['logo','bank']; seed_demo_labels does not populate logo_storage_key on the label or verification_status on the bank_account, so the account cannot pass ensure_label_kyc(). This is pre-existing (unrelated to Multi Label) but blocks the single-label no-aggregation regression assertion."},
+      {"endpoint": "/api/releases/submission-quota (single-label regression)", "issue": "Same root cause — demo_ppr KYC-incomplete. Cannot verify limit=7 for the single-label baseline without fixing the demo seed."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter92_multi_label.py",
+    "/app/test_reports/pytest/iter92_ml.xml"
+  ],
+  "results_detail": {
+    "passed": [
+      "Phase2: GET /api/label/account (multi_label) — is_multi_label=true, label_count=2, account_available_idr=5000000, per-label balances sorted [2000000,3000000], primary_label_id & active_label_id present",
+      "Phase2: POST /api/label/active-label switch to mlqa-label-b then back to mlqa-label-a; /label/me reflects switched label",
+      "Phase2: POST /api/label/active-label with forged label_id 'not-mine-xyz' returns 404 (ownership guard)",
+      "Phase3: POST /api/payments/wami {track_id: mlqa-track-a} for Multi Label → response {order:{amount_idr:0,status:pending,is_free_vip:true,benefit_source:'multi_label'}, invoice:null, free_vip:true}",
+      "Phase3: GET /api/releases/submission-quota (multi_label) returns limit=7 (account-scoped)",
+      "Phase1: Super Admin PATCH /api/admin/labels/mlqa-label-b/package {package:multi_label, expires_on, reason, expected_revision, confirm} → 200 (labels.multi_label.manage granted)",
+      "Phase1: Admin Finance (finance1) PATCH same endpoint with same body → 403 (permission denied for labels.multi_label.manage)"
+    ],
+    "skipped": [
+      "Phase3 account-wide quota 8th-submission enforcement (429) — requires driving 8 real release submissions across both labels; infeasible without submittable-release fixture, as noted allowed in the task",
+      "Phase3 paid-WAMI regression for demo_ppr — blocked by demo_ppr KYC issue (couldn't list releases to pick a track_id)"
+    ],
+    "failed_env_only": [
+      "Phase2 single-label /label/account (demo_ppr KYC seed regression)",
+      "Phase3 single-label quota (demo_ppr KYC seed regression)"
+    ]
+  },
+  "action_items": [
+    "OPTIONAL (unrelated to Multi Label): Fix scripts/seed_demo_labels.py to also stamp a logo_storage_key on the demo_ppr label and set bank_accounts.verification_status='verified' so demo_ppr and demo_vip actually satisfy ensure_label_kyc() as the doc claims ('fully provisioned with bank verified'). Main agent may verify by curl: login demo_ppr → GET /api/label/account should be 200. Without this, any single-label regression touching a non-KYC-allowed endpoint fails.",
+    "AFTER TESTING: MLQA fixture already cleaned up (python -m scripts.seed_multilabel_fixture cleanup executed successfully)."
+  ],
+  "critical_code_review_comments": [
+    "labels.py /label/account cleanly returns account_available_idr=null for single-label accounts (no side effect) and =SUM(children) for multi_label — matches spec.",
+    "labels.py /active-label ownership check uses in-memory 'any(...)' over get_labels_for_user(user); 404 works but returned message text is Indonesian ('Label tidak ditemukan pada akun ini') — good UX and doesn't leak whether the label exists elsewhere.",
+    "payments.py free-WAMI path correctly bypasses Xendit and stamps benefit_source='multi_label'; response shape wraps order under 'order' key (not documented in the review request — tests were adjusted accordingly).",
+    "label_package_service.py enforces optimistic concurrency (expected_revision) and audit trail on package changes — good. Requires expires_on for annual packages (including multi_label) — the review-request curl example needs to include this or it 422s.",
+    "deps.KYC_ALLOWED_LABEL_PREFIXES does NOT include /api/label/account — arguable UX gap (a Multi Label owner with a KYC-incomplete SECONDARY label may still expect to see the account summary). Not tested to fail here because mlqa fixture provisions KYC on both children; flagging as design consideration only."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter92_multi_label.py (new)"
+  ],
+  "success_rate": {"backend": "78% (7/9 executable, 2 blocked by unrelated demo_ppr seed)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "Used from /app/memory/test_credentials.md and the fixture seed script. Multi Label QA: multilabel-qa@example.com / MultiLabelQA#2026 (seeded/cleaned up).",
+  "seed_data_creation": "python -m scripts.seed_multilabel_fixture seed (before tests) — cleaned up via cleanup command after. Also ran python -m scripts.seed_demo_labels to refresh demo_ppr/demo_vip; that seed does not currently include KYC (logo/bank verification).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Multi Label feature is functionally correct on the backend. Only lingering gap for regression is demo_ppr's incomplete KYC (missing logo + bank verified). If the seed_demo_labels script is updated to fully KYC-verify the demo labels, re-run /app/backend/tests/test_iter92_multi_label.py — expected result is all 8 non-skipped tests PASS. To re-exercise the free-WAMI branch, remember to cleanup+seed the MLQA fixture each time (WAMI 400s idempotently once the track has an active order).",
+  "rca of the issue": "Two failing single-label regression tests all trace to the same root cause: seed_demo_labels.py provisions balance & releases but not the KYC artifacts (label.logo_storage_key, bank_accounts.verification_status='verified'). ensure_label_kyc() in kyc_service therefore returns status='incomplete' with missing_keys=['logo','bank'], and require_label() (deps.py line 75-77) enforces KYC on /api/label/account and /api/releases/submission-quota because those paths are not in KYC_ALLOWED_LABEL_PREFIXES. Mitigation: extend seed_demo_labels to also set logo_storage_key + a verified bank record; alternatively, add /api/label/account to KYC_ALLOWED_LABEL_PREFIXES (design call — a Multi Label owner might legitimately want to see the account summary before completing KYC on every child)."
+}

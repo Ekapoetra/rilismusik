@@ -1,0 +1,25 @@
+{
+  "date": "2026-09-10",
+  "status": "requested_features_passed_with_smtp_observation",
+  "backend": {
+    "initial_passed": 7,
+    "initial_failed": 1,
+    "cover_retest_passed": 1,
+    "resolved": "Internal-cover500 was unresolved Depends from manually calling require_label with the user as Request. Correct dependency composition now enforces existing KYC and permissions. Owner/admin writes succeed, foreign/no-permission writes fail. Finance read200 is intended releases.view access; finance write403 verified.",
+    "evidence": "/app/test_reports/pytest/iter70_internal_cover_retest.xml",
+    "note": "Did not repeat the other7 bulk-submit tests to avoid additional real SMTP fanout. Original8 scenario groups are covered by initial and targeted results."
+  },
+  "frontend": [
+    "Blank optional global artist URL accepted through save/reload.",
+    "Track0 new featured artist and track1 owned saved artist persist independently; release-level featuring preserved.",
+    "Real canonical web image loads; owner internal artwork upload and admin replacement appear in both lists, clear internal-only marker, protected cookie image read.",
+    "No horizontal overflow at320/768/1024/1440 for list/quota/artwork and track editor.",
+    "At7/7, new submission disabled but draft saves and file readiness stays accurate. Same-day counted rejected release editable and submit enabled.",
+    "Admin ticket initial fetch race reproduced with2responses; request sequence and dirty-field fix verified immediate Done selection/note persistence.",
+    "Support confirmation dismiss no change; confirm completes takedown, owner sees synced state. DB checked exactly1taken_down history event and unchanged canonical artwork/UPC."
+  ],
+  "test_fixture_limits": "UI quota saturation/retry state was explicitly prepared on an isolated label ledger; backend limit/resubmission/concurrency rules were separately API-tested. Main UI checks did not send release-submission emails. No mocked application APIs or fake DSP delivery.",
+  "build": "Final production frontend build compiled successfully with no lint warnings, existing bundle-size advisory only.",
+  "cleanup": "Main fixture iter70-1d62406d@example.com retired. Own user/label/web+legacy releases, private+canonical R2 artwork, own artist, quota ledger, support ticket/comments/notifications/audit and operation guards removed. No remaining main fixture records.",
+  "remaining": ["Existing SMTP fanout logged notification timeouts under parallel submit load. Release persistence and quotas succeeded; email delivery reliability remains P1 and was not fixed or claimed verified."]
+}

@@ -1,0 +1,39 @@
+CURRENT PROJECT CONTEXT — LATEST INSTRUCTIONS TAKE PRECEDENCE
+
+1. PURPOSE AND STATE
+Rilis Musik manages music releases, labels and master accounts, royalties/withdrawals, purchases/additional services/WAMI, support, staff tasks, attendance/compensation and permissions. Roles: Label, Admin, Super Admin. Indonesian/English and light/dark themes must remain supported. The prototype uses local browser state and simulations. The historical application has separate frontend/backend code. Prototype behavior does not establish that server authorization, cross-device persistence or production accounting exists.
+Current pointer: V13.0. V12.5 is an older standalone file; it does not update automatically. The latest preview must always be checked against the actual released artifact. The prior incident was an in-app tab still opening that V12.5 file despite a newer release.
+
+2. LATEST UI REQUESTS
+- Header navigation and greeting/insight area must share one continuous header design. Expanded navigation controls remain readable; collapsing must leave a plain consistent header with no shadow or dark strip.
+- Greeting variations and a useful platform summary; no unnecessary date, Rilis Musik label or extra greeting CTA buttons.
+- Insights: background-dependent transparent glass, no hover animation or decorative card animation. Keep attention/action warnings separate from growth/news insights. Search, notifications and chat panels must be opaque, readable and above the insight layer.
+- Header appearance: current card and upload new design only. Direct drag/resize for placement and size with immediate effect. No sliders, preset editor or a general Customize Layout system. This limited header editor is a later explicit exception to the user's earlier rejection of general layout customization.
+- Switching Platform/Staff must preserve the current expanded/collapsed header state; never close then reopen it. Ordinary navigation should smoothly fold the greeting portion as intended.
+- Scrolling up deep in the dashboard must not suddenly reopen the greeting; only reopen at the top boundary.
+- Four small centered header icons: Home plus dedicated financial monitoring, Staff & Access, Platform Settings. In the three dedicated areas hide the normal sidebar; center the title and submenu without extra prose. Unselected header icons have no outline frame.
+- Sidebar neutral black/white, without its own enclosing card; clicking empty sidebar area toggles it, clicking a menu still navigates. Do not restore a separate open/close button.
+- Compact search, slightly longer field; no CTRL K label. Clicking toggles the search panel. Theme-appropriate foreground/background.
+- Theme switch has two visible positions (light/dark); default auto-by-time is not a third visible choice. Smooth transitions; temporary icon during switching. Platform/Staff switch should feel comparably smooth and balanced.
+- Max font weight 600 (semibold), plus regular/light. Clear ratios; do not solve layout by excessively small text or empty space.
+- Dashboard retains attention, five uniform work summary cards, queue, My Work, period withdrawals, five platform metric cards and member distribution. Remove the standalone In Progress dashboard card. Preserve work step progress in My Work.
+- Arrow buttons: chevrons without stems; right for navigation, down/up for expand/collapse. Preserve circular button shape. Hover black with white arrow in light mode, inverse in dark mode. Colored percentage metrics use directional chevrons and sufficiently saturated colors in dark mode.
+- All status indicators share one compact design: soft fills, filled bullet, readable color. Bright mustard for Priority. Pulse only Priority/Overdue bullets; no pulse on every indicator. Attention red icon has requested subtle pulse/glow; no thick red border.
+- Progress bar uses the actual workflow's step count. Same total track length across My Work items, small circles with visible checks, identity-colored progress in both themes. Current step pulses rather than a spinner.
+- Withdrawals card uses neutral surfaces. Five platform cards have real colored percentage changes. Member map/text must be readable without identity-colored body text. No redundant platform summary heading or subheadings for Queue/My Work/Member Distribution.
+- Staff overview profile selector must be centered above the card group. Clicking a person changes every relevant card; next/previous and swipe use a smooth horizontal slide. Permissions and staff identity must not change as an accidental consequence of viewing another profile.
+- Entire office/background 3D concept was CANCELLED. Do not restore it. This does not cancel the separate R-coin visual request.
+
+3. BUSINESS RULES TO PRESERVE
+- Label operational activation requires reviewed identity/KTP and contract acceptance. Do not invent unreviewed-KTP active labels. Existing verified legacy records need careful migration, not automatic removal of operational rights.
+- Admin reviews label information; sensitive edits/bank account authority are restricted. Contract management menu is Super Admin only. Permission configuration belongs to Staff & Access; hiding a menu is not server access control.
+- Withdrawal is one full available-balance request per master/account, aggregated across managed labels, minimum Rp1,000,000 inclusive; no separate child-label requests or company-managed split to children. One ongoing request; later income remains separately available. Use approved bank snapshot.
+- No withdrawal cancellation feature, no mandatory transfer receipt/detail, no bank fee field, no payment schedule column. Company absorbs transfer costs. Hold/problem procedures must distinguish internal notes from member-facing explanations and prevent a second transfer when the first result is uncertain.
+- Bank entry route: label/master name, city, destination bank/account, full amount (copy digits only), latest royalty month memo. Full periods appear above. Memo is uppercase English: JULY ROYALTIES; month longer than four letters becomes first three letters. Preserve leading zeros in account numbers.
+- Royalty entitlement is not automatically company income because a label has not withdrawn. Monitoring should show outstanding member obligations, balances/duration/inactivity, data reliability and funds received separately. Release activity versus declining income belongs in a separate analytical table/context.
+- Rupiah stays the transaction standard; credit/Token is an optional payment route, with the intended future Token route cheaper. New values are undecided. Do not migrate or debit old balances using proposed Token prices.
+- Basic/Studio/Pro/Business names and differentiated benefits are the current direction. UI includes preliminary packages. Prices, quotas, prorata, transition details are not all approved. Existing purchased benefits retain a clear expiry and must not be reduced retrospectively.
+- Standard/Express/MAX, service units, quota snapshots, reserves and fulfillment must follow the existing approved baseline, not pricing simulations copied from old notes. Distribution/Believe confirmation is manual unless an actual integration is demonstrated. No assumptions of automatic monitoring of external distributor forms.
+
+4. FIRST DEVIN TASK / COMPLETION EVIDENCE
+Read the files; run V13.0; make its preview available; confirm the displayed version. Compare latest UI requests with screenshots in visual-references/. Report concise mismatches with screenshots before proposing the next focused change. Do not claim all menus are production-ready, overwrite the original release or silently accept commercial proposals. New implementation/release needs the user's next instruction. Future releases must update file, preview and version together and verify the exact artifact actually served.

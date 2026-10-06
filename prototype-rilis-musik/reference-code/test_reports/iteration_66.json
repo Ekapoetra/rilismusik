@@ -1,0 +1,74 @@
+{
+  "summary": "Executed Iter66 backend regression + deep frontend P0 verification on public URL with isolated Iter66 fixture for role preview, theme/i18n, audio dock, chat/notification sounds, and responsive checks.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin Dashboard EN copy",
+        "issue": "English dashboard cards still show incorrect terms: 'DISTRICTED', 'ACTIVE SUBSCRIBE', 'ADDED LABEL' (should be proper business English).",
+        "selector": "Dashboard stat cards under [data-testid='admin-topbar'] / dashboard body",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Role Website Preview (unsaved permission simulation)",
+        "issue": "When toggling access.users.manage and removing access.users.view (unsaved), admin_users navigation did not appear in iframe preview; expected implied manage->view visibility per acceptance.",
+        "selector": "[data-testid='admin-permission-checkbox-access-users-manage'], [data-testid='admin-role-preview-iframe']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Notification bell sound for new non-chat notifications",
+        "issue": "Unread badge increased after real delayed DB notification, but WebAudio oscillator count stayed 0 after user-gesture sound unlock. Chat/internal-online sounds worked in same run.",
+        "affected_selectors": [
+          "[data-testid='notification-bell-badge-admin-header']",
+          "[data-testid='sound-test-admin']"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Admin dashboard (EN mode)",
+        "issues": [
+          "Terminology quality issue in visible EN labels (copy correctness, not layout)."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter65_p0_refresh_regression.py",
+    "/app/test_reports/pytest/iter66_backend.xml",
+    "/app/tests/iter66_ui_fixture.py",
+    "/app/tests/iter66_emit_notification.py"
+  ],
+  "action_items": [
+    "Fix EN dashboard card terms: DISTRICTED/ACTIVE SUBSCRIBE/ADDED LABEL.",
+    "Validate and fix role preview implied permission behavior (manage implies view) in unsaved preview state.",
+    "Investigate notification sound trigger path in NotificationBell for fresh non-chat events after known set initialization.",
+    "Optional: use longer WAV fixture for richer progress/seek UX verification in future regression runs."
+  ],
+  "critical_code_review_comments": [
+    "Role preview iframe made zero /api requests in test run (good isolation), but browser console warns sandbox has allow-scripts+allow-same-origin; review if stricter sandbox is acceptable.",
+    "ChatThread has at least one interactive control without testid (pending-attachment remove button), reducing long-term automation robustness.",
+    "Theme implementation is code-correct for WIB boundaries (>=06:00 && <18:00) and persisted mode key rm-theme-mode works."
+  ],
+  "updated_files": [
+    "/app/tests/iter66_ui_fixture.py",
+    "/app/tests/iter66_emit_notification.py",
+    "/app/tests/iter66_cleanup_notification.py",
+    "/app/memory/test_credentials.md",
+    "/app/test_reports/iteration_66.json"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5)",
+    "frontend": "82% (major P0 flows executed; 3 key gaps/issues remain)"
+  },
+  "seed_data_creation": "Created and cleaned isolated Iter66 label/release/audio fixture. Credentials were recorded then retired in /app/memory/test_credentials.md.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed real sound instrumentation via AudioContext oscillator counting. Verified: no initial sound during idle, chat sound + new-chat notice, internal-online sound. Failed only for normal notification sound despite unread badge increment. Role preview tested with inactive and unsaved permission toggles; iframe made zero /api requests.",
+  "rca of the issue": "Notification sound likely misses fresh-event path after list refresh despite unread increase (possible dedupe/timing around known.current or sound gate state). EN copy issue appears catalog/reviewed translation quality, not locale-switch plumbing. Role preview implied-manage behavior may be blocked by nav permission mapping or selected role/nav state in unsaved preview payload."
+}

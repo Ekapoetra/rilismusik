@@ -1,0 +1,1356 @@
+{
+  "version": "13.0",
+  "hash": "3A5896DEC307F29BD769C1FD5AB809F3A6143C512808ACDEA7DE6E4CF8C37C25",
+  "checkedAt": "2026-10-06T03:35:56.963Z",
+  "checks": [
+    {
+      "name": "super/light/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/light/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 250,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 460,
+          "bottom": 50,
+          "left": 250
+        },
+        {
+          "x": 1136,
+          "y": 13,
+          "width": 253,
+          "height": 40,
+          "top": 13,
+          "right": 1389,
+          "bottom": 53,
+          "left": 1136
+        },
+        {
+          "x": 610.5,
+          "y": 15,
+          "width": 204,
+          "height": 36,
+          "top": 15,
+          "right": 814.5,
+          "bottom": 51,
+          "left": 610.5
+        }
+      ]
+    },
+    {
+      "name": "super/light/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/light/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 196,
+          "y": 16,
+          "width": 36,
+          "height": 34,
+          "top": 16,
+          "right": 232,
+          "bottom": 50,
+          "left": 196
+        },
+        {
+          "x": 534,
+          "y": 13,
+          "width": 241,
+          "height": 40,
+          "top": 13,
+          "right": 775,
+          "bottom": 53,
+          "left": 534
+        },
+        {
+          "x": 303.5,
+          "y": 15,
+          "width": 198,
+          "height": 36,
+          "top": 15,
+          "right": 501.5,
+          "bottom": 51,
+          "left": 303.5
+        }
+      ]
+    },
+    {
+      "name": "super/light/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 402.40625,
+        "barHeight": 112,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/light/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 62,
+          "y": 15,
+          "width": 34,
+          "height": 34,
+          "top": 15,
+          "right": 96,
+          "bottom": 49,
+          "left": 62
+        },
+        {
+          "x": 104,
+          "y": 13,
+          "width": 251,
+          "height": 38,
+          "top": 13,
+          "right": 355,
+          "bottom": 51,
+          "left": 104
+        },
+        {
+          "x": 86.5,
+          "y": 69,
+          "width": 202,
+          "height": 34,
+          "top": 69,
+          "right": 288.5,
+          "bottom": 103,
+          "left": 86.5
+        }
+      ]
+    },
+    {
+      "name": "super/dark/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/dark/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 250,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 460,
+          "bottom": 50,
+          "left": 250
+        },
+        {
+          "x": 1136,
+          "y": 13,
+          "width": 253,
+          "height": 40,
+          "top": 13,
+          "right": 1389,
+          "bottom": 53,
+          "left": 1136
+        },
+        {
+          "x": 610.5,
+          "y": 15,
+          "width": 204,
+          "height": 36,
+          "top": 15,
+          "right": 814.5,
+          "bottom": 51,
+          "left": 610.5
+        }
+      ]
+    },
+    {
+      "name": "super/dark/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/dark/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 196,
+          "y": 16,
+          "width": 36,
+          "height": 34,
+          "top": 16,
+          "right": 232,
+          "bottom": 50,
+          "left": 196
+        },
+        {
+          "x": 534,
+          "y": 13,
+          "width": 241,
+          "height": 40,
+          "top": 13,
+          "right": 775,
+          "bottom": 53,
+          "left": 534
+        },
+        {
+          "x": 303.5,
+          "y": 15,
+          "width": 198,
+          "height": 36,
+          "top": 15,
+          "right": 501.5,
+          "bottom": 51,
+          "left": 303.5
+        }
+      ]
+    },
+    {
+      "name": "super/dark/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 402.40625,
+        "barHeight": 112,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "super/dark/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 62,
+          "y": 15,
+          "width": 34,
+          "height": 34,
+          "top": 15,
+          "right": 96,
+          "bottom": 49,
+          "left": 62
+        },
+        {
+          "x": 104,
+          "y": 13,
+          "width": 251,
+          "height": 38,
+          "top": 13,
+          "right": 355,
+          "bottom": 51,
+          "left": 104
+        },
+        {
+          "x": 86.5,
+          "y": 69,
+          "width": 202,
+          "height": 34,
+          "top": 69,
+          "right": 288.5,
+          "bottom": 103,
+          "left": 86.5
+        }
+      ]
+    },
+    {
+      "name": "admin/light/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/light/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 250,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 460,
+          "bottom": 50,
+          "left": 250
+        },
+        {
+          "x": 1136,
+          "y": 13,
+          "width": 253,
+          "height": 40,
+          "top": 13,
+          "right": 1389,
+          "bottom": 53,
+          "left": 1136
+        }
+      ]
+    },
+    {
+      "name": "admin/light/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/light/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 196,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 406,
+          "bottom": 50,
+          "left": 196
+        },
+        {
+          "x": 534,
+          "y": 13,
+          "width": 241,
+          "height": 40,
+          "top": 13,
+          "right": 775,
+          "bottom": 53,
+          "left": 534
+        }
+      ]
+    },
+    {
+      "name": "admin/light/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 384.40625,
+        "barHeight": 94,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/light/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 62,
+          "y": 30,
+          "width": 34,
+          "height": 34,
+          "top": 30,
+          "right": 96,
+          "bottom": 64,
+          "left": 62
+        },
+        {
+          "x": 104,
+          "y": 30,
+          "width": 251,
+          "height": 34,
+          "top": 30,
+          "right": 355,
+          "bottom": 64,
+          "left": 104
+        }
+      ]
+    },
+    {
+      "name": "admin/dark/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/dark/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 250,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 460,
+          "bottom": 50,
+          "left": 250
+        },
+        {
+          "x": 1136,
+          "y": 13,
+          "width": 253,
+          "height": 40,
+          "top": 13,
+          "right": 1389,
+          "bottom": 53,
+          "left": 1136
+        }
+      ]
+    },
+    {
+      "name": "admin/dark/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/dark/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 196,
+          "y": 16,
+          "width": 210,
+          "height": 34,
+          "top": 16,
+          "right": 406,
+          "bottom": 50,
+          "left": 196
+        },
+        {
+          "x": 534,
+          "y": 13,
+          "width": 241,
+          "height": 40,
+          "top": 13,
+          "right": 775,
+          "bottom": 53,
+          "left": 534
+        }
+      ]
+    },
+    {
+      "name": "admin/dark/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 384.40625,
+        "barHeight": 94,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "admin/dark/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 62,
+          "y": 30,
+          "width": 34,
+          "height": 34,
+          "top": 30,
+          "right": 96,
+          "bottom": 64,
+          "left": 62
+        },
+        {
+          "x": 104,
+          "y": 30,
+          "width": 251,
+          "height": 34,
+          "top": 30,
+          "right": 355,
+          "bottom": 64,
+          "left": 104
+        }
+      ]
+    },
+    {
+      "name": "label/light/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/light/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 894.84375,
+          "y": 10.5,
+          "width": 494.15625,
+          "height": 45,
+          "top": 10.5,
+          "right": 1389,
+          "bottom": 55.5,
+          "left": 894.84375
+        }
+      ]
+    },
+    {
+      "name": "label/light/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/light/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 292.84375,
+          "y": 10.5,
+          "width": 482.15625,
+          "height": 45,
+          "top": 10.5,
+          "right": 775,
+          "bottom": 55.5,
+          "left": 292.84375
+        }
+      ]
+    },
+    {
+      "name": "label/light/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 404.921875,
+        "barHeight": 132,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/light/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 104,
+          "y": 30,
+          "width": 251,
+          "height": 34,
+          "top": 30,
+          "right": 355,
+          "bottom": 64,
+          "left": 104
+        }
+      ]
+    },
+    {
+      "name": "label/dark/1440 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/dark/1440 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 894.84375,
+          "y": 10.5,
+          "width": 494.15625,
+          "height": 45,
+          "top": 10.5,
+          "right": 1389,
+          "bottom": 55.5,
+          "left": 894.84375
+        }
+      ]
+    },
+    {
+      "name": "label/dark/820 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/dark/820 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 292.84375,
+          "y": 10.5,
+          "width": 482.15625,
+          "height": 45,
+          "top": 10.5,
+          "right": 775,
+          "bottom": 55.5,
+          "left": 292.84375
+        }
+      ]
+    },
+    {
+      "name": "label/dark/390 uses one continuous readable masthead",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 404.921875,
+        "barHeight": 132,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "label/dark/390 controls do not overlap",
+      "pass": true,
+      "detail": [
+        {
+          "x": 104,
+          "y": 30,
+          "width": 251,
+          "height": 34,
+          "top": 30,
+          "right": 355,
+          "bottom": 64,
+          "left": 104
+        }
+      ]
+    },
+    {
+      "name": "Glass responds to its actual backdrop after the masthead is reunited",
+      "pass": true,
+      "detail": {
+        "mean": 111.98301795244959,
+        "changed": 0.9799854439592431
+      }
+    },
+    {
+      "name": "Platform to Staff preserves the expanded header without folding",
+      "pass": true,
+      "detail": {
+        "expanded": true,
+        "height": 266,
+        "barHeight": 66,
+        "background": "rgba(0, 0, 0, 0)",
+        "ink": "rgb(245, 249, 255)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "Team profile selector is centred in the menu",
+      "pass": true,
+      "detail": {
+        "main": 834.5,
+        "selector": 834.5
+      }
+    },
+    {
+      "name": "Changing profiles slides the card group and keeps the header still",
+      "pass": true
+    },
+    {
+      "name": "Selected profile updates every card without leaving an overlay",
+      "pass": true
+    },
+    {
+      "name": "Previous profile works in the opposite direction",
+      "pass": true
+    },
+    {
+      "name": "Profile selector is keyboard operable",
+      "pass": true
+    },
+    {
+      "name": "Rapid profile changes leave only the final card group",
+      "pass": true
+    },
+    {
+      "name": "A horizontal touch gesture changes the profile",
+      "pass": true
+    },
+    {
+      "name": "Collapsed header remains readable and plain",
+      "pass": true,
+      "detail": {
+        "expanded": false,
+        "height": 66,
+        "barHeight": 66,
+        "background": "rgb(255, 255, 255)",
+        "ink": "rgb(39, 44, 50)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "Staff to Platform preserves the collapsed header",
+      "pass": true,
+      "detail": {
+        "expanded": false,
+        "height": 66,
+        "barHeight": 66,
+        "background": "rgb(255, 255, 255)",
+        "ink": "rgb(39, 44, 50)",
+        "frameShadow": "none",
+        "artParent": "masthead-backdrop130",
+        "rounded": "18px",
+        "overflow": -15
+      }
+    },
+    {
+      "name": "Top gesture can still reopen the greeting",
+      "pass": true
+    },
+    {
+      "name": "Ordinary menu navigation retains the smooth fold",
+      "pass": true
+    },
+    {
+      "name": "Appearance shows the current card and upload, without sliders or an Apply form",
+      "pass": true
+    },
+    {
+      "name": "Preview does not become the actual dashboard header",
+      "pass": true
+    },
+    {
+      "name": "Company identity remains accessible and public content stays hidden",
+      "pass": true
+    },
+    {
+      "name": "Dragging changes the preview immediately before release",
+      "pass": true
+    },
+    {
+      "name": "Releasing a drag saves the new position directly",
+      "pass": true
+    },
+    {
+      "name": "Corner resizing changes the actual artwork scale without a slider",
+      "pass": true
+    },
+    {
+      "name": "Direct manipulation supports keyboard movement",
+      "pass": true
+    },
+    {
+      "name": "Escape cancels an unfinished drag",
+      "pass": true
+    },
+    {
+      "name": "A failed save preserves the applied artwork and shows a useful error",
+      "pass": true
+    },
+    {
+      "name": "Editing can continue after storage recovers",
+      "pass": true
+    },
+    {
+      "name": "Uploading valid artwork replaces the current design directly",
+      "pass": true
+    },
+    {
+      "name": "Unreadable uploads leave the current design intact",
+      "pass": true
+    },
+    {
+      "name": "Unsupported image formats cannot overwrite the design",
+      "pass": true
+    },
+    {
+      "name": "Artwork editing leaves financial and operational data intact",
+      "pass": true
+    },
+    {
+      "name": "Activity records contain metadata rather than copies of the image",
+      "pass": true
+    },
+    {
+      "name": "Uploaded design and geometry survive reload",
+      "pass": true
+    },
+    {
+      "name": "Saved artwork is used behind both navigation and greeting",
+      "pass": true
+    },
+    {
+      "name": "The same design and position apply to all account views",
+      "pass": true,
+      "detail": [
+        {
+          "role": "admin",
+          "same": true
+        },
+        {
+          "role": "label",
+          "same": true
+        },
+        {
+          "role": "super",
+          "same": true
+        }
+      ]
+    },
+    {
+      "name": "Admin, Label and preview cannot replace the shared design",
+      "pass": true,
+      "detail": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "Invalid geometry and stale changes cannot overwrite the saved design",
+      "pass": true
+    },
+    {
+      "name": "Appearance editing fits width 1280",
+      "pass": true,
+      "detail": {
+        "overflow": -15,
+        "stage": {
+          "x": 52,
+          "y": 297.4408264160156,
+          "width": 1161,
+          "height": 290.2499694824219,
+          "top": 297.4408264160156,
+          "right": 1213,
+          "bottom": 587.6907958984375,
+          "left": 52
+        },
+        "upload": {
+          "x": 1045.484375,
+          "y": 239.44082641601562,
+          "width": 167.515625,
+          "height": 38,
+          "top": 239.44082641601562,
+          "right": 1213,
+          "bottom": 277.4408264160156,
+          "left": 1045.484375
+        }
+      }
+    },
+    {
+      "name": "Appearance editing fits width 1100",
+      "pass": true,
+      "detail": {
+        "overflow": -15,
+        "stage": {
+          "x": 52,
+          "y": 297.720947265625,
+          "width": 981,
+          "height": 260,
+          "top": 297.720947265625,
+          "right": 1033,
+          "bottom": 557.720947265625,
+          "left": 52
+        },
+        "upload": {
+          "x": 865.484375,
+          "y": 239.72096252441406,
+          "width": 167.515625,
+          "height": 37.99998474121094,
+          "top": 239.72096252441406,
+          "right": 1033,
+          "bottom": 277.720947265625,
+          "left": 865.484375
+        }
+      }
+    },
+    {
+      "name": "Appearance editing fits width 820",
+      "pass": true,
+      "detail": {
+        "overflow": -15,
+        "stage": {
+          "x": 46,
+          "y": 328.7188415527344,
+          "width": 713,
+          "height": 260.0000305175781,
+          "top": 328.7188415527344,
+          "right": 759,
+          "bottom": 588.7188720703125,
+          "left": 46
+        },
+        "upload": {
+          "x": 591.484375,
+          "y": 270.7188415527344,
+          "width": 167.515625,
+          "height": 38,
+          "top": 270.7188415527344,
+          "right": 759,
+          "bottom": 308.7188415527344,
+          "left": 591.484375
+        }
+      }
+    },
+    {
+      "name": "Appearance editing fits width 620",
+      "pass": true,
+      "detail": {
+        "overflow": -15,
+        "stage": {
+          "x": 24,
+          "y": 360.9674377441406,
+          "width": 557,
+          "height": 356.9374694824219,
+          "top": 360.9674377441406,
+          "right": 581,
+          "bottom": 717.9049072265625,
+          "left": 24
+        },
+        "upload": {
+          "x": 424.53125,
+          "y": 302.9674377441406,
+          "width": 156.46875,
+          "height": 38,
+          "top": 302.9674377441406,
+          "right": 581,
+          "bottom": 340.9674377441406,
+          "left": 424.53125
+        }
+      }
+    },
+    {
+      "name": "Appearance editing fits width 390",
+      "pass": true,
+      "detail": {
+        "overflow": -15,
+        "stage": {
+          "x": 24,
+          "y": 419.28472900390625,
+          "width": 327,
+          "height": 421.09375,
+          "top": 419.28472900390625,
+          "right": 351,
+          "bottom": 840.3784790039062,
+          "left": 24
+        },
+        "upload": {
+          "x": 194.53125,
+          "y": 344.69097900390625,
+          "width": 156.46875,
+          "height": 38,
+          "top": 344.69097900390625,
+          "right": 351,
+          "bottom": 382.69097900390625,
+          "left": 194.53125
+        }
+      }
+    },
+    {
+      "name": "Reduced motion skips profile sliding",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion keeps workspace changes immediate without folding",
+      "pass": true
+    },
+    {
+      "name": "Appearance uses the matching English labels",
+      "pass": true
+    },
+    {
+      "name": "Dedicated finance layout remains centred with sidebar hidden",
+      "pass": true
+    },
+    {
+      "name": "Dedicated access layout remains centred with sidebar hidden",
+      "pass": true
+    },
+    {
+      "name": "Dedicated settings layout remains centred with sidebar hidden",
+      "pass": true
+    },
+    {
+      "name": "No runtime errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "views": [
+    {
+      "role": "super",
+      "theme": "light",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "super",
+      "theme": "light",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "super",
+      "theme": "light",
+      "width": 390,
+      "expanded": true,
+      "height": 402.40625,
+      "barHeight": 112,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "super",
+      "theme": "dark",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "super",
+      "theme": "dark",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "super",
+      "theme": "dark",
+      "width": 390,
+      "expanded": true,
+      "height": 402.40625,
+      "barHeight": 112,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "light",
+      "width": 390,
+      "expanded": true,
+      "height": 384.40625,
+      "barHeight": 94,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "admin",
+      "theme": "dark",
+      "width": 390,
+      "expanded": true,
+      "height": 384.40625,
+      "barHeight": 94,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "light",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "light",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "light",
+      "width": 390,
+      "expanded": true,
+      "height": 404.921875,
+      "barHeight": 132,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "dark",
+      "width": 1440,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "dark",
+      "width": 820,
+      "expanded": true,
+      "height": 266,
+      "barHeight": 66,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    },
+    {
+      "role": "label",
+      "theme": "dark",
+      "width": 390,
+      "expanded": true,
+      "height": 404.921875,
+      "barHeight": 132,
+      "background": "rgba(0, 0, 0, 0)",
+      "ink": "rgb(245, 249, 255)",
+      "frameShadow": "none",
+      "artParent": "masthead-backdrop130",
+      "rounded": "18px",
+      "overflow": -15
+    }
+  ],
+  "errors": []
+}

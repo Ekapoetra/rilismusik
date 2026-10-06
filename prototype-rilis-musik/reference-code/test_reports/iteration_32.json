@@ -1,0 +1,43 @@
+{
+  "summary": "Completed backend + frontend validation for Admin Label Rate Import (XLSX/CSV preview, protected access, persisted preview commit, background sync/resume, and mobile overflow behavior). All executed critical flows passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase37_label_rate_import.py",
+    "/app/backend/tests/test_iter32_label_rate_import_regression.py",
+    "/app/backend/tests/test_iter28_import_auth_playbook.py",
+    "/app/tests/iter32_seed_label_rate_ui.py",
+    "/app/test_reports/pytest/iter32_label_rate_full.xml",
+    "/app/test_reports/pytest/iter32_auth_playbook.xml"
+  ],
+  "action_items": [
+    "No blocking defects found in tested scope.",
+    "Optional: keep label-rate and auth async tests in separate pytest invocations to avoid event-loop coupling across modules."
+  ],
+  "critical_code_review_comments": [
+    "label_rate_import preview/commit flow enforces role and ownership correctly, with super_admin override and idempotent repeated commit behavior.",
+    "Preview path remained side-effect free in testing: no label rate, royalty lines, balances, percentage history, or balance transactions changed before commit.",
+    "Background sync handled stale rate conflicts and resumed queued/processing progress without double-applying already-done rows in executed regression tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter32_label_rate_import_regression.py",
+    "/app/tests/iter32_seed_label_rate_ui.py",
+    "/app/test_reports/iteration_32.json"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 label-rate tests + 6/6 auth-playbook tests in separate runs)",
+    "frontend": "100% for executed flows (role gating, file validations, preview/filter, commit/progress/reset, desktop+390px overflow checks)"
+  },
+  "seed_data_creation": "Created temporary ITER32_UI labels/import/lines/withdraw + local test files via /app/tests/iter32_seed_label_rate_ui.py; all cleaned after run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If re-running UI verification, execute seed/files first: `python /app/tests/iter32_seed_label_rate_ui.py seed && python /app/tests/iter32_seed_label_rate_ui.py files`, then cleanup with `cleanup` and `files_cleanup`.",
+  "rca of the issue": "No product bug reproduced in requested scope. One test-harness nuance observed: async tests touching motor clients can conflict across shared pytest process loops; running auth-playbook and label-rate async-heavy suites separately avoids false negatives."
+}

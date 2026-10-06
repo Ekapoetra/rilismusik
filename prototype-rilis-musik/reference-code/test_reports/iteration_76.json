@@ -1,0 +1,33 @@
+{
+  "summary": "Full backend + frontend testing of Add-on Order feature. Admin endpoints (list, filter, status transitions with forward-only guard + terminal rejection, delivery URL validation + auto-advance to delivered, backfill idempotent) all pass. Work Queue integrates addon_processing. Admin UI /admin/addon-orders renders 3 seeded rows with correct badges, backfill button toasts, status action buttons advance state, and delivery modal saves https URL + toasts 'Hasil tersimpan & label diberi tahu'. Label side (dashboard + release detail) renders the 'Layanan Tambahan Rilisan' section with status badge and 'Buka / Unduh hasil' link once KYC state was completed for the demo label.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/label/addon-orders", "issue": "Endpoint is behind ensure_label_kyc but the seeded 'Demo Label VIP' account has no bank_account / kyc_document, so it returns 403 KYC_REQUIRED (missing_keys=[bank]). Labels cannot view their paid add-on deliveries until full KYC verified. Consider either (a) whitelisting /api/label/addon-orders similar to /api/label/dashboard so labels can see their paid services regardless of KYC state, or (b) seeding demo_vip with completed bank + verified kyc_document so the feature is exerciseable end-to-end from the seed alone."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter76_addon_orders.py", "/app/test_reports/pytest/iter76.xml"],
+  "action_items": [
+    "Decide whether /api/label/addon-orders should require full KYC. If not, add it to KYC_ALLOWED_LABEL_PREFIXES in backend/routes/deps.py or add a lighter gate. Otherwise, update the demo_vip seed to include bank_account + verified kyc_document so the label-side UI is testable from the seed alone.",
+    "During testing I inserted a bank_account row and set kyc_status=verified with a dummy verified kyc_document for the demo_vip label (label_id 896affd2-11a6-4805-a11f-1d1f32300dd9) to exercise the label endpoint + UI. Also seeded add-on order for release Cinta Sederhana was advanced to 'Selesai' with delivery URL https://example.com/hasil-video.mp4 and Kota Mati remains 'Diproses'. Reseed if a clean demo state is desired."
+  ],
+  "critical_code_review_comments": [
+    "sync_release_addon_orders uses dedupe_key {release_id}:{product_id} which correctly makes creation idempotent.",
+    "admin_update_status correctly rejects backward moves and terminal transitions with 409. The 'delivered' -> 'completed' path works, and 'cancelled' is accepted from any non-terminal.",
+    "admin_set_delivery only blocks 'cancelled' orders; a delivery PATCH on a 'completed' order is still accepted (not necessarily wrong but worth confirming as intended).",
+    "Label list endpoint filters strictly by label_id; cross-tenant leakage not observed."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter76_addon_orders.py"],
+  "success_rate": {"backend": "100% (4 passed, 1 conditional skip that then verified live via curl)", "frontend": "100% for admin and label paths"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; demo_vip@rilismusik.com / DemoVIP#2026",
+  "seed_data_creation": "Added bank_accounts doc + kyc_documents doc + kyc_status=verified for demo_vip label solely to exercise label endpoint. Advanced 1 demo addon_order (Cinta Sederhana Visualizer Landscape) to delivered->completed with delivery_url https://example.com/hasil-video.mp4.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iter76_addon_orders.py covers admin flow. test_label_sees_only_own auto-skips if the label endpoint returns 403 KYC_REQUIRED so it's safe on clean seed. If retesting label UI, ensure demo_vip has completed KYC in DB.",
+  "rca of the issue": "Only observation: label add-on list is gated by ensure_label_kyc through require_label. Since the demo seed for demo_vip does not include a bank_account/kyc_document, GET /api/label/addon-orders responds 403 with missing_keys=[bank]. Mitigation: whitelist the endpoint in KYC_ALLOWED_LABEL_PREFIXES, or seed demo_vip with complete KYC (bank_account row + kyc_document status=verified + labels.kyc_status=verified + labels.kyc_document_id set)."
+}

@@ -1,0 +1,37 @@
+{
+  "summary": "Phase 5 (royalty-percentage redaction for label/artist + landing page cleanup + subscription/contract expiry cron) — 20/20 backend pytest PASSED. Frontend Landing page smoke verified: zero occurrences of '5% fee', 'fee distributor', 'bagian label', '60%', '5%' on rendered page; hero stats show '150+ platform digital / Royalti tepat waktu / 7 hari minimal release date'; royalty simulator shows only final Rp + Revenue Believe (€) + Kurs EUR→IDR, no percentage breakdown rows; pricing footer reads 'Semua paket sudah termasuk distribusi ke 150+ platform digital'. Backend covered: (a) login/auth-me/label-me/label-dashboard/register all strip royalty_percentage_default, royalty_percentage_history, default_royalty_share; (b) GET /api/royalty/lines as LABEL strips label_percentage_applied, fee_percent_applied, distributor_idr, exchange_rate, revenue_eur, fee_eur, net_eur, label_eur, distributor_eur, gross_revenue_eur, unit_price_eur, mechanical_cost_eur, client_share_rate while retaining label_idr; (c) GET /api/royalty/lines as super_admin retains internal/EUR fields; (d) GET /api/royalty/export.csv header is exactly [period,release_title,track_title,artist_name,platform,country,isrc,upc,streams,royalty_idr,status]; (e) admin GET /api/admin/labels/{id} still exposes royalty_percentage_default; (f) POST /api/admin/cron/subscription-check returns {ok:true, job:'subscription_expiry'} for super_admin + admin_finance, 403 for admin_support + admin_release; (g) POST /api/admin/cron/contract-check returns {ok:true, job:'contract_expiry_reminder'} for super_admin + admin_release, 403 for admin_finance + admin_support; (h) Manawa Music label confirmed transitioned by cron — subscription_status='expired', payment_type='pay_per_release', expires_at in the past; (i) cron triggers are idempotent (double-call returns 200 with no errors); (j) APScheduler logs at startup show 'Scheduler started' and both jobs 'subscription_expiry' (interval 1h) + 'contract_expiry_reminder' (cron 02:00 UTC) registered.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase5_redaction_cron.py",
+    "/app/test_reports/pytest/phase5_results.xml"
+  ],
+  "action_items": [
+    "(carry-over) Manawa Music demo label still cannot login with Demo#2026 — its user-side password remains mismatched after seeding; the cron now correctly expired its subscription so admin-side flow works, but cross-label isolation tests requiring Manawa login still need its password re-seeded. Non-blocking for Phase 5.",
+    "(carry-over) brute-force lockout via X-Forwarded-For, hide verification_token/reset_token from prod auth responses, MIME cross-check on /api/tickets/upload-attachment + /api/contracts/admin/upload-pdf."
+  ],
+  "critical_code_review_comments": [
+    "server.py check_subscription_expiry_job: reminder window query is `subscription_expires_at: {$gte: today+days-1, $lt: today+days}` (string ISO compare). Since `subscription_expires_at` is stored as ISO string, lexicographic string comparison only works when ALL stored values use the SAME timezone-suffix format (`+00:00`). If any document stores it as `Z`-suffixed or naive ISO, the range filter may silently skip them. Recommend storing as actual BSON Date OR normalising the suffix on write.",
+    "server.py check_subscription_expiry_job: the reminder bucket boundaries `target_low = now + (days-1)`, `target_high = now + days` give a 24-hour rolling window anchored to current minute, not a calendar day. Combined with hourly cron, the same label can hit the bucket boundary right at the hour-mark — dedupe marker uses `(now + timedelta(days=days)).date().isoformat()` so it's safe per-calendar-day, BUT the dedupe marker is keyed on the FUTURE date, meaning if the job runs near midnight UTC two consecutive runs MAY pick different bucket_dates for the same label (one before midnight, one after). This is an edge case; consider anchoring to today's UTC date for both window AND marker.",
+    "server.py: trigger endpoints accept admin_finance + admin_release without an `audit_log` entry — recommend logging who triggered a manual cron run for compliance.",
+    "server.py register endpoint (line 229): label_doc is built with `royalty_percentage_default: 60.0` then immediately stripped before return — good. But the same doc is later inserted into Mongo (line 208) so the field is correctly persisted internally and only hidden on the API surface. Confirmed working.",
+    "Landing.jsx royalty simulator: while it no longer SHOWS the percentage breakdown, the JS calc still applies internal default (60% × 95%) to compute labelIdr. Source code reveals the formula via 'View Source'. For true secrecy, recommend moving the simulator math to a server endpoint /api/public/royalty/estimate that returns only the final IDR. Low-priority since percentages aren't shown to the user."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase5_redaction_cron.py (NEW — 20 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% (Landing page verified)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (OK). Sub-admins finance1/support1/release1/marketing1 with role-suffixed passwords (OK — auto-seeded). Demo labels Khizanah/Mustafa/WANWE with Demo#2026 (OK). Manawa: still password-mismatched but reachable via admin API for cron verification.",
+  "seed_data_creation": "Test register flow created 1 TEST_redact_<ts>@example.com label per run (acceptable churn — could be cleaned with prefix delete). No other persistent test data created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 5 test file at /app/backend/tests/test_phase5_redaction_cron.py — single fixture `label_login` discovers any working demo label via admin listing + Demo#2026 password. FORBIDDEN_LABEL_KEYS and FORBIDDEN_LINE_KEYS constants list every field that must be redacted for non-admin roles. APScheduler is confirmed running (see /var/log/supervisor/backend.*.log → 'Scheduler started' + both job ids registered). Manual cron triggers at POST /api/admin/cron/subscription-check (super_admin + admin_finance) and POST /api/admin/cron/contract-check (super_admin + admin_release) return {ok:true, job:'<id>'}. Idempotency uses notifications.meta.marker = 'sub_remind_<days>_<label_id>_<bucket_date>' / 'contract_remind_<days>_<contract_id>_<today>'. Note CSV export header uses 'streams' label for the column that actually maps to `quantity` field in royalty_lines — this is intentional per the spec but worth flagging if downstream consumers expect a separate 'quantity' column.",
+  "rca of the issue": "N/A — no production bugs in Phase 5 surface. Two iteration_5 carry-overs (Manawa password, sub-admin seeding) remain but sub-admin seeding is now confirmed working from this iteration's clean login (finance1/support1/release1 all log in with documented passwords on the first attempt)."
+}

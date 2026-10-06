@@ -1,0 +1,3372 @@
+{
+  "version": "12.0",
+  "inspectedAt": "2026-10-03T00:03:46.337Z",
+  "routes": [
+    {
+      "file": "repo-reference-v10/backend/routes/addon_orders.py",
+      "endpoints": [
+        {
+          "line": 178,
+          "declaration": "@addon_admin_r.get(\"\")",
+          "name": "admin_list_addon_orders",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 191,
+          "declaration": "@addon_admin_r.patch(\"/{order_id}/status\")",
+          "name": "admin_update_status",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 225,
+          "declaration": "@addon_admin_r.patch(\"/{order_id}/delivery\")",
+          "name": "admin_set_delivery",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 255,
+          "declaration": "@addon_admin_r.post(\"/{order_id}/delivery-file\")",
+          "name": "admin_upload_delivery_file",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 288,
+          "declaration": "@addon_admin_r.post(\"/backfill\")",
+          "name": "admin_backfill",
+          "guard": [
+            "require_admin",
+            "require_label"
+          ]
+        },
+        {
+          "line": 297,
+          "declaration": "@addon_label_r.get(\"\")",
+          "name": "label_list_addon_orders",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin.py",
+      "endpoints": [
+        {
+          "line": 65,
+          "declaration": "@admin_r.get(\"/dashboard\")",
+          "name": "admin_dashboard",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 70,
+          "declaration": "@admin_r.get(\"/action-center\")",
+          "name": "admin_action_center",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 146,
+          "declaration": "@admin_r.post(\"/dashboard/refresh-revenue\")",
+          "name": "admin_refresh_revenue",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 168,
+          "declaration": "@admin_r.get(\"/labels\")",
+          "name": "admin_list_labels",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 196,
+          "declaration": "@admin_r.post(\"/labels/balance-refresh\")",
+          "name": "admin_start_label_balance_refresh",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 204,
+          "declaration": "@admin_r.get(\"/labels/balance-refresh/status\")",
+          "name": "admin_label_balance_refresh_status",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 210,
+          "declaration": "@admin_r.get(\"/labels/{label_id}\")",
+          "name": "admin_get_label",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 279,
+          "declaration": "@admin_r.patch(\"/labels/{label_id}\")",
+          "name": "admin_update_label",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 287,
+          "declaration": "@admin_r.patch(\"/labels/{label_id}/package\", response_model=LabelPackageResult)",
+          "name": "admin_update_label_package",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 295,
+          "declaration": "@admin_r.get(\"/releases\", response_model=List[ReleaseListItem])",
+          "name": "admin_list_releases",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 353,
+          "declaration": "@admin_r.get(\"/releases/ready-to-live\")",
+          "name": "admin_releases_ready_to_live",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 409,
+          "declaration": "@admin_r.post(\"/releases/bulk-go-live\")",
+          "name": "admin_releases_bulk_go_live",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 493,
+          "declaration": "@admin_r.post(\"/releases/takedown-import/preview\")",
+          "name": "admin_takedown_import_preview",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 509,
+          "declaration": "@admin_r.post(\"/releases/takedown-import/process\")",
+          "name": "admin_takedown_import_process",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 537,
+          "declaration": "@admin_r.get(\"/artists\")",
+          "name": "admin_list_artists",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 570,
+          "declaration": "@admin_r.delete(\"/releases/{release_id}\", response_model=ReleaseDeletionResult)",
+          "name": "admin_delete_release",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 576,
+          "declaration": "@admin_r.get(\"/payments\")",
+          "name": "admin_list_payments",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 584,
+          "declaration": "@admin_r.get(\"/payments/summary\")",
+          "name": "admin_payment_income_summary",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 592,
+          "declaration": "@admin_r.get(\"/admin-users\")",
+          "name": "admin_list_admin_users",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 618,
+          "declaration": "@admin_r.post(\"/admin-users\")",
+          "name": "admin_create_admin_user",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 656,
+          "declaration": "@admin_r.patch(\"/admin-users/{user_id}\")",
+          "name": "admin_update_admin_user",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 688,
+          "declaration": "@admin_r.delete(\"/admin-users/{user_id}\")",
+          "name": "admin_delete_admin_user",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 722,
+          "declaration": "@admin_r.post(\"/admin-users/bulk-delete\")",
+          "name": "admin_bulk_purge_admin_users",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 747,
+          "declaration": "@admin_r.get(\"/labels/{label_id}/bank-change-requests\")",
+          "name": "admin_list_bank_change_requests",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 755,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/bank-change-request\")",
+          "name": "admin_request_bank_change",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 776,
+          "declaration": "@admin_r.post(\"/bank-account-change-requests/{request_id}/action\")",
+          "name": "admin_review_bank_change",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 794,
+          "declaration": "@admin_r.get(\"/bank-verifications\")",
+          "name": "admin_list_pending_bank_verifications",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 803,
+          "declaration": "@admin_r.post(\"/bank-verifications/{request_id}/action\")",
+          "name": "admin_action_pending_bank_verification",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 821,
+          "declaration": "@admin_r.get(\"/bank-verifications/pending-inputs\")",
+          "name": "admin_list_pending_bank_inputs",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 853,
+          "declaration": "@admin_r.get(\"/bank-verifications/unmapped\")",
+          "name": "admin_list_unmapped_banks",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 868,
+          "declaration": "@admin_r.post(\"/bank-verifications/{bank_id}/set-bank\")",
+          "name": "admin_set_bank",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 885,
+          "declaration": "@admin_r.post(\"/bank-verifications/bulk-verify-inputs\")",
+          "name": "admin_bulk_verify_bank_inputs",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 919,
+          "declaration": "@admin_r.get(\"/activity-logs\")",
+          "name": "admin_activity_logs",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 964,
+          "declaration": "@admin_r.get(\"/activity-logs/actors\")",
+          "name": "admin_activity_actors",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 977,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/blacklist\")",
+          "name": "admin_blacklist_label",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 992,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/unblacklist\")",
+          "name": "admin_unblacklist_label",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1009,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/create-account\")",
+          "name": "admin_create_label_account",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1028,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/revoke-account\")",
+          "name": "admin_revoke_label_account",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1041,
+          "declaration": "@admin_r.post(\"/labels/{label_id}/change-email\")",
+          "name": "admin_change_label_email",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin_access.py",
+      "endpoints": [
+        {
+          "line": 74,
+          "declaration": "@access_r.get(\"/access/catalog\")",
+          "name": "access_catalog",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 82,
+          "declaration": "@access_r.get(\"/access/roles\")",
+          "name": "list_roles",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 88,
+          "declaration": "@access_r.get(\"/access/config-review\")",
+          "name": "get_config_review",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 98,
+          "declaration": "@access_r.get(\"/access/role-audit\")",
+          "name": "role_audit",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 145,
+          "declaration": "@access_r.post(\"/access/config-review/complete\")",
+          "name": "post_config_review_complete",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 153,
+          "declaration": "@access_r.post(\"/access/validate\")",
+          "name": "validate_role_config",
+          "guard": [
+            "require_admin",
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 159,
+          "declaration": "@access_r.post(\"/access/preview\")",
+          "name": "preview_role_access",
+          "guard": [
+            "require_admin",
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 165,
+          "declaration": "@access_r.get(\"/access/role-options\")",
+          "name": "role_options",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 171,
+          "declaration": "@access_r.post(\"/access/roles\")",
+          "name": "create_role",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 187,
+          "declaration": "@access_r.patch(\"/access/roles/{role_id}\")",
+          "name": "update_role",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 217,
+          "declaration": "@access_r.delete(\"/access/roles/{role_id}\")",
+          "name": "delete_role",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 233,
+          "declaration": "@access_r.get(\"/navigation\")",
+          "name": "admin_navigation",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 246,
+          "declaration": "@access_r.get(\"/ui-settings\")",
+          "name": "get_ui_settings",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 254,
+          "declaration": "@access_r.put(\"/ui-settings\")",
+          "name": "update_ui_settings",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin_analytics.py",
+      "endpoints": [
+        {
+          "line": 365,
+          "declaration": "@analytics_r.post(\"/recompute\")",
+          "name": "admin_recompute_analytics",
+          "guard": [
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 379,
+          "declaration": "@analytics_r.get(\"/status\")",
+          "name": "admin_analytics_status",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 415,
+          "declaration": "@analytics_r.get(\"/monthly\")",
+          "name": "admin_monthly_analytics",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 661,
+          "declaration": "@analytics_r.get(\"/periods\")",
+          "name": "admin_analytics_periods",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 689,
+          "declaration": "@analytics_r.get(\"/audit\")",
+          "name": "admin_analytics_audit",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin_dashboard_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin_label_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/admin_permission_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/analytics_eligibility.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/artists.py",
+      "endpoints": [
+        {
+          "line": 53,
+          "declaration": "@artist_r.get(\"/\")",
+          "name": "list_artists",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 105,
+          "declaration": "@artist_r.post(\"/\")",
+          "name": "create_artist",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 153,
+          "declaration": "@artist_r.get(\"/{artist_id}\")",
+          "name": "get_artist",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 168,
+          "declaration": "@artist_r.patch(\"/{artist_id}\")",
+          "name": "update_artist",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/artist_social_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/auth.py",
+      "endpoints": [
+        {
+          "line": 83,
+          "declaration": "@auth.post(\"/register\")",
+          "name": "register",
+          "guard": []
+        },
+        {
+          "line": 273,
+          "declaration": "@auth.post(\"/login\")",
+          "name": "login",
+          "guard": []
+        },
+        {
+          "line": 346,
+          "declaration": "@auth.post(\"/google/session\")",
+          "name": "google_session_login",
+          "guard": []
+        },
+        {
+          "line": 404,
+          "declaration": "@auth.post(\"/logout\")",
+          "name": "logout",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 410,
+          "declaration": "@auth.get(\"/me\")",
+          "name": "me",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 422,
+          "declaration": "@auth.post(\"/refresh\")",
+          "name": "refresh",
+          "guard": []
+        },
+        {
+          "line": 447,
+          "declaration": "@auth.post(\"/verify-email\")",
+          "name": "verify_email",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 459,
+          "declaration": "@auth.post(\"/resend-verification\")",
+          "name": "resend_verification",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 480,
+          "declaration": "@auth.post(\"/forgot-password\")",
+          "name": "forgot_password",
+          "guard": []
+        },
+        {
+          "line": 502,
+          "declaration": "@auth.post(\"/reset-password\")",
+          "name": "reset_password",
+          "guard": []
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/background_job_notifications.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/balance_audit.py",
+      "endpoints": [
+        {
+          "line": 156,
+          "declaration": "@balance_audit_r.post(\"/preview\")",
+          "name": "start_balance_audit",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 188,
+          "declaration": "@balance_audit_r.get(\"/jobs/{job_id}\")",
+          "name": "get_balance_audit_job",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 200,
+          "declaration": "@balance_audit_r.get(\"/jobs/{job_id}/rows\")",
+          "name": "get_balance_audit_rows",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 222,
+          "declaration": "@balance_audit_r.get(\"/labels/{label_id}/diagnostic\")",
+          "name": "get_label_balance_diagnostic",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 322,
+          "declaration": "@balance_audit_r.post(\"/commit\")",
+          "name": "commit_balance_reconciliation",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/balance_utils.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/bank_change_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/believe_letters_generator.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/chat.py",
+      "endpoints": [
+        {
+          "line": 229,
+          "declaration": "@chat_r.post(\"/heartbeat\")",
+          "name": "heartbeat",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 248,
+          "declaration": "@chat_r.get(\"/unread\", response_model=UnreadChatOut)",
+          "name": "unread",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 258,
+          "declaration": "@chat_r.post(\"/upload\")",
+          "name": "chat_upload",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 272,
+          "declaration": "@chat_r.post(\"/typing/{conversation_id}\")",
+          "name": "set_typing",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 283,
+          "declaration": "@chat_r.get(\"/label/thread\")",
+          "name": "label_thread",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 296,
+          "declaration": "@chat_r.post(\"/label/thread\")",
+          "name": "label_send",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 327,
+          "declaration": "@chat_r.get(\"/admin/labels\")",
+          "name": "admin_label_inbox",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 353,
+          "declaration": "@chat_r.get(\"/admin/admins\")",
+          "name": "admin_directory",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 378,
+          "declaration": "@chat_r.post(\"/admin/internal/{other_id}\")",
+          "name": "admin_open_internal",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 402,
+          "declaration": "@chat_r.get(\"/admin/thread/{conversation_id}\")",
+          "name": "admin_thread",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 418,
+          "declaration": "@chat_r.post(\"/admin/thread/{conversation_id}\")",
+          "name": "admin_send",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 425,
+          "declaration": "@chat_r.post(\"/admin/thread/{conversation_id}/resolve\")",
+          "name": "admin_resolve",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 446,
+          "declaration": "@chat_r.get(\"/admin/settings\")",
+          "name": "get_chat_settings",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 454,
+          "declaration": "@chat_r.put(\"/admin/settings\")",
+          "name": "update_chat_settings",
+          "guard": [
+            "get_current_user"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/cms.py",
+      "endpoints": [
+        {
+          "line": 52,
+          "declaration": "@cms_r.get(\"/landing\")",
+          "name": "get_landing",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 60,
+          "declaration": "@cms_r.patch(\"/landing\")",
+          "name": "update_landing",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 74,
+          "declaration": "@cms_r.post(\"/landing/upload-image\")",
+          "name": "upload_landing_image",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 89,
+          "declaration": "@cms_r.post(\"/documents/upload-signature\")",
+          "name": "upload_document_signature",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 106,
+          "declaration": "@cms_r.get(\"/mda/preview\")",
+          "name": "mda_preview",
+          "guard": []
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/cms_defaults.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/compensation_admin.py",
+      "endpoints": [
+        {
+          "line": 67,
+          "declaration": "@comp_admin_r.post(\"/salary\")",
+          "name": "set_salary",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 88,
+          "declaration": "@comp_admin_r.get(\"/allowances\")",
+          "name": "list_allowances",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 98,
+          "declaration": "@comp_admin_r.post(\"/allowances\")",
+          "name": "create_allowance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 112,
+          "declaration": "@comp_admin_r.delete(\"/allowances/{allowance_id}\")",
+          "name": "deactivate_allowance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 129,
+          "declaration": "@comp_admin_r.get(\"/bonus/schemes\")",
+          "name": "list_bonus_schemes",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 156,
+          "declaration": "@comp_admin_r.post(\"/bonus/schemes\")",
+          "name": "create_bonus_scheme",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 185,
+          "declaration": "@comp_admin_r.patch(\"/bonus/schemes/{scheme_id}\")",
+          "name": "update_bonus_scheme",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 202,
+          "declaration": "@comp_admin_r.delete(\"/bonus/schemes/{scheme_id}\")",
+          "name": "deactivate_bonus_scheme",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 279,
+          "declaration": "@comp_admin_r.get(\"/bonus/preview\")",
+          "name": "bonus_preview",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 297,
+          "declaration": "@comp_admin_r.get(\"/adjustments\")",
+          "name": "list_adjustments",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 307,
+          "declaration": "@comp_admin_r.post(\"/adjustments\")",
+          "name": "create_adjustment",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 320,
+          "declaration": "@comp_admin_r.post(\"/adjustments/{adj_id}/approve\")",
+          "name": "approve_adjustment",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 337,
+          "declaration": "@comp_admin_r.get(\"/staff\")",
+          "name": "list_staff_comp",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 356,
+          "declaration": "@comp_admin_r.get(\"/payroll/periods\")",
+          "name": "list_periods",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 363,
+          "declaration": "@comp_admin_r.post(\"/payroll/periods\")",
+          "name": "create_period",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 376,
+          "declaration": "@comp_admin_r.post(\"/payroll/periods/{period_id}/generate\")",
+          "name": "generate_payroll",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 420,
+          "declaration": "@comp_admin_r.get(\"/payroll/periods/{period_id}\")",
+          "name": "get_period",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 438,
+          "declaration": "@comp_admin_r.post(\"/payroll/periods/{period_id}/transition\")",
+          "name": "transition_period",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/compensation_payslip.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/compensation_service.py",
+      "endpoints": [
+        {
+          "line": 79,
+          "declaration": "@compensation_r.get(\"/me\")",
+          "name": "my_compensation",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 85,
+          "declaration": "@compensation_r.get(\"/staff/{user_id}\")",
+          "name": "staff_compensation",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 95,
+          "declaration": "@compensation_r.get(\"/payslip/{period_id}\")",
+          "name": "download_payslip",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/contentid_assets.py",
+      "endpoints": [
+        {
+          "line": 63,
+          "declaration": "@contentid_r.post(\"/assets\", response_model=ContentIdAssetOut)",
+          "name": "upload_asset",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 110,
+          "declaration": "@contentid_r.get(\"/assets/{asset_id}\")",
+          "name": "get_asset",
+          "guard": [
+            "get_current_user",
+            "require_label"
+          ]
+        },
+        {
+          "line": 118,
+          "declaration": "@contentid_r.delete(\"/assets/{asset_id}\")",
+          "name": "delete_staged_asset",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 131,
+          "declaration": "@contentid_r.get(\"/tickets/{ticket_id}\", response_model=list[ContentIdDocumentOut])",
+          "name": "list_documents",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 141,
+          "declaration": "@contentid_r.get(\"/tickets/{ticket_id}/{document_id}/pdf\")",
+          "name": "download_pdf",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 151,
+          "declaration": "@contentid_r.get(\"/tickets/{ticket_id}/{document_id}/indemnification\")",
+          "name": "download_indemnification",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 161,
+          "declaration": "@contentid_r.get(\"/tickets/{ticket_id}/{document_id}/dmca\")",
+          "name": "download_dmca",
+          "guard": [
+            "get_current_user"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/contentid_pdf.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/contentid_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/contracts.py",
+      "endpoints": [
+        {
+          "line": 94,
+          "declaration": "@contract_r.post(\"/admin/upload-pdf\")",
+          "name": "contract_upload_pdf",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 108,
+          "declaration": "@contract_r.post(\"/admin\")",
+          "name": "contract_create",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 145,
+          "declaration": "@contract_r.get(\"/admin\")",
+          "name": "contract_list_admin",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 161,
+          "declaration": "@contract_r.get(\"/admin/{cid}\")",
+          "name": "contract_detail_admin",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 169,
+          "declaration": "@contract_r.post(\"/admin/{cid}/extend\")",
+          "name": "contract_extend",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 188,
+          "declaration": "@contract_r.post(\"/admin/{cid}/terminate\")",
+          "name": "contract_terminate",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 205,
+          "declaration": "@contract_r.get(\"/label\")",
+          "name": "contract_list_label",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/copyright_generator.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/cron_jobs.py",
+      "endpoints": [
+        {
+          "line": 335,
+          "declaration": "@cron_r.post(\"/payment-reminders-check\")",
+          "name": "trigger_payment_reminders_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 337,
+          "declaration": "@cron_r.post(\"/payment-reminders-check\")",
+          "name": "trigger_payment_reminders_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 344,
+          "declaration": "@cron_r.post(\"/believe-followup-check\")",
+          "name": "trigger_believe_followup_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 353,
+          "declaration": "@cron_r.post(\"/subscription-check\")",
+          "name": "trigger_subscription_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 360,
+          "declaration": "@cron_r.post(\"/contract-check\")",
+          "name": "trigger_contract_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 367,
+          "declaration": "@cron_r.post(\"/stuck-imports-check\")",
+          "name": "trigger_stuck_imports_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 377,
+          "declaration": "@cron_r.post(\"/stuck-recalculations-check\")",
+          "name": "trigger_stuck_recalculations_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 383,
+          "declaration": "@cron_r.post(\"/xendit-payments-check\")",
+          "name": "trigger_xendit_payments_check",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 390,
+          "declaration": "@cron_r.post(\"/monthly-royalty-summary\")",
+          "name": "trigger_monthly_royalty_summary",
+          "guard": [
+            "require_admin",
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 396,
+          "declaration": "@cron_r.get(\"/monthly-royalty-summary/status\")",
+          "name": "monthly_royalty_summary_status",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 402,
+          "declaration": "@cron_r.post(\"/background-completion-check\")",
+          "name": "trigger_background_completion_check",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 448,
+          "declaration": "@cron_r.post(\"/release-live-check\")",
+          "name": "trigger_release_live_check",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/dashboard_cache.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/dashboard_metrics.py",
+      "endpoints": [
+        {
+          "line": 122,
+          "declaration": "@dashboard_metrics_r.get(\"/metrics\")",
+          "name": "dashboard_metrics",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 163,
+          "declaration": "@dashboard_metrics_r.get(\"/money\")",
+          "name": "dashboard_money",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 199,
+          "declaration": "@dashboard_metrics_r.get(\"/in-progress\")",
+          "name": "in_progress",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 226,
+          "declaration": "@dashboard_metrics_r.get(\"/work-summary\")",
+          "name": "work_summary",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/deps.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/entitlements.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/finance_reporting.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/financial_lock.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/kyc.py",
+      "endpoints": [
+        {
+          "line": 52,
+          "declaration": "@kyc_r.get(\"/label/kyc\")",
+          "name": "label_kyc_status",
+          "guard": [
+            "require_label",
+            "require_label"
+          ]
+        },
+        {
+          "line": 58,
+          "declaration": "@kyc_r.post(\"/label/logo\")",
+          "name": "upload_label_logo",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 76,
+          "declaration": "@kyc_r.post(\"/label/kyc/ktp\")",
+          "name": "upload_ktp",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 127,
+          "declaration": "@kyc_r.get(\"/label/kyc/ktp\")",
+          "name": "view_own_ktp",
+          "guard": [
+            "require_label",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 136,
+          "declaration": "@kyc_r.get(\"/admin/kyc\")",
+          "name": "admin_kyc_queue",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 158,
+          "declaration": "@kyc_r.get(\"/admin/kyc/{label_id}\")",
+          "name": "admin_kyc_detail",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 170,
+          "declaration": "@kyc_r.get(\"/admin/kyc/{label_id}/ktp\")",
+          "name": "admin_view_ktp",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 180,
+          "declaration": "@kyc_r.post(\"/admin/kyc/{label_id}/action\")",
+          "name": "admin_review_kyc",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/kyc_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/labels.py",
+      "endpoints": [
+        {
+          "line": 53,
+          "declaration": "@label_r.get(\"/me\")",
+          "name": "label_me",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 76,
+          "declaration": "@label_r.get(\"/account\")",
+          "name": "label_account",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 113,
+          "declaration": "@label_r.post(\"/active-label\")",
+          "name": "set_active_label",
+          "guard": [
+            "require_label",
+            "require_label"
+          ]
+        },
+        {
+          "line": 122,
+          "declaration": "@label_r.patch(\"/me\")",
+          "name": "label_update",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 143,
+          "declaration": "@label_r.post(\"/claim-request\")",
+          "name": "label_claim_request",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 169,
+          "declaration": "@label_r.get(\"/dashboard\")",
+          "name": "label_dashboard",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 270,
+          "declaration": "@label_r.get(\"/bank-account\")",
+          "name": "get_bank",
+          "guard": [
+            "require_label",
+            "require_label"
+          ]
+        },
+        {
+          "line": 277,
+          "declaration": "@label_r.post(\"/bank-account\")",
+          "name": "submit_bank",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 306,
+          "declaration": "@label_r.get(\"/bank-account/change-requests\")",
+          "name": "list_label_bank_change_requests",
+          "guard": [
+            "require_label",
+            "require_label"
+          ]
+        },
+        {
+          "line": 314,
+          "declaration": "@label_r.post(\"/bank-account/change-request\")",
+          "name": "request_bank_change",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 332,
+          "declaration": "@label_r.post(\"/bank-account/change-requests/{request_id}/action\")",
+          "name": "label_review_bank_change",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 351,
+          "declaration": "@label_r.get(\"/invoices\")",
+          "name": "list_invoices",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/label_analytics.py",
+      "endpoints": [
+        {
+          "line": 31,
+          "declaration": "@label_analytics_r.get(\"\")",
+          "name": "get_label_dashboard_analytics",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/label_balance_snapshot.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/label_package_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/label_rate_change.py",
+      "endpoints": [
+        {
+          "line": 91,
+          "declaration": "@rate_change_r.post(\"/labels/{label_id}/rate-change/request\")",
+          "name": "create_rate_request",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 122,
+          "declaration": "@rate_change_r.get(\"/rate-changes\")",
+          "name": "list_rate_requests",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 135,
+          "declaration": "@rate_change_r.post(\"/rate-changes/{request_id}/decision\")",
+          "name": "decide_rate_request",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 167,
+          "declaration": "@rate_change_r.post(\"/labels/{label_id}/rate-change/direct\")",
+          "name": "direct_rate_change",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/label_rate_import.py",
+      "endpoints": [
+        {
+          "line": 190,
+          "declaration": "@rate_import_r.post(\"/preview\")",
+          "name": "preview_label_rate_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 214,
+          "declaration": "@rate_import_r.post(\"/commit\")",
+          "name": "commit_label_rate_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 255,
+          "declaration": "@rate_import_r.get(\"/jobs/{job_id}\")",
+          "name": "get_label_rate_import_job",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/legacy_withdraw_edit.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/manual_legacy_withdrawal.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/mda_generator.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/migrate.py",
+      "endpoints": [
+        {
+          "line": 132,
+          "declaration": "@migrate_r.get(\"/template/{kind}\")",
+          "name": "download_template",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 163,
+          "declaration": "@migrate_r.post(\"/labels\")",
+          "name": "bulk_import_labels",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 293,
+          "declaration": "@migrate_r.post(\"/releases\")",
+          "name": "bulk_import_releases",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 413,
+          "declaration": "@migrate_r.post(\"/tracks\")",
+          "name": "bulk_import_tracks",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 518,
+          "declaration": "@migrate_r.post(\"/withdraws\")",
+          "name": "bulk_import_withdraws",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 626,
+          "declaration": "@migrate_r.get(\"/claims\")",
+          "name": "list_pending_claims",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 636,
+          "declaration": "@migrate_r.post(\"/claims/{user_id}/link/{legacy_label_id}\")",
+          "name": "link_claim_to_legacy_label",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 754,
+          "declaration": "@migrate_r.post(\"/claims/{user_id}/reject\")",
+          "name": "reject_claim",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 784,
+          "declaration": "@migrate_r.get(\"/labels/unclaimed\")",
+          "name": "list_unclaimed_legacy_labels",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 809,
+          "declaration": "@migrate_r.post(\"/withdraws-legacy-period\")",
+          "name": "bulk_import_withdraws_legacy_period",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1456,
+          "declaration": "@migrate_r.post(\"/royalty/backfill-period-from-row\")",
+          "name": "backfill_royalty_period_from_row",
+          "guard": [
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 1652,
+          "declaration": "@migrate_r.post(\"/materialize-artists\")",
+          "name": "materialize_artists_from_royalty_lines",
+          "guard": [
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 1889,
+          "declaration": "@migrate_r.post(\"/ensure-indexes\")",
+          "name": "ensure_indexes_now",
+          "guard": [
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 1914,
+          "declaration": "@migrate_r.get(\"/jobs/{job_id}\")",
+          "name": "get_migrate_job_status",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/monthly_royalty_email.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/multi_label_merge.py",
+      "endpoints": [
+        {
+          "line": 126,
+          "declaration": "@ml_public_r.post(\"/request\")",
+          "name": "submit_multi_label_request",
+          "guard": []
+        },
+        {
+          "line": 148,
+          "declaration": "@merge_r.get(\"/requests\")",
+          "name": "list_multi_label_requests",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 155,
+          "declaration": "@merge_r.post(\"/requests/{req_id}/handle\")",
+          "name": "handle_multi_label_request",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 164,
+          "declaration": "@merge_r.get(\"/candidates\")",
+          "name": "merge_candidates",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 192,
+          "declaration": "@merge_r.post(\"/merge/validate\")",
+          "name": "merge_validate",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 199,
+          "declaration": "@merge_r.post(\"/merge/commit\")",
+          "name": "merge_commit",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 289,
+          "declaration": "@merge_r.get(\"/accounts\")",
+          "name": "multi_label_accounts",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/notifications.py",
+      "endpoints": [
+        {
+          "line": 116,
+          "declaration": "@notif_r.get(\"/me\")",
+          "name": "my_notifications",
+          "guard": [
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 133,
+          "declaration": "@notif_r.get(\"/admin/log\")",
+          "name": "admin_notification_log",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 167,
+          "declaration": "@notif_r.post(\"/mark-read/{nid}\")",
+          "name": "mark_read",
+          "guard": [
+            "get_current_user",
+            "get_current_user"
+          ]
+        },
+        {
+          "line": 176,
+          "declaration": "@notif_r.post(\"/mark-all-read\")",
+          "name": "mark_all_read",
+          "guard": [
+            "get_current_user",
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 185,
+          "declaration": "@notif_r.post(\"/admin/cleanup-stale\")",
+          "name": "cleanup_stale_notifications",
+          "guard": [
+            "require_super_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/payments.py",
+      "endpoints": [
+        {
+          "line": 42,
+          "declaration": "@pay_r.get(\"/config\")",
+          "name": "payment_config",
+          "guard": [
+            "get_current_user",
+            "require_label"
+          ]
+        },
+        {
+          "line": 47,
+          "declaration": "@pay_r.post(\"/subscription\")",
+          "name": "create_subscription_invoice",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 64,
+          "declaration": "@pay_r.post(\"/wami\")",
+          "name": "create_wami_invoice",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 133,
+          "declaration": "@pay_r.get(\"/products\")",
+          "name": "list_payment_products",
+          "guard": [
+            "require_label",
+            "require_label"
+          ]
+        },
+        {
+          "line": 138,
+          "declaration": "@pay_r.post(\"/service/{product_id}\")",
+          "name": "create_service_invoice",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 157,
+          "declaration": "@pay_r.get(\"/admin/products\")",
+          "name": "admin_list_products",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 163,
+          "declaration": "@pay_r.post(\"/admin/products\")",
+          "name": "admin_create_product",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 178,
+          "declaration": "@pay_r.patch(\"/admin/products/{product_id}\")",
+          "name": "admin_update_product",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 193,
+          "declaration": "@pay_r.delete(\"/admin/products/{product_id}\")",
+          "name": "admin_delete_product",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 207,
+          "declaration": "@pay_r.post(\"/admin/{payment_id}/action\")",
+          "name": "admin_payment_action",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 220,
+          "declaration": "@pay_r.post(\"/{payment_id}/checkout\")",
+          "name": "start_checkout",
+          "guard": [
+            "require_kyc_for_label_user",
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 232,
+          "declaration": "@pay_r.get(\"/{payment_id}/status\")",
+          "name": "payment_status",
+          "guard": [
+            "require_kyc_for_label_user",
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 244,
+          "declaration": "@pay_r.post(\"/{payment_id}/mock-pay\")",
+          "name": "mock_pay",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 253,
+          "declaration": "@pay_r.post(\"/webhook/xendit\")",
+          "name": "xendit_webhook",
+          "guard": []
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/payment_admin_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/performance_service.py",
+      "endpoints": [
+        {
+          "line": 288,
+          "declaration": "@perf_r.get(\"/config\")",
+          "name": "get_config",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 308,
+          "declaration": "@perf_r.put(\"/config\")",
+          "name": "update_config",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 338,
+          "declaration": "@perf_r.get(\"/me\")",
+          "name": "my_performance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 354,
+          "declaration": "@perf_r.get(\"/overview\")",
+          "name": "overview",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 379,
+          "declaration": "@perf_r.get(\"/staff/{user_id}\")",
+          "name": "staff_performance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 416,
+          "declaration": "@perf_r.get(\"/periods\")",
+          "name": "list_periods",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 428,
+          "declaration": "@perf_r.post(\"/periods/action\")",
+          "name": "period_action",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/refund_service.py",
+      "endpoints": [
+        {
+          "line": 78,
+          "declaration": "@refund_r.get(\"/pending\")",
+          "name": "pending_refunds",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 85,
+          "declaration": "@refund_r.get(\"/history\")",
+          "name": "refund_history",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 96,
+          "declaration": "@refund_r.post(\"/{payment_id}/mark-refunded\")",
+          "name": "mark_refunded",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/releases.py",
+      "endpoints": [
+        {
+          "line": 73,
+          "declaration": "@release_r.get(\"/\", response_model=List[ReleaseListItem])",
+          "name": "list_releases",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 119,
+          "declaration": "@release_r.get(\"/submission-quota\", response_model=SubmissionQuotaOut)",
+          "name": "get_submission_quota",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 147,
+          "declaration": "@release_r.get(\"/{release_id}\")",
+          "name": "get_release",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 193,
+          "declaration": "@release_r.get(\"/{release_id}/copyright-letter\")",
+          "name": "download_copyright_letter",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 242,
+          "declaration": "@release_r.post(\"/draft\")",
+          "name": "create_release_draft",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 333,
+          "declaration": "@release_r.patch(\"/{release_id}\")",
+          "name": "update_release",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 427,
+          "declaration": "@release_r.post(\"/{release_id}/upload-cover\")",
+          "name": "upload_cover",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 465,
+          "declaration": "@release_r.post(\"/{release_id}/upload-audio\")",
+          "name": "upload_audio",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 506,
+          "declaration": "@release_r.post(\"/{release_id}/submit\")",
+          "name": "submit_release",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 635,
+          "declaration": "@release_r.delete(\"/{release_id}\", response_model=ReleaseDeletionResult)",
+          "name": "delete_release",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 692,
+          "declaration": "@release_r.post(\"/{release_id}/admin/action\")",
+          "name": "admin_release_action",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 930,
+          "declaration": "@release_r.post(\"/{release_id}/admin/metadata-edit\")",
+          "name": "admin_metadata_edit",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 964,
+          "declaration": "@release_r.get(\"/admin/metadata-edit-requests\")",
+          "name": "admin_list_metadata_edit_requests",
+          "guard": [
+            "require_super_admin",
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 970,
+          "declaration": "@release_r.post(\"/admin/metadata-edit/{req_id}/review\")",
+          "name": "admin_review_metadata_edit",
+          "guard": [
+            "require_super_admin"
+          ]
+        },
+        {
+          "line": 1040,
+          "declaration": "@release_r.get(\"/{release_id}/admin/shortfall-preview\")",
+          "name": "admin_shortfall_preview",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1046,
+          "declaration": "@release_r.post(\"/{release_id}/admin/shortfall-invoice\")",
+          "name": "admin_create_shortfall_invoice",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1227,
+          "declaration": "@release_r.get(\"/{release_id}/admin/export-package\")",
+          "name": "admin_export_release_package",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1304,
+          "declaration": "@release_r.post(\"/{release_id}/admin/indemnification-letter\")",
+          "name": "admin_indemnification_letter",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1325,
+          "declaration": "@release_r.post(\"/{release_id}/admin/dmca-letter\")",
+          "name": "admin_dmca_letter",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1350,
+          "declaration": "@release_r.post(\"/{release_id}/admin/upload-cover\")",
+          "name": "admin_upload_cover",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1382,
+          "declaration": "@release_r.post(\"/{release_id}/admin/upload-audio\")",
+          "name": "admin_upload_audio",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1438,
+          "declaration": "@release_r.post(\"/{release_id}/admin/upload-remix-permission\")",
+          "name": "admin_upload_remix_permission",
+          "guard": [
+            "require_admin",
+            "require_label"
+          ]
+        },
+        {
+          "line": 1447,
+          "declaration": "@release_r.post(\"/{release_id}/upload-remix-permission\")",
+          "name": "label_upload_remix_permission",
+          "guard": [
+            "require_label"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/release_deletion_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/release_internal_cover.py",
+      "endpoints": [
+        {
+          "line": 37,
+          "declaration": "@internal_cover_r.post(\"/{release_id}/internal-cover\", response_model=InternalCoverOut)",
+          "name": "upload_internal_cover",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 77,
+          "declaration": "@internal_cover_r.get(\"/{release_id}/internal-cover\")",
+          "name": "get_internal_cover",
+          "guard": [
+            "get_current_user"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/release_list_metadata.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/release_submission_quota.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/release_workflow_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/revenue_rollup.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty.py",
+      "endpoints": [
+        {
+          "line": 99,
+          "declaration": "@royalty_r.post(\"/admin/imports\")",
+          "name": "admin_upload_royalty_csv",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 309,
+          "declaration": "@royalty_r.post(\"/admin/imports/initiate\")",
+          "name": "admin_initiate_large_upload",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 375,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/finalize\")",
+          "name": "admin_finalize_large_upload",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 876,
+          "declaration": "@royalty_r.get(\"/admin/imports\")",
+          "name": "admin_list_imports",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 895,
+          "declaration": "@royalty_r.get(\"/admin/imports/{import_id}\")",
+          "name": "admin_get_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 943,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/line/{line_id}/match\")",
+          "name": "admin_manually_match_line",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 988,
+          "declaration": "@royalty_r.post(\"/admin/recalculate-unwithdrawn\")",
+          "name": "admin_recalculate_all_unwithdrawn",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1020,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/publish\")",
+          "name": "admin_publish_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1276,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/mark-dana-received\")",
+          "name": "admin_mark_dana_received",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1529,
+          "declaration": "@royalty_r.post(\"/admin/reset-demo-data\")",
+          "name": "admin_reset_demo_royalty_data",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 1683,
+          "declaration": "@royalty_r.get(\"/months\")",
+          "name": "label_royalty_months",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1700,
+          "declaration": "@royalty_r.get(\"/summary\")",
+          "name": "label_royalty_summary",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1755,
+          "declaration": "@royalty_r.get(\"/lines\")",
+          "name": "label_royalty_lines",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1792,
+          "declaration": "@royalty_r.get(\"/export.csv\")",
+          "name": "label_royalty_export_csv",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1853,
+          "declaration": "@royalty_r.get(\"/report-artists\")",
+          "name": "label_report_artists",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1944,
+          "declaration": "@royalty_r.get(\"/export.xlsx\")",
+          "name": "label_royalty_export_xlsx",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 1970,
+          "declaration": "@royalty_r.post(\"/artists/{artist_id}/send-report\")",
+          "name": "label_send_artist_report",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 2102,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/retry\")",
+          "name": "admin_retry_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 2143,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/repair-reporting-period\")",
+          "name": "admin_repair_reporting_period",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 2196,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/repair-source/initiate\")",
+          "name": "admin_initiate_repair_source_upload",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 2244,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/repair-source/finalize\")",
+          "name": "admin_finalize_repair_source_upload",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 2529,
+          "declaration": "@royalty_r.post(\"/admin/imports/{import_id}/force-finalize\")",
+          "name": "admin_force_finalize_import",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 2584,
+          "declaration": "@royalty_r.delete(\"/admin/imports/{import_id}\")",
+          "name": "admin_delete_import",
+          "guard": [
+            "require_super_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_adjustments.py",
+      "endpoints": [
+        {
+          "line": 41,
+          "declaration": "@adjustment_r.get(\"/labels\", response_model=list[LabelOption])",
+          "name": "label_options",
+          "guard": [
+            "royalty_manager",
+            "royalty_manager"
+          ]
+        },
+        {
+          "line": 48,
+          "declaration": "@adjustment_r.get(\"/labels/{label_id}/summary\", response_model=SourceSummary)",
+          "name": "summary",
+          "guard": [
+            "royalty_manager",
+            "royalty_manager",
+            "royalty_manager"
+          ]
+        },
+        {
+          "line": 54,
+          "declaration": "@adjustment_r.post(\"/labels/{label_id}/preview\", response_model=AdjustmentPreview)",
+          "name": "preview",
+          "guard": [
+            "royalty_manager",
+            "royalty_manager",
+            "royalty_manager"
+          ]
+        },
+        {
+          "line": 59,
+          "declaration": "@adjustment_r.post(\"/labels/{label_id}\", response_model=AdjustmentResult)",
+          "name": "create",
+          "guard": [
+            "royalty_manager",
+            "royalty_manager",
+            "royalty_manager"
+          ]
+        },
+        {
+          "line": 64,
+          "declaration": "@adjustment_r.post(\"/labels/{label_id}/{adjustment_id}/void\", response_model=AdjustmentResult)",
+          "name": "void",
+          "guard": [
+            "royalty_manager",
+            "royalty_manager"
+          ]
+        },
+        {
+          "line": 69,
+          "declaration": "@adjustment_r.get(\"/labels/{label_id}\", response_model=AdjustmentHistory)",
+          "name": "history",
+          "guard": [
+            "royalty_manager"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_adjustment_balance.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_adjustment_models.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_adjustment_mutations.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_adjustment_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_duplicate_audit.py",
+      "endpoints": [
+        {
+          "line": 263,
+          "declaration": "@duplicate_audit_r.post(\"/preview\")",
+          "name": "start_duplicate_audit",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 282,
+          "declaration": "@duplicate_audit_r.get(\"/jobs/{job_id}\")",
+          "name": "get_duplicate_audit_job",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 293,
+          "declaration": "@duplicate_audit_r.get(\"/jobs/{job_id}/rows\")",
+          "name": "get_duplicate_audit_rows",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_import_replacement.py",
+      "endpoints": [
+        {
+          "line": 465,
+          "declaration": "@replacement_r.post(\"/{old_import_id}/replacement/initiate\")",
+          "name": "initiate_replacement",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 507,
+          "declaration": "@replacement_r.post(\"/{old_import_id}/replacement/{replacement_import_id}/finalize\")",
+          "name": "finalize_replacement",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 552,
+          "declaration": "@replacement_r.post(\"/{old_import_id}/replacement/{replacement_import_id}/preview\")",
+          "name": "preview_replacement",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 576,
+          "declaration": "@replacement_r.get(\"/{old_import_id}/replacement/{replacement_import_id}/status\")",
+          "name": "get_replacement_status",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 587,
+          "declaration": "@replacement_r.delete(\"/{old_import_id}/replacement/{replacement_import_id}\")",
+          "name": "cancel_replacement",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 609,
+          "declaration": "@replacement_r.post(\"/{old_import_id}/replacement/{replacement_import_id}/commit\")",
+          "name": "commit_replacement",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 652,
+          "declaration": "@replacement_r.get(\"/replacement/jobs/{job_id}\")",
+          "name": "get_replacement_job",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 663,
+          "declaration": "@replacement_r.get(\"/replacement/jobs/{job_id}/rows\")",
+          "name": "get_replacement_rows",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/royalty_recalculation.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/seed.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/sensitive_requests.py",
+      "endpoints": [
+        {
+          "line": 96,
+          "declaration": "@sensitive_r.post(\"/labels/{label_id}/blacklist-request\")",
+          "name": "request_blacklist",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 113,
+          "declaration": "@sensitive_r.post(\"/labels/{label_id}/package-request\")",
+          "name": "request_package",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 128,
+          "declaration": "@sensitive_r.get(\"/sensitive-requests\")",
+          "name": "list_sensitive_requests",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 177,
+          "declaration": "@sensitive_r.post(\"/sensitive-requests/{request_id}/decision\")",
+          "name": "decide_sensitive_request",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/staff.py",
+      "endpoints": [
+        {
+          "line": 166,
+          "declaration": "@staff_r.get(\"/staff\")",
+          "name": "list_staff",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 180,
+          "declaration": "@staff_r.get(\"/staff/config\")",
+          "name": "get_staff_config",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 193,
+          "declaration": "@staff_r.put(\"/staff/config\")",
+          "name": "update_staff_config",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 214,
+          "declaration": "@staff_r.post(\"/staff/config/holidays\")",
+          "name": "add_holiday",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 223,
+          "declaration": "@staff_r.delete(\"/staff/config/holidays/{date}\")",
+          "name": "remove_holiday",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 235,
+          "declaration": "@staff_r.post(\"/staff/{user_id}/employment\")",
+          "name": "set_employment",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 256,
+          "declaration": "@staff_r.post(\"/staff/{user_id}/salary\")",
+          "name": "set_salary",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 273,
+          "declaration": "@staff_r.get(\"/staff/{user_id}\")",
+          "name": "staff_detail",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 294,
+          "declaration": "@staff_r.get(\"/attendance\")",
+          "name": "attendance_day",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 316,
+          "declaration": "@staff_r.post(\"/attendance/{user_id}/correct\")",
+          "name": "correct_attendance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 339,
+          "declaration": "@staff_r.get(\"/leave\")",
+          "name": "list_leave",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 355,
+          "declaration": "@staff_r.post(\"/leave\")",
+          "name": "submit_leave",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 373,
+          "declaration": "@staff_r.post(\"/leave/{leave_id}/action\")",
+          "name": "action_leave",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 395,
+          "declaration": "@staff_r.get(\"/status/me\")",
+          "name": "status_me",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 409,
+          "declaration": "@staff_r.get(\"/status/team\")",
+          "name": "status_team",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 415,
+          "declaration": "@staff_r.get(\"/attendance/summary\")",
+          "name": "attendance_summary",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/tickets.py",
+      "endpoints": [
+        {
+          "line": 69,
+          "declaration": "@ticket_r.get(\"/categories\")",
+          "name": "list_ticket_categories",
+          "guard": [
+            "require_kyc_for_label_user",
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 74,
+          "declaration": "@ticket_r.post(\"/upload-attachment\")",
+          "name": "upload_ticket_attachment",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 120,
+          "declaration": "@ticket_r.post(\"/label/create\", response_model=TicketCreatedOut)",
+          "name": "label_create_ticket",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 242,
+          "declaration": "@ticket_r.get(\"/label\")",
+          "name": "label_list_tickets",
+          "guard": [
+            "require_label",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 252,
+          "declaration": "@ticket_r.get(\"/admin\")",
+          "name": "admin_list_tickets",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 281,
+          "declaration": "@ticket_r.get(\"/{ticket_id}\")",
+          "name": "get_ticket",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 296,
+          "declaration": "@ticket_r.post(\"/{ticket_id}/comment\")",
+          "name": "post_ticket_comment",
+          "guard": [
+            "require_kyc_for_label_user"
+          ]
+        },
+        {
+          "line": 338,
+          "declaration": "@ticket_r.post(\"/{ticket_id}/cancel\")",
+          "name": "label_cancel_ticket",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 360,
+          "declaration": "@ticket_r.post(\"/admin/{ticket_id}/status\")",
+          "name": "admin_update_ticket",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 403,
+          "declaration": "@ticket_r.post(\"/admin/{ticket_id}/believe-recheck\")",
+          "name": "admin_believe_recheck",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 427,
+          "declaration": "@ticket_r.post(\"/admin/bulk-status\")",
+          "name": "admin_bulk_update_tickets",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/ticket_takedown_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/ticket_workflow_service.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/wami.py",
+      "endpoints": [
+        {
+          "line": 53,
+          "declaration": "@wami_r.get(\"/label\")",
+          "name": "label_list_wami",
+          "guard": [
+            "require_label",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 60,
+          "declaration": "@wami_r.get(\"/admin\")",
+          "name": "admin_list_wami",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 74,
+          "declaration": "@wami_r.post(\"/admin/{order_id}/status\")",
+          "name": "admin_update_wami",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 139,
+          "declaration": "@wami_r.post(\"/migration/preview\")",
+          "name": "wami_migration_preview",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 222,
+          "declaration": "@wami_r.post(\"/migration/apply\")",
+          "name": "wami_migration_apply",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 251,
+          "declaration": "@wami_r.get(\"/migration/history\")",
+          "name": "wami_migration_history",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/withdraw.py",
+      "endpoints": [
+        {
+          "line": 102,
+          "declaration": "@withdraw_r.get(\"/window\")",
+          "name": "get_window_state",
+          "guard": [
+            "get_current_user",
+            "require_label"
+          ]
+        },
+        {
+          "line": 107,
+          "declaration": "@withdraw_r.get(\"/label/computed\")",
+          "name": "label_computed_withdrawable",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 130,
+          "declaration": "@withdraw_r.post(\"/label/request\")",
+          "name": "label_request_withdraw",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 237,
+          "declaration": "@withdraw_r.post(\"/label/batch\")",
+          "name": "label_request_withdraw_batch",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 335,
+          "declaration": "@withdraw_r.get(\"/label/batches\")",
+          "name": "label_list_withdraw_batches",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 350,
+          "declaration": "@withdraw_r.get(\"/label\")",
+          "name": "label_list_withdraws",
+          "guard": [
+            "require_label"
+          ]
+        },
+        {
+          "line": 363,
+          "declaration": "@withdraw_r.get(\"/admin\")",
+          "name": "admin_list_withdraws",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 430,
+          "declaration": "@withdraw_r.get(\"/admin/batches\")",
+          "name": "admin_list_withdraw_batches",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 457,
+          "declaration": "@withdraw_r.get(\"/admin/summary\")",
+          "name": "admin_withdraw_summary",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 467,
+          "declaration": "@withdraw_r.post(\"/admin/legacy-manual/preview\")",
+          "name": "admin_preview_manual_legacy_withdraw",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 476,
+          "declaration": "@withdraw_r.post(\"/admin/legacy-manual\")",
+          "name": "admin_create_manual_legacy_withdraw",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 485,
+          "declaration": "@withdraw_r.post(\"/admin/{wd_id}/legacy-edit/preview\")",
+          "name": "admin_preview_legacy_withdraw_edit",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 494,
+          "declaration": "@withdraw_r.post(\"/admin/{wd_id}/legacy-edit\")",
+          "name": "admin_commit_legacy_withdraw_edit",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 503,
+          "declaration": "@withdraw_r.post(\"/admin/{wd_id}/legacy-dates\")",
+          "name": "admin_update_legacy_withdraw_dates",
+          "guard": [
+            "require_admin",
+            "require_admin"
+          ]
+        },
+        {
+          "line": 512,
+          "declaration": "@withdraw_r.post(\"/admin/{wd_id}/action\")",
+          "name": "admin_withdraw_action",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 655,
+          "declaration": "@withdraw_r.post(\"/admin/upload-proof\")",
+          "name": "admin_upload_proof",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 670,
+          "declaration": "@withdraw_r.post(\"/admin/verify-bank/{label_id}\")",
+          "name": "admin_verify_bank",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/working_days.py",
+      "endpoints": []
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/work_service.py",
+      "endpoints": [
+        {
+          "line": 269,
+          "declaration": "@work_r.get(\"/queue\")",
+          "name": "work_queue",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 331,
+          "declaration": "@work_r.get(\"/history\")",
+          "name": "work_history",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 346,
+          "declaration": "@work_r.get(\"/settings\")",
+          "name": "get_work_config",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 364,
+          "declaration": "@work_r.put(\"/settings/sla\")",
+          "name": "update_sla",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/xendit_reconciliation.py",
+      "endpoints": [
+        {
+          "line": 60,
+          "declaration": "@xendit_recon_r.get(\"/balance\")",
+          "name": "xendit_balance",
+          "guard": [
+            "require_admin"
+          ]
+        },
+        {
+          "line": 75,
+          "declaration": "@xendit_recon_r.get(\"/reconciliation\")",
+          "name": "reconciliation",
+          "guard": [
+            "require_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "repo-reference-v10/backend/routes/__init__.py",
+      "endpoints": []
+    }
+  ],
+  "pages": [
+    "repo-reference-v10/frontend/src/pages/admin/AccessControl.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/ActivityLogs.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/AddonOrders.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/AdminUsers.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Analytics.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/AnalyticsAudit.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Artists.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Attendance.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/BalanceAuditPanel.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/BankVerifications.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/CMS.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/CompensationAdmin.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Contracts.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Dashboard.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/KycReviews.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/LabelDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/LabelRateImport.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Labels.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Migrate.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/MultiLabelMerge.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/MyCompensation.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/MyPerformance.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Notifications.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/payments/PaymentDetailDialog.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/payments/paymentPresentation.js",
+    "repo-reference-v10/frontend/src/pages/admin/Payments.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/perfHelpers.js",
+    "repo-reference-v10/frontend/src/pages/admin/Performance.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/PerformanceConfig.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/RateChangeQueue.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Refunds.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/ReleaseDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/releases/AdminReleaseWorkflow.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Releases.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/RoyaltyAdjustments.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/RoyaltyDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/RoyaltyImport.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/StaffConfiguration.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/StaffManagement.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/TicketDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Tickets.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/UiSettings.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Wami.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/WamiMigrationImport.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/Withdraw.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/WithdrawImportPanel.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/WorkQueue.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/WorkspaceStatus.jsx",
+    "repo-reference-v10/frontend/src/pages/admin/XenditReconciliation.jsx",
+    "repo-reference-v10/frontend/src/pages/artist/Dashboard.jsx",
+    "repo-reference-v10/frontend/src/pages/auth/ForgotPassword.jsx",
+    "repo-reference-v10/frontend/src/pages/auth/GoogleAuthCallback.jsx",
+    "repo-reference-v10/frontend/src/pages/auth/Login.jsx",
+    "repo-reference-v10/frontend/src/pages/auth/Register.jsx",
+    "repo-reference-v10/frontend/src/pages/auth/ResetPassword.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Artists.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Contract.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Dashboard.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Invoices.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Profile.jsx",
+    "repo-reference-v10/frontend/src/pages/label/release-form/ArtistCreditsStep.jsx",
+    "repo-reference-v10/frontend/src/pages/label/release-form/AssetsReviewStep.jsx",
+    "repo-reference-v10/frontend/src/pages/label/release-form/fileValidation.js",
+    "repo-reference-v10/frontend/src/pages/label/release-form/releaseFormState.js",
+    "repo-reference-v10/frontend/src/pages/label/release-form/ReleaseFormStepper.jsx",
+    "repo-reference-v10/frontend/src/pages/label/release-form/ReleaseInfoStep.jsx",
+    "repo-reference-v10/frontend/src/pages/label/release-form/TracksStep.jsx",
+    "repo-reference-v10/frontend/src/pages/label/ReleaseDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Releases.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Royalty.jsx",
+    "repo-reference-v10/frontend/src/pages/label/SupportTicketDetail.jsx",
+    "repo-reference-v10/frontend/src/pages/label/SupportTickets.jsx",
+    "repo-reference-v10/frontend/src/pages/label/UploadRelease.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Wami.jsx",
+    "repo-reference-v10/frontend/src/pages/label/Withdraw.jsx",
+    "repo-reference-v10/frontend/src/pages/Landing.jsx",
+    "repo-reference-v10/frontend/src/pages/MultiLabelRequest.jsx"
+  ]
+}

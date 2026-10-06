@@ -1,0 +1,7 @@
+Lanjutkan proyek Website Rilis Musik dari branch Prototype-Rilis-Musik di repo Ekapoetra/rilismusik. Semua berkas sudah tersedia di folder prototype-rilis-musik; tidak perlu mengekstrak ZIP. Versi dasar terbaru adalah V13.0, bukan V12.5. Ini prototipe lokal; belum terintegrasi penuh ke website produksi.
+
+Baca PROTOTYPE-RILIS-MUSIK.txt di root, lalu START-HERE.txt, CONTEXT.txt, PARKED.txt, dan visual-references/READ-ME.txt di folder handoff. Dari prototype-rilis-musik jalankan npm run preview dan tampilkan pratinjau yang bisa kubuka. Verifikasi versi V13.0 pada tampilan, bukan hanya nama file.
+
+Tugas pertama: periksa kesesuaian UI dengan arahan terakhir, terutama header dan sapaan sebagai satu blok, pengaturan desain lewat unggah serta tarik/resize langsung, pergantian Platform–Staff tanpa header menutup lalu membuka, serta pemilih profil staff di tengah dengan animasi slide halus. Laporkan singkat mana yang sudah sesuai dan mana yang masih salah, sertakan screenshot.
+
+Pertahankan aturan bisnis dan data. Jangan menghidupkan tema kantor 3D atau menerapkan proposal Token, emblem, harga, dan kuota yang masih diparkir. Jangan menganggap laporan tes sebagai persetujuan desainku. Pada sesi pertama ini jangan merombak, merge, atau deploy; pahami baseline dan tunjukkan hasil pemeriksaan dahulu. Gunakan bahasa Indonesia yang singkat.

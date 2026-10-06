@@ -1,0 +1,40 @@
+{
+  "summary": "Phase 14 Direct-to-R2 upload flow end-to-end verified. 10/10 backend pytest cases PASS (auth/validation, happy-path initiate→PUT→finalize, error cases, CORS preflight, multipart backward-compat). Frontend smoke test PASS: super_admin login → /admin/royalty → Upload CSV modal → progress UI cycled initiating→uploading→finalizing → modal closed → success banner shown → new import (2024-05) landed with status=pending_review and 1/1 matched line. Backend startup ensure_cors() executed cleanly with no [R2] errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/royalty/admin/imports/{id}/finalize", "issue": "Status doc shows 'awaiting_upload' rows piling up when admin initiates but never PUTs (e.g. our error-case tests left 2024-02 and 2024-03 in awaiting_upload). Not a defect — but consider a TTL cron to auto-mark stale awaiting_upload imports as expired after presigned URL TTL (7200s)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/royalty list", "issues": ["File berhasil diupload size shows '0.0 MB' for sub-1MB files (cosmetic — rounding artifact in (size/1024/1024).toFixed(1)). Consider showing KB for <1MB."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase14_direct_r2_upload.py",
+    "/app/test_reports/pytest/iter16_phase14.xml"
+  ],
+  "action_items": [
+    "Optional: add cleanup cron for awaiting_upload imports older than 2h (presigned URL already expired).",
+    "Optional cosmetic: file-size display in success banner — switch to KB for sub-MB files."
+  ],
+  "critical_code_review_comments": [
+    "InitiateUploadIn.file_size_bytes is accepted but unused for capacity enforcement — consider adding a server-side MAX_BYTES check (e.g., 5 GB) on initiate to fail fast instead of post-PUT.",
+    "finalize endpoint returns 400 'Status import tidak valid untuk finalize' on duplicate finalize call (verified inline by attempting it after a successful run path — confirmed via test_finalize_without_put pattern). Behavior matches spec.",
+    "R2 CORS rules are applied at backend startup as best-effort (logs warning, does not raise). Preflight OPTIONS against presigned URL returned Access-Control-Allow-Origin including the frontend origin — CORS is correctly enforced on the bucket.",
+    "Content-Type returned by initiate is 'text/csv' for .csv and 'application/gzip' for .csv.gz — frontend XHR PUT uses this exact value matching the presigned signature."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase14_direct_r2_upload.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (full E2E direct-to-R2 upload flow)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (used for E2E). finance1@rilismusik.com (Finance role allowed). release1@rilismusik.com (correctly rejected 403).",
+  "seed_data_creation": "Backend tests left behind: 1 pending_review import for period 2024-01 (TEST_phase14_direct.csv, 2 lines), 1 pending_review for 2024-04 (TEST_small_backcompat.csv, 2 lines), 2 awaiting_upload stubs for 2024-02 + 2024-03 (TEST_neverput.csv, TEST_cors.csv — never PUT, expected). Frontend test left 1 pending_review for 2024-05 (1 line, auto-created label TEST_FE_Label_Phase14). All TEST_ prefixed — use existing 'Reset Data Demo' button to clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 14 direct-to-R2 upload is fully green. Backend test file at /app/backend/tests/test_phase14_direct_r2_upload.py covers all auth gates, validation, happy path (real PUT to R2), error states, CORS preflight, and backward-compat multipart. Frontend RoyaltyImport.jsx submit() correctly orchestrates the 3-step flow with progress UI. R2 bucket CORS is configured on startup (no [R2] errors in supervisor logs). Pydantic gt=0 on rate_eur_idr returns 422 (not 400) — test asserts 422. Period format check still 400 (date.strptime in handler). All looks production-ready.",
+  "rca_of_the_issue": "N/A — feature works as designed. The original 370MB upload failure was rooted in Kubernetes ingress 100MB body cap on the multipart POST; the new initiate→presigned-PUT→finalize flow bypasses ingress entirely by streaming bytes browser→R2 directly. Verified by (a) successful PUT to presigned URL with exact Content-Type match, (b) head_object check in finalize, (c) background _process_csv_import_bg run picking up the file from R2 via download_to_file and producing pending_review status."
+}

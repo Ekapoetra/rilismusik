@@ -1,0 +1,57 @@
+/* All role surfaces inherit the established V9 design tokens and controls. */
+:root{--ten-gap:20px}
+.shell[data-gap=compact]{--ten-gap:12px}.shell[data-gap=spacious]{--ten-gap:28px}.shell .dashboard-grid,.shell .ten-grid,.shell .two7{gap:var(--ten-gap)}
+.shell[data-font=large] #main .panel p,.shell[data-font=large] #main .work-row9 strong,.shell[data-font=large] #main td{font-size:15px}.shell[data-font=large] #main .panel h2{font-size:19px}
+.shell[data-size=large] .dashboard-grid>.span-4,.shell[data-size=large] .dashboard-grid>.span-6,.shell[data-size=large] .dashboard-grid>.span-8{grid-column:span 12}
+.shell[data-design=soft] #main .panel:not(.attention-shared102){background:var(--soft)}
+.demo-bar>[data-ten=config]{margin-left:0}.ten-config select{padding:8px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.activation102{position:relative;z-index:35}
+.ten-grid{gap:var(--ten-gap);margin-bottom:22px}
+.ten-card.panel{padding:22px;border-radius:var(--radius,20px);background:var(--surface);border:1px solid var(--line)}
+.ten-card h2{font-size:16px;font-weight:500}.ten-card p{font-size:13px}
+.ten-actions .btn{max-width:100%}.block102{display:block;margin-top:5px;color:var(--muted);font-size:12px}
+.flow102 .ten-card{border:0;padding:0;background:transparent}.flow102 .ten-grid{margin:0}
+.flow102 .ten-actions>form,.flow102 .ten-actions>p,.flow102 .ten-actions>h3{width:100%}
+.flow102 input:not([type=checkbox]):not([type=range]),.flow102 select,.flow102 textarea,.ten-form input:not([type=checkbox]),.ten-form select,.ten-form textarea{width:100%;min-width:0;padding:11px 12px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;font:inherit}
+.flow102 textarea{min-height:90px}.flow102 .ten-check input{width:17px;height:17px;accent-color:var(--blue);flex-shrink:0}
+.flow102 .dialog-body{max-height:78dvh;overflow:auto}.flow102.credit102{width:min(1120px,96vw)}
+.flow102 .ten-actions>h3{margin-bottom:0}.flow102 .ten-form{width:100%}
+.flow102 p{line-height:1.65}.flow102 .btn{font-weight:400}
+.activation102{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 30px;background:var(--surface);border-bottom:1px solid var(--line)}
+.activation102>div{flex:1;max-width:800px}.activation102 strong{font-size:13px;font-weight:500}.activation-track102{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:10px}
+.activation-track102>span{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);border-top:3px solid var(--line);padding-top:8px}.activation-track102>span.done{border-color:var(--blue);color:var(--text)}
+.activation-track102 i{font-style:normal}.activation102 .btn{flex-shrink:0}.label-commerce102{display:flex;gap:8px;align-items:center}.label-commerce102 .btn{font-size:12px;white-space:nowrap}.label-avatar102{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--soft);font-size:14px;color:var(--text)}
+.shared-label102{margin-top:22px}.shared-label102 .grid-card .body{padding:0 22px 22px}.shared-label102 .panel-head p:empty{display:none}
+.identity102{display:grid;grid-template-columns:1fr 1fr;gap:20px}.identity102>div{min-width:0}.identity102 dt{color:var(--muted);font-size:12px}.identity102 dd{margin:5px 0 0;line-height:1.5;overflow-wrap:anywhere}.existing-labels102{margin-top:24px}.existing-labels102 summary{cursor:pointer;padding:16px;color:var(--muted)}
+.contract-text102{white-space:pre-wrap;line-height:1.85;padding:20px;background:var(--soft);border-radius:12px;margin:16px 0;max-height:42vh;overflow:auto}.studio-roles102{margin-bottom:24px}.studio-roles102 h3{margin-bottom:0}.studio-roles102 p{font-size:12px;color:var(--muted)}
+/* The white block is intentional in both themes; status lives in text until hover. */
+.attention9,.decision7.attention9,.attention-shared102,.ten-attention{--status:#a4562d;border:0!important;outline:0!important;box-shadow:none!important;background:#fff!important;color:#25272b!important;border-radius:20px;padding:18px 22px}
+.attention9.red9,.attention-shared102.critical102,.ten-attention.red{--status:#c42d3f}
+.attention9 h2,.attention-shared102 h2,.attention-shared102 .status-dot9,.attention-shared102 .pulse{color:var(--status)!important}
+.attention-shared102 .pulse,.attention-shared102 .status-dot9{background:var(--status)!important;box-shadow:none!important}
+.attention-shared102:before,.attention-shared102:after{display:none!important}
+.attention-shared102>.spread>.btn,.attention-shared102>.spread>.icon9{background:transparent!important;color:var(--status)!important;border:0!important}
+.attention-shared102 p,.attention-shared102 small{color:#4e5056!important}
+.attention-shared102:hover{background:var(--status)!important;color:#fff!important}
+.attention-shared102:hover h2,.attention-shared102:hover p,.attention-shared102:hover small,.attention-shared102:hover .btn,.attention-shared102:hover .icon9,.attention-shared102:hover strong{color:#fff!important}
+.attention-shared102:hover .pulse,.attention-shared102:hover .status-dot9{background:#fff!important}
+.attention-shared102:hover .badge{background:transparent!important;color:#fff!important;border-color:#ffffff55!important}
+.attention-shared102 .action-row{border-color:#ddd}.attention-shared102:hover .action-row{border-color:#ffffff40}
+.service102{max-width:510px;margin:10px auto 22px;padding:22px 24px 16px;border:1px solid var(--line);border-radius:28px;background:var(--soft);text-align:center}
+.service102>small{font-size:12px;color:var(--muted)}.service102>output{display:block;font-size:28px;color:var(--blue);font-weight:500;margin:6px 0 25px}
+.service-track102{height:44px;position:relative;margin:0 4px}
+.service-rail102{position:absolute;inset:0;border-radius:30px;background:linear-gradient(to right,var(--blue) 0 var(--level),var(--line) var(--level) 100%)}
+.service-dots102{position:absolute;inset:0 21px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}.service-dots102 i{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.6}
+.service102 input[type=range]{position:absolute;inset:0;width:100%;height:44px;margin:0;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer;border:0;padding:0;z-index:1}
+.service102 input[type=range]::-webkit-slider-runnable-track{height:44px;background:transparent;border:0}
+.service102 input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:48px;height:48px;border-radius:50%;background:white;border:1px solid #dedee2;margin-top:-2px;transition:transform .18s}
+.service102 input[type=range]:active::-webkit-slider-thumb{transform:scale(1.06)}
+.service-thumb102{position:absolute;pointer-events:none;top:-2px;left:calc(var(--level) - var(--thumb-offset));width:48px;height:48px;background:#fff;border:1px solid #dedee2;border-radius:50%;transition:left .26s cubic-bezier(.2,.8,.2,1);z-index:1}
+.service102 input[type=range]::-webkit-slider-thumb{opacity:0}
+.service-rail102{background:var(--line);overflow:hidden}.service-rail102:after{content:'';position:absolute;inset:0 auto 0 0;width:var(--level);border-radius:30px;background:var(--blue);transition:width .26s cubic-bezier(.2,.8,.2,1)}
+.service102 input[type=range]:focus-visible{outline:2px solid var(--blue);outline-offset:6px;border-radius:30px}
+.service-labels102{display:flex;justify-content:space-between;gap:16px;margin:15px 0 0}.service-labels102 button{font-size:12px;font-weight:400;color:var(--muted);padding:5px 0}.service-labels102 button.active{color:var(--blue)}
+.ten-welcome .btn{margin-top:24px;animation:tenEnter .7s .3s both}
+@media(max-width:1050px){body[data-role=label] .header-top{flex-wrap:wrap}body[data-role=label] .tools{flex-wrap:wrap}.shared-label102 .span-8,.shared-label102 .span-4{grid-column:span 12}}
+@media(max-width:700px){.activation102{padding:14px 16px;gap:12px;flex-wrap:wrap}.activation-track102{gap:9px}.activation-track102>span{font-size:10px}.label-commerce102{order:2;flex-basis:100%}.identity102{grid-template-columns:1fr}.ten-card,.ten-card.third{grid-column:1/-1}.ten-form{grid-template-columns:1fr}.service102{padding:18px}.ten-row{flex-wrap:wrap}.ten-item{align-items:flex-start}.ten-item>.ten-row{justify-content:flex-end}.flow102 .dialog-body{padding:16px}.ten-stepbar{gap:8px}.ten-step{font-size:10px}.ten-grid{gap:16px}}
+@media(prefers-reduced-motion:reduce){.service102 *,.attention-shared102,.activation102{}}

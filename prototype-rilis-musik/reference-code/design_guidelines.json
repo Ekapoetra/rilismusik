@@ -1,0 +1,93 @@
+{
+  "typography": {
+    "ui_fonts": {
+      "headings": "Plus Jakarta Sans, sans-serif",
+      "body": "Manrope, sans-serif"
+    },
+    "pdf_fonts": {
+      "title": "Helvetica-Bold or bundled Bitstream Vera Sans Bold",
+      "body": "Helvetica or bundled Bitstream Vera Sans"
+    },
+    "rules": [
+      "Use tracking-tight for UI headings.",
+      "For PDF: Ensure high readability, formal tone. Title at 14pt-16pt, body at 11pt-12pt. Use 1.5 line spacing for premium feel."
+    ]
+  },
+  "colors": {
+    "ui_light_theme": {
+      "background": "var(--rm-bg)",
+      "surface": "var(--rm-surface)",
+      "border": "var(--rm-border)",
+      "primary": "var(--rm-magenta)",
+      "text": "var(--rm-text)",
+      "muted": "var(--rm-muted)"
+    },
+    "ui_dark_theme": {
+      "background": "var(--rm-bg)",
+      "surface": "var(--rm-surface)",
+      "border": "var(--rm-border)",
+      "primary": "var(--rm-magenta)",
+      "text": "var(--rm-text)",
+      "muted": "var(--rm-muted)"
+    },
+    "pdf_colors": {
+      "text": "#000000",
+      "background": "#FFFFFF"
+    },
+    "rules": [
+      "Follow existing CSS variables in dashboard-theme.css and index.css for UI.",
+      "PDF must be strictly black and white text for formal legal appearance."
+    ]
+  },
+  "layouts": {
+    "ui_form_layout": "Bento-style or dense grid for creator details. Use grid-cols-1 md:grid-cols-2 with gap-4.",
+    "creator_card": "Wrap each creator's fields in a distinct container using .rm-card or border with bg-white/5. Include internal padding (p-4 or p-5) to prevent text collision.",
+    "signature_section": "Provide tabs or toggle between 'Upload Image' and 'Draw Signature'. Canvas should have a clear border and contrast.",
+    "pdf_layout": "A4 size. Generous margins (e.g., 1 inch / 72 points). Centered bold title. Justified body paragraphs. Signature block right-aligned at the bottom. Appendix on a new page."
+  },
+  "visual_enhancers": {
+    "borders": "1px solid var(--rm-border) or var(--ui-border)",
+    "shadows": "Subtle shadows for creator cards to separate them from the modal background",
+    "signature_canvas": "Light background (even in dark mode) or high-contrast stroke for the signature pad to ensure visibility and premium feel. Add 'Clear' button as a ghost button."
+  },
+  "component_path": [
+    "/app/frontend/src/components/label/SupportTicketModal.jsx",
+    "/app/frontend/src/components/label/tickets/ContentIdClaimForm.jsx"
+  ],
+  "instructions_to_main_agent": {
+    "frontend": [
+      "1. Inside `SupportTicketModal.jsx` (or a new sub-component `ContentIdClaimForm.jsx`), conditionally render the Content ID form when `form.category === 'content_id_claim'`.",
+      "2. Add a dynamic list of 'Creators' (Pencipta). Each creator must have: Nama Lengkap Sesuai KTP, NIK, Domicile (Alamat), Signing City.",
+      "3. Add mandatory Track Selection for the claim.",
+      "4. Implement KTP Upload: mandatory file input (PNG/JPG/PDF) per creator.",
+      "5. Implement Signature: Allow switching between 'Upload Signature' and 'Draw Signature' (using a canvas library like react-signature-canvas or native HTML5 canvas).",
+      "6. Ensure all inputs use the existing `.rm-input` and `.rm-label` classes.",
+      "7. Add appropriate `data-testid` to all new fields (e.g., `data-testid='creator-name-0'`).",
+      "8. Maintain the modal's responsiveness and scrolling behavior."
+    ],
+    "backend": [
+      "1. Extend the FastAPI ticket creation endpoint to accept the new Content ID fields (creators list, tracks, signatures, KTP files).",
+      "2. Generate the PDF using ReportLab upon ticket submission.",
+      "3. PDF Content: Title 'SURAT PERNYATAAN KEPEMILIKAN HAK CIPTA ATAS LAGU'. Include non-infringement statements, dynamic list of creators, NIK, Domicile, and selected tracks.",
+      "4. PDF Styling: No letterhead, no letter number. Formal and premium typographic layout.",
+      "5. Append the uploaded KTP images as 'LAMPIRAN FOTO KTP PENULIS' on a new page in the generated PDF.",
+      "6. Save the generated PDF and attach it to the support ticket so the admin/label can download it."
+    ]
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: `transition: all`. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add `.App { text-align: center; }` in the css file.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "All interactive and key informational elements MUST include a `data-testid` attribute to facilitate robust automated testing.",
+    "CRITICAL: DO NOT use complete `transparent` background in header, overlays, any surface that has content under it."
+  ]
+}

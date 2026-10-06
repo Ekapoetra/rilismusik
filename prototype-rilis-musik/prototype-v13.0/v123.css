@@ -1,0 +1,33 @@
+/* One visual masthead. The navigation stays sticky in the whole page, so its
+   greeting can leave the viewport without taking the navigation with it. */
+#app{position:relative}
+.masthead-paint123{position:absolute;top:8px;left:16px;right:16px;height:calc(var(--masthead-height123,350px) - 8px);border-radius:28px;z-index:0;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 63% -16%,#1687eea8,transparent 56%),radial-gradient(ellipse at 96% 47%,#1aafbd67,transparent 46%),linear-gradient(165deg,#041b35 0%,#0a3561 32%,#115493 62%,#b5d8f5 91%,var(--bg) 100%)}
+.masthead-paint123:before{content:'';position:absolute;inset:0;background:linear-gradient(117deg,transparent 32%,#ffffff05 46%,#ffffff0a 46.2%,transparent 66%);pointer-events:none}
+[data-theme=dark] .masthead-paint123{background:radial-gradient(ellipse at 64% -18%,#117ee186,transparent 59%),radial-gradient(ellipse at 97% 57%,#0ea4a447,transparent 50%),linear-gradient(157deg,#071626 0%,#0a2e50 40%,#10456c 74%,var(--bg) 100%)}
+.dashboard123 .header.header123{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0 0 18px 18px;transition:background-color .32s ease,box-shadow .32s ease,color .32s ease}
+.dashboard123 .header.header123:not(.is-scrolled123) .header-brand122 strong,.dashboard123 .header.header123:not(.is-scrolled123) :is(.lang,.iconbtn){color:#edf7ff!important}
+.dashboard123 .header.header123:not(.is-scrolled123) .search-bar6{background:#163c5f!important;color:#e8f3ff!important;box-shadow:inset 0 1px 0 #ffffff09!important}
+.dashboard123 .header.header123:not(.is-scrolled123) .search-bar6 :is(span,svg){color:#d0e3f5!important}
+.dashboard123 .header.header123:not(.is-scrolled123) .tools>.avatar{background:#edf7ff;color:#0a3558}
+.dashboard123 .header.header123.is-scrolled123{background:color-mix(in srgb,var(--bg) 94%,transparent)!important;backdrop-filter:blur(22px) saturate(115%)!important;-webkit-backdrop-filter:blur(22px) saturate(115%)!important;box-shadow:0 5px 20px #08243c10!important}
+.header.header123.is-compact123{border-radius:0 0 18px 18px}
+.dashboard123 .dashboard-hero122{background:transparent!important;margin:0 16px;padding:24px 52px 34px;min-height:250px;grid-template-columns:minmax(0,1.5fr) minmax(290px,.85fr);gap:64px;border-radius:0;overflow:visible;isolation:auto;z-index:1}
+.dashboard123 .dashboard-hero122:before,.dashboard123 .dashboard-hero122:after{display:none}
+.dashboard123 .hero-eyebrow122{font-size:10px;margin-bottom:10px;color:#d5eaff}
+.dashboard123 .hero-context122{font-size:14px;color:#dbeaf8;line-height:1.5}
+.dashboard123 .dashboard-hero122 h1{font-size:clamp(30px,3.2vw,46px);line-height:1.15;letter-spacing:-1.4px}
+.dashboard123 .hero-actions122{margin-top:19px}
+.dashboard123 .hero-secondary122{background:#0b345ae8!important;color:#f4faff!important;border:1px solid #ffffff47!important}
+.dashboard123 .hero-secondary122:hover{background:#194b70!important}
+.dashboard123 .hero-insight-wrap122{padding:0;align-self:center;min-width:0}
+.dashboard123 .hero-insight-wrap122:before,.dashboard123 .hero-insight-wrap122:after{display:none}
+.dashboard123 .hero-insight122{background:var(--surface)!important;padding:21px 24px 18px;min-height:168px;box-shadow:0 15px 32px #031c3620;border-radius:23px}
+.dashboard123 .hero-insight122:hover{box-shadow:0 18px 35px #031c3630}
+.dashboard123 .workspace-body122{margin-top:18px;align-items:flex-start}
+.dashboard123 .main{padding-top:0!important}
+.dashboard123 .main>.five-stats:first-child{margin-top:0!important}
+.header123~.workspace-body122 .side5{top:calc(var(--header-height123,var(--header122)) + 14px)!important;height:calc(100dvh - var(--header-height123,var(--header122)) - 28px)!important;max-height:calc(100dvh - var(--header-height123,var(--header122)) - 28px)!important}
+@media(min-width:1550px){.dashboard123 .dashboard-hero122{padding-inline:76px;min-height:272px}}
+@media(max-width:1100px){.dashboard123 .dashboard-hero122{padding:24px 30px 30px;grid-template-columns:minmax(0,1.1fr) minmax(280px,1fr);gap:28px;min-height:252px}.dashboard123 .dashboard-hero122 h1{font-size:34px}.dashboard123 .hero-context122{font-size:13px}.dashboard123 .hero-insight122{padding:20px;min-height:164px}}
+@media(max-width:760px){.masthead-paint123{left:10px;right:10px;border-radius:23px}.dashboard123 .dashboard-hero122{margin:0 10px;padding:23px 24px 30px;gap:21px;grid-template-columns:1fr;min-height:0}.dashboard123 .hero-copy122{min-width:0}.dashboard123 .dashboard-hero122 h1{font-size:33px;letter-spacing:-1px}.dashboard123 .hero-insight122{min-height:0;padding:18px 21px}.dashboard123 .hero-eyebrow122{font-size:8px}.dashboard123 .hero-context122{font-size:12px}.dashboard123 .hero-actions122{margin-top:16px}.dashboard123 .workspace-body122{margin-top:14px}.masthead-paint123{background:radial-gradient(ellipse at 88% 0%,#1380d787,transparent 62%),linear-gradient(168deg,#051f3b,#0d4479 68%,#bdd9f0 93%,var(--bg) 100%)}}
+@media(prefers-reduced-motion:reduce){.header.header123{transition:none!important}.dashboard123 .hero-insight122{transition:none!important}}

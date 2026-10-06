@@ -1,0 +1,6 @@
+.recovery117 #app,.recovery117 #dialog,.recovery117 #toast,.recovery117 .skip{display:none!important}
+.recovery117 body > :not(.recovery-page117){display:none!important}
+.recovery-page117{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg,#eaf1f8);color:var(--text,#172e4e)}
+.recovery-card117{width:min(680px,100%);padding:32px;border-radius:24px;background:var(--card,#f8fbff);box-shadow:0 16px 64px #152d4920}
+.recovery-card117 h1{font-size:26px;margin:12px 0}.recovery-card117 p{font-size:16px;line-height:1.6}.recovery-card117 .ten-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}.recovery-card117 small{display:block;line-height:1.6;color:var(--muted,#61708b)}
+.save-error117{padding:12px 14px;border-radius:12px;background:var(--danger-soft,#ffe7ed);color:var(--text);font-size:15px;line-height:1.5;margin-top:14px}

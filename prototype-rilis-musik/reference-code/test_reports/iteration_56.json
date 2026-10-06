@@ -1,0 +1,58 @@
+{
+  "summary": "Tested mandatory KYC backend + frontend on public URL. Core KYC flow passed (checklist, upload limits, private KTP, reviewer RBAC, lock overlay/nav lock, responsive overflow). One regression failure found: demo verified-label workflow is blocked because demo_vip is currently not KYC-verified (missing logo+bank), so core endpoints still return KYC_REQUIRED.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/label/kyc and /api/releases/ (demo_vip@rilismusik.com)",
+        "issue": "Regression workflow for verified label failed: demo_vip KYC state is incomplete (missing_keys: logo, bank), and /api/releases/ returns 403 KYC_REQUIRED.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Admin /admin/kyc detail preview/action UI",
+        "issue": "Support can open /admin/kyc page and filters/queue shell, but queue was empty in current environment so preview image + approve/reject action flow could not be fully validated in browser run.",
+        "affected_selectors": [
+          "[data-testid='admin-kyc-queue-count']",
+          "[data-testid='admin-kyc-review-detail']",
+          "[data-testid='admin-kyc-reject-button']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase66_mandatory_label_kyc.py",
+    "/app/backend/tests/test_iter56_phase66_kyc_extended.py",
+    "/app/test_reports/pytest/iter56_phase66_existing.xml",
+    "/app/test_reports/pytest/iter56_phase66_extended.xml",
+    "/app/test_reports/pytest/iter56_phase66_combined.xml"
+  ],
+  "action_items": [
+    "Fix regression fixture/data for expected verified label workflow (demo_vip should have complete KYC prerequisites + verified document, or update test account/docs to a truly verified label).",
+    "Re-run frontend admin /admin/kyc with at least one pending_review item to validate preview + reject-required-reason + approve actions end-to-end in UI.",
+    "After data fix, retest /api/label/kyc and /api/releases/ for verified-label non-blocking behavior."
+  ],
+  "critical_code_review_comments": [
+    "KTP private file protection is correctly enforced: /api/files/kyc-private/* returns 404 while owner/reviewer private endpoints still work.",
+    "Reviewer RBAC is correctly hardened in backend: only super_admin/admin_support can access queue/detail/file/action; finance gets 403.",
+    "KYC gate UX behavior is aligned: restricted routes remain rendered but blurred with overlay; allowed tabs (dashboard/profile/contract) stay accessible; notification bell remains usable for unverified labels."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter56_phase66_kyc_extended.py",
+    "/app/test_reports/iteration_56.json"
+  ],
+  "success_rate": {
+    "backend": "80% (4/5 tests passed; 1 regression failure)",
+    "frontend": "92% (critical KYC lock/gate/RBAC/responsive checks passed; admin queue detail action flow blocked by empty queue data)"
+  },
+  "seed_data_creation": "No persistent seed retained. Temporary phase66-* records created by tests were cleaned in teardown.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use new regression file /app/backend/tests/test_iter56_phase66_kyc_extended.py. Current env has no pending_review item for support UI queue validation. demo_vip currently returns KYC incomplete (missing logo+bank), causing verified-label regression test failure.",
+  "rca of the issue": "RCA (verified-label regression): test login for demo_vip succeeds, but GET /api/label/kyc returns status=incomplete with missing_keys=[logo, bank], document=null, is_verified=false. Consequently protected core endpoint /api/releases/ responds 403 KYC_REQUIRED. Root cause appears to be fixture/data-state mismatch for expected verified regression account, not reviewer/KYC enforcement logic itself."
+}

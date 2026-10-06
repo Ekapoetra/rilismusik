@@ -1,0 +1,7 @@
+01 is an actual V12.9 screenshot REJECTED by the user: navigation and greeting appeared separated. It is not the target design.
+02: user requests the staff profile selector in the center above the cards, with smooth horizontal transitions when changing/swiping people.
+03: requested blue header background, including its noise and light treatment.
+04: requested progress track; actual step count must follow the workflow, current step pulses instead of a loading spinner.
+05: soft status fills and matching readable foreground. Use filled bullets; priority and overdue pulse on the bullet only.
+06: reference for real backdrop-dependent glass, not a flat opaque card.
+The V13.0 screenshots in prototype-v13.0/qa are prior agent evidence, NOT proof of user acceptance.

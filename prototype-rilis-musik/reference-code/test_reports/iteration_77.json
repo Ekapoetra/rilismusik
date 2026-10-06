@@ -1,0 +1,24 @@
+{
+  "summary": "Verified 4 follow-up changes on the Add-on Orders feature (Iter77): (1) new RBAC permissions addon.view/addon.manage are present in the Access Control catalog as DIRECT actions (no approval/request keys) and included in super admin navigation permissions; (2) admin action-center returns key='addon_orders' with count>=3, link=/admin/addon-orders, permission=addon.view — and the corresponding card 'Layanan tambahan menunggu dikerjakan' renders on /admin/dashboard linking to /admin/addon-orders; (3) product catalog CRUD moved off /admin/payments (admin-payment-products removed) and now lives at /admin/addon-orders as admin-addon-catalog with delivery_type select; create/patch/delete verified via UI+API, invalid delivery_type via PATCH rejected 400; catalog endpoints correctly gated by addon.view / addon.manage; (4) delivery modal branches on delivery_type: Visualizer (file) shows admin-addon-delivery-file picker only, Link Preset (link) shows admin-addon-delivery-url only. Backend POST /api/admin/addon-orders/{id}/delivery-file uploads, sets status='delivered', delivery_url=/api/files/…, delivery_filename; rejects unsupported extension (400) and cancelled order (409). Label /label/dashboard renders 'Layanan Tambahan' with Buka/Unduh link. All 7 pytest tests pass; UI E2E flows all green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter77_addon_followup.py",
+    "/app/test_reports/pytest/iter77_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "admin_upload_delivery_file: filename extension check is fine, but consider size limit (currently unbounded — storage_service.upload_fileobj streams the whole file). Add a max_size check to prevent abuse.",
+    "admin_upload_delivery_file: content_type is taken directly from client without validation — combined with the extension whitelist this is acceptable but noting for defense-in-depth.",
+    "AddonOrders.jsx: catalog+orders in single ~260 line page is still within limits; if it grows further, split catalog section into its own component.",
+    "payments.py admin_update_product: only rejects invalid delivery_type in the update path but never asserts a value is provided; existing behavior — acceptable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 ; demo_vip@rilismusik.com / DemoVIP#2026",
+  "seed_data_creation": "None persisted. Test-created product TEST_UI_iter77 was deleted. Backend test's cancellation of a demo Link Preset order was reverted via mongosh back to 'pending' so demo seed is intact. Note: Landscape visualizer demo order is now 'delivered' (from valid E2E file-upload test) — expected side-effect showing the delivered link works.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All follow-up asks verified. Demo state after test: Visualizer Landscape=delivered (with test result.mp4), Visualizer Portrait=in_progress, Link Preset=pending. If future test wants a pending Visualizer, use POST /api/admin/addon-orders/backfill or manually reset via mongosh.",
+  "rca of the issue": "N/A — no bugs found."
+}

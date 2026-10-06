@@ -1,0 +1,186 @@
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider } from "@/api/AuthContext";
+import ProtectedRoute from "@/components/shared/ProtectedRoute";
+import LabelLayout from "@/components/shared/LabelLayout";
+import AdminLayout from "@/components/shared/AdminLayout";
+
+import Landing from "@/pages/Landing";
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
+import GoogleAuthCallback from "@/pages/auth/GoogleAuthCallback";
+
+import LabelDashboard from "@/pages/label/Dashboard";
+import LabelReleases from "@/pages/label/Releases";
+import UploadRelease from "@/pages/label/UploadRelease";
+import ReleaseDetail from "@/pages/label/ReleaseDetail";
+import LabelArtists from "@/pages/label/Artists";
+import LabelProfile from "@/pages/label/Profile";
+import LabelInvoices from "@/pages/label/Invoices";
+import LabelRoyalty from "@/pages/label/Royalty";
+import LabelWithdraw from "@/pages/label/Withdraw";
+import LabelSupportTickets from "@/pages/label/SupportTickets";
+import LabelSupportTicketDetail from "@/pages/label/SupportTicketDetail";
+import LabelContract from "@/pages/label/Contract";
+import LabelWami from "@/pages/label/Wami";
+
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminAnalytics from "@/pages/admin/Analytics";
+import AnalyticsAudit from "@/pages/admin/AnalyticsAudit";
+import AdminLabels from "@/pages/admin/Labels";
+import AdminLabelDetail from "@/pages/admin/LabelDetail";
+import RoyaltyAdjustments from "@/pages/admin/RoyaltyAdjustments";
+import { AppPreferencesProvider } from "@/contexts/AppPreferencesContext";
+import { AudioPreviewProvider } from "@/contexts/AudioPreviewContext";
+import { RoleWebsitePreview } from "@/components/admin/access/RoleWebsitePreview";
+import AdminReleases from "@/pages/admin/Releases";
+import AdminReleaseDetail from "@/pages/admin/ReleaseDetail";
+import AdminArtists from "@/pages/admin/Artists";
+import AdminPayments from "@/pages/admin/Payments";
+import AdminAddonOrders from "@/pages/admin/AddonOrders";
+import AdminCMS from "@/pages/admin/CMS";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminActivityLogs from "@/pages/admin/ActivityLogs";
+import AdminRoyaltyImport from "@/pages/admin/RoyaltyImport";
+import AdminRoyaltyDetail from "@/pages/admin/RoyaltyDetail";
+import AdminWithdraw from "@/pages/admin/Withdraw";
+import AdminTickets from "@/pages/admin/Tickets";
+import AdminTicketDetail from "@/pages/admin/TicketDetail";
+import AdminContracts from "@/pages/admin/Contracts";
+import AdminWami from "@/pages/admin/Wami";
+import AdminMigrate from "@/pages/admin/Migrate";
+import AdminKycReviews from "@/pages/admin/KycReviews";
+import AdminAccessControl from "@/pages/admin/AccessControl";
+import MultiLabelMerge from "@/pages/admin/MultiLabelMerge";
+import MyCompensation from "@/pages/admin/MyCompensation";
+import CompensationAdmin from "@/pages/admin/CompensationAdmin";
+import MultiLabelRequest from "@/pages/MultiLabelRequest";
+import RateChangeQueue from "@/pages/admin/RateChangeQueue";
+import WorkQueue from "@/pages/admin/WorkQueue";
+import BankVerifications from "@/pages/admin/BankVerifications";
+import StaffManagement from "@/pages/admin/StaffManagement";
+import Attendance from "@/pages/admin/Attendance";
+import StaffConfiguration from "@/pages/admin/StaffConfiguration";
+import WorkspaceStatus from "@/pages/admin/WorkspaceStatus";
+import Performance from "@/pages/admin/Performance";
+import MyPerformance from "@/pages/admin/MyPerformance";
+import PerformanceConfig from "@/pages/admin/PerformanceConfig";
+import XenditReconciliation from "@/pages/admin/XenditReconciliation";
+import Refunds from "@/pages/admin/Refunds";
+import AdminUiSettings from "@/pages/admin/UiSettings";
+import AdminNotifications from "@/pages/admin/Notifications";
+import { Toaster } from "@/components/ui/sonner";
+
+import ArtistDashboard from "@/pages/artist/Dashboard";
+
+const LABEL_ROLES = ["label"];
+const ARTIST_ROLES = ["artist"];
+const ADMIN_ROLES = ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom", "admin_package_manager"];
+const guard = (permission, element) => <ProtectedRoute permission={permission}>{element}</ProtectedRoute>;
+
+function AppRoutes() {
+  const location = useLocation();
+  if (location.hash?.includes("session_id=")) return <GoogleAuthCallback />;
+  return (
+    <Routes>
+          {/* Public */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/ajukan-multi-label" element={<MultiLabelRequest />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Label */}
+          <Route element={<ProtectedRoute roles={LABEL_ROLES}><LabelLayout /></ProtectedRoute>}>
+            <Route path="/label/dashboard" element={<LabelDashboard />} />
+            <Route path="/label/releases" element={<LabelReleases />} />
+            <Route path="/label/releases/upload" element={<UploadRelease />} />
+            <Route path="/label/releases/:id" element={<ReleaseDetail />} />
+            <Route path="/label/releases/:id/edit" element={<UploadRelease />} />
+            <Route path="/label/artists" element={<LabelArtists />} />
+            <Route path="/label/profile" element={<LabelProfile />} />
+            <Route path="/label/invoices" element={<LabelInvoices />} />
+            <Route path="/label/royalty" element={<LabelRoyalty />} />
+            <Route path="/label/withdraw" element={<LabelWithdraw />} />
+            <Route path="/label/support" element={<LabelSupportTickets />} />
+            <Route path="/label/support/:id" element={<LabelSupportTicketDetail />} />
+            <Route path="/label/contract" element={<LabelContract />} />
+            <Route path="/label/wami" element={<LabelWami />} />
+          </Route>
+
+          {/* Artist */}
+          <Route element={<ProtectedRoute roles={ARTIST_ROLES}><ArtistDashboard /></ProtectedRoute>} path="/artist/dashboard" />
+
+          {/* Admin */}
+          <Route element={<ProtectedRoute roles={ADMIN_ROLES}><AdminLayout /></ProtectedRoute>}>
+            <Route path="/admin/dashboard" element={guard("dashboard.view", <AdminDashboard />)} />
+            <Route
+              path="/admin/analytics"
+              element={
+                guard("analytics.view", <AdminAnalytics />)
+              }
+            />
+            <Route path="/admin/analytics/audit" element={guard("analytics.manage", <AnalyticsAudit />)} />
+            <Route path="/admin/labels" element={guard("labels.view", <AdminLabels />)} />
+            <Route path="/admin/labels/rate-import" element={<Navigate to="/admin/labels" replace />} />
+            <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
+            <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
+            <Route path="/admin/multi-label" element={guard("labels.multi_label.view", <MultiLabelMerge />)} />
+            <Route path="/admin/compensation/me" element={guard("compensation.view_own", <MyCompensation />)} />
+            <Route path="/admin/compensation/payroll" element={guard("compensation.payroll.view", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/staff" element={guard("compensation.view_team", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/bonus" element={guard("compensation.bonus.view", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/bonus-rules" element={guard("compensation.bonus.rules.manage", <CompensationAdmin />)} />
+            <Route path="/admin/compensation/adjustments" element={guard("compensation.adjustment.create", <CompensationAdmin />)} />
+            <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
+            <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
+            <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
+            <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />
+            <Route path="/admin/attendance" element={guard("staff.attendance.view", <Attendance />)} />
+            <Route path="/admin/performance" element={guard("performance.view_team", <Performance />)} />
+            <Route path="/admin/performance/configuration" element={guard("performance.config.manage", <PerformanceConfig />)} />
+            <Route path="/admin/my-performance" element={guard("performance.view_own", <MyPerformance />)} />
+            <Route path="/admin/status" element={guard("dashboard.view", <WorkspaceStatus />)} />
+            <Route path="/admin/kyc" element={guard("kyc.view", <AdminKycReviews />)} />
+            <Route path="/admin/artists" element={guard("artists.view", <AdminArtists />)} />
+            <Route path="/admin/releases" element={guard("releases.view", <AdminReleases />)} />
+            <Route path="/admin/releases/:id" element={guard("releases.view", <AdminReleaseDetail />)} />
+            <Route path="/admin/payments" element={guard("payments.view", <AdminPayments />)} />
+            <Route path="/admin/addon-orders" element={guard("addon.view", <AdminAddonOrders />)} />
+            <Route path="/admin/cms" element={guard("cms.view", <AdminCMS />)} />
+            <Route path="/admin/admin-users" element={guard("access.users.view", <AdminUsers />)} />
+            <Route path="/admin/access" element={guard("access.roles.view", <AdminAccessControl />)} />
+            <Route path="/admin/ui-settings" element={guard("ui.settings.view", <AdminUiSettings />)} />
+            <Route path="/admin/notifications" element={guard("notifications.view", <AdminNotifications />)} />
+            <Route path="/admin/activity-logs" element={guard("activity.view", <AdminActivityLogs />)} />
+            <Route path="/admin/royalty" element={guard("royalty.view", <AdminRoyaltyImport />)} />
+            <Route path="/admin/royalty-adjustments" element={guard("royalty.manage", <RoyaltyAdjustments />)} />
+            <Route path="/admin/royalty/:id" element={guard("royalty.view", <AdminRoyaltyDetail />)} />
+            <Route path="/admin/withdraw" element={guard("withdraw.view", <AdminWithdraw />)} />
+            <Route path="/admin/xendit-reconciliation" element={guard("payments.view", <XenditReconciliation />)} />
+            <Route path="/admin/refunds" element={guard("payments.refund", <Refunds />)} />
+            <Route path="/admin/tickets" element={guard("support.view", <AdminTickets />)} />
+            <Route path="/admin/tickets/:id" element={guard("support.view", <AdminTicketDetail />)} />
+            <Route path="/admin/contracts" element={guard("contracts.view", <AdminContracts />)} />
+            <Route path="/admin/wami" element={guard("wami.view", <AdminWami />)} />
+            <Route
+              path="/admin/migrate"
+              element={
+                guard("migration.view", <AdminMigrate />)
+              }
+            />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  if (window.location.pathname === "/admin/role-preview") return <MemoryRouter><AppPreferencesProvider preview><RoleWebsitePreview /></AppPreferencesProvider></MemoryRouter>;
+  return <BrowserRouter><AppPreferencesProvider><AuthProvider><AudioPreviewProvider><AppRoutes /><Toaster /></AudioPreviewProvider></AuthProvider></AppPreferencesProvider></BrowserRouter>;
+}
+
+export default App;

@@ -1,0 +1,44 @@
+{
+  "summary": "Iter71 verified PPR tiered pricing feature: backend pytest (4 passed, 1 skipped) for public /cms/landing pricing block (has pay_per_release_price + album_package_price), admin PATCH /cms/landing round-trip persistence of album_package_price, tiered ppr_base_amount math (single=35k, ep(3)=105k, ep(6)=210k, album=flat 200k), and admin shortfall-preview endpoint contract. Frontend Playwright verified landing pricing card (data-testid='landing-pricing-album', shows 'Rp200.000' and 'Album 7\u201312 lagu, harga flat.'), admin CMS pricing field (data-testid='admin-cms-album-price' present with value 200000), and admin release detail workflow shortfall panel (toggle expands, summary/album/paid/amount/create testids all render with correct Rp values). Label upload wizard tier hint & estimate could NOT be exercised via UI because demo_ppr account is KYC-locked ('Selesaikan Verifikasi Akun') and /label/releases/new is gated; source code review of ReleaseInfoStep.jsx, AssetsReviewStep.jsx, releaseFormState.js confirms hint text and validation messages match spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/releases/{id}/admin/shortfall-preview + /shortfall-invoice",
+        "issue": "Shortfall eligibility does not consider release_type. For a SINGLE-type release with zero prior PPR payments, preview returns shortfall_idr=album_package_price and eligible=true, letting an admin create a Rp 200.000 'Kekurangan Paket Album' invoice on a single. Spec limits shortfall to album already paid per-song; recommend adding guard (release_type == 'album' and paid_base > 0)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter71_ppr_tiered_pricing.py",
+    "/app/test_reports/pytest/iter71_backend.xml"
+  ],
+  "action_items": [
+    "Consider tightening /releases/{id}/admin/shortfall eligibility to require release_type == 'album' AND at least one paid pay_per_release payment (paid_base>0) so a shortfall invoice cannot be created against Single/EP or brand-new releases (repro on release 14f72429-b865-48bc-9051-3a661082f1fc which is SINGLE, paid_base=0, shortfall_idr=200000, eligible=true).",
+    "Manual verification (or provide a KYC-verified PPR fixture) is required for label upload wizard tier hint + baseEstimate + invoice estimate testids (upload-release-type-hint, upload-release-base-estimate, upload-release-invoice-estimate). Source code inspection confirmed selectors and validation strings; behavior was not exercised end-to-end because demo_ppr is KYC-locked."
+  ],
+  "critical_code_review_comments": [
+    "ppr_base_amount / ppr_line_item_text helpers in payment_service.py cleanly separate album flat vs per-track math and are used by both submit_release and admin send_payment paths — no duplication.",
+    "cms/landing GET returns a flat {section:{...}} dict (not list-of-{key,value}) via cms.py — tests and callers must handle that shape; the frontend UploadRelease.jsx and CMSPanels.jsx do handle it correctly.",
+    "admin_shortfall_preview / admin_create_shortfall_invoice are correctly idempotent (409 on pending duplicate, 400 when shortfall<=0) as verified by main agent curl tests; however eligibility should also gate on release_type/prior payment as noted above.",
+    "Frontend hint copy uses en-dash '2\u20136' / '7\u201312' consistently with backend messages; task description used ASCII hyphens \u2014 both places are aligned on en-dashes, matching."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter71_ppr_tiered_pricing.py",
+    "/app/test_reports/iteration_71.json"
+  ],
+  "success_rate": {
+    "backend": "100% (4/4 executed passed, 1 legitimately skipped due to no mismatched draft)",
+    "frontend": "3/4 target areas verified (landing card, admin CMS field, admin shortfall UI). Upload wizard tier UI not exercised due to demo_ppr KYC lock (code inspection only)."
+  },
+  "seed_data_creation": "None. Test only reads/patches album_package_price and restores original value; no lingering side effects.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "demo_ppr@rilismusik.com is KYC-locked, so /label/releases/new (and the tiered estimate UI at data-testid upload-release-type-hint / upload-release-base-estimate / upload-release-invoice-estimate) cannot be reached via that account. For future iterations, seed a KYC-verified PPR label fixture or complete KYC for demo_ppr to exercise the wizard tier hints + invoice estimate live. Backend pricing helpers and CMS/shortfall APIs are all confirmed correct.",
+  "rca of the issue": "SINGLE-type release showing shortfall eligible=true: /app/backend/routes/releases.py _shortfall_state (~line 752) computes shortfall = max(0, album_price - paid_base) unconditionally and sets eligible = shortfall > 0 and not pending. It does not inspect release['release_type']. Fix: add `if (rel.get('release_type') or '').lower() != 'album': return {... eligible: False, shortfall_idr: 0, ...}` before shortfall calculation; and/or require paid_base > 0 for eligibility."
+}

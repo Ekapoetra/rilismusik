@@ -1,0 +1,42 @@
+{
+  "summary": "Executed backend+frontend verification for production repair-source fallback flow on preview. Direct-to-R2 initiate/PUT/finalize guards and background repair behavior passed; existing P0/P1 mark-dana and legacy-withdraw background contracts remained healthy.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter30_repair_source_guards.py",
+    "/app/backend/tests/test_phase35_production_bugfixes.py",
+    "/app/tests/iter30_seed_repair_ui.py",
+    "/app/test_reports/pytest/iter30_repair_source_and_phase35.xml"
+  ],
+  "action_items": [
+    "No blocking fix found in requested scope.",
+    "Optional: monitor period-repair completion latency in UI polling for large datasets (desktop run showed success start message; completion badge not observed within 30s window)."
+  ],
+  "critical_code_review_comments": [
+    "repair-source initiate/finalize enforces role gate, pending upload binding, expiry, and exact ContentLength validation before attaching repair_source.",
+    "finalize marks pending upload finalized, clears stale local cached CSV, and auto-queues existing repair-reporting-period background job.",
+    "repair background updates period/row_period only and recomputes import stats; amounts and line status paths are not modified in the update query."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter30_repair_source_guards.py",
+    "/app/backend/tests/test_phase35_production_bugfixes.py",
+    "/app/tests/iter30_seed_repair_ui.py",
+    "/app/test_reports/iteration_30.json"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 passed)",
+    "frontend": "95% (desktop+mobile targeted flow passed; completion badge not seen in 30s polling window)"
+  },
+  "seed_data_creation": "Created temporary TEST_ITER30_REPAIR_* imports and repair CSV via /app/tests/iter30_seed_repair_ui.py for UI visibility, then cleaned DB/local artifacts. R2 deletion from test-runner side was not executed because local R2 env was unavailable (r2_deleted=false).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If you need to re-run UI flow, run: python /app/tests/iter30_seed_repair_ui.py seed, test /admin/royalty/{import_id}, then cleanup with python /app/tests/iter30_seed_repair_ui.py cleanup.",
+  "rca of the issue": "Original production failure is reproducible when source CSV is missing from disk/R2. Verified mitigation path works in preview: replacement CSV upload via presigned R2 PUT + finalize safely reattaches source and queues background period repair without re-ingesting royalties."
+}

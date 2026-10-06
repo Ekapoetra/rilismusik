@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-09",
+  "scope": "Content ID declaration final acceptance",
+  "status": "passed_scoped_acceptance",
+  "backend": {"passed": 14, "failed": 0, "junit": "/app/test_reports/pytest/contentid_final.xml", "note": "Real R2 success paths; isolated UNIT fault injection only."},
+  "frontend": {
+    "claim": "Actual mouse-drawn signature, required fake KTP+identity, all selected songs, consent, real claim creation and owner PDF download passed.",
+    "signature": "One-dot input remains incomplete; real ink accepted and retained after resize. Server-normalized drawn signature456x147 pixels, visibly embedded in final two-page PDF.",
+    "responsive": "320/768/1024/1440 form/modal/ink and admin documents/KTP viewer passed without horizontal overflow.",
+    "privacy_ui": "NIK masked by default/reveal works; owner KTP preview, support KTP/signature previews and actual support PDF download passed.",
+    "options": "Native text-only release options; zero option span elements and selection preserved.",
+    "modal": "First open succeeds after genuine KYC-ready selector. Four repeated open/cancel cycles also passed. Existing fail-closed KYC gate preserved.",
+    "download": "Support download works initially and after waiting for image-dialog close animation. Earlier forced click during exiting overlay did not invoke download, not an API failure."
+  },
+  "pdf": {"ui_artifact": "/app/test_reports/iter68_ui_drawn_final.pdf", "ui_pages": 2, "images": "/app/test_reports/iter68_ui_drawn_final/", "review": "Main inspected both rendered pages: readable drawn ink, unbranded formal letter, selected songs and uncropped obviously fake ID appendix. Multi-author and long-pagination checks passed in Iter69."},
+  "cache_finding": "Initial exact header assertion was overstrict: no-store protects all caches even when edge omits redundant private token. Verified no-store/not-public/Age0 and access denials. Original privacy headers not weakened.",
+  "build": "Final frontend build compiled successfully without lint warnings. Nonblocking bundle-size advisory only.",
+  "cleanup": {"temporary_user_retired": true, "private_assets_deleted": 2, "pdf_declarations_deleted": 1, "owned_ui_tickets_deleted": 1, "private_objects_deleted": 3, "remaining_main_fixture_records": 0, "note": "Exact owned label/asset/ticket IDs only; additional isolated fixtures cleaned by test teardown. Synthetic local samples retained."},
+  "mocked_application_apis": false,
+  "limits": ["No actual Believe submission; PDF is for manual forwarding.", "Visual signature is not certified e-signature; ID/authorship not automatically verified.", "Real-user acceptance of wording remains pending."]
+}

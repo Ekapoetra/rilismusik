@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only E2E of PRD-03 Batch A/B-lite/C as Super Admin. FASE A Dashboard: greeting dinamis + message OK (shows 'Selamat pagi, Super Admin.' + 'Tim Anda memiliki 18 pekerjaan terbuka hari ini.'), Quick Actions DIHAPUS (admin-quick-actions & admin-quick-action-* absent), admin-my-work + empty state OK, admin-todays-focus + admin-todays-focus-empty ('Semuanya terkendali.') OK, admin-team-monitor rendered (isManager=true, 18 open incl. 15 lewat tempo, tiket bantuan + proses add-on cards), admin-responsibility-gap absent (allowed), admin-recent-activity + admin-recent-activity-all (→ /admin/activity-logs) OK, Ringkasan Platform stats grid OK (11/12/8/8/…). FASE B-lite Notification: bell open, badge=31, section header 'Hari Ini' + 'Sebelumnya · Belum dibaca' both rendered, 16 items, klik item menandai dibaca (badge 31→30) & navigasi jalan. FASE C Chat dock: admin-chat-toggle adalah DOCK PERSEGI (rounded-t-xl, bottom-0 right-4, teks 'Pusat Chat', TIDAK rounded-full), klik → admin-chat-panel muncul di bottom-14 right-4, tombol admin-chat-close menutup kembali ke dock. Regresi chat OK: tab Label/Internal, filter Online/Offline/Arsip, search label, empty state, dan directory admin internal render normal setelah refactor.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "NotificationBell (in AdminLayout & LabelLayout)", "issue": "Instance prop is 'admin-header' / 'label-header' — actual testids become 'notification-bell-button-admin-header', 'notification-dropdown-admin-header', 'notification-section-today-admin-header', 'notification-section-earlier-admin-header', 'notification-bell-badge-admin-header', 'notification-item-<id>-admin-header'. Review request explicitly specifies 'notification-bell-button', 'notification-dropdown', 'notification-section-today-desktop', 'notification-section-earlier-desktop', 'notification-bell-badge', 'notification-item-*' (no suffix / -desktop suffix). Functionality itself works (badge decremented 31→30 on click, sections render, mark-read + navigate OK).", "selector": "[data-testid='notification-bell-button']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Notification click navigation", "issue": "Clicking a notification navigated to /admin/tickets/<id> route that rendered 'Tiket tidak ditemukan' + 2× 404 in console (likely stale test-data reference, not a Bell bug). Confirm notif link.entities exist or backfill/clean stale notifs.", "affected_selectors": ["notification-item-*"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Update NotificationBell usages (or the component's testid logic) so admin desktop bell exposes canonical testids per review request: change AdminLayout to pass instance='desktop' (or add a testId alias) so 'notification-bell-button', 'notification-dropdown', 'notification-section-today-desktop', 'notification-section-earlier-desktop', 'notification-bell-badge', 'notification-item-<id>' resolve without suffix. Note the mobile bell (if any) must remain distinct.",
+    "Investigate 404 on the tiket route reached from a notification (stale notif or missing ticket record)."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.jsx Greeting initially renders 'Semua pekerjaan Anda sudah tertangani.' before /admin/work/queue resolves (openWork=0, isManager=false as initial state). This causes a visible flip when data lands. Consider a loading/skeleton for the greeting message or guard until first load resolves.",
+    "AdminChatWidget.jsx: dock is correctly non-floating (rounded-t-xl, bottom-0). But z-index z-[60] matches other overlays; verify not conflicting with dialogs on smaller screens.",
+    "NotificationBell: 'known.current' ref tracks IDs but is initialized to null; sound only plays after first load. Also the internal audio ping fires for admin notifs opening in background — verify UX preference (already gated by playNotificationSound). Section header uses 'sticky top-0' inside scroll container — fine.",
+    "Testid consistency: review request assumes desktop suffix but code uses layout-specific instance names ('admin-header', 'label-header'). This is a systemic pattern that will keep breaking QA scripts — align on a single scheme."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "~90% (all functional AC pass; testid mismatch on notification bell)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Super Admin currently has empty 'my' work queue (my-work-empty + todays-focus-empty render as expected), but is_manager team scope has 18 open (15 tiket bantuan lewat tempo + 3 add-on) so Monitor Tim renders. If E1 changes NotificationBell instance to 'desktop' on AdminLayout, re-run using canonical testids ('notification-bell-button', 'notification-section-today-desktop', 'notification-section-earlier-desktop', 'notification-bell-badge', 'notification-item-<id>'). Chat dock closed-state is now a bottom-right square tab (rounded-t-xl bottom-0 right-4), NOT a circle — visually confirmed."
+}

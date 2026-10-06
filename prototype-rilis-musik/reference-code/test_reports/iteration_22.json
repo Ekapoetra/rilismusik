@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 16.4 — DELETE /api/royalty/admin/imports/{id} + dashboard revenue cache — verified end-to-end. 11/11 new backend tests pass + 22/23 prior regression tests pass (1 stale Phase 16.3 assertion updated for refactor — see updated_files). Frontend Playwright: list page Hapus button, Cancel-vs-OK confirm flow, success toast, row disappearance, and detail-page Hapus Import + navigate-back all verified against the live preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/dashboard/refresh-revenue", "issue": "Endpoint uses `require_admin` (allows any admin role) instead of restricting to `super_admin`/`admin_finance` as stated in the spec. Functionally non-blocking — both target roles are allowed — but admin_release/admin_marketing/admin_support/admin_content also currently get 200 here. Recommend a dedicated `require_super_admin_or_finance` guard if least-privilege matters."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase16_4_delete_import_and_dashboard_cache.py",
+    "/app/test_reports/pytest/iter22_phase16_4.xml",
+    "/app/test_reports/pytest/iter22_full_regress.xml"
+  ],
+  "action_items": [
+    "(Optional/minor) Tighten /api/admin/dashboard/refresh-revenue to super_admin + admin_finance only (currently allows all admin roles). Spec wanted only those two."
+  ],
+  "critical_code_review_comments": [
+    "Cascading delete in routes/royalty.py:admin_delete_import correctly uses db_bg for the potentially-huge royalty_lines.delete_many and db (default) for the small filtered label/release/track deletes — good separation.",
+    "R2 + local CSV cleanup is correctly wrapped in try/except (best-effort) so partial cloud failures cannot block the Mongo delete.",
+    "Indonesian 400 error message lists allowed deletable statuses — helpful UX.",
+    "Revenue cache uses stale-while-revalidate with TTL=60s, Mongo `metrics_cache.dashboard_revenue` upsert survives pod restart — correct pattern. `_recompute_revenue_cache` is guarded with a `refreshing` flag to avoid thundering herd.",
+    "Post-delete cache refresh is fire-and-forget via `asyncio.create_task(_recompute_revenue_cache())` and the import succeeds even if the task fails (try/except wrapper) — robust.",
+    "Phase 16.3 source-assert test (`test_admin_dashboard_uses_db_bg_for_revenue_aggregate`) was checking only the admin_dashboard function body; after Phase 16.4 the aggregate moved into the helper `_recompute_revenue_cache`. Test updated to assert at module scope — the db_bg client is still used."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase16_4_delete_import_and_dashboard_cache.py (NEW — 11 tests)",
+    "/app/backend/tests/test_phase16_3_csot_uncapped_client.py (updated 1 source-assert to be refactor-tolerant after the aggregate moved into _recompute_revenue_cache helper)"
+  ],
+  "success_rate": {"backend": "100% (11/11 Phase 16.4 + 23/23 regression after test-script update)", "frontend": "100% (5/5 UI flows verified — list delete confirm-cancel, list delete confirm-accept, row disappearance, detail delete, post-delete redirect)"},
+  "test_credentials": "superadmin@rilismusik.com / SuperAdmin#2026 (verified). finance1@rilismusik.com / Finance#2026 (verified 403 on DELETE, 200 on refresh-revenue).",
+  "seed_data_creation": "Tests create throwaway royalty_imports via POST /api/royalty/admin/imports/initiate with TEST_-prefixed filenames; they are deleted in the same test (await DELETE). No residual data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "To re-run Phase 16.4 suite: `cd /app/backend && python -m pytest tests/test_phase16_4_delete_import_and_dashboard_cache.py tests/test_phase16_3_csot_uncapped_client.py tests/test_phase17_security.py tests/test_phase17_regression.py -v`. The TEST_published_returns_400 test gracefully `pytest.skip()`s if the preview DB has no published imports — currently there is exactly 1 published `multi` import in the preview DB so it runs. The cache-invalidation test relies on a fast background task and gives the system 6s to refresh; flaky in <1% case if Mongo aggregate is slow. UI: `data-testid='royalty-import-delete-{id}'` (list) and `data-testid='admin-royalty-delete'` (detail) both work and use window.confirm — no shadcn AlertDialog yet so any future selector change should keep the `dialog` event-listener pattern.",
+  "rca of the issue": "No product bugs found. One stale Phase 16.3 test failed because it asserted the literal substring `db_bg.royalty_lines.aggregate` exists inside the admin_dashboard function body, but Phase 16.4 (correctly) refactored that aggregate into the new `_recompute_revenue_cache()` helper to enable stale-while-revalidate caching. The product still uses db_bg for the aggregate (line 74 of routes/admin.py). Fix: relaxed the assertion to module scope. The original product change is a strict improvement (caches a 1M+ row aggregate behind a 60s TTL)."
+}

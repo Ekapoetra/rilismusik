@@ -1,0 +1,42 @@
+{
+  "summary": "Validated balance reconciliation fix on preview: backend regressions phase47/48/49/50 passed, added extra bulk-contract regression, frontend build passed, and Playwright verified Label Management list available balance equals detail available balance for the same label.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter43_admin_labels_bulk_contract.py",
+    "/app/backend/tests/test_phase49_admin_label_available_balance.py",
+    "/app/backend/tests/test_phase50_admin_label_sorting.py",
+    "/app/backend/tests/test_phase48_label_search.py",
+    "/app/backend/tests/test_phase47_manual_legacy_withdraw.py",
+    "/app/test_reports/pytest/iter43_phase47_50_plus.xml"
+  ],
+  "action_items": [
+    "Proceed to redeploy this preview fix to production.",
+    "Post-redeploy, run quick smoke on /api/admin/labels and /admin/labels first-row list/detail available balance equality."
+  ],
+  "critical_code_review_comments": [
+    "admin_list_labels now correctly uses computed balance_available_idr from royalty_lines and keeps stored_balance_available_idr only as audit output.",
+    "Bulk computation uses one royalty aggregation + one active-withdraw aggregation for all labels, avoiding per-label N+1 queries.",
+    "No Mongo ObjectId leakage observed from /api/admin/labels response in tested scope."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter43_admin_labels_bulk_contract.py",
+    "/app/test_reports/iteration_43.json"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 passed)",
+    "frontend": "100% (build + requested list/detail equality smoke passed)"
+  },
+  "seed_data_creation": "Temporary test labels/royalty lines/withdraw requests created inside pytest and cleaned up in finally blocks.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Executed pytest: iter43 bulk contract + phase49 + phase50 + phase48 + phase47 with JUnit output at /app/test_reports/pytest/iter43_phase47_50_plus.xml. Playwright on preview logged in as Admin Finance, opened Label Management, captured first row id, compared list balance vs detail financial summary available and confirmed equality (0 vs 0). Frontend yarn build succeeded.",
+  "rca of the issue": "Reproduced by fixture-based regression in phase49 where stored balance (59,557,995) differs from source-of-truth computed balance (13,149,228). Verified fix behavior: list now serves computed value and matches detail snapshot; active requested withdrawal reservation reduces both list and detail identically; stale stored value remains only in audit field (stored_balance_available_idr). No API flow is MOCKED."
+}

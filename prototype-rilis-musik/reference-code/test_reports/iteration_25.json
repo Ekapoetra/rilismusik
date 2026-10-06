@@ -1,0 +1,44 @@
+{
+  "summary": "Phase 22 (Legacy Withdraw CSV → FIFO Period Migration) — fully verified backend (12/12 PASS: 7 existing + 5 new extras) and frontend (E2E happy path + error path PASS). All design intents confirmed: dry-run no-mutate, idempotent commit, fuzzy matcher (PT prefix / casing / punctuation), 4 toggle flags (create_history_docs, flip_royalty_lines, adjust_balances, dry_run) each individually verified, RBAC at backend (super_admin only — 403 for support/finance/release). UI panel renders cleanly with all 4 toggles, file picker, submit button, dry-run amber banner, stats grid (5 cards), Balance/Period preview cards, Unmatched Labels collapsible, Per-Label Summary table, Indonesian error toast for missing period_end. One minor UI route-guard leak: /admin/migrate is reachable by Admin Support (sub-admin) instead of being blocked client-side — the backend correctly returns 403 on mutation calls so no security impact, just a UX inconsistency vs the documented design.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProtectedRoute for /admin/migrate", "issue": "Admin Support (support1@rilismusik.com) can navigate to /admin/migrate and see the full UI including the 'Withdraws (Period FIFO)' tab. The page subtitle says 'Super Admin only.' but no client-side redirect/403 happens. Backend still returns 403 on POST so no data leak — but design spec said the route should be wrapped in ProtectedRoute(role=['super_admin']). Recommend tightening App.js route guard to redirect non-super-admins.", "selector": "route /admin/migrate", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase22_legacy_withdraw_migration.py",
+    "/app/backend/tests/test_phase22_extras.py",
+    "/app/test_reports/pytest/iter25_phase22.xml",
+    "/app/test_reports/pytest/iter25_phase22_extras.xml"
+  ],
+  "action_items": [
+    "(LOW priority) Restrict /admin/migrate route in /app/frontend/src/App.js to super_admin only (e.g., ProtectedRoute requiredRole='super_admin') so sub-admins are redirected client-side. Backend already enforces 403 so no security regression, just UX polish.",
+    "(Optional) Demo Believe royalty labels (e.g., 'Khizanah Kreasi Gontor', 'Mustafa Kamal') have timestamp-suffixed label_name values in MongoDB, so a CSV containing the bare label name lands in 'Unmatched Labels'. This is expected (the suffix is intentional per credentials file). If admin wants to migrate against demo labels, query GET /api/admin/labels?q=Khizanah first to discover the actual label_name."
+  ],
+  "critical_code_review_comments": [
+    "routes/migrate.py: _normalize_label_name correctly strips 'PT' prefix, punctuation, collapses whitespace, lowercases. Handles 'PT, X', 'pt x', 'X.', 'x - y' variants → all collapse to one match (verified by test_fuzzy_matcher_handles_punctuation_and_pt_prefix).",
+    "Idempotency is two-layered: (1) period advance gated by `(not old_period) or (new_period > old_period)` — never regresses, (2) history docs deduped by (label_id, legacy_trx_id). Re-running same CSV correctly reports labels_period_updated=0 / history_docs_inserted=0.",
+    "Flag isolation verified: flip_royalty_lines=false leaves royalty_lines.status untouched while period still advances. adjust_balances=false leaves balance_pending_idr/balance_available_idr untouched while lines still flip. create_history_docs=false skips withdraw_requests insertion. Each flag is genuinely independent.",
+    "Heavy operations correctly use db_bg (CSOT-uncapped) per Phase 16.3 pattern — important for production where royalty_lines could be 1M+ rows.",
+    "RBAC enforced via _require_migrate_role(user) at endpoint top — super_admin only. admin_support, admin_finance, admin_release all return 403 (all 3 verified).",
+    "Error responses use Indonesian (matches app i18n) — 'CSV kosong', 'Kolom period_end tidak ditemukan di CSV'. Frontend surfaces these correctly in the red error toast.",
+    "Frontend WithdrawFifoPanel correctly toggles 'Preview Dry-run' label → 'COMMIT (data akan diubah)' based on dryRun state, providing strong visual feedback to prevent accidental commits.",
+    "Frontend response handling shows green 'COMMITTED' banner with commit metadata (JSON stringify) when result.dry_run is false — readable enough for audit but could be prettified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase22_extras.py (NEW — 5 new tests for finance/release RBAC + flag isolation)"
+  ],
+  "success_rate": {"backend": "100% (12/12 — 7 existing + 5 new extras all PASS)", "frontend": "100% on flows tested (panel render, dry-run upload, stats grid, dry-run banner, error toast for missing period_end column all confirmed via screenshots)"},
+  "test_credentials": "Verified working: superadmin@rilismusik.com / SuperAdmin#2026, support1@rilismusik.com / Support#2026, finance1@rilismusik.com / Finance#2026, release1@rilismusik.com / Release#2026. All confirmed.",
+  "seed_data_creation": "Backend tests self-seed phase22-A/B/C-{uuid} labels and synthetic royalty_lines via direct MongoDB client (using MONGO_URL+DB_NAME from env), then clean up in fixture teardown. No persistent state changes to demo data. UI test used a transient .csv referencing 'Khizanah Kreasi Gontor' (deliberately unmatched due to timestamp suffix) — no DB mutation occurred because the panel was kept in dry-run mode.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 22 is solid. To re-run: `cd /app/backend && python -m pytest tests/test_phase22_legacy_withdraw_migration.py tests/test_phase22_extras.py -v`. Extras file covers finance/release RBAC + each toggle flag in isolation. Frontend E2E used REACT_APP_BACKEND_URL with data-testid='admin-migrate-tab-withdraws-fifo' / 'admin-migrate-withdraws-fifo-file' / 'admin-migrate-withdraws-fifo-submit' / 'admin-migrate-withdraws-fifo-dryrun'. The only finding is a client-side route guard gap on /admin/migrate (reachable by sub-admins, backend still enforces 403). To verify commit-mode in the UI, seed a fresh test label via direct Mongo insert with `label_name='UITestX'`, then upload a CSV with `nama_label,period_end` row referencing it, untick Dry-run + click Commit — backend will mutate and panel will show green 'COMMITTED' banner with commit metadata. Cleanup with `db.labels.delete_many({id:/uitest/})`.",
+  "rca of the issue": "Only a minor frontend route-guard leak found — /admin/migrate page (and the Phase 22 panel inside it) is rendered for sub-admin roles (Admin Support verified). Backend RBAC (_require_migrate_role in routes/migrate.py + require_super_admin elsewhere) correctly enforces 403 on the actual POST /api/admin/migrate/withdraws-legacy-period, so no data leak/security impact. Fix: wrap the /admin/migrate route in App.js with a stricter ProtectedRoute that checks user.role==='super_admin' and redirects others to /admin/dashboard."
+}

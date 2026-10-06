@@ -1,0 +1,24 @@
+PROTOTYPE RILIS MUSIK — START HERE
+
+Repository: https://github.com/Ekapoetra/rilismusik
+Branch: Prototype-Rilis-Musik
+Based on main commit: 1b28f541bbce9278e461b67a92b55a01f87f9e0d
+
+Everything needed for the current prototype handoff is already extracted in prototype-rilis-musik/.
+Current version: V13.0. V12.5 is an older file, not the starting point.
+
+Run:
+cd prototype-rilis-musik
+npm run preview
+
+Open http://localhost:4343/ through Devin's browser/port preview. No dependencies are needed for preview/build.
+Read START-HERE.txt, CONTEXT.txt, PARKED.txt and visual-references/READ-ME.txt in that folder.
+FIRST-MESSAGE.txt is a ready-to-use first prompt for Devin.
+
+The handoff contains editable prototype source, its standalone HTML, historical technical test evidence, six user visual references, decision history, parked topics and a historical code snapshot. It excludes browser storage, uploaded user documents, production credentials and historical upload CSVs.
+This prototype is not a completed production migration. Root backend/frontend code is inherited from main and has not been modified for this handoff.
+
+V13.0 standalone SHA256:
+3A5896DEC307F29BD769C1FD5AB809F3A6143C512808ACDEA7DE6E4CF8C37C25
+
+Technical checks are evidence of tested behavior, not user acceptance of the design. First run and inspect the existing prototype; do not merge/deploy or apply parked commercial proposals.

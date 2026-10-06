@@ -1,0 +1,51 @@
+{
+  "summary": "Executed targeted backend+frontend verification for royalty import replacement (Phase60 + Iter50 guardrails) on public preview URL with auth-gated flows.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Admin Royalty Detail replacement panel end-to-end upload/preview/commit",
+        "issue": "Could not fully execute on live UI in this run because available imports were pending_review/awaiting_upload only; no published/dana_received row existed to open replacement panel from list data.",
+        "affected_selectors": [
+          "[data-testid='admin-royalty-replacement-open']",
+          "[data-testid='royalty-replacement-panel']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase60_royalty_import_replacement.py",
+    "/app/backend/tests/test_iter50_royalty_import_replacement_guards.py",
+    "/app/test_reports/pytest/iter50_phase60.xml",
+    "/app/test_reports/pytest/iter50_replacement_guards.xml",
+    "/app/test_reports/pytest/iter50_replacement_combined.xml"
+  ],
+  "action_items": [
+    "Seed or prepare at least one published/dana_received import in preview fixtures so UI replacement panel can be exercised end-to-end via browser automation (initiate->upload->finalize->preview->commit).",
+    "Run one dedicated live UI retest for replacement panel commit confirmation path using super admin once eligible import data is present."
+  ],
+  "critical_code_review_comments": [
+    "Replacement endpoints correctly enforce finance-role initiate/finalize/preview and super-admin-only commit, with explicit GANTI DATA confirmation.",
+    "Commit signature guard is implemented and blocks stale preview commits when old/replacement import metadata changes.",
+    "Staged replacement lines are persisted as draft + replacement_stage and excluded from balance snapshots before commit (validated via admin label financial summary response).",
+    "ObjectId serialization is handled for replacement job and replacement rows responses (no _id in payloads)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter50_royalty_import_replacement_guards.py",
+    "/app/test_reports/iteration_50.json"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 replacement-focused tests passed)",
+    "frontend": "85% (login + pending_review behavior verified; replacement panel e2e blocked by fixture state)"
+  },
+  "seed_data_creation": "Only temporary test documents created inside pytest and cleaned up in finally blocks. No persistent seed scripts executed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public UI currently shows pending_review/awaiting_upload imports only. Pending_review detail correctly hides replacement action and keeps normal delete flow. Backend replacement guardrails and commit behavior passed via API-level pytest using temporary records.",
+  "rca of the issue": "No functional backend defect found in tested replacement paths. Remaining gap is test-data availability for live UI: replacement button intentionally appears only for published/dana_received, so list state with pending_review-only imports prevents full panel workflow reproduction."
+}

@@ -1,0 +1,30 @@
+WEBSITE RILIS MUSIK — HANDOFF TO DEVIN
+Prepared 6 October 2026. Read CONTEXT.txt and PARKED.txt before implementation.
+
+BASELINE
+prototype-v13.0/ is the current editable source snapshot plus its standalone Rilis-Musik-V13.0.html.
+This is a browser prototype, not an integrated production application. All release numbers in older documentation are historical. V13.0 is the starting point, but its visual quality has not been approved by the user.
+reference-code/ is the historical backend/frontend snapshot used for research. Original remote reference: https://github.com/Ekapoetra/rilismusik . Current remote branch/deployment state was not verified during this handoff.
+context-history/ preserves prior decisions, discussions and readiness mapping. Newer explicit decisions in CONTEXT.txt override older proposals. Read-only project sources have not been modified.
+
+RUN THE PROTOTYPE
+Node.js: npm run preview
+Open http://localhost:4343/ . Use Devin's browser/port preview for the user; the former Windows LAN address is not accessible from Devin Cloud.
+No dependencies are required for preview or building. npm run build rebuilds the standalone file.
+Optional regression test: npm install ; npx playwright install chromium ; npm run verify . These are separate commands.
+The exported QA runner replaces its original Windows-only Playwright path/Edge channel with npm Playwright/Chromium. Production integration tests are separate work.
+
+HANDOFF STEPS — BRANCH ROUTE REQUESTED BY THE USER
+1. Repository: https://github.com/Ekapoetra/rilismusik . Branch: Prototype-Rilis-Musik.
+2. The complete handoff is already extracted in prototype-rilis-musik/. No ZIP upload/extraction or new repository is needed.
+3. In Devin select Ekapoetra/rilismusik and Prototype-Rilis-Musik, then paste FIRST-MESSAGE.txt. The first task is onboarding, running the existing baseline and checking UI, not rebuilding the whole application.
+4. Root backend/frontend are inherited from the latest main snapshot. They were not modified by this handoff. reference-code/ is an older read-only snapshot; do not confuse these two versions.
+
+NOT INCLUDED
+Browser localStorage/session data, uploaded user files, database exports, private keys, .env files, production credentials and historical upload CSVs are not copied into the handoff. Custom uploaded header art stored only in the user's browser must be provided separately if needed. The user explicitly requested uploading this handoff branch to the existing repository; no Devin session or production migration is launched by that upload.
+
+EVIDENCE
+prototype-v13.0/qa/acceptance130.json: historical 81 technical checks, 18 views, zero captured page errors.
+prototype-v13.0/qa/release-verification130.json: historical 13 live checks.
+These prove tested behavior at those times; they are not proof that UI meets the user's taste, that the live production system is safe, or that every business integration is complete.
+HANDOFF-MANIFEST.json records the exported file hashes and exclusions.

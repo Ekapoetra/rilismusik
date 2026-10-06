@@ -1,0 +1,38 @@
+import React from "react";
+import { Plus, Trash2, ShieldCheck } from "lucide-react";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
+import { newContentIdCreator } from "./contentIdForm";
+import { CreatorImageInput } from "./CreatorImageInput";
+import { CreatorSignature } from "./CreatorSignature";
+
+export const ContentIdClaimForm = ({ form, setForm, tracks }) => {
+  const { t } = useAppPreferences();
+  const creators = form.content_id_creators || []; const selected = form.content_id_track_ids || [];
+  const patch = (key, values) => setForm((current) => ({ ...current, content_id_creators: current.content_id_creators.map((creator) => creator.key === key ? { ...creator, ...values } : creator), content_id_consent: false }));
+  const selectTracks = (ids) => setForm((current) => ({ ...current, content_id_track_ids: ids, content_id_consent: false,
+    content_id_creators: current.content_id_creators.map((creator) => ({ ...creator, track_ids: current.content_id_creators.length === 1 ? ids : creator.track_ids.filter((id) => ids.includes(id)) })) }));
+  const remove = (key) => setForm((current) => { const next = current.content_id_creators.filter((creator) => creator.key !== key); return { ...current, content_id_creators: next.length === 1 ? [{ ...next[0], track_ids: current.content_id_track_ids }] : next, content_id_consent: false }; });
+  return <section className="min-w-0 space-y-5 border-t border-white/10 pt-5" data-testid="contentid-claim-form">
+    <h2 className="flex items-center gap-2 text-base font-bold"><ShieldCheck className="h-4 w-4 text-pink-400" />{t("Pernyataan Hak Cipta")}</h2>
+    <fieldset className="min-w-0 space-y-2"><legend className="rm-label">{t("Lagu yang Diajukan")}</legend>
+      <button type="button" className="text-xs text-pink-400 transition-colors hover:text-pink-300" onClick={() => selectTracks(selected.length === tracks.length ? [] : tracks.map((track) => track.id))} data-testid="contentid-select-all-tracks">{t(selected.length === tracks.length && tracks.length ? "Batalkan pilihan" : "Pilih semua lagu")}</button>
+      {!tracks.length && <p className="text-sm text-zinc-500" data-testid="contentid-no-tracks">{t("Pilih rilisan yang memiliki track.")}</p>}
+      {tracks.map((track) => <label key={track.id} className="flex min-w-0 items-start gap-2 rounded-md border border-white/10 p-3 text-sm" data-testid={`contentid-track-option-${track.id}`}><input type="checkbox" checked={selected.includes(track.id)} onChange={(event) => selectTracks(event.target.checked ? [...selected, track.id] : selected.filter((id) => id !== track.id))} className="mt-1 shrink-0 accent-pink-500" data-testid={`contentid-track-checkbox-${track.id}`} /><span className="min-w-0 break-words" translate="no" data-testid={`contentid-track-title-${track.id}`}>{track.track_title}<span className="mt-1 block text-xs text-zinc-500">ISRC: {track.isrc || "—"}</span></span></label>)}
+    </fieldset>
+    {creators.map((creator, index) => { const prefix = `contentid-creator-${index}`; return <article key={creator.key} className="min-w-0 space-y-4 rounded-lg border border-white/10 p-3 sm:p-4" data-testid={`${prefix}-card`}>
+      <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold" data-testid={`${prefix}-heading`}>{t("Pencipta")} {index + 1}</h3>{creators.length > 1 && <button type="button" onClick={() => remove(creator.key)} className="rounded p-2 text-zinc-500 transition-colors hover:text-red-400" title={t("Hapus pencipta")} aria-label={t("Hapus pencipta")} data-testid={`${prefix}-remove`}><Trash2 className="h-4 w-4" /></button>}</div>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <label className="block min-w-0"><span className="rm-label">{t("Nama Lengkap Pencipta Sesuai KTP")}</span><input className="rm-input w-full min-w-0" value={creator.full_name} onChange={(e) => patch(creator.key, { full_name: e.target.value })} autoComplete="off" required minLength={3} maxLength={150} data-testid={`${prefix}-name`} /></label>
+        <label className="block min-w-0"><span className="rm-label">NIK</span><input className="rm-input w-full min-w-0" type="text" inputMode="numeric" autoComplete="off" value={creator.nik} onChange={(e) => patch(creator.key, { nik: e.target.value.replace(/\D/g, "") })} required pattern="[0-9]{16}" minLength={16} maxLength={16} data-testid={`${prefix}-nik`} /></label>
+        <label className="block min-w-0 sm:col-span-2"><span className="rm-label">{t("Domisili Pencipta")}</span><textarea className="rm-input min-h-[70px] w-full min-w-0" value={creator.domicile} onChange={(e) => patch(creator.key, { domicile: e.target.value })} required minLength={3} maxLength={500} data-testid={`${prefix}-domicile`} /></label>
+        <label className="block min-w-0"><span className="rm-label">{t("Kota Penandatanganan")}</span><input className="rm-input w-full min-w-0" value={creator.signing_city} onChange={(e) => patch(creator.key, { signing_city: e.target.value })} required minLength={2} maxLength={100} data-testid={`${prefix}-city`} /></label>
+        <label className="block min-w-0"><span className="rm-label">{t("Kepenciptaan")}</span><select className="rm-input w-full min-w-0" value={creator.authorship} onChange={(e) => patch(creator.key, { authorship: e.target.value })} data-testid={`${prefix}-authorship`}><option value="sole">{t("Pencipta tunggal")}</option><option value="joint">{t("Pencipta bersama")}</option></select></label>
+      </div>
+      {creators.length > 1 && <fieldset className="space-y-2"><legend className="rm-label">{t("Lagu Milik Pencipta")}</legend>{tracks.filter((track) => selected.includes(track.id)).map((track) => <label key={track.id} className="flex min-w-0 items-start gap-2 text-sm" data-testid={`${prefix}-track-option-${track.id}`}><input type="checkbox" className="mt-1 accent-pink-500" checked={creator.track_ids.includes(track.id)} onChange={(e) => patch(creator.key, { track_ids: e.target.checked ? [...creator.track_ids, track.id] : creator.track_ids.filter((id) => id !== track.id) })} data-testid={`${prefix}-track-${track.id}`} /><span className="break-words" translate="no">{track.track_title}</span></label>)}</fieldset>}
+      <CreatorImageInput file={creator.ktp_file} onChange={(file) => patch(creator.key, { ktp_file: file })} prefix={`${prefix}-ktp`} label="Foto KTP Pencipta (wajib)" />
+      <CreatorSignature file={creator.signature_file} onChange={(file, mode) => patch(creator.key, { signature_file: file, signature_mode: mode })} prefix={prefix} />
+    </article>; })}
+    <button type="button" className="rm-btn-ghost inline-flex items-center gap-2 text-sm" onClick={() => setForm((current) => ({ ...current, content_id_creators: [...current.content_id_creators, newContentIdCreator()], content_id_consent: false }))} disabled={creators.length >= 20} data-testid="contentid-add-creator"><Plus className="h-4 w-4" />{t("Tambah Pencipta")}</button>
+    <label className="flex items-start gap-2 text-xs leading-relaxed text-zinc-400" data-testid="contentid-consent-label"><input type="checkbox" className="mt-1 shrink-0 accent-pink-500" checked={form.content_id_consent} onChange={(e) => setForm((current) => ({ ...current, content_id_consent: e.target.checked }))} required data-testid="contentid-consent" /><span>{t("Saya menyatakan data pencipta benar dan telah memperoleh persetujuan pencipta untuk menggunakan KTP serta tanda tangannya dalam surat pernyataan hak cipta bagi pengajuan Content ID ke Believe.")}</span></label>
+  </section>;
+};

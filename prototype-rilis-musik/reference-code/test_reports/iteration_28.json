@@ -1,0 +1,80 @@
+{
+  "summary": "Executed backend+frontend regression for requested refactor scope on preview. Backend core suites passed (auth/account lifecycle, payment mocking/idempotency, royalty legacy/cutoff, reset/cache/import). Found one critical auth CORS defect and remaining hardcoded test credentials in backend test sources. Frontend production build compiled cleanly; admin page smoke passed, but label support-auth smoke could not be completed with demo_vip credentials.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (CORS preflight)",
+        "issue": "Credentialed CORS is misconfigured: Access-Control-Allow-Origin returns '*' while auth uses HttpOnly cookies. Playbook expects explicit origin + allow-credentials=true pairing.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "/app/backend/tests/* (test source scan)",
+        "issue": "Hardcoded credentials/secrets still exist in tracked tests (e.g., test_phase7_mda.py, test_phase8_extras.py, test_phase5_redaction_cron.py, test_phase9_autocreate.py, test_phase20_21_withdraw_fifo_rollup.py, test_refactor_smoke.py, test_phase25_label_account_lifecycle.py). Requirement to remove literals is not fully met.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/app/backend/routes/royalty_recalculation.py",
+        "issue": "A silent catch remains in trigger_royalty_caches() (bare except with pass), reducing observability when analytics cache trigger fails."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Label auth / Support flow",
+        "issue": "Demo label login (demo_vip) failed in smoke run, so authenticated Label Support Tickets flow could not be fully validated.",
+        "selector": "[data-testid='login-email-input'], [data-testid='login-submit-button']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Admin Label Detail smoke",
+        "issue": "No labels present in preview dataset, so /admin/labels/{id} detail flow could not be exercised from list click path.",
+        "affected_selectors": [
+          "[data-testid^='admin-label-detail-']",
+          "[data-testid='admin-label-change-email']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase25_label_account_lifecycle.py",
+    "/app/backend/tests/test_phase33_xendit_polling.py",
+    "/app/backend/tests/test_phase33_xendit_safe_api.py",
+    "/app/backend/tests/test_phase32_dynamic_royalty_legacy.py",
+    "/app/backend/tests/test_phase32_label_visibility_endpoints.py",
+    "/app/backend/tests/test_phase32_percentage_blocked_by_active_withdraw.py",
+    "/app/backend/tests/test_phase16_4_delete_import_and_dashboard_cache.py",
+    "/app/backend/tests/test_iter28_import_auth_playbook.py",
+    "/app/test_reports/pytest/iter28_backend_regression.xml",
+    "/app/test_reports/pytest/iter28_auth_playbook.xml"
+  ],
+  "action_items": [
+    "Fix CORS config for auth cookies: remove wildcard origin for credentialed auth and enforce explicit origin allowlist in runtime env.",
+    "Replace remaining hardcoded credentials in backend test sources with support_config/env-driven values.",
+    "Provide/seed at least one label account in preview (or deterministic temp-seed fixture) so Label Support and Admin Label Detail UI smoke can run end-to-end.",
+    "Replace silent catch in royalty_recalculation trigger path with warning log/error state for failed analytics cache trigger."
+  ],
+  "critical_code_review_comments": [
+    "Import graph check passed: routes.admin, routes.royalty_recalculation, and payment_service import cleanly without circular init failure.",
+    "Thin-route delegation for admin_update_label/admin_create_label_account/admin_revoke_label_account/admin_change_label_email is in place and verified through regression tests.",
+    "Payment fulfill flow remains idempotent in mocked-provider tests; no checkout endpoint was called during this run, preserving no-live-Xendit safety."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter28_import_auth_playbook.py",
+    "/app/test_reports/iteration_28.json"
+  ],
+  "success_rate": {
+    "backend": "97% (34 passed, 1 failed, 1 skipped across executed suites)",
+    "frontend": "75% (admin/public smoke passed; label-authenticated support/detail flows blocked by dataset/login issue)"
+  },
+  "seed_data_creation": "Created temporary lockout and admin-seed verification users inside tests; cleanup applied for custom admin-seed user. No live Xendit session/checkout created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview currently shows empty admin label list and demo_vip login failed in UI smoke. Re-run label UI smoke after seeding a test label and validating demo credentials. Use /app/backend/tests/test_iter28_import_auth_playbook.py to reconfirm CORS + auth playbook checks.",
+  "rca of the issue": "RCA-1 CORS: Runtime returns wildcard origin while issuing credential cookies, violating browser credentialed CORS constraints and auth playbook requirements. Repro: OPTIONS /api/auth/login with Origin=https://lanjut-core.preview.emergentagent.com returns Access-Control-Allow-Origin='*'. Mitigation: explicit CORS_ORIGINS/FRONTEND_URL allowlist only, no wildcard when allow_credentials=true. RCA-2 credential literals: historical tests still contain fixed passwords/tokens; scan confirms multiple files unresolved after refactor. Mitigation: route all test credentials through backend/.env.test + tests/support_config.py and sanitize literals."
+}

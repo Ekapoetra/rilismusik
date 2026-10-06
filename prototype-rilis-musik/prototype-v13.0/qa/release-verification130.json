@@ -1,0 +1,61 @@
+{
+  "url": "http://192.168.1.35:4343/",
+  "version": "13.0",
+  "hash": "3A5896DEC307F29BD769C1FD5AB809F3A6143C512808ACDEA7DE6E4CF8C37C25",
+  "checkedAt": "2026-10-06T03:37:47.570Z",
+  "checks": [
+    {
+      "name": "Live bytes match the accepted V13.0 artifact",
+      "pass": true
+    },
+    {
+      "name": "Manifest identifies V13.0",
+      "pass": true
+    },
+    {
+      "name": "Live page identifies V13.0",
+      "pass": true
+    },
+    {
+      "name": "Header and greeting share a continuous background",
+      "pass": true
+    },
+    {
+      "name": "Platform to Staff does not fold or reopen the header",
+      "pass": true
+    },
+    {
+      "name": "Profile selector is centred",
+      "pass": true
+    },
+    {
+      "name": "Profile cards slide on selection",
+      "pass": true
+    },
+    {
+      "name": "Profile slide removes the outgoing overlay",
+      "pass": true
+    },
+    {
+      "name": "Appearance contains one current card and upload with no sliders",
+      "pass": true
+    },
+    {
+      "name": "Direct resizing handles are available",
+      "pass": true
+    },
+    {
+      "name": "Dedicated settings stays centred with the sidebar hidden",
+      "pass": true
+    },
+    {
+      "name": "Dark mode keeps the united header and theme surfaces",
+      "pass": true
+    },
+    {
+      "name": "No runtime errors in the published preview",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

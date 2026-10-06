@@ -1,0 +1,56 @@
+{
+  "summary": "Executed Iter65 targeted backend regression and frontend P0 smoke on public preview URL for i18n/nav/theme/chat/role-preview checks.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminDashboard ActionCenter",
+        "issue": "After switching language to EN, key system texts remain Indonesian (e.g., 'Perlu Perhatian Anda', 'Segarkan').",
+        "selector": "[data-testid='admin-action-center']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Global system-text translation in admin pages",
+        "issue": "Locale switching works (EN indicator and some explicit translated areas), but Babel-driven transformation appears not applied consistently in dev preview for Dashboard-authored literals despite catalog entries existing.",
+        "affected_selectors": [
+          "[data-testid='language-menu-admin']",
+          "[data-testid='language-en-admin']",
+          "[data-testid='admin-action-center']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter65_p0_refresh_regression.py",
+    "/app/test_reports/pytest/iter65_backend.xml"
+  ],
+  "action_items": [
+    "Investigate dev-time Babel plugin chain: verify ui-i18n plugin execution order/effective application under withVisualEdits (craco start path), especially for /src/pages/admin/Dashboard.jsx.",
+    "Confirm transformed output in preview runtime (not only catalog availability) and retest EN mode across admin dashboard/roles/labels/releases/payments/royalty pages.",
+    "Run remaining unexecuted P0 media/sound/chat multi-turn and WIB boundary-time assertions (05:59/06:00/17:59/18:00) after i18n compile issue is resolved."
+  ],
+  "critical_code_review_comments": [
+    "Backend endpoints requested in scope are aligned: /api/admin/access/catalog and /api/admin/navigation both exclude label_rates; /api/chat/unread returns latest incoming fields; removed dangerous reset endpoint is no longer callable (404/405).",
+    "Translation catalog already contains EN mappings for failing dashboard strings, so runtime issue is not missing dictionary data.",
+    "Route guard for removed import tab is correct: /admin/labels/rate-import redirects to /admin/labels and no label_rates nav testid rendered."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter65_p0_refresh_regression.py",
+    "/app/test_reports/iteration_65.json"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 passed)",
+    "frontend": "70% (targeted smoke passed; major i18n regression found; several P0 deep scenarios pending)"
+  },
+  "seed_data_creation": "No new seed data created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "UI automation confirmed login, nav/redirect/theme menu visibility, role preview modal, and mobile overflow/chat panel smoke. Repro issue: set EN via [data-testid='language-en-admin'] on /admin/dashboard then inspect [data-testid='admin-action-center'] still showing Indonesian labels. Screenshots captured via automation output folders and /app/test_reports/screenshots/iter65_ui*.",
+  "rca of the issue": "Reproduction: login super admin -> /admin/dashboard -> switch EN from header language menu. Expected: Action Center text becomes English per catalog. Actual: key dashboard literals remain Indonesian. RCA evidence: (1) catalog.en.json includes mappings (Perlu Perhatian Anda, Segarkan, Ringkasan Platform), (2) language state toggles and some explicit translated UI parts do update, (3) behavior pattern matches missing/inactive Babel JSX system-text transformation in active preview compilation path (likely dev chain interaction around withVisualEdits/craco)."
+}
