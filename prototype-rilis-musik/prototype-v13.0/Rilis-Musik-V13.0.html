@@ -7278,6 +7278,9 @@ render();
  const rev=d=>Number.isSafeInteger(d?.storageRevision116)?d.storageRevision116:-1;
  const withShared=d=>{if(!d.legacyShared117&&typeof sharedSnapshot117==='function')d.legacyShared117=sharedSnapshot117();return d;};
  const canAdopt=d=>typeof Persistence117!=='undefined'&&Persistence117.validateJourney&&Persistence117.validateJourney(withShared(d));
+ /* Dokumen hasil bootstrap database diberi tanda; state simulasi lokal yang
+    lama tidak boleh menimpa atau menghalangi data asli. */
+ const real=d=>d&&d.dataSource==='production-copy';
 
  function loginScreen(){
   if(document.getElementById('rm-api-login'))return;
@@ -7300,8 +7303,9 @@ render();
   if(!doc)return;
   const r=await call('/proto/state',{method:'PUT',body:JSON.stringify({journey:doc})});
   if(r.status===401){api.online=false;loginScreen();return;}
-  if(r.status===409){api.lastError='stale';return hydrate(true);}
+  if(r.status===409){api.lastError='stale';if(!push._retry){push._retry=true;return hydrate(true);}return;}
   if(!r.ok)api.lastError='push_'+r.status;
+  else push._retry=false;
  }
 
  let timer=null;
@@ -7310,11 +7314,16 @@ render();
  async function hydrate(force){
   const st=await (await call('/proto/state')).json().catch(()=>({}));
   const server=st.journey||null,local=localDoc();
-  if(server&&canAdopt(server)&&(rev(server)>rev(local)||force&&rev(server)>=rev(local))){
+  const serverOk=server&&canAdopt(server);
+  /* 1. Dokumen server yang asli menang bila lebih baru, atau lokal masih dummy. */
+  if(serverOk&&real(server)&&(rev(server)>rev(local)||!real(local)||force&&rev(server)>=rev(local))){
    try{Persistence117.replace(server);return;}catch{api.lastError='adopt_failed';}
   }
-  if(local&&rev(local)>rev(server)){await push().catch(()=>{});return;}
-  if(!server&&!local){
+  /* 2. Dokumen lokal yang asli menang bila server kosong, dummy, atau usang. */
+  if(real(local)&&(!serverOk||!real(server)||rev(local)>rev(server))){await push().catch(()=>{});return;}
+  /* 3. Sisanya (server kosong/dummy + lokal kosong/dummy): bangun ulang dari
+        koleksi produksi, bukan dari data dummy browser. */
+  if(!serverOk||!real(server)){
    const b=await (await call('/proto/bootstrap')).json().catch(()=>({}));
    if(b.journey&&canAdopt(b.journey)){try{Persistence117.replace(b.journey);return;}catch{api.lastError='adopt_failed';}}
    api.lastError=api.lastError||'bootstrap_invalid';

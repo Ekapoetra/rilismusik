@@ -62,12 +62,18 @@ app.put('/api/proto/state',auth.guard,async(req,res)=>{
   if(!okJourney(journey))return res.status(400).json({ok:false,error:'invalid_journey'});
   if(JSON.stringify(journey).length>MAX_BYTES)return res.status(413).json({ok:false,error:'too_large'});
   const rev=Number.isSafeInteger(journey.storageRevision116)?journey.storageRevision116:0;
+  const isReal=j=>j&&j.dataSource==='production-copy';
   try{
     const d=await db();
     const col=d.collection(COLLECTION());
-    const existing=await col.findOne({_id:DOC_KEY},{projection:{'journey.storageRevision116':1}});
+    const existing=await col.findOne({_id:DOC_KEY},{projection:{'journey.storageRevision116':1,'journey.dataSource':1}});
     const serverRev=existing?.journey?.storageRevision116;
-    if(existing&&Number.isSafeInteger(serverRev)&&rev<=serverRev)
+    /* Dokumen dummy tak boleh menimpa dokumen asli; dokumen asli selalu boleh
+       menimpa unggahan simulasi lama. Sisanya ikut aturan revisi biasa. */
+    const stale=existing&&(
+      (!isReal(journey)&&isReal(existing.journey))
+      ||(Number.isSafeInteger(serverRev)&&rev<=serverRev&&!(isReal(journey)&&!isReal(existing.journey))));
+    if(stale)
       return res.status(409).json({ok:false,error:'stale_revision',serverRevision:serverRev});
     await col.updateOne({_id:DOC_KEY},{$set:{journey,updatedAt:new Date().toISOString()}},{upsert:true});
     res.json({ok:true,revision:rev});
