@@ -18,7 +18,6 @@
   "services": {
     "web": {
       "root": "prototype-rilis-musik",
-      "framework": null,
       "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
       "buildCommand": "node build-web.cjs",
       "outputDirectory": "web-dist"
