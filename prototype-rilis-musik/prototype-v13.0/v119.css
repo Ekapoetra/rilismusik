@@ -1,11 +1,11 @@
 /* Shared, compact summaries: identity color does not change card dimensions. */
 .five-stats{grid-auto-rows:1fr;align-items:stretch}
 .summary-card106,.summary-card106.featured{grid-row:auto!important;grid-column:auto!important;box-sizing:border-box!important;min-height:196px!important;height:100%!important;padding:20px!important;gap:8px!important}
-.summary-card106>span{font-size:15px!important;line-height:1.5!important;font-weight:550!important;min-height:45px;max-width:100%!important}
+.summary-card106>span{font-size:15px!important;line-height:1.5!important;font-weight:500!important;min-height:45px;max-width:100%!important}
 .summary-card106>strong{font-size:32px!important;line-height:1.2!important;margin:5px 0!important}
 .summary-card106>small{font-size:13px!important;line-height:1.5!important;margin-top:auto!important;padding-right:30px!important;max-width:100%!important}
 .credit-reference119{padding:20px;margin-top:22px;min-width:0}
-.credit-reference119>summary{font-size:18px;font-weight:550;cursor:pointer}
+.credit-reference119>summary{font-size:18px;font-weight:500;cursor:pointer}
 .credit-reference119>.guide-credit11{padding-top:24px}
 .credit-reference119 .head107 h1{font-size:25px}
 [data-pending-form=bonus] .save-error117{grid-column:1/-1;margin:0;line-height:1.6}

@@ -7,89 +7,31 @@
         {
           "key": "Cross-Origin-Opener-Policy",
           "value": "same-origin-allow-popups"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
         }
       ]
     }
   ],
   "services": {
     "web": {
-      "root": "frontend",
-      "framework": "create-react-app",
-      "installCommand": "yarn install --non-interactive",
-      "buildCommand": "CI=false yarn build",
-      "outputDirectory": "build",
-      "rewrites": [
-        {
-          "source": "/(.*)",
-          "destination": "/index.html"
-        }
-      ]
+      "root": "prototype-rilis-musik",
+      "framework": null,
+      "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
+      "buildCommand": "node build-web.cjs",
+      "outputDirectory": "web-dist"
     },
     "api": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "vercel_production_app:app",
+      "root": "prototype-rilis-musik",
+      "framework": "express",
+      "entrypoint": "api/index.js",
+      "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
       "functions": {
-        "vercel_production_app.py": {
-          "maxDuration": 300,
-          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}"
-        }
-      }
-    },
-    "queue-jobs": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "queue_app:app",
-      "functions": {
-        "queue_app.py": {
-          "maxDuration": 800,
-          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
-          "experimentalTriggers": [
-            {
-              "type": "queue/v2beta",
-              "topic": "rilismusik-jobs",
-              "retryAfterSeconds": 60,
-              "maxConcurrency": 1
-            }
-          ]
-        }
-      }
-    },
-    "queue-emails": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "queue_app:app",
-      "functions": {
-        "queue_app.py": {
-          "maxDuration": 800,
-          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
-          "experimentalTriggers": [
-            {
-              "type": "queue/v2beta",
-              "topic": "rilismusik-emails",
-              "retryAfterSeconds": 60,
-              "maxConcurrency": 4
-            }
-          ]
-        }
-      }
-    },
-    "queue-schedule": {
-      "root": "backend",
-      "framework": "fastapi",
-      "entrypoint": "queue_app:app",
-      "functions": {
-        "queue_app.py": {
-          "maxDuration": 800,
-          "excludeFiles": "{tests/**,scripts/**,uploads/**,**/__pycache__/**}",
-          "experimentalTriggers": [
-            {
-              "type": "queue/v2beta",
-              "topic": "rilismusik-schedule",
-              "retryAfterSeconds": 60,
-              "maxConcurrency": 1
-            }
-          ]
+        "api/index.js": {
+          "maxDuration": 30,
+          "excludeFiles": "{prototype-v13.0/**,web-dist/**,qa/**,node_modules/playwright/**}"
         }
       }
     }
@@ -103,12 +45,6 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": {
-        "service": "api"
-      }
-    },
-    {
-      "source": "/health",
       "destination": {
         "service": "api"
       }

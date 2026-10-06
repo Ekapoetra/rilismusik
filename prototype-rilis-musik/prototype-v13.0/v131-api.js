@@ -1,0 +1,79 @@
+/* V13.1 bridge API: menghubungkan prototype ke service /api (database salinan).
+   Tanpa API — misalnya `npm run preview` lokal — file ini diam dan perilaku
+   localStorage V13.0 tidak berubah. */
+(function(){
+ 'use strict';
+ const BASE='/api',KEY='rm-v11-1-journey';
+ const api=window.RMAPI={online:false,busy:false,lastError:null};
+ const T=(a,b)=>(typeof ten!=='undefined'&&ten.lang==='en')?b:a;
+ const call=(path,opt={})=>fetch(BASE+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
+ const localDoc=()=>{try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch{return null}};
+ const rev=d=>Number.isSafeInteger(d?.storageRevision116)?d.storageRevision116:-1;
+ const withShared=d=>{if(!d.legacyShared117&&typeof sharedSnapshot117==='function')d.legacyShared117=sharedSnapshot117();return d;};
+ const canAdopt=d=>typeof Persistence117!=='undefined'&&Persistence117.validateJourney&&Persistence117.validateJourney(withShared(d));
+
+ function loginScreen(){
+  if(document.getElementById('rm-api-login'))return;
+  const box=document.createElement('div');box.id='rm-api-login';
+  box.style.cssText='position:fixed;inset:0;z-index:400;display:grid;place-items:center;background:rgba(15,15,18,.55);backdrop-filter:blur(10px)';
+  box.innerHTML=`<form style="background:var(--surface,#fff);color:var(--text,#222);border-radius:16px;padding:28px;min-width:280px;box-shadow:0 20px 60px #0004"><h2 style="font-size:16px;font-weight:600;margin:0 0 6px">Rilis Musik · Preview</h2><p style="font-size:12px;color:var(--muted,#777);margin:0 0 16px">${T('Masukkan kata sandi preview untuk melihat data.','Enter the preview password to view data.')}</p><input type="password" name="pw" autocomplete="current-password" placeholder="${T('Kata sandi','Password')}" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--line,#ddd);border-radius:9px;font:inherit"><div id="rm-api-login-err" style="font-size:11px;color:var(--red,#b23e4e);margin-top:8px;min-height:14px"></div><button type="submit" class="btn primary" style="margin-top:6px;width:100%">${T('Masuk','Sign in')}</button></form>`;
+  document.body.appendChild(box);
+  box.querySelector('form').addEventListener('submit',async e=>{
+   e.preventDefault();const err=box.querySelector('#rm-api-login-err');err.textContent='';
+   try{
+    const r=await call('/auth/login',{method:'POST',body:JSON.stringify({password:e.target.pw.value})});
+    if(!r.ok){err.textContent=T('Kata sandi salah.','Wrong password.');return;}
+    location.reload();
+   }catch{err.textContent=T('Gagal menghubungi server.','Could not reach the server.');}
+  });
+ }
+
+ async function push(){
+  const doc=localDoc();
+  if(!doc)return;
+  const r=await call('/proto/state',{method:'PUT',body:JSON.stringify({journey:doc})});
+  if(r.status===401){api.online=false;loginScreen();return;}
+  if(r.status===409){api.lastError='stale';return hydrate(true);}
+  if(!r.ok)api.lastError='push_'+r.status;
+ }
+
+ let timer=null;
+ function schedulePush(){clearTimeout(timer);timer=setTimeout(()=>{push().catch(e=>{api.lastError=String(e&&e.code||e)});},800);}
+
+ async function hydrate(force){
+  const st=await (await call('/proto/state')).json().catch(()=>({}));
+  const server=st.journey||null,local=localDoc();
+  if(server&&canAdopt(server)&&(rev(server)>rev(local)||force&&rev(server)>=rev(local))){
+   try{Persistence117.replace(server);return;}catch{api.lastError='adopt_failed';}
+  }
+  if(local&&rev(local)>rev(server)){await push().catch(()=>{});return;}
+  if(!server&&!local){
+   const b=await (await call('/proto/bootstrap')).json().catch(()=>({}));
+   if(b.journey&&canAdopt(b.journey)){try{Persistence117.replace(b.journey);return;}catch{api.lastError='adopt_failed';}}
+   api.lastError=api.lastError||'bootstrap_invalid';
+  }
+ }
+
+ function wrapSave(){
+  if(typeof save10!=='function'||save10.__api131)return;
+  const original=save10;
+  save10=function(){const result=original.apply(this,arguments);if(api.online)schedulePush();return result;};
+  save10.__api131=true;
+ }
+
+ async function boot(){
+  let health;
+  try{health=await fetch(BASE+'/health',{signal:AbortSignal.timeout(3000)});}catch{return;}
+  if(!health.ok)return;
+  api.online=true;
+  try{
+   const st=await (await fetch(BASE+'/auth/status')).json();
+   if(st.required&&!st.session){api.online=false;loginScreen();return;}
+   await hydrate();
+   if(api.online)wrapSave();
+  }catch(e){api.lastError=String(e&&e.code||e);}
+ }
+
+ api.push=push;api.hydrate=hydrate;api.loginScreen=loginScreen;
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();

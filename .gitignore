@@ -121,3 +121,6 @@ frontend/yarn.lock
 
 # Memory log artifacts
 memory/*.log
+
+# Artefak build statis prototype
+prototype-rilis-musik/web-dist/

@@ -4,8 +4,15 @@
   "private": true,
   "scripts": {
     "preview": "node serve.cjs",
+    "api": "node api/index.js",
     "build": "node prototype-v13.0/build.cjs",
+    "build:web": "node build-web.cjs",
+    "test:seed": "node api/test-seed.cjs",
     "verify": "node prototype-v13.0/qa/verify130.cjs"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "mongodb": "6.20.0"
   },
   "devDependencies": {
     "playwright": "1.62.1"
