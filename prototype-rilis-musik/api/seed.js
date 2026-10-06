@@ -152,6 +152,53 @@ async function buildJourney(db){
   return journey;
 }
 
+/* Patch workspace staff: antrean pekerjaan & feed aktivitas dari koleksi
+   produksi. Bentuk mengikuti data.tasks/data.events pada shared doc
+   (disalin klien ke sharedSnapshot117 sebelum replace). */
+const TASK_STAGE={submitted:'queued',pending:'queued',queued:'queued',in_review:'review',review:'review',needs_revision:'correction',revision:'correction',approved:'approval',delivered:'believe',followup:'believe'};
+
+async function buildSharedPatch(db){
+  const {find}=await collect(db);
+  const [labels,releases,tickets,withdrawals,metaEdits,kycDocs,bankChanges,activityLogs]=await Promise.all([
+    find('labels',{},{id:1,name:1},500),
+    find('releases',{},{id:1,label_id:1,title:1,name:1,status:1,updated_at:1,created_at:1,submitted_at:1},1000),
+    find('support_tickets',{},{id:1,label_id:1,subject:1,title:1,status:1,created_at:1,updated_at:1},500),
+    find('withdraw_requests',{},{id:1,label_id:1,amount:1,amount_idr:1,status:1,created_at:1},300),
+    find('release_metadata_edits',{},{id:1,release_id:1,label_id:1,status:1,created_at:1,updated_at:1},300),
+    find('kyc_documents',{},{id:1,label_id:1,user_id:1,status:1,created_at:1,updated_at:1},300),
+    find('bank_account_change_requests',{},{id:1,label_id:1,status:1,created_at:1},300),
+    find('activity_logs',{},{id:1,user_id:1,user_name:1,actor:1,action:1,entity:1,target:1,created_at:1},300)
+  ]);
+  const nameOf=new Map(labels.map(l=>[idOf(l),l.name||idOf(l)]));
+  const label=lid=>nameOf.get(String(lid))||String(lid||'-');
+  const lastOf=x=>stamp(x.updated_at||x.created_at);
+  const openish=s=>['pending','requested','submitted','open','new','in_progress','processing','review'].includes(String(s||'').toLowerCase());
+
+  const tasks=[];
+  for(const r of releases){
+    const stage=TASK_STAGE[String(r.status||'').toLowerCase()];
+    if(stage)tasks.push({id:'R-'+idOf(r),title:r.title||r.name||'Rilisan',label:label(r.label_id),kind:'release',stage,pct:null,handler:null,last:lastOf(r),overdue:false});
+  }
+  for(const t of tickets)if(openish(t.status)&&!['done','resolved','closed','rejected'].includes(String(t.status).toLowerCase()))
+    tasks.push({id:'T-'+idOf(t),title:t.subject||t.title||'Tiket dukungan',label:label(t.label_id),kind:'support',stage:'review',pct:null,handler:null,last:lastOf(t),overdue:false});
+  for(const w of withdrawals)if(openish(w.status))
+    tasks.push({id:'W-'+idOf(w),title:`Penarikan Rp${money(w.amount_idr??w.amount).toLocaleString('id-ID')}`,label:label(w.label_id),kind:'finance',stage:'approval',pct:null,handler:null,last:lastOf(w),overdue:false});
+  for(const m of metaEdits)if(openish(m.status))
+    tasks.push({id:'M-'+idOf(m),title:'Perubahan metadata',label:label(m.label_id),kind:'release',stage:'review',pct:null,handler:null,last:lastOf(m),overdue:false});
+  for(const k of kycDocs)if(openish(k.status))
+    tasks.push({id:'K-'+idOf(k),title:'Verifikasi identitas',label:label(k.label_id),kind:'claim',stage:'review',pct:null,handler:null,last:lastOf(k),overdue:false});
+  for(const b of bankChanges)if(openish(b.status))
+    tasks.push({id:'B-'+idOf(b),title:'Perubahan rekening',label:label(b.label_id),kind:'finance',stage:'review',pct:null,handler:null,last:lastOf(b),overdue:false});
+
+  const events=activityLogs.slice(0,60).map((a,i)=>({
+    id:i+1,who:String(a.user_name||a.actor||a.user_id||'sistem').split('@')[0].toLowerCase(),
+    obj:String(a.entity||a.target||''),text:[String(a.action||'aktivitas'),String(a.action||'activity')],
+    time:new Date(stamp(a.created_at)).toTimeString().slice(0,5).replace(':','.')+'',category:'work'
+  }));
+
+  return {tasks:tasks.slice(0,300),events};
+}
+
 async function domainSummary(db){
   const {has}=await collect(db);
   const names=['users','labels','releases','tracks','artists','royalty_imports','royalty_lines','monthly_analytics','withdraw_requests','payments','addon_orders','wami_orders','support_tickets','ticket_comments','notifications','contracts','staff_profiles','bank_accounts','kyc_documents','chat_conversations','service_orders','proto_documents'];
@@ -160,4 +207,4 @@ async function domainSummary(db){
   return out;
 }
 
-module.exports={buildJourney,domainSummary};
+module.exports={buildJourney,buildSharedPatch,domainSummary};

@@ -2,7 +2,7 @@
    dari storage117.js (validator asli yang dipakai klien), pada fixture
    koleksi produksi maupun database kosong. */
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
-const {buildJourney}=require('./seed');
+const {buildJourney,buildSharedPatch}=require('./seed');
 
 function validator(){
   const sandbox={
@@ -30,7 +30,7 @@ function fakeDb(fixtures){
     labels:[{id:'lab1',name:'Awan Records',kyc_status:'verified',pic_name:'Nara',created_at:'2024-01-01'},{id:'lab2',name:'Embun Label',kyc_status:'pending'}],
     releases:[{id:'r1',label_id:'lab1',title:'Hujan',primary_artist:'Senja',status:'live',track_count:3,release_date:'2024-05-01'},{id:'r2',label_id:'lab2',title:'Kabut',status:'submitted'}],
     payments:[{id:'p1',label_id:'lab1',amount_idr:350000,status:'paid',created_at:'2024-02-01'}],
-    withdraw_requests:[{id:'w1',label_id:'lab1',amount_idr:1500000,status:'paid',bank_name:'BCA',account_number:'1234567890',account_holder:'Nara',created_at:'2024-06-01'}],
+    withdraw_requests:[{id:'w1',label_id:'lab1',amount_idr:1500000,status:'paid',bank_name:'BCA',account_number:'1234567890',account_holder:'Nara',created_at:'2024-06-01'},{id:'w2',label_id:'lab1',amount_idr:2000000,status:'processing',created_at:'2024-09-01'}],
     support_tickets:[{id:'t1',label_id:'lab1',subject:'Bantuan cover',status:'done',created_at:'2024-03-01'}],
     ticket_comments:[{id:'c1',ticket_id:'t1',author_name:'Jeck',role:'staff',text:'Sudah diteruskan.',created_at:'2024-03-02'}],
     notifications:[{id:'n1',label_id:'lab1',kind:'activated',created_at:'2024-01-02'}],
@@ -59,11 +59,17 @@ function fakeDb(fixtures){
   const j=await buildJourney(fakeDb(fixtures));
   check('rilisan hidup terpetakan',j.releases.some(r=>r.status==='live'&&r.title==='Hujan'));
   check('royalty ledger available',j.royalty107.ledger.some(l=>l.member==='L-lab1'&&l.bucket==='available'&&l.amount===2500000));
-  check('penarikan ada',j.royalty107.withdraw108.requests.length===1&&j.royalty107.withdraw108.requests[0].status==='paid');
+  check('penarikan ada',j.royalty107.withdraw108.requests.length===2&&j.royalty107.withdraw108.requests[0].status==='paid'&&j.royalty107.withdraw108.requests[1].status==='processing');
   check('tiket ada',j.tickets112.tickets.length===1);
   check('staff ada',j.staff114.users.length>=2);
   check('pesanan ada',j.commerce113.orders.length===1);
   check('notifikasi ada',j.notifications.length===1);
+
+  const sp=await buildSharedPatch(fakeDb(fixtures));
+  check('sharedPatch tasks array',Array.isArray(sp.tasks)&&sp.tasks.every(t=>t&&typeof t==='object'&&t.id&&t.title&&t.label&&['release','claim','support','finance'].includes(t.kind)&&['queued','review','approval','correction','believe'].includes(t.stage)));
+  check('rilisan antre masuk tasks',sp.tasks.some(t=>t.id.startsWith('R-')&&t.label==='Embun Label'));
+  check('penarikan masuk finance',sp.tasks.some(t=>t.kind==='finance'));
+  check('sharedPatch kosong aman',(await buildSharedPatch(fakeDb({}))).tasks.length===0);
 
   process.exit(fails?1:0);
 })().catch(e=>{console.error('ERROR',e);process.exit(1)});

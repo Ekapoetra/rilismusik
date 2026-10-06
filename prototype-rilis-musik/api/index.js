@@ -4,7 +4,7 @@
 const express=require('express');
 const {db,configured}=require('./db');
 const auth=require('./auth');
-const {buildJourney,domainSummary}=require('./seed');
+const {buildJourney,buildSharedPatch,domainSummary}=require('./seed');
 
 const app=express();
 const DOC_KEY='journey';
@@ -82,8 +82,9 @@ app.put('/api/proto/state',auth.guard,async(req,res)=>{
 
 app.get('/api/proto/bootstrap',auth.guard,async(req,res)=>{
   try{
-    const journey=await buildJourney(await db());
-    res.json({ok:true,journey});
+    const d=await db();
+    const[journey,sharedPatch]=await Promise.all([buildJourney(d),buildSharedPatch(d)]);
+    res.json({ok:true,journey,sharedPatch});
   }catch(err){dbError(res,err);}
 });
 

@@ -14,6 +14,15 @@
  /* Dokumen hasil bootstrap database diberi tanda; state simulasi lokal yang
     lama tidak boleh menimpa atau menghalangi data asli. */
  const real=d=>d&&d.dataSource==='production-copy';
+ /* Tempelkan antrean kerja & feed produksi ke shared doc bawaan klien
+    (sharedSnapshot117) supaya tetap lolos validasi shared(). */
+ const applySharedPatch=(j,patch)=>{
+  if(!patch)return;
+  const sh=withShared(j).legacyShared117;
+  if(!sh?.data)return;
+  if(Array.isArray(patch.tasks))sh.data.tasks=patch.tasks;
+  if(Array.isArray(patch.events)&&patch.events.length)sh.data.events=patch.events;
+ };
 
  function loginScreen(){
   if(document.getElementById('rm-api-login'))return;
@@ -58,7 +67,7 @@
         koleksi produksi, bukan dari data dummy browser. */
   if(!serverOk||!real(server)){
    const b=await (await call('/proto/bootstrap')).json().catch(()=>({}));
-   if(b.journey&&canAdopt(b.journey)){try{Persistence117.replace(b.journey);return;}catch{api.lastError='adopt_failed';}}
+   if(b.journey&&canAdopt(b.journey)){applySharedPatch(b.journey,b.sharedPatch);try{Persistence117.replace(b.journey);return;}catch{api.lastError='adopt_failed';}}
    api.lastError=api.lastError||'bootstrap_invalid';
   }
  }
