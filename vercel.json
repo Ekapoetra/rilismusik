@@ -18,19 +18,18 @@
   "services": {
     "web": {
       "root": "prototype-rilis-musik",
-      "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
+      "installCommand": "echo skip-install",
       "buildCommand": "node build-web.cjs",
       "outputDirectory": "web-dist"
     },
     "api": {
-      "root": "prototype-rilis-musik",
+      "root": "preview-api",
       "framework": "express",
-      "entrypoint": "api/index.js",
+      "entrypoint": "index.js",
       "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
       "functions": {
-        "api/index.js": {
-          "maxDuration": 30,
-          "excludeFiles": "{prototype-v13.0/**,web-dist/**,qa/**,node_modules/playwright/**}"
+        "index.js": {
+          "maxDuration": 60
         }
       }
     }

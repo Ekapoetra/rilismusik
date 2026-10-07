@@ -1,0 +1,14 @@
+{
+  "name": "rilismusik-preview-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Service kecil preview Vercel: cek database + ekspor cuplikan data produksi untuk prototype V13.0",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test-sample.cjs"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "mongodb": "6.20.0"
+  }
+}
