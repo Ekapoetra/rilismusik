@@ -124,3 +124,6 @@ memory/*.log
 
 # Artefak build statis prototype
 prototype-rilis-musik/web-dist/
+
+# Cuplikan produksi mentah (disamarkan) — dibangkitkan ulang via preview-api
+prototype-rilis-musik/sample/

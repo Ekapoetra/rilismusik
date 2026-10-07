@@ -5,7 +5,8 @@
   "scripts": {
     "preview": "node serve.cjs",
     "build": "node prototype-v13.0/build.cjs",
-    "verify": "node prototype-v13.0/qa/verify130.cjs"
+    "verify": "node prototype-v13.0/qa/verify130.cjs",
+    "build:sample": "node build-sample.cjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"
