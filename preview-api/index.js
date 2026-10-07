@@ -39,7 +39,7 @@ app.get('/api/db-check',auth.guard,async(req,res)=>{
 app.get('/api/sample-export',auth.guard,async(req,res)=>{
   const n=(k,d,max)=>Math.min(max,Math.max(1,parseInt(req.query[k],10)||d));
   try{
-    const sample=await exportSample(await db(),{labels:n('labels',15,40),releasesPerLabel:n('releases',6,30),imports:n('imports',4,12)});
+    const sample=await exportSample(await db(),{labels:n('labels',15,40),releasesPerLabel:n('releases',6,30),imports:n('imports',4,12),linesPerImport:n('lines',400,2000),light:req.query.light==='1'});
     res.setHeader('Content-Disposition','attachment; filename="production-sample.json"');
     res.type('application/json').send(JSON.stringify(sample,null,1));
   }catch(err){dbError(res,err);}

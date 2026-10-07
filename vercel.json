@@ -29,7 +29,7 @@
       "installCommand": "npm ci --ignore-scripts --no-audit --no-fund --omit=dev",
       "functions": {
         "index.js": {
-          "maxDuration": 60
+          "maxDuration": 300
         }
       }
     }

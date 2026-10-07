@@ -41,7 +41,7 @@ const RELEASE_ACTIVE=['submitted','under_review','need_revision','approved','del
 const TICKET_OPEN=['open','in_progress','waiting_label','submitted_to_believe'];
 const WITHDRAW_OPEN=['requested','approved','processing'];
 
-async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPerImport=400,legacyMax=3}={}){
+async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPerImport=400,legacyMax=3,light=false}={}){
   const names=new Set((await db.listCollections().toArray()).map(c=>c.name));
   const col=n=>names.has(n)?db.collection(n):null;
   const all=async(n,q={},limit=5000,sort={_id:-1})=>{const c=col(n);return c?c.find(q).sort(sort).limit(limit).toArray():[];};
@@ -52,7 +52,10 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
   /* 1. Skor + kuota skenario */
   const labels=await all('labels',{},10000,{_id:1});
   const byId=new Map(labels.map(l=>[idOf(l),l]));
-  const [rel,wd,tk,rl,pay]=await Promise.all([count('releases','label_id'),count('withdraw_requests','label_id'),count('support_tickets','label_id'),count('royalty_lines','label_id'),count('payments','label_id')]);
+  /* royalty_lines tidak dihitung per label (ratusan ribu baris → timeout);
+     saldo pada dokumen label dipakai sebagai proksi aktivitas royalti. */
+  const [rel,wd,tk,pay]=await Promise.all([count('releases','label_id'),count('withdraw_requests','label_id'),count('support_tickets','label_id'),count('payments','label_id')]);
+  const rl=new Map(labels.map(l=>[idOf(l),Math.min(20,Math.round(((l.balance_available_idr||0)+(l.balance_withdraw_requested_idr||0))/500000))]));
   const [relActive,tkOpen,wdOpen,kycPending,bankPending]=await Promise.all([
     distinctLabels('releases',{status:{$in:RELEASE_ACTIVE}}),
     distinctLabels('support_tickets',{status:{$in:TICKET_OPEN}}),
@@ -116,9 +119,10 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
      supaya total royalti tiap label tetap akurat walau barisnya dicuplik. */
   const royaltyLines=[];
   for(const iid of importIds)royaltyLines.push(...await all('royalty_lines',{import_id:iid,label_id:{$in:ids}},linesPerImport,{label_idr:-1}));
-  const royaltySummary=await agg('royalty_lines',[{$match:{label_id:{$in:ids}}},{$group:{_id:{label_id:'$label_id',import_id:'$import_id',period:'$period',match_status:'$match_status'},lines:{$sum:1},label_idr:{$sum:'$label_idr'},revenue_eur:{$sum:'$revenue_eur'},quantity:{$sum:'$quantity'}}},{$sort:{'_id.period':-1}}]);
-  const royaltyByPlatform=await agg('royalty_lines',[{$match:{label_id:{$in:ids}}},{$group:{_id:{label_id:'$label_id',period:'$period',platform:'$platform'},label_idr:{$sum:'$label_idr'},quantity:{$sum:'$quantity'}}}]);
-  const royaltyByTrack=await agg('royalty_lines',[{$match:{label_id:{$in:ids}}},{$group:{_id:{label_id:'$label_id',period:'$period',isrc:'$isrc'},title:{$first:'$track_title_raw'},artist:{$first:'$artist_name_raw'},label_idr:{$sum:'$label_idr'},quantity:{$sum:'$quantity'}}},{$sort:{label_idr:-1}},{$limit:1500}]);
+  const inImports={import_id:{$in:importIds},label_id:{$in:ids}};
+  const royaltySummary=light?[]:await agg('royalty_lines',[{$match:inImports},{$group:{_id:{label_id:'$label_id',import_id:'$import_id',period:'$period',match_status:'$match_status'},lines:{$sum:1},label_idr:{$sum:'$label_idr'},revenue_eur:{$sum:'$revenue_eur'},quantity:{$sum:'$quantity'}}},{$sort:{'_id.period':-1}}]);
+  const royaltyByPlatform=light?[]:await agg('royalty_lines',[{$match:inImports},{$group:{_id:{label_id:'$label_id',period:'$period',platform:'$platform'},label_idr:{$sum:'$label_idr'},quantity:{$sum:'$quantity'}}}]);
+  const royaltyByTrack=light?[]:await agg('royalty_lines',[{$match:inImports},{$group:{_id:{label_id:'$label_id',period:'$period',isrc:'$isrc'},title:{$first:'$track_title_raw'},artist:{$first:'$artist_name_raw'},label_idr:{$sum:'$label_idr'},quantity:{$sum:'$quantity'}}},{$sort:{label_idr:-1}},{$limit:1000}]);
   const chats=await all('chat_conversations',inLabel,50);
   const chatMessages=await all('chat_messages',{conversation_id:{$in:chats.map(idOf)}},500);
   const products=await all('payment_products',{},50);

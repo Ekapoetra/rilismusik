@@ -25,7 +25,7 @@ const api=async(p,opt={})=>{const r=await fetch('https://api.vercel.com'+p+(p.in
   if(!dep)throw Error('Deployment preview READY tidak ditemukan');
   console.log('deployment:',dep.url,'('+(dep.meta?.githubCommitSha||'').slice(0,7)+')');
 
-  const url=`https://${dep.url}/api/sample-export?labels=${args.labels||15}&releases=${args.releases||6}&imports=${args.imports||4}`;
+  const url=`https://${dep.url}/api/sample-export?labels=${args.labels||15}&releases=${args.releases||6}&imports=${args.imports||4}${args.light?'&light=1':''}`;
   const bypass={'x-vercel-protection-bypass':secret,'x-vercel-set-bypass-cookie':'true'};
   let r=await fetch(url,{headers:bypass,redirect:'manual'});
   const setCookie=r.headers.getSetCookie?r.headers.getSetCookie():[r.headers.get('set-cookie')].filter(Boolean);
