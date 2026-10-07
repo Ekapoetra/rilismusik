@@ -76,8 +76,13 @@ async function buildJourney(db){
   });
   if(!members.length)members.push({id:'L-none',name:'Belum ada label',plan:'Flex',period:'year',email:'kosong@data.test',emailConfirmed:false,paid:false,invoice:null,active:false,activatedAt:null,version:1,contract:false,identity:{person:'',address:'',postal:'',country:'Indonesia',document:false},application:null,bank:{approved:null,pending:null,version:0},social:'',lots:[],joined:'2026-01-01',welcome:false});
 
+  /* Referensi yatim (rilisan/tiket milik label yang tak ada di koleksi
+     labels) dijatuhkan ke member pertama — renderer menolak id tak dikenal. */
+  const memberIds=new Set(members.map(m=>m.id));
+  const mref=lid=>{const id=memberId(lid);return memberIds.has(id)?id:members[0].id;};
+
   const mappedReleases=releases.map((r,i)=>({
-    id:'RM-P'+i,member:memberId(r.label_id||''),
+    id:'RM-P'+i,member:mref(r.label_id),
     title:r.title||r.name||'Tanpa judul',artist:r.artist||r.primary_artist||'-',
     type:'single',tracks:Number(r.track_count)||(Array.isArray(r.tracks)?r.tracks.length:1),
     genre:r.genre||'',service:r.service||'Standard',
@@ -87,7 +92,7 @@ async function buildJourney(db){
   }));
 
   const mappedNotifications=notifications.slice(0,200).map((n,i)=>({
-    id:i+1,member:n.label_id?memberId(n.label_id):members[0].id,
+    id:i+1,member:n.label_id?mref(n.label_id):members[0].id,
     key:String(n.kind||n.type||'info'),ref:String(n.ref||n.ref_id||''),at:stamp(n.created_at),
     read:Boolean(n.read),source:'production'
   }));
@@ -106,9 +111,9 @@ async function buildJourney(db){
     if(!commentsByTicket.has(k))commentsByTicket.set(k,[]);
     commentsByTicket.get(k).push({from:c.author_name||c.author||'-',role:c.role||'member',text:c.text||c.message||'',at:stamp(c.created_at)});
   }
-  if(tickets.length)optional.tickets112={serial:tickets.length,tickets:tickets.map((t,i)=>({id:'T-'+idOf(t),member:t.label_id?memberId(t.label_id):members[0].id,subject:t.subject||t.title||'Tiket',category:t.category||'general',priority:t.priority||'normal',status:TICKET_STATUS[String(t.status||'open').toLowerCase()]||'new',messages:commentsByTicket.get(idOf(t))||[],at:stamp(t.created_at),serial:i+1})),drafts:[],notifications:[],notified:[]};
+  if(tickets.length)optional.tickets112={serial:tickets.length,tickets:tickets.map((t,i)=>({id:'T-'+idOf(t),member:t.label_id?mref(t.label_id):members[0].id,subject:t.subject||t.title||'Tiket',category:t.category||'general',priority:t.priority||'normal',status:TICKET_STATUS[String(t.status||'open').toLowerCase()]||'new',messages:commentsByTicket.get(idOf(t))||[],at:stamp(t.created_at),serial:i+1})),drafts:[],notifications:[],notified:[]};
 
-  if(payments.length)optional.commerce113={serial:payments.length,orders:payments.map((p,i)=>({id:'P-'+idOf(p),member:p.label_id?memberId(p.label_id):members[0].id,kind:p.kind||p.product||'payment',amount:money(p.amount_idr??p.amount??p.total),method:p.method||'-',status:PAYMENT_STATUS[String(p.status||'pending').toLowerCase()]||'pending',attempts:[{at:stamp(p.created_at),status:'created'}],history:[{at:stamp(p.created_at),note:String(p.status||'pending')}],at:stamp(p.created_at),serial:i+1})),provider:[],refunds:[],notifications:[]};
+  if(payments.length)optional.commerce113={serial:payments.length,orders:payments.map((p,i)=>({id:'P-'+idOf(p),member:p.label_id?mref(p.label_id):members[0].id,kind:p.kind||p.product||'payment',amount:money(p.amount_idr??p.amount??p.total),method:p.method||'-',status:PAYMENT_STATUS[String(p.status||'pending').toLowerCase()]||'pending',attempts:[{at:stamp(p.created_at),status:'created'}],history:[{at:stamp(p.created_at),note:String(p.status||'pending')}],at:stamp(p.created_at),serial:i+1})),provider:[],refunds:[],notifications:[]};
 
   if(imports.length||lines.length){
     const linesByImport=new Map();
@@ -120,8 +125,8 @@ async function buildJourney(db){
     const batches=imports.map((im,i)=>({
       id:'IMP-'+String(i+1).padStart(3,'0'),name:im.filename||im.name||('import-'+idOf(im)),at:stamp(im.created_at),
       rate:money(im.exchange_rate??im.rate)||1,share:100,
-      rows:(linesByImport.get(idOf(im))||[]).map(l=>({member:memberId(l.label_id||''),memberName:l.label_name||'',period:String(l.period||l.month||''),amount:money(l.label_idr??l.amount_idr),matched:l.matched!==false,title:l.title||l.track_title||''})),
-      posted:[...new Set((linesByImport.get(idOf(im))||[]).filter(l=>l.matched!==false).map(l=>memberId(l.label_id||'')))],
+      rows:(linesByImport.get(idOf(im))||[]).map(l=>({member:mref(l.label_id),memberName:l.label_name||'',period:String(l.period||l.month||''),amount:money(l.label_idr??l.amount_idr),matched:l.matched!==false,title:l.title||l.track_title||''})),
+      posted:[...new Set((linesByImport.get(idOf(im))||[]).filter(l=>l.matched!==false&&memberIds.has(memberId(l.label_id))).map(l=>memberId(l.label_id)))],
       block:'',fingerprint:'prod-'+idOf(im)
     }));
     const ledger=[];
@@ -129,14 +134,13 @@ async function buildJourney(db){
     optional.royalty107={schema:1,serial:batches.length+1,batches,ledger,receipts:[],history:[],corrections:[],cases:[]};
 
     const memberById=new Map(members.map(m=>[m.id,m]));
-    const accounts=[...new Set([...members.map(m=>m.id),...withdrawals.map(w=>memberId(w.label_id||''))])]
-      .map(mid=>({id:'ACC-'+mid,name:memberById.get(mid)?.name||mid,members:[mid],city:'-'}));
-    optional.royalty107.withdraw108={serial:withdrawals.length+1,version:0,accounts,requests:withdrawals.map((w,i)=>({id:'WD-'+String(i+1).padStart(4,'0'),account:'ACC-'+memberId(w.label_id||''),name:memberById.get(memberId(w.label_id))?.name||'',city:'-',amount:money(w.amount_idr??w.amount),parts:[{member:memberId(w.label_id||''),amount:money(w.amount_idr??w.amount)}],periods:Array.isArray(w.periods)?w.periods.map(String):[],memo:'SEP ROYALTIES',bank:{bank:w.bank_name||'-',number:mask(w.account_number),holder:w.account_holder||''},status:WITHDRAW_STATUS[String(w.status||'pending').toLowerCase()]||'requested',at:stamp(w.created_at)}))};
+    const accounts=members.map(m=>({id:'ACC-'+m.id,name:m.name,members:[m.id],city:'-'}));
+    optional.royalty107.withdraw108={serial:withdrawals.length+1,version:0,accounts,requests:withdrawals.map((w,i)=>{const mid=mref(w.label_id);return{id:'WD-'+String(i+1).padStart(4,'0'),account:'ACC-'+mid,name:memberById.get(mid)?.name||'',city:'-',amount:money(w.amount_idr??w.amount),parts:[{member:mid,amount:money(w.amount_idr??w.amount)}],periods:Array.isArray(w.periods)?w.periods.map(String):[],memo:'SEP ROYALTIES',bank:{bank:w.bank_name||'-',number:mask(w.account_number),holder:w.account_holder||''},status:WITHDRAW_STATUS[String(w.status||'pending').toLowerCase()]||'requested',at:stamp(w.created_at)};})};
   }
 
-  if(addonOrders.length)optional.addons111={catalogue:[],orders:addonOrders.map((o,i)=>({id:'A-'+idOf(o),member:o.label_id?memberId(o.label_id):members[0].id,item:o.item||o.service||o.kind||'addon',status:o.status||'ordered',price:money(o.price_idr),at:stamp(o.created_at),serial:i+1})),history:[]};
+  if(addonOrders.length)optional.addons111={catalogue:[],orders:addonOrders.map((o,i)=>({id:'A-'+idOf(o),member:o.label_id?mref(o.label_id):members[0].id,item:o.item||o.service||o.kind||'addon',status:o.status||'ordered',price:money(o.price_idr),at:stamp(o.created_at),serial:i+1})),history:[]};
 
-  if(wamiOrders.length)optional.wami11={orders:wamiOrders.map((o,i)=>({id:'W-'+idOf(o),member:o.label_id?memberId(o.label_id):members[0].id,work:o.work||o.title||'Karya',status:o.status||'submitted',at:stamp(o.created_at),serial:i+1})),notifications:[]};
+  if(wamiOrders.length)optional.wami11={orders:wamiOrders.map((o,i)=>({id:'W-'+idOf(o),member:o.label_id?mref(o.label_id):members[0].id,work:o.work||o.title||'Karya',status:o.status||'submitted',at:stamp(o.created_at),serial:i+1})),notifications:[]};
 
   const journey={
     schema:1,now,role:'super',actor:'platform',member:members[0].id,
@@ -147,8 +151,19 @@ async function buildJourney(db){
     storageRevision116:0,dataSource:'production-copy',bootstrappedAt:new Date(now).toISOString(),
     ...optional
   };
-  const staffFirst=optional.staff114?.users?.[0];
-  if(staffFirst)journey.staffUser116=staffFirst.id;
+  /* Identitas staff aktif harus konsisten: v116 menormalkan state.user ke
+     user staff114 yang flag super-nya cocok dengan role; kalau tidak cocok,
+     fallback 'jeck'/'adovi' — yang sudah dibuang hydrate114 dari people —
+     membuat me() undefined dan render melempar (halaman kosong). */
+  const staffPool=optional.staff114?.users||[];
+  const superStaff=staffPool.find(u=>u.super&&u.status==='active');
+  const plainStaff=staffPool.find(u=>!u.super&&u.status==='active');
+  if(superStaff){journey.staffUser116=superStaff.id;journey.role='super';}
+  else if(plainStaff){journey.staffUser116=plainStaff.id;journey.role='admin';}
+  else if(staffPool.length){journey.staffUser116=staffPool[0].id;journey.role=staffPool[0].super?'super':'admin';}
+  /* Tanpa penanda ini v102 me-reset state.user ke 'jeck' pada boot pertama —
+     id yang tidak ada lagi di people setelah hydrate114. */
+  journey.workspace102=true;
   return journey;
 }
 
