@@ -68,7 +68,7 @@ async function buildJourney(db){
       id:memberId(idOf(l)),name:l.name||'Label tanpa nama',plan:'Flex',period:'year',
       email:u.email||(idOf(l)+'@data.test'),emailConfirmed:Boolean(u.email),paid:true,invoice:null,
       active:verified,activatedAt:verified?stamp(l.created_at):null,version:1,
-      contract:verified,identity:{person:l.pic_name||u.name||'',address:'',postal:'',country:'Indonesia',document:verified},
+      contract:verified,identity:{person:l.pic_name||u.name||l.name||'-',address:'',postal:'',country:'Indonesia',document:verified},
       application:null,
       bank:{approved:bank?{bank:bank.bank_name||bank.bank||'-',number:mask(bank.account_number),holder:bank.account_holder||'',version:1,status:'approved'}:null,pending:null,version:0},
       social:'',lots:[],joined:stamp(l.created_at).slice(0,10),welcome:false
@@ -100,7 +100,11 @@ async function buildJourney(db){
   /* --- Model opsional --- */
   const optional={};
 
-  const staffUsers=[...staffProfiles.map(p=>({id:'S-'+idOf(p),name:p.name||idOf(p),email:p.email||'',status:['active','inactive','disabled','invited'].includes(p.status)?p.status:'active',super:['super','super_admin'].includes(p.role)})),...users.filter(u=>['admin','super','super_admin','staff'].includes(u.role)).map(u=>({id:'S-'+idOf(u),name:u.name||u.email||idOf(u),email:u.email||'',status:'active',super:['super','super_admin'].includes(u.role)}))];
+  /* Bentuk user mengikuti Staff114.seed(): scope/labels/role/version/session
+     wajib ada — can()/withScope114 membaca u.labels.includes saat render dan
+     akan melempar TypeError bila undefined (halaman kosong permanen). */
+  const staffShape=(id,name,email,status,sup)=>({id,name,email:email||'',status,super:sup,role:null,scope:'all',labels:[],version:1,session:1,joined:'2026-01-01'});
+  const staffUsers=[...staffProfiles.map(p=>staffShape('S-'+idOf(p),p.name||idOf(p),p.email,['active','inactive','disabled','invited'].includes(p.status)?p.status:'active',['super','super_admin'].includes(p.role))),...users.filter(u=>['admin','super','super_admin','staff'].includes(u.role)).map(u=>staffShape('S-'+idOf(u),u.name||u.email||idOf(u),u.email,'active',['super','super_admin'].includes(u.role)))];
   const seenStaff=new Set();
   optional.staff114={schema:1,users:staffUsers.filter(u=>u.id&&u.name&&!seenStaff.has(u.id)&&seenStaff.add(u.id)),roles:[],audit:[],notifications:[],handoffs:[]};
   if(!optional.staff114.users.length)delete optional.staff114;
@@ -189,29 +193,39 @@ async function buildSharedPatch(db){
   const lastOf=x=>stamp(x.updated_at||x.created_at);
   const openish=s=>['pending','requested','submitted','open','new','in_progress','processing','review'].includes(String(s||'').toLowerCase());
 
+  /* Rilisan tidak boleh masuk sebagai task kind:'release' dengan id bebas:
+     connectCatalogue102 menyintesis draft+submit untuk task release yang bukan
+     rilisan asli — assert 'invalid' di dalamnya melempar, ditangkap v119 dan
+     membatalkan render (halaman kosong + toast). syncTasks102 sudah membangun
+     baris rilisan sendiri dari ten.releases, jadi cukup task non-rilisan.
+     Edit metadata diarahkan ke id rilisan journey bila dikenal (dedup), kalau
+     tidak diperlakukan sebagai task support. */
+  const relIds=new Map(releases.map((r,i)=>[idOf(r),'RM-P'+i]));
   const tasks=[];
-  for(const r of releases){
-    const stage=TASK_STAGE[String(r.status||'').toLowerCase()];
-    if(stage)tasks.push({id:'R-'+idOf(r),title:r.title||r.name||'Rilisan',label:label(r.label_id),kind:'release',stage,pct:null,handler:null,last:lastOf(r),overdue:false});
-  }
   for(const t of tickets)if(openish(t.status)&&!['done','resolved','closed','rejected'].includes(String(t.status).toLowerCase()))
     tasks.push({id:'T-'+idOf(t),title:t.subject||t.title||'Tiket dukungan',label:label(t.label_id),kind:'support',stage:'review',pct:null,handler:null,last:lastOf(t),overdue:false});
   for(const w of withdrawals)if(openish(w.status))
     tasks.push({id:'W-'+idOf(w),title:`Penarikan Rp${money(w.amount_idr??w.amount).toLocaleString('id-ID')}`,label:label(w.label_id),kind:'finance',stage:'approval',pct:null,handler:null,last:lastOf(w),overdue:false});
-  for(const m of metaEdits)if(openish(m.status))
-    tasks.push({id:'M-'+idOf(m),title:'Perubahan metadata',label:label(m.label_id),kind:'release',stage:'review',pct:null,handler:null,last:lastOf(m),overdue:false});
+  for(const m of metaEdits)if(openish(m.status)){
+    const rid=relIds.get(String(m.release_id||''));
+    if(rid)tasks.push({id:rid+'-meta',title:'Perubahan metadata',label:label(m.label_id),kind:'support',stage:'review',pct:null,handler:null,last:lastOf(m),overdue:false});
+    else tasks.push({id:'M-'+idOf(m),title:'Perubahan metadata',label:label(m.label_id),kind:'support',stage:'review',pct:null,handler:null,last:lastOf(m),overdue:false});
+  }
   for(const k of kycDocs)if(openish(k.status))
     tasks.push({id:'K-'+idOf(k),title:'Verifikasi identitas',label:label(k.label_id),kind:'claim',stage:'review',pct:null,handler:null,last:lastOf(k),overdue:false});
   for(const b of bankChanges)if(openish(b.status))
     tasks.push({id:'B-'+idOf(b),title:'Perubahan rekening',label:label(b.label_id),kind:'finance',stage:'review',pct:null,handler:null,last:lastOf(b),overdue:false});
 
+  /* who harus id people atau null — activityRows membaca person(e.who).name
+     dan melempar pada nama bebas. */
   const events=activityLogs.slice(0,60).map((a,i)=>({
-    id:i+1,who:String(a.user_name||a.actor||a.user_id||'sistem').split('@')[0].toLowerCase(),
-    obj:String(a.entity||a.target||''),text:[String(a.action||'aktivitas'),String(a.action||'activity')],
-    time:new Date(stamp(a.created_at)).toTimeString().slice(0,5).replace(':','.')+'',category:'work'
+    id:i+1,who:null,actor:String(a.user_name||a.actor||a.user_id||'sistem').split('@')[0],
+    obj:String(a.entity||a.target||'aktivitas'),text:[String(a.action||'aktivitas'),String(a.action||'activity')],
+    day:stamp(a.created_at).slice(0,10),
+    time:new Date(stamp(a.created_at)).toTimeString().slice(0,5),category:'work'
   }));
 
-  return {tasks:tasks.slice(0,300),events};
+  return {tasks:tasks.slice(0,300),events,v9Empty:true};
 }
 
 async function domainSummary(db){

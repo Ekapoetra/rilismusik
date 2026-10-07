@@ -7289,6 +7289,9 @@ render();
   if(!sh?.data)return;
   if(Array.isArray(patch.tasks))sh.data.tasks=patch.tasks;
   if(Array.isArray(patch.events)&&patch.events.length)sh.data.events=patch.events;
+  /* Label demo v9 jangan ikut — connectCatalogue102 akan membuat member hantu
+     dari nama-nama itu saat render pertama. */
+  if(patch.v9Empty&&sh.data.v9&&Array.isArray(sh.data.v9.labels))sh.data.v9.labels=[];
  };
 
  function loginScreen(){

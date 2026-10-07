@@ -67,7 +67,12 @@ function fakeDb(fixtures){
 
   const sp=await buildSharedPatch(fakeDb(fixtures));
   check('sharedPatch tasks array',Array.isArray(sp.tasks)&&sp.tasks.every(t=>t&&typeof t==='object'&&t.id&&t.title&&t.label&&['release','claim','support','finance'].includes(t.kind)&&['queued','review','approval','correction','believe'].includes(t.stage)));
-  check('rilisan antre masuk tasks',sp.tasks.some(t=>t.id.startsWith('R-')&&t.label==='Embun Label'));
+  /* Task kind:'release' dari patch DILARANG — connectCatalogue102 akan
+   mensintesis draft+submit untuknya dan melempar saat data produksi tak
+   lengkap (blank + toast 'invalid'). Baris rilisan dibangkitkan klien oleh
+   syncTasks102 dari ten.releases. */
+check('tidak ada task kind:release di patch',!sp.tasks.some(t=>t.kind==='release'));
+check('event who null atau id people',sp.events.every(e=>e.who===null));
   check('penarikan masuk finance',sp.tasks.some(t=>t.kind==='finance'));
   check('sharedPatch kosong aman',(await buildSharedPatch(fakeDb({}))).tasks.length===0);
 

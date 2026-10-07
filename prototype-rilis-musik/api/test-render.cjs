@@ -3,20 +3,24 @@
    (bukan halaman kosong / mode recovery). Meniru apa yang dilihat user pada
    preview setelah hidrasi data produksi. */
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
-const {buildJourney}=require('./seed');
+const {buildJourney,buildSharedPatch}=require('./seed');
 
 const dir=path.join(__dirname,'..','prototype-v13.0');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.woff2':'font/woff2','.ttf':'font/ttf'};
 
 const fixtures={
   labels:[{id:'lab1',name:'Awan Records',kyc_status:'verified',pic_name:'Nara',created_at:'2024-01-01'},{id:'lab2',name:'Embun Label',kyc_status:'pending'}],
-  users:[{id:'u1',name:'Nara',email:'nara@x.id',role:'label',label_id:'lab1'},{id:'s1',name:'Jeck Rotama',email:'j@x.id',role:'super'}],
-  /* Rilisan dengan label_id yatim — kasus yang diduga merusak render. */
-  releases:[{id:'r1',label_id:'lab1',title:'Hujan',primary_artist:'Senja',status:'live',track_count:3,release_date:'2024-05-01'},{id:'r9',label_id:'GHOST',title:'Yatim',status:'submitted',created_at:'2024-09-01'}],
+  users:[{id:'u1',name:'Nara',email:'nara@x.id',role:'label',label_id:'lab1'},{id:'s1',name:'Jeck Rotama',email:'j@x.id',role:'super'},{id:'s2',name:'Dina Staff',email:'d@x.id',role:'admin'}],
+  staff_profiles:[{id:'sp1',name:'Kirana Ops',email:'k@x.id',role:'admin',status:'active'}],
+  /* Rilisan dengan label_id yatim + status revision — kasus produksi nyata. */
+  releases:[{id:'r1',label_id:'lab1',title:'Hujan',primary_artist:'Senja',status:'live',track_count:3,release_date:'2024-05-01'},{id:'r9',label_id:'GHOST',title:'Yatim',status:'submitted',created_at:'2024-09-01'},{id:'r5',label_id:'lab2',title:'Revisi',status:'needs_revision',created_at:'2024-08-01'}],
   notifications:[{id:'n1',label_id:'GHOST',kind:'x',created_at:'2024-01-02'}],
   royalty_imports:[{id:'imp1',filename:'believe_sep.csv',created_at:'2024-09-01'}],
   royalty_lines:[{id:'l1',import_id:'imp1',label_id:'lab1',label_idr:2500000,period:'2024-08',matched:true},{id:'l2',import_id:'imp1',label_id:'GHOST',label_idr:900,period:'2024-08',matched:true}],
   withdraw_requests:[{id:'w1',label_id:'GHOST',amount_idr:1500000,status:'processing',created_at:'2024-09-01'}],
+  support_tickets:[{id:'t1',label_id:'lab2',subject:'Metadata salah',status:'open',created_at:'2024-09-02'}],
+  kyc_documents:[{id:'k1',label_id:'lab2',status:'pending',created_at:'2024-09-03'}],
+  activity_logs:[{id:'a1',actor:'eko',action:'update_release',entity:'release',created_at:'2024-09-04T10:00:00Z'}],
 };
 
 function fakeDb(fx){
@@ -26,6 +30,7 @@ function fakeDb(fx){
 
 (async()=>{
   const journey=await buildJourney(fakeDb(fixtures));
+  const sharedPatch=await buildSharedPatch(fakeDb(fixtures));
   const server=http.createServer((req,res)=>{
     const p=new URL(req.url,'http://x').pathname;
     const file=path.resolve(dir,'.'+decodeURIComponent(p==='/'?'/index.html':p));
@@ -52,11 +57,18 @@ function fakeDb(fx){
   await page.waitForTimeout(2500);
   const before=errors.length;
 
-  /* Suntik journey produksi + shared doc bawaan aplikasi. */
-  await page.evaluate(j=>{
+  /* Suntik journey produksi + shared doc bawaan aplikasi, lalu terapkan
+     sharedPatch persis seperti applySharedPatch di v131-api.js. */
+  await page.evaluate(([j,patch])=>{
     j.legacyShared117=sharedSnapshot117();
+    const sh=j.legacyShared117;
+    if(sh?.data){
+      if(Array.isArray(patch?.tasks))sh.data.tasks=patch.tasks;
+      if(Array.isArray(patch?.events)&&patch.events.length)sh.data.events=patch.events;
+      if(patch?.v9Empty&&sh.data.v9&&Array.isArray(sh.data.v9.labels))sh.data.v9.labels=[];
+    }
     localStorage.setItem('rm-v11-1-journey',JSON.stringify({...j,storageRevision116:1}));
-  },journey);
+  },[journey,sharedPatch]);
   phase='reload';
   await page.reload({waitUntil:'load'});
   await page.waitForTimeout(2500);
@@ -89,6 +101,29 @@ function fakeDb(fx){
   check('pageerror kosong',errors.filter(e=>e.startsWith('pageerror')).length===0,'\n'+errors.slice(0,3).join('\n'));
   console.log('member aktif:',state.member,'| judul:',state.title);
   console.log('diag:',JSON.stringify({user:state.user,role:state.role,staffUser:state.staffUser,staffCount:state.staffCount,staffUsers:state.staffUsers,people:state.peopleIds.slice(0,8),meOk:state.meOk,personOk:state.personOk,blocked:state.blocked,problems:state.problems}));
+
+  /* Skenario 2: produksi tanpa staff super → role 'admin' + staffUser116
+     non-super. Menguji jalur withScope114 (u.labels wajib array). */
+  const fixNoSuper={...fixtures,users:fixtures.users.filter(u=>u.role!=='super')};
+  const j2=await buildJourney(fakeDb(fixNoSuper));
+  const p2=await buildSharedPatch(fakeDb(fixNoSuper));
+  phase='admin';
+  await page.evaluate(([j,patch])=>{
+    j.legacyShared117=sharedSnapshot117();
+    const sh=j.legacyShared117;
+    if(sh?.data){
+      if(Array.isArray(patch?.tasks))sh.data.tasks=patch.tasks;
+      if(Array.isArray(patch?.events)&&patch.events.length)sh.data.events=patch.events;
+      if(patch?.v9Empty&&sh.data.v9&&Array.isArray(sh.data.v9.labels))sh.data.v9.labels=[];
+    }
+    localStorage.setItem('rm-v11-1-journey',JSON.stringify({...j,storageRevision116:2}));
+  },[j2,p2]);
+  await page.reload({waitUntil:'load'});
+  await page.waitForTimeout(2500);
+  const diag2=await page.evaluate(()=>({user:state.user,role:ten.role,meOk:(()=>{try{return me()?.id}catch(e){return 'ERR:'+e.message}})(),children:document.getElementById('app').childElementCount}));
+  console.log('diag admin:',JSON.stringify(diag2));
+  check('skenario admin render',diag2.children>0&&diag2.meOk&&!String(diag2.meOk).startsWith('ERR'),JSON.stringify(diag2));
+  check('tanpa pageerror baru',errors.filter(e=>e.startsWith('[admin] pageerror')).length===0,'\n'+errors.filter(e=>e.startsWith('[admin]')).slice(0,3).join('\n'));
 
   await browser.close();server.close();
   process.exit(fails?1:0);
