@@ -4,7 +4,7 @@ const statusWords128=/^(aktif|active|nonaktif|inactive|menunggu aktivasi|awaitin
 normalizeStatus111=function(root=document){
  normalizeStatusBefore128(root);
  root.querySelectorAll('.badge,.pill107,.ten-chip,.work-badge104,.task-badge,.condition8,.review-status-ui,.task-status,.module-status,.profile-status103').forEach(el=>{
-  if(el.matches('.status111')||el.closest('.package104,.emblem-pending,.plan9,.coin104')||el.querySelector('.status111'))return;
+  if(el.matches('.status111')||el.closest('.package104,.plan9,.coin104')||el.querySelector('.status111'))return;
   const label=el.textContent.trim();
   const explicit=el.matches('.pill107,.work-badge104,.task-badge,.condition8,.review-status-ui,.task-status,.module-status');
   if(!label||!explicit&&!statusWords128.test(label))return;

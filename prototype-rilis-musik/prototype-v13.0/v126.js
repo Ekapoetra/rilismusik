@@ -145,7 +145,7 @@ const badgesBefore126 = normalizeBadges124;
 normalizeBadges124 = function (root = document) {
   badgesBefore126(root);
   root.querySelectorAll('.badge,.pill107,.ten-chip').forEach(b => {
-    if (b.classList.contains('status111') || b.closest('.package104,.emblem-pending,.plan9')) return;
+    if (b.classList.contains('status111') || b.closest('.package104,.plan9')) return;
     const text = b.textContent.trim();
     if (!/^(draft|draf|tayang|live|aktif|active|nonaktif|inactive|menunggu aktivasi|awaiting activation)$/i.test(text)) return;
     b.classList.add('status111');

@@ -179,9 +179,11 @@ KEPUTUSAN: PARKED.
 
 
 ====================================================
-RINGKASAN STATUS
-  DECIDED : D5, D11
-  DRAFT   : D1, D2, D3, D4, D8, D10 (menunggu konfirmasi pemilik)
-  OPEN    : D7 (audit jalan), D9
-  PARKED  : D6, D12
+RINGKASAN STATUS (diperbarui)
+  DECIDED : D3, D4, D5, D8, D9, D11
+  DRAFT   : D1 (ANNEX-E/F, konfigurasi harga+vonis sudah live,
+            janji "token selalu lebih murah" menunggu vonis),
+            D2 (benefit via peta, harga di akhir), D10 (ANNEX-D)
+  OPEN    : D7 (audit ANNEX-B, menunggu persetujuan rute)
+  PARKED  : D6 (artis - rancangan dasar diam-diam), D12
 ====================================================

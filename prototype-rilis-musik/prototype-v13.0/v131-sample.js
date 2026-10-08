@@ -28,7 +28,7 @@
   try{
    if(ten.members.some(m=>m.id===l.id))continue;
    const identity={person:l.pic||l.name,address:l.address||'',postal:'',country:l.country||'Indonesia',document:false,city:l.city||''};
-   const m={id:l.id,name:l.name,plan:l.plan,period:'year',email:l.email||(l.id+'@example.test'),emailConfirmed:!!l.email,paid:l.account!=='legacy_unclaimed',invoice:null,active:false,activatedAt:null,version:1,contract:false,identity,application:null,bank:{approved:null,pending:null,version:0},social:'',lots:[{id:'paid-'+l.id,type:'paid',available:500,expires:null}],joined:l.joined,welcome:true,
+   const m={id:l.id,name:l.name,plan:l.plan,period:'year',email:l.email||(l.id+'@example.test'),emailConfirmed:!!l.email,paid:l.account!=='legacy_unclaimed',invoice:null,active:false,activatedAt:null,version:1,contract:false,identity,application:null,bank:{approved:null,pending:null,version:0},social:'',lots:[{id:'paid-'+l.id,type:'paid',available:500,expires:null}],royaltyRate:+l.royaltyPercent>0&&+l.royaltyPercent<=100?+l.royaltyPercent:60,joined:l.joined,welcome:true,
     sample131:{source:l.source,account:l.account,kyc:l.kyc,kycReason:l.kycReason,subscription:l.subscription,tier:l.tier,legacy:l.account==='legacy_unclaimed',royaltyPercent:l.royaltyPercent,multi:l.multi,whatsapp:l.whatsapp,logo:l.logo,balance:l.balance,lastWithdrawnPeriod:l.lastWithdrawnPeriod}};
    if(isActive(l)){m.active=true;m.activatedAt=stamp(at(l.kycReviewed||l.contractAt||l.joined));m.identity.document=true;m.contract=true;m.contractVersion=1;}
    else if(l.kyc==='pending_review'){m.identity.document=true;m.contract=!!l.contract;m.contractVersion=1;m.application={status:'pending',version:1,submitted:at(l.kycSubmitted),snapshot:{name:l.name,...identity,document:true},note:''};}
@@ -196,7 +196,7 @@
      const rels=(releasesByLabel.get(l.id)||[]).map((r,n)=>({id:id+'-R'+n,date:r.date||r.created||'2026-01-01',valid:true}));
      const last=[...S.withdrawals.filter(w=>w.label===l.id).map(w=>w.requested),...(releasesByLabel.get(l.id)||[]).map(r=>r.created)].filter(Boolean).sort().at(-1)||null;
      const income=S.royalty.summary.filter(x=>x.label===l.id&&x.period==='2026-08').reduce((a,x)=>a+money(x.idr),0);
-     v9l.push({id,name:l.name,plan:l.plan,joined:l.joined,last,paid,credit:paid+money(l.balance.available),adjustment:0,processing:money(l.balance.requested),held:0,periodIncome:income,report:'2026-08',expiry:l.subscriptionEnd||(m.active?'2027-03-01':'2026-01-01'),complete:!!(l.pic&&l.email),contact:!!(l.email||l.whatsapp),issue:false,restriction:l.blacklisted?'blocked':null,suspended:null,earned:false,review:l.kyc==='pending_review',master:!!l.multi,managedSince:null,children:[],releases:rels,lastPayment:S.withdrawals.filter(w=>w.label===l.id&&w.status==='paid').map(w=>w.paid).filter(Boolean).sort().at(-1)||null,emblemVersion:1,sample131:true});
+     v9l.push({id,name:l.name,plan:l.plan,joined:l.joined,last,paid,credit:paid+money(l.balance.available),adjustment:0,processing:money(l.balance.requested),held:0,periodIncome:income,report:'2026-08',expiry:l.subscriptionEnd||(m.active?'2027-03-01':'2026-01-01'),complete:!!(l.pic&&l.email),contact:!!(l.email||l.whatsapp),issue:false,restriction:l.blacklisted?'blocked':null,suspended:null,earned:false,review:l.kyc==='pending_review',master:!!l.multi,managedSince:null,children:[],releases:rels,lastPayment:S.withdrawals.filter(w=>w.label===l.id&&w.status==='paid').map(w=>w.paid).filter(Boolean).sort().at(-1)||null,sample131:true});
      report.v9++;
     }
     m.source9=id;
@@ -205,7 +205,6 @@
  }catch(e){fail('v9','labels',e)}
 
  ten.sample131={version:S.version,appliedAt:stamp(realNow),exportedAt:S.exportedAt,report:{members:report.members,releases:report.releases,imports:report.imports,withdrawals:report.withdrawals,tickets:report.tickets,errors:report.errors.length}};
- if(typeof RM10.pending?.baseline==='function')try{RM10.pending.baseline(ten,data?.v9?.labels||[]);}catch(e){fail('pending','baseline',e)}
  try{RM10.tick(ten);}catch(e){fail('tick','final',e)}
  try{if(typeof save10==='function')save10();}catch(e){fail('save','journey',e)}
  try{if(typeof render==='function')render();}catch(e){fail('render','final',e)}

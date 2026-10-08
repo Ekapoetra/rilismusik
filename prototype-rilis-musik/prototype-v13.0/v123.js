@@ -48,7 +48,7 @@
   await priorStudio(scene[1]);closeModal();themeMode105(scene[3]);v5.collapsed=innerWidth<600;document.documentElement.classList.toggle('sidebar-small',v5.collapsed);studioSelected=id;
   // Visual scenes suppress unrelated sample reward prompts without marking an
   // award seen, granting credits, or changing the user's saved checkpoint.
-  if(isLabel10()){const ids=[...(ten.bonuses||[]),...(ten.achievementNews||[])].filter(n=>n.member===ten.member).map(n=>n.id);ten.rewardPromptsShown=[...new Set([...(ten.rewardPromptsShown||[]),...ids])]}
+  if(isLabel10()){const ids=(ten.bonuses||[]).filter(n=>n.member===ten.member).map(n=>n.id);ten.rewardPromptsShown=[...new Set([...(ten.rewardPromptsShown||[]),...ids])]}
   save10();render();
   await new Promise(resolve=>requestAnimationFrame(resolve));
   const hero=document.querySelector('.dashboard-hero122');window.scrollTo({top:scene[4]&&hero?hero.offsetTop+hero.offsetHeight+40:0,behavior:'instant'});sync();stamp();
