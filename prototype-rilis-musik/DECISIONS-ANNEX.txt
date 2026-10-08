@@ -207,11 +207,14 @@ Kunci dasar: 1 token = 1 rilisan (lantai nilai Rp35.000).
    Pembulatan selalu KE ATAS → nilai pakai token ≥ harga rupiah.
    Member tidak pernah rugi konversi, bahkan sebelum diskon beli.
 
-3. HARGA BELI TOKEN — benefit permanen
-   Selalu < Rp35.000 dan ≥ Rp25.000 (lantai bisnis).
-   Jenjang usulan: 1–9 → Rp33.000 · 10–49 → Rp31.000 · ≥50 → Rp29.000.
-   Contoh: 10 token @Rp31.000 = Rp310.000 → membayar layanan senilai
-   ≥Rp350.000 → hemat ≥11%. Angka dapat disetel tanpa kode.
+3. HARGA BELI TOKEN — DIPUTUSKAN: flat Rp35.000/token
+   (jenjang 33/31/29rb dibuang). "Lebih murah" murni dari pembulatan
+   nilai pakai + penawaran bonus paket token — bukan diskon harga beli.
+   Paket (Studio/Pro/Business) TIDAK dapat dibeli dengan token.
+   Aturan auto-hide berlaku: token hanya ditampilkan bila biaya token
+   < harga rupiah. Semua angka dikelola Super Admin lewat konfigurasi
+   "Harga layanan" (kolom: nama layanan, harga rupiah, token,
+   biaya dasar token, vonis) — sudah diimplementasikan di prototype.
 
 4. TIGA POOL TOKEN (mewarisi mekanisme lot prototype)
    • Bawaan — dari paket/kebijakan; hangus akhir periode; terpakai dulu.
