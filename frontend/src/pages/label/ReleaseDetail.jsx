@@ -9,6 +9,7 @@ import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { ReleaseModeTag } from "@/components/v13/Tokens";
+import { ReleaseProgress } from "@/components/v13/ReleaseProgress";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -85,7 +86,7 @@ export default function ReleaseDetail() {
 
   return (
     <div className="space-y-5 max-w-5xl">
-      <Link to="/label/releases" className="text-sm text-zinc-400 hover:rm-gradient-text">← Daftar Rilisan</Link>
+      <Link to="/label/releases" className="text-sm text-[var(--ui-muted)] hover:text-[var(--ui-text)]">← Rilisan</Link>
 
       <div className="flex items-start justify-between gap-5 flex-wrap">
         <div className="flex gap-4 items-start">
@@ -105,6 +106,7 @@ export default function ReleaseDetail() {
         )}
         {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost flex items-center gap-2" onClick={downloadCopyright} data-testid="release-detail-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
       </div>
+      <ReleaseProgress status={data.status} />
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
 
