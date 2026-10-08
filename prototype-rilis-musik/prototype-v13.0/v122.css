@@ -307,3 +307,23 @@ body{background:var(--bg)}#app{min-height:100dvh}.shell::before{display:none!imp
 
 /* Light mode: kartu non-aktif gradasi abu-abu (slate), bukan hitam */
 :root:not([data-theme=dark]) .package-card122:not(.current122){background:linear-gradient(168deg,#5d6775,#3a424d);border-color:#ffffff22;box-shadow:0 18px 40px -26px #3a424d73}
+
+/* Light mode: kartu non-aktif gradasi abu terang→putih, konten gelap */
+:root:not([data-theme=dark]) .package-card122:not(.current122){background:linear-gradient(168deg,#f4f6f9,#dde2ea);border-color:#ffffff;box-shadow:0 18px 40px -26px #5a6b8c4d;color:#1e242c}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-eyebrow122{color:#6d7885}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .package-head122>h2{color:#13181f!important}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .package-head122>p{color:#5b6673}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-inc122{color:#7c8590}
+:root:not([data-theme=dark]) .package-card122:not(.current122) li{color:#2c343e}
+:root:not([data-theme=dark]) .package-card122:not(.current122) li svg{color:#13181f}
+:root:not([data-theme=dark]) .package-card122:not(.current122) :is(.offer-price122>small,.pay-as-you-go122){color:#5b6673}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .offer-price122>strong{color:#13181f}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .offer-price122>strong.price-pending122{color:#3a434f}
+:root:not([data-theme=dark]) .package-card122:not(.current122) footer>small{color:#7c8590}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .package-cta122{background:#13181f!important;color:#fff!important;box-shadow:0 10px 20px -12px #13181f55}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .package-cta122:hover{background:#2a323d!important;filter:none!important}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122{background:#0c152214;box-shadow:inset 0 1px 3px #0c15221f}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>i{background:#13181f;box-shadow:0 2px 6px #13181f40}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button{color:#5b6673}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button[aria-pressed=true],:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button.selected{color:#fff}
+:root:not([data-theme=dark]) .package-card122:not(.current122) .your-plan122{background:#13181f!important;color:#fff!important}
