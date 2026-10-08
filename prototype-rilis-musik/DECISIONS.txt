@@ -178,6 +178,27 @@ D12. LAYANAN AI-AGENT                             PARKED
 KEPUTUSAN: PARKED.
 
 
+------------------------------------------------------------
+D13. MENU MAINTENANCE SISTEM (SUPER)              PLANNED
+------------------------------------------------------------
+  Permintaan pemilik: menu maintenance milik super —
+  jadwal, durasi, pesan, dan kebutuhan sistem lainnya.
+  Waktu implementasi: fleksibel.
+
+KEPUTUSAN: PLANNED — antrean fitur.
+
+
+------------------------------------------------------------
+D14. MENU "UPDATE" (CATATAN PERUBAHAN V1.1)       PLANNED
+------------------------------------------------------------
+  Permintaan pemilik: menu berisi daftar perubahan dari main
+  branch (bahasa user: V1.0) ke prototype (V1.1). Selalu
+  diperbarui selama development; hanya menulis fitur yang
+  jadi — bukan log, melainkan catatan/guide update.
+
+KEPUTUSAN: PLANNED — antrean fitur.
+
+
 ====================================================
 RINGKASAN STATUS (diperbarui)
   DECIDED : D3, D4, D5, D8, D9, D11
@@ -186,4 +207,5 @@ RINGKASAN STATUS (diperbarui)
             D2 (benefit via peta, harga di akhir), D10 (ANNEX-D)
   OPEN    : D7 (audit ANNEX-B, menunggu persetujuan rute)
   PARKED  : D6 (artis - rancangan dasar diam-diam), D12
+  PLANNED : D13 (menu maintenance), D14 (menu update V1.1)
 ====================================================
