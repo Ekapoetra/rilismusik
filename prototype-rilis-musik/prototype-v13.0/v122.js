@@ -47,7 +47,7 @@ window.addEventListener('click',e=>{const b=e.target.closest('[data-u122]');if(b
  if(a==='monitor'){if(!super114())return;state.page='liability9';ui121.monitor='funds';render();return}
  if(a==='releases'){route102('releases');return}
  if(a==='new-release'){if(!isLabel10())return;releaseForm10();return}
- if(a==='plans'){plans10();return}
+ if(a==='plans'){ui122.group='single';plans10();return}
  packageAction122(a,id,b);
  }catch(err){toast(err.message||T('Tindakan belum dapat diselesaikan.','The action could not be completed.'))}return}
  const aside=e.target.closest('.side5');if(!aside||e.target.closest('button,a,input,select,textarea,label,[role="button"]'))return;e.preventDefault();toggleSidebar122();
