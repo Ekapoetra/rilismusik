@@ -127,3 +127,5 @@ prototype-rilis-musik/web-dist/
 
 # Cuplikan produksi mentah (disamarkan) — dibangkitkan ulang via preview-api
 prototype-rilis-musik/sample/
+
+prototype-rilis-musik/prototype-v13.0/qa/failure130.json
