@@ -1,0 +1,194 @@
+DECISIONS — FASE 1 (Prototype Rilis Musik → Production)
+====================================================
+Register keputusan. Status: DECIDED / DRAFT (dirancang, menunggu
+persetujuan) / OPEN (belum diputuskan) / PARKED.
+
+Prinsip penuntun dari pemilik: KESEDERHANAAN — UI tenang tapi menarik,
+UX dengan pola konsisten, fitur kompleks di dalam tapi sederhana di
+permukaan. Objektivitas diwajibkan: fitur baik dikembangkan, fitur buruk
+dikomentari/dibantah.
+
+
+------------------------------------------------------------
+D1. KREDIT → "TOKEN"                                DRAFT   [ARSITEKTUR]
+------------------------------------------------------------
+Keputusan pemilik:
+  Istilah "kredit" diganti "token" — "kredit" bentrok dengan konteks
+  contributor credits pada karya. Butuh rancangan token yang lebih tepat.
+
+Rancangan usulan (untuk disetujui):
+  Token = SATUAN KERJA, bukan mata uang. 1 token = 1 lagu diproses.
+  Tiga sumber, tiga umur:
+    • Bawaan paket — diisi ulang tiap periode tagihan, hangus di akhir
+      periode (tidak diakumulasi; mencegah penimbunan & liabilitas).
+    • Beli — top-up via Xendit, tidak pernah hangus (hak yang dibayar).
+    • Ganti — kompensasi internal (revisi/gagal karena kesalahan kita),
+      48 jam, otomatis.
+  Aturan pakai: dipesan saat submit → hangus/terpakai hanya saat lagu
+  terkonfirmasi tayang → kembali utuh jika ditolak/dibatalkan sebelum
+  dikirim distributor.
+  Tidak ada konversi token↔uang, tidak ada transfer antar-akun.
+  Pemetaan ke main: grant = kuota subscription; top-up = pay_per_release.
+
+Terbuka: jumlah token bawaan per tier (mengikuti D2/D4).
+
+KEPUTUSAN: DRAFT — menunggu konfirmasi pemilik atas rancangan di atas.
+
+
+------------------------------------------------------------
+D2. PAKET 4 TIER                                    DRAFT   [ARSITEKTUR][BIAYA]
+------------------------------------------------------------
+Keputusan pemilik:
+  Harga ditentukan TERAKHIR. Benefit per tier dikembangkan dulu sampai
+  jadi fondasi. Butuh analisis dasar harga main + perbandingan benefit.
+
+Dasar harga produksi saat ini (payment_service.py DEFAULT_PRICES):
+  pay_per_release   Rp35.000 / rilisan (per lagu PPR)
+  album_package     Rp200.000
+  annual_normal     Rp350.000 / tahun
+  annual_vip        Rp500.000 / tahun
+  multi_label       Rp1.500.000 / tahun
+  wami_addon        Rp100.000 / lagu
+  Batas lagu paket: EP 2–6 lagu, Album 7–12 lagu
+  Tarif royalti default: label 60% · platform 40% (per label, bisa
+  dinegosiasi dengan approval — label_rate_change.py)
+
+Pekerjaan lanjutan: susun "peta benefit" per tier (fitur apa saja,
+  kuantitasnya, nilai setara harga main) → lihat ANNEX-A (dikerjakan).
+
+KEPUTUSAN: DRAFT — harga terakhir; benefit menyusul lewat peta benefit.
+
+
+------------------------------------------------------------
+D3. EMBLEM                                        DRAFT
+------------------------------------------------------------
+Keputusan pemilik: ragu — butuh opini.
+Kebutuhan ASLI pemilik: "penanda untuk melihat kondisi keuangan tiap
+  label dengan mudah" — hadiah adalah turunan yang mulai terasa tak perlu.
+
+Opini & rekomendasi:
+  Kebutuhan aslinya bukan gamifikasi — itu OBSERVABILITAS. Jawabannya
+  bukan emblem-hadiah, melainkan INDIKATOR KESEHATAN LABEL: penanda
+  komputasi (hijau/stabil, kuning/perhatian, merah/masalah) dari sinyal
+  yang sudah ada: saldo tertahan, penarikan jatuh tempo, tiket berlarut,
+  royalti pending lama. Tampil untuk staf, bukan untuk label.
+  Hadiah-emblem & baseline dari royalti historis: BUANG — selaras larangan
+  PARKED ("no reward based on untrusted legacy royalty data").
+
+KEPUTUSAN: DRAFT — emblem-gamifikasi dibuang; diganti indikator
+  kesehatan label untuk staf. Menunggu konfirmasi.
+
+
+------------------------------------------------------------
+D4. KUOTA WAMI & DESIGN PER TIER                  DRAFT   [BIAYA]
+------------------------------------------------------------
+Keputusan pemilik: angka butuh pertimbangan bobot volume kerja.
+
+Dasar bobot (dari model & harga main):
+  WAMI per lagu: alur unpaid→queued→review→preparing(web+dok)→waiting
+  →done dengan SLA jam-kerja + tindak lanjut 2 hari kerja. Estimasi
+  kerja staf ±45–90 mnt/lagu. Nilai jual main: Rp100.000/lagu.
+  Design/promosi: pekerjaan kreatif, bobot lebih besar lagi.
+  Kapasitas 1 staf (Cantika): ~20 hari kerja/bulan — kuota harus
+  dijaga di bawah ~25% kapasitas agar tidak memakan antrean rilisan.
+
+Angka usulan per TAHUN (dapat direvisi saat harga final):
+  Basic    : WAMI 0  · Design 0
+  Studio   : WAMI 2  · Design 1
+  Pro      : WAMI 6  · Design 3
+  Business : WAMI 12 · Design 6
+  (Business juga berhak multi-label → kuota dibagi antar label anak)
+
+KEPUTUSAN: DRAFT — angka usulan; final mengikuti harga (D2).
+
+
+------------------------------------------------------------
+D5. JENDELA PENARIKAN                             DECIDED
+------------------------------------------------------------
+  Pengajuan: tanggal 1 – 14 tiap bulan.
+  Pencairan: diproses tanggal 15 – 20 tiap bulan.
+  (Prototype sudah konsisten: jendela 1–14; overdue setelah tgl 20.)
+
+KEPUTUSAN: SAHKAN — tulis ke spesifikasi integrasi.
+
+
+------------------------------------------------------------
+D6. AKUN ARTIS                                    PARKED
+------------------------------------------------------------
+  Disimpan sebagai rancangan dasar; dashboard khusus artis dikerjakan
+  TERAKHIR setelah rancangan utama bekerja. Main punya model artis
+  (login, sosial link, visibilitas) — jadi referensi saat dikerjakan.
+
+KEPUTUSAN: PARKED — rancangan dasar boleh disiapkan diam-diam.
+
+
+------------------------------------------------------------
+D7. AUDIT AKTIVASI LABEL                          DRAFT → audit diminta
+------------------------------------------------------------
+  Pemilik minta audit detail rute & prosedur, bukan hanya isian.
+  Hasil audit → ANNEX-B (dikerjakan). Ringkasan: dua pintu (prototype
+  vs main) sudah dianalisis; usulan alur gabungan ada di ANNEX-B.
+
+KEPUTUSAN: OPEN — menunggu persetujuan atas rute usulan di ANNEX-B.
+
+
+------------------------------------------------------------
+D8. MIGRASI & KLAIM DATA WARISAN                  DRAFT
+------------------------------------------------------------
+  Masalah: sistem lama hanya mengandalkan kejujuran akun yang mengklaim.
+  Usulan mekanisme verifikasi → ANNEX-C (dikerjakan): OTP ke kontak
+  historis, bukti unggah, karantina klaim, deteksi konflik ganda,
+  baseline saldo bertahap oleh super admin.
+
+KEPUTUSAN: DRAFT — menunggu persetujuan.
+
+
+------------------------------------------------------------
+D9. TARIF ROYALTI PER LABEL                       DECIDED-SEBAGIAN
+------------------------------------------------------------
+  Penjelasan: main memotong royalti — label menerima 60% (default),
+  platform 40%. Persentase dapat dinegosiasi per label lewat alur
+  rate-change dengan approval. Prototype saat ini mengasumsikan 100%.
+  → Ketersediaan kolom per-label sudah ada di main; keputusan
+    seragam-vs-perlabel masih menunggu pemilik (rekomendasi: seragam
+    60% sekarang, per-label bila perlu nanti).
+
+KEPUTUSAN: OPEN — pilih: seragam / per-label / seragam-dulu.
+
+
+------------------------------------------------------------
+D10. SISTEM STAFF                                 DRAFT — desain diminta
+------------------------------------------------------------
+  Keputusan pemilik: mulai 1 staff (Cantika Dewi, akses penuh).
+  Tujuan: pekerjaan tercatat → evaluasi & monitoring terukur → sinyal
+  kebutuhan staff baru → rekomendasi posisi.
+  Rancangan → ANNEX-D (dikerjakan): struktur peran bertumbuh, metrik
+  beban kerja, laporan evaluasi otomatis, indikator "butuh staff".
+
+KEPUTUSAN: DRAFT — menunggu persetujuan rancangan ANNEX-D.
+
+
+------------------------------------------------------------
+D11. KATEGORI TIKET TAMBAHAN                      DECIDED
+------------------------------------------------------------
+  Setuju: tambahkan 'royalty_issue' dan 'other' (selaras main).
+  Implementasi: model + formulir UI tiket.
+
+KEPUTUSAN: SAHKAN — masuk antrean implementasi.
+
+
+------------------------------------------------------------
+D12. LAYANAN AI-AGENT                             PARKED
+------------------------------------------------------------
+  Tetap diparkir sampai integrasi inti selesai.
+
+KEPUTUSAN: PARKED.
+
+
+====================================================
+RINGKASAN STATUS
+  DECIDED : D5, D11
+  DRAFT   : D1, D2, D3, D4, D8, D10 (menunggu konfirmasi pemilik)
+  OPEN    : D7 (audit jalan), D9
+  PARKED  : D6, D12
+====================================================

@@ -1,0 +1,182 @@
+DECISIONS — ANNEX (analisis pendukung Fase 1)
+============================================
+Lampiran kerja untuk D2 (paket), D7 (aktivasi), D8 (klaim warisan),
+D10 (sistem staff). Semua masih DRAFT — dibuat untuk direvisi bersama.
+
+
+============================================================
+ANNEX-A  ·  D2 — PETA HARGA MAIN & FONDASI BENEFIT PER TIER
+============================================================
+
+1. Dasar harga produksi hari ini (payment_service.py):
+   ┌────────────────────┬────────────────┬─────────────────────────┐
+   │ Produk             │ Harga          │ Catatan                 │
+   ├────────────────────┼────────────────┼─────────────────────────┤
+   │ pay_per_release    │ Rp35.000/lagu  │ pengguna tanpa langganan │
+   │ album_package      │ Rp200.000      │ 7–12 lagu               │
+   │ annual_normal      │ Rp350.000/thn  │ langganan standar       │
+   │ annual_vip         │ Rp500.000/thn  │ langganan premium       │
+   │ multi_label        │ Rp1.500.000/thn│ banyak label, 1 akun    │
+   │ wami_addon         │ Rp100.000/lagu │ layanan tambahan        │
+   └────────────────────┴────────────────┴─────────────────────────┘
+   Tarif royalti default: label 60% · platform 40%.
+
+2. Temuan penting — tangga harga main SUDAH berbentuk 4 anak tangga:
+   Basic≈pay-per-release (Rp0 langganan, bayar per rilis)
+   Studio≈annual_normal (Rp350rb)
+   Pro≈annual_vip (Rp500rb)
+   Business≈multi_label (Rp1,5jt)
+   → 4-tier BUKAN penemuan baru; ia menyusun ulang produk yang sudah
+     ada. Ini argument terkuat untuk mempertahankan 4 tier.
+
+3. Sumbu benefit yang bisa dikembangkan per tier (fondasi, bukan harga):
+   │ Sumbu                    │ Basic │ Studio │ Pro │ Business │
+   ├──────────────────────────┼───────┼────────┼─────┼──────────┤
+   │ Langganan                │ tidak │ tahunan│ tahunan │ tahunan │
+   │ Cara mengajukan rilisan  │ bayar per rilis │ token │ token │ token │
+   │ Prioritas antrean        │ standar│ standar│ cepat│ cepat+didahulukan│
+   │ Jumlah label per akun    │ 1     │ 1      │ 1   │ banyak   │
+   │ Kuota WAMI/tahun         │ 0     │ 2      │ 6   │ 12       │
+   │ Kuota design/promo/tahun │ 0     │ 1      │ 3   │ 6        │
+   │ Kedalaman analitik       │ dasar │ dasar  │ penuh│ penuh+lintas-label│
+   │ Prioritas tiket/dukungan │ antre │ antre  │ didahulukan│ SLA   │
+   │ Alokasi staf penanganan  │ umum  │ umum   │ umum │ penanggung jawab │
+   └──────────────────────────┴───────┴────────┴─────┴──────────┘
+   Catatan: jangan jadikan TARIF ROYALTI sebagai benefit tier (risiko
+   margin); jadikan kecepatan & layanan sebagai pembeda.
+
+4. Nilai ekonomis kasar kuota (rujukan harga add-on Rp100rb):
+   Pro (6 WAMI + 3 design) ≈ Rp600–900rb nilai benefit/tahun — sudah
+   melebihi harga annual_vip lama. → tanda bahwa harga final memang
+   harus dihitung ulang, atau kuota diturunkan.
+
+5. Pertanyaan yang harus dijawab sebelum harga final:
+   a. Basic bayar per rilis — harga per lagu tetap Rp35rb?
+   b. Upgrade kapan efektif: langsung atau periode berikut?
+   c. Multi-label Business: batas jumlah label? biaya per label tambahan?
+
+
+============================================================
+ANNEX-B  ·  D7 — AUDIT RUTE AKTIVASI LABEL
+============================================================
+
+RUTE PROTOTYPE saat ini (v10-model.js):
+  bayar invoice → isi profil+identitas (orang, alamat, negara,
+  dokumen=true) → tanda tangan "kontrak" (flag; batal otomatis jika
+  profil berubah) → apply → staf menyetujui/minta koreksi → aktif.
+  Bank: label submit → Super Admin approve (wajib sebelum penarikan).
+
+RUTE MAIN saat ini:
+  register (mda_accepted WAJIB dicentang) → checklist profil → unggah
+  KTP → pending_review → admin review (approve hanya Super Admin)
+  → verified. Bank change: permintaan terpisah dengan approval.
+
+CELAH YANG SAYA TEMUKAN di prototype:
+  a. "Kontrak" hanya flag boolean — tidak ada dokumen MDA nyata,
+     tidak ada versi ketentuan, tidak ada jejak apa yang disetujui.
+     Main lebih kuat: mda_accepted legal gate sejak register.
+  b. identity.document adalah flag — tidak ada unggahan KTP saat
+     aktivasi; main mewajibkan foto KTP sebelum review.
+  c. Urutan prototype benar (bayar boleh kapan saja; aktivasi menggerbang
+     submit rilisan) — pertahankan.
+  d. Kontrak batal saat profil berubah = ide bagus, tapi tanpa dokumen
+     yang ditandatangani, pembatalannya tidak bermakna hukum.
+
+RUTE GABUNGAN USULAN (8 gerbang, sederhana di permukaan):
+  1. Register        : email + password + centang MDA (versi tersimpan)
+  2. Verifikasi email: OTP/tautan (sudah ada keduanya)
+  3. Profil label    : nama, PIC, WA, alamat — boleh menyusul
+  4. Identitas       : unggah KTP + data diri (bukan flag)
+  5. Rekening bank   : submit → antrean approval Super Admin
+  6. Review staf     : satu layar "kartu aktivasi" — identitas, KTP,
+                       rekening berdampingan → setujui/koreksi
+  7. Aktif           : bisa submit rilisan
+  8. Bayar/paket     : KAPAN SAJA — tidak menggerbang aktivasi,
+                       hanya menggerbang fitur berbayar
+  Prinsip: legal (MDA) di depan, uang tidak menggerbang kepercayaan,
+  satu layar review untuk staf (bukan 3 tempat).
+
+
+============================================================
+ANNEX-C  ·  D8 — VERIFIKASI KLAIM DATA WARISAN
+============================================================
+
+Masalah: klaim label lama hanya modal kejujuran.
+Lapisan verifikasi usulan (murah → mahal, pakai berlapis):
+
+  1. OTP ke kontak historis — sistem lama punya email/WA label;
+     kirim kode ke sana. Ini pemotong penipuan termurah: pencuri tidak
+     memegang email/WA lama.
+  2. Bukti unggahan — kontrak lama, tangkapan layar dasbor lama,
+     bukti pembayaran, KTP PIC yang namanya cocok dengan catatan lama.
+     Ditinjau staf.
+  3. Karantina klaim — data yang diklaim masuk status "diklaim":
+     identitas & katalog langsung tampil, TAPI saldo/royalti historis
+     tetap beku sampai Super Admin menyetujui baseline secara eksplisit.
+  4. Deteksi konflik — dua akun mengklaim label yang sama → keduanya
+     terkunci otomatis, masuk antrean sengketa Super Admin.
+  5. Cocok-silang NIK/bank — bandingkan NIK & nama rekening klaim
+     dengan rekening penarikan terakhir di data lama; ketidakcocokan
+     menaikkan level peninjauan, bukan menolak otomatis.
+  6. Jejak audit penuh — siapa mengklaim, bukti apa, siapa menyetujui,
+     kapan — semua masuk log (sudah ada di model).
+  7. Jendela banding — pemilik asli bisa membantah klaim selama
+     N hari sebelum hak uang dibuka (opsional, paling mahal).
+
+  Rekomendasi minimum: 1 + 3 + 4 (murah, menutup 90% penyalahgunaan).
+  Tambahkan 2 bila klaim menyangkut saldo besar.
+
+
+============================================================
+ANNEX-D  ·  D10 — SISTEM STAFF (mulai dari 1: Cantika Dewi)
+============================================================
+
+Tujuan pemilik: pekerjaan tercatat → evaluasi terukur → sinyal
+kebutuhan staff → rekomendasi posisi. Prinsip: mulai kecil, struktur
+siap tumbuh.
+
+1. STRUKTUR PERAN (bertumbuh, bukan bertingkat rumit):
+   Sekarang (1 orang): "Staff Operasional" = semua izin.
+   Tahap tumbuh — pecah berdasarkan domain yang sudah ada:
+     • Operator Rilisan  — review, deliver, kode, takedown, tiket
+     • Operator Keuangan — royalti, penarikan, transaksi, refund
+     • Operator Layanan  — WAMI, addon, registrasi, follow-up eksternal
+   Super Admin tetap satu-satunya yang: approve bank, approve refund,
+   kelola paket, kelola staff, klaim warisan.
+   → Ini bukan "jabatan", tapi PEMBAGIAN BEKERJAAN; orangnya bisa
+     merangkap sampai beban memaksa pisah.
+
+2. PENCATATAN KERJA — sudah 80% ada:
+   Audit log + handler di tiap domain (tiket.handler, wami.handler,
+   order.handler, withdraw.handler) + SLA jam-kerja (wami11.attention).
+   Yang kurang: SATU ledger staff terpadu — setiap aksi yang
+   "menyelesaikan pekerjaan" masuk hitungan per orang.
+
+3. METRIK TERUKUR (per staff, per bulan):
+   • Item diselesaikan per domain (rilisan ditinjau, tiket selesai,
+     WAMI selesai, penarikan diproses)
+   • Kepatuhan SLA — % selesai dalam batas attention-level
+   • Koreksi — berapa kali hasil kerja dikoreksi/dibuka ulang
+   • Waktu penyelesaian rata-rata per jenis pekerjaan
+   → Semua bisa dihitung dari ledger yang ada — tanpa input tambahan.
+
+4. DOKUMEN EVALUASI — "Kartu Kerja Bulanan" otomatis per staff:
+   ringkasan angka di atas + catatan insiden + daftar pekerjaan
+   terlama. Satu layar, bisa dibaca 2 menit, bisa diekspor.
+   (Bentuk sudah ada: staff carousel + activity — tinggal diagregasi.)
+
+5. SINYAL "BUTUH STAFF" (rekomendasi posisi):
+   Kapasitas = hari kerja × jam efektif. Beban = antrean × waktu
+   penyelesaian rata-rata (dari metrik #3). Indikator:
+     hijau  <60% kapasitas
+     kuning 60–85% 2 minggu berturut → "pertimbangkan bantuan"
+     merah  >85% atau SLA jebol → "butuh staff baru"
+   Ketika merah, sistem merekomendasikan DOMAIN mana yang paling
+   berat → itulah jabatan yang disarankan dibuka.
+   → Tidak perlu AI: dua pembagian dan satu ambang cukup.
+
+6. YANG SAYA BANTAH dari rencana awal:
+   Absensi detail + KPI berbobot + ulasan AI bulanan = HR suite,
+   bukan produk musik. Untuk 1 staff cukup: metrik kerja + SLA.
+   Simpan "ulasan bulanan" sebagai teks ringkas otomatis, bukan fitur.
+============================================================
