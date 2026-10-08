@@ -28,6 +28,11 @@ const OUT='C:\\Users\\rotam\\AppData\\Local\\Temp\\sample-shots';
  await page.evaluate(()=>{plans10()});
  await page.waitForTimeout(700);
  await page.screenshot({path:OUT+'\\44-paket-mobile.png'});
+ // verifikasi: halaman manajemen label (super) — ikon segel verifikasi
+ await page.setViewportSize({width:1440,height:1100});
+ await page.evaluate(()=>{document.querySelector('#dialog')?.close();document.documentElement.dataset.theme='light';state.user=people.find(p=>p.super).id;go('labels9','staff')});
+ await page.waitForTimeout(900);
+ await page.screenshot({path:OUT+'\\45-labels-verify.png'});
  console.log('shots done');
  await b.close();srv.kill();
 })().catch(e=>{console.error(e);process.exit(1)});

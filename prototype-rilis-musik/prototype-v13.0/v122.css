@@ -327,3 +327,6 @@ body{background:var(--bg)}#app{min-height:100dvh}.shell::before{display:none!imp
 :root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button{color:#5b6673}
 :root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button[aria-pressed=true],:root:not([data-theme=dark]) .package-card122:not(.current122) .plan-period122>button.selected{color:#fff}
 :root:not([data-theme=dark]) .package-card122:not(.current122) .your-plan122{background:#13181f!important;color:#fff!important}
+
+/* your-plan122: samakan dengan badge paket — pill gradient warna kelas, ukuran kecil */
+[data-theme] .package-card122.current122 .your-plan122{top:20px;right:20px;height:22px;padding:0 10px;display:inline-flex!important;align-items:center;justify-content:center;background:linear-gradient(125deg,var(--package-dark),var(--package-light))!important;color:#fff!important;box-shadow:0 4px 10px -4px color-mix(in srgb,var(--package-dark) 55%,transparent)!important;font-size:9.5px;font-weight:600;letter-spacing:.07em;line-height:1;border-radius:8px}
