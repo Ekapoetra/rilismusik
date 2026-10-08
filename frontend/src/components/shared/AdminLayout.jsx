@@ -1,7 +1,7 @@
 import React, { Suspense, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import * as Icons from "lucide-react";
-import { ChevronDown, ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, LogOut, X } from "lucide-react";
 import { useAuth } from "@/api/AuthContext";
 import NotificationBell from "./NotificationBell";
 import { DashboardBrand } from "./DashboardBrand";
@@ -12,6 +12,9 @@ import { ProfileMenu } from "./ProfileMenu";
 import AdminChatWidget from "@/components/chat/AdminChatWidget";
 import { AdminNavigationProvider, useAdminNavigation } from "@/contexts/AdminNavigationContext";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
+import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document } from "@/components/v13/Masthead";
+import { V13Sidebar } from "@/components/v13/V13Sidebar";
+import { ADMIN_AREAS, DEDICATED_AREAS, areaForKey, areaForPath, itemsByArea, matchNavItem } from "@/components/v13/adminAreas";
 
 const iconFor = (name) => Icons[name] || Icons.Circle;
 
@@ -62,19 +65,45 @@ export const AdminSidebarView = ({ instance, collapsed, onCollapse, onNavigate, 
 };
 
 const AdminLayoutInner = () => {
+  useV13Document();
   const { user, logout } = useAuth();
-  const { items, groups } = useAdminNavigation();
-  const { t } = useAppPreferences();
+  const { items } = useAdminNavigation();
+  const { locale, t } = useAppPreferences();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(localStorage.getItem("admin-sidebar-collapsed") === "true");
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggle = () => setCollapsed((current) => { localStorage.setItem("admin-sidebar-collapsed", String(!current)); return !current; });
-  return <div className="app-shell md:flex" data-testid="admin-layout">
-    <aside className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden border-r transition-[width] duration-300 md:block ${collapsed ? "w-[72px]" : "w-64"}`}><AdminSidebarView instance="desktop" collapsed={collapsed} onCollapse={toggle} items={items} groups={groups} user={user} logout={logout} /></aside>
-    {mobileOpen && <div className="fixed inset-0 z-50 md:hidden" data-testid="admin-mobile-sidebar"><button type="button" aria-label={t("Tutup menu")} onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/70" data-testid="admin-mobile-sidebar-backdrop" /><aside className="dashboard-sidebar absolute inset-y-0 left-0 w-[min(86vw,320px)] border-r"><AdminSidebarView instance="mobile" collapsed={false} onNavigate={() => setMobileOpen(false)} items={items} groups={groups} user={user} logout={logout} /></aside></div>}
-    <div style={{ "--rm-dock-left": collapsed ? "72px" : "256px" }} className={`min-w-0 flex-1 transition-[margin] duration-300 ${collapsed ? "md:ml-[72px]" : "md:ml-64"}`}>
-      <header className="dashboard-header sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b px-3 sm:px-6 lg:px-8" data-testid="admin-topbar"><div className="flex min-w-0 items-center gap-2"><button type="button" onClick={() => setMobileOpen(true)} aria-label={t("Buka menu")} className="ui-icon-button md:hidden" data-testid="admin-mobile-sidebar-open"><Menu className="h-5 w-5" /></button><div className="md:hidden"><DashboardBrand compact testId="admin-header-brand" /></div><div className="hidden min-w-0 md:block"><div className="text-[10px] font-bold uppercase text-[var(--ui-muted)]" translate="no">RILIS MUSIK</div><div className="text-sm font-bold">{t("Admin Console")}</div></div></div><div className="flex shrink-0 items-center gap-1.5"><HeaderPreferences instance="admin" /><StatusMenu instance="admin" /><NotificationBell instance="admin-header" historyPath="/admin/notifications" /><QuickChatButton instance="admin" /><ProfileMenu user={user} logout={logout} instance="admin" /></div></header>
-      <main className="min-h-[calc(100vh-4rem)] p-4 pb-[calc(var(--audio-player-height,0px)+2rem)] sm:p-6 lg:p-8"><Suspense fallback={<div role="status" className="p-8 text-center text-zinc-400">Memuat halaman…</div>}><Outlet /></Suspense></main>
+  const labelFor = (item) => item.labels?.[locale] || item.labels?.id || item.key;
+  const grouped = useMemo(() => itemsByArea(items), [items]);
+  const current = matchNavItem(items, pathname);
+  const area = areaForPath(items, pathname);
+  const mode = area === "staff" ? "staff" : "platform";
+  const dedicated = DEDICATED_AREAS.has(area);
+  const firstRoute = (list, fallback) => list[0]?.route || fallback;
+  const linksFor = (list) => {
+    const keys = new Set(list.map((item) => item.key));
+    return list.map((item) => ({ key: item.key, to: item.route, label: labelFor(item), icon: iconFor(item.icon), child: Boolean(item.parent_key && keys.has(item.parent_key)), active: current?.key === item.key, testId: `admin-nav-${item.key}` }));
+  };
+  const sideLinks = linksFor(mode === "staff" ? grouped.staff : grouped.platform);
+  const areas = ADMIN_AREAS.filter((entry) => entry.id === "platform" || grouped[entry.id].length)
+    .map((entry) => ({ ...entry, to: entry.id === "platform" ? firstRoute(grouped.platform, "/admin/dashboard") : firstRoute(grouped[entry.id], "/admin/dashboard"), active: entry.id === "platform" ? !dedicated : entry.id === area }));
+  const searchItems = items.map((item) => ({ to: item.route, label: labelFor(item), hint: t(ADMIN_AREAS.find((entry) => entry.id === areaForKey(item.key))?.label || "Staff") }));
+  const switcher = grouped.staff.length && grouped.platform.length ? { mode, onChange: (next) => { setMobileOpen(false); if (next !== mode) navigate(firstRoute(next === "staff" ? grouped.staff : grouped.platform, "/admin/dashboard")); } } : null;
+  const footer = { name: user?.name || user?.email || "Admin", sub: user?.role_name || user?.role };
+  const home = pathname === "/admin/dashboard" || pathname === "/admin/status";
+  const areaMeta = ADMIN_AREAS.find((entry) => entry.id === area);
+  const tools = <><span className="v13-optional"><StatusMenu instance="admin" /></span><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="admin" show={["sound"]} /></span><NotificationBell instance="admin-header" historyPath="/admin/notifications" /><QuickChatButton instance="admin" /><ProfileMenu user={user} logout={logout} instance="admin" /></>;
+  return <MastheadProvider><div className="app-shell v13-shell" data-testid="admin-layout">
+    <Masthead name={user?.name || "Admin"} home={home} areas={areas} searchItems={searchItems} tools={tools} brandTo={firstRoute(grouped.platform, "/admin/dashboard")} onMenu={() => setMobileOpen(true)} />
+    {mobileOpen && <div className="v13-drawer md:hidden" data-testid="admin-mobile-sidebar"><button type="button" aria-label={t("Tutup menu")} onClick={() => setMobileOpen(false)} data-testid="admin-mobile-sidebar-backdrop" /><aside><V13Sidebar instance="mobile" switcher={switcher} links={[...sideLinks, ...ADMIN_AREAS.filter((entry) => entry.id !== "platform" && grouped[entry.id].length).flatMap((entry) => [{ key: `group-${entry.id}`, group: t(entry.label) }, ...linksFor(grouped[entry.id])])]} onNavigate={() => setMobileOpen(false)} footer={footer} /><button type="button" onClick={logout} className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500" data-testid="admin-logout-mobile"><LogOut className="h-4 w-4" />{t("Keluar")}</button></aside></div>}
+    <div style={{ "--rm-dock-left": dedicated ? "24px" : collapsed ? "88px" : "272px" }} className={`v13-body ${dedicated ? "is-wide" : ""} ${!dedicated && collapsed ? "has-collapsed-side" : ""}`}>
+      {!dedicated && <V13Sidebar switcher={switcher} links={sideLinks} collapsed={collapsed} onToggle={toggle} footer={footer} />}
+      <main className="v13-main" data-testid="admin-main">
+        {dedicated && <div className="v13-areahead" data-testid={`v13-areahead-${area}`}><h1>{t(areaMeta.label)}</h1>{grouped[area].length > 1 && <nav className="v13-tabs" aria-label={t(areaMeta.label)}>{grouped[area].map((item) => <Link key={item.key} to={item.route} aria-current={current?.key === item.key ? "page" : undefined} className={current?.key === item.key ? "is-active" : ""} data-testid={`admin-nav-${item.key}`}>{labelFor(item)}</Link>)}</nav>}</div>}
+        <Suspense fallback={<div role="status" className="p-8 text-center text-[var(--ui-muted)]">Memuat halaman…</div>}><Outlet /></Suspense>
+      </main>
     </div><AdminChatWidget />
-  </div>;
+  </div></MastheadProvider>;
 };
 export default function AdminLayout() { return <AdminNavigationProvider><AdminLayoutInner /></AdminNavigationProvider>; }

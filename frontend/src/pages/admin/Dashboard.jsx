@@ -1,378 +1,162 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import * as Icons from "lucide-react";
 import { api } from "@/api/client";
 import { usePollingRead } from "@/hooks/usePollingRead";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
 import { useAuth } from "@/api/AuthContext";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
-import {
-  Building2, Users2, Disc3, CreditCard, Crown, Activity, ArrowRight, AlertTriangle,
-  CheckCircle2, Target, ClipboardList, Users, ChevronRight, TrendingUp, TrendingDown,
-  Wallet, Coins, Sun, Sunrise, Sunset, Moon, ListChecks, Loader2,
-} from "lucide-react";
+import { useMasthead } from "@/components/v13/Masthead";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 
-const iconFor = (name) => Icons[name] || Icons.Circle;
 function fmtIDR(n) { return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0); }
 function fmtEUR(n) { return "€ " + (n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 function fmtNum(n) { return new Intl.NumberFormat("id-ID").format(n || 0); }
 function hhmm(iso) { if (!iso) return ""; return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }); }
 const humanize = (s) => (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-const MODULE_ICON = { release: Disc3, label: Building2, withdraw: Wallet, kyc: CheckCircle2, ticket: Icons.MessageSquare, support: Icons.MessageSquare, payment: CreditCard, admin_user: Users2, auth: Users2 };
 function activityLink(a) {
   const ref = a.reference_id;
   const map = { release: ref ? `/admin/releases/${ref}` : "/admin/releases", label: ref ? `/admin/labels/${ref}` : "/admin/labels", withdraw: "/admin/withdraw", kyc: "/admin/kyc", ticket: "/admin/tickets", support: "/admin/tickets", payment: "/admin/payments", bank_account: "/admin/labels", admin_user: "/admin/admin-users" };
   return map[a.module] || null;
 }
 const PERIODS = [{ k: "today", l: "Hari ini" }, { k: "week", l: "Minggu ini" }, { k: "month", l: "Bulan ini" }];
+const sum = (list, field) => list.reduce((total, item) => total + (item[field] || 0), 0);
 
-function greetPhrase(hourWIB, t) {
-  if (hourWIB < 11) return { text: t("Selamat pagi"), Icon: Sunrise };
-  if (hourWIB < 15) return { text: t("Selamat siang"), Icon: Sun };
-  if (hourWIB < 19) return { text: t("Selamat sore"), Icon: Sunset };
-  return { text: t("Selamat malam"), Icon: Moon };
-}
-
-const PRIO_META = {
-  critical: { cls: "bg-rose-500/15 text-rose-300", label: "Kritis" },
-  high: { cls: "bg-amber-500/15 text-amber-300", label: "Tinggi" },
-  normal: { cls: "bg-sky-500/15 text-sky-300", label: "Normal" },
-  low: { cls: "bg-zinc-500/15 text-zinc-300", label: "Rendah" },
+const Chevron = ({ direction = "right" }) => {
+  const Icon = { right: ChevronRight, down: ChevronDown, up: ChevronUp }[direction];
+  return <span className="v13-chevron" aria-hidden="true"><Icon /></span>;
 };
 
-function Greeting({ name, work, team, isManager, pending, error, canWork }) {
+// One compact status design; only Priority/Overdue bullets pulse.
+function WorkPill({ item }) {
   const { t } = useAppPreferences();
-  const now = new Date();
-  const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
-  const hourWIB = new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
-  const { text, Icon } = greetPhrase(hourWIB, t);
-  const openWork = work.reduce((s, w) => s + (w.open_count || 0), 0);
-  const teamOpen = team.reduce((s, w) => s + (w.open_count || 0), 0);
-  const overdue = work.reduce((s, w) => s + (w.overdue_count || 0), 0);
-  let message;
-  if (!canWork) message = t("Selamat datang di dashboard.");
-  else if (error) message = t("Daftar pekerjaan belum dapat diperbarui.");
-  else if (pending) message = t("Memuat daftar pekerjaan…");
-  else if (openWork === 0 && (!isManager || teamOpen === 0)) message = t("Semua pekerjaan sudah tertangani. 🎉");
-  else if (isManager && teamOpen > 0) message = `${t("Tim Anda punya")} ${teamOpen} ${t("pekerjaan terbuka")}${overdue ? `, ${overdue} ${t("lewat tempo")}` : ""}. ${t("Mari selesaikan yang prioritas.")}`;
-  else message = `${t("Ada")} ${openWork} ${t("pekerjaan menunggu, mari selesaikan yang paling prioritas.")}`;
-  return (
-    <div data-testid="admin-greeting">
-      <div className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">{dateStr}</div>
-      <h1 className="mt-1 flex items-center gap-2.5 font-display text-3xl md:text-4xl font-extrabold tracking-tighter">
-        <Icon className="h-7 w-7 text-[#FF1F8E]" /> {text}, {name}.
-      </h1>
-      <p className="mt-2 text-sm text-zinc-300" data-testid="admin-greeting-message">{message}</p>
+  if (item.overdue_count > 0) return <span className="v13-pill" data-tone="red" data-pulse>{t("Lewat tenggat")}</span>;
+  if (item.priority === "critical" || item.priority === "high") return <span className="v13-pill" data-tone="mustard" data-pulse>{t("Prioritas")}</span>;
+  return <span className="v13-pill">{t("Baru")}</span>;
+}
+
+function Attention({ work }) {
+  const { t } = useAppPreferences();
+  const late = work.filter((item) => item.overdue_count > 0);
+  const total = sum(late, "overdue_count");
+  if (!total) return null;
+  const names = late.map((item) => t(item.label_id));
+  const detail = names.length > 2 ? `${names.slice(0, 2).join(", ")} ${t("dan")} ${names.length - 2} ${t("jenis pekerjaan lainnya")}.` : `${names.join(` ${t("dan")} `)}.`;
+  return <Link to={late[0].link || "/admin/work"} className="v13-attention" data-testid="admin-attention">
+    <AlertTriangle aria-hidden="true" />
+    <div><h3>{t("Tenggat terlewat")} · {total}</h3><p>{detail}</p></div>
+    <Chevron />
+  </Link>;
+}
+
+function WorkStats({ work, team, progress, completed }) {
+  const { t } = useAppPreferences();
+  const open = sum(work, "open_count") + sum(team, "open_count");
+  const overdue = sum(work, "overdue_count") + sum(team, "overdue_count");
+  const handling = progress?.length ?? null;
+  const cards = [
+    ["total", "Total Pekerjaan", handling === null ? "…" : open + handling, "Antrean dan proses berjalan"],
+    ["open", "Antrean Baru", Math.max(0, open - overdue), "Belum ditangani"],
+    ["progress", "Dalam Penanganan", handling ?? "…", "Sedang diproses"],
+    ["overdue", "Lewat Tenggat", overdue, "Melewati SLA"],
+    ["done", "Selesai Hari Ini", completed ?? "…", "Pekerjaan selesai"],
+  ];
+  return <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" data-testid="admin-work-stats">
+    {cards.map(([key, label, value, sub]) => <Link key={key} to="/admin/work" className="v13-stat" data-testid={`admin-work-stat-${key}`}><span>{t(label)}</span><strong>{value}</strong><small>{t(sub)}</small><Chevron direction="down" /></Link>)}
+  </div>;
+}
+
+function Queue({ work, team, isManager, pending, error }) {
+  const { t } = useAppPreferences();
+  const [scope, setScope] = useState("my");
+  const list = (scope === "team" ? team : work).filter((item) => item.open_count > 0);
+  return <section className="v13-card" data-testid="admin-my-work">
+    <div className="v13-card-head"><h2>{t("Antrean Pekerjaan")}</h2>{isManager && <select className="v13-select" value={scope} onChange={(event) => setScope(event.target.value)} aria-label={t("Lingkup antrean")} data-testid="admin-queue-scope"><option value="my">{t("Saya")}</option><option value="team">{t("Tim")}</option></select>}</div>
+    <div className="v13-card-body">
+      {pending ? <p role="status" className="py-6 text-sm text-[var(--ui-muted)]">{t("Memuat pekerjaan…")}</p>
+        : error ? <p role="alert" className="py-6 text-sm text-[var(--v13-urgent)]">{t("Pekerjaan belum dapat dimuat.")}</p>
+          : !list.length ? <p className="py-6 text-sm text-[var(--ui-muted)]" data-testid="admin-my-work-list-empty">{t(scope === "team" ? "Tidak ada pekerjaan tim terbuka." : "Tidak ada pekerjaan untuk Anda.")}</p>
+            : <div data-testid="admin-my-work-list">{list.slice(0, 6).map((item) => <Link key={item.work_type} to={item.link} className="v13-row" data-testid={`work-row-${item.work_type}`}>
+              <div className="min-w-0"><div className="v13-row-title truncate">{t(item.label_id)}</div><div className="v13-row-sub"><span data-testid={`work-count-${item.work_type}`}>{item.open_count}</span> {t("terbuka")}{item.oldest_age_days ? ` · ${t("tertua")} ${item.oldest_age_days} ${t("hari")}` : ""}</div></div>
+              <div className="flex shrink-0 items-center gap-3"><WorkPill item={item} /><Chevron /></div>
+            </Link>)}</div>}
+      <Link to="/admin/work" className="mt-2 inline-flex text-sm text-[var(--ui-muted)] hover:text-[var(--ui-text)]" data-testid="admin-focus-all">{t("Lihat semua antrean")}</Link>
     </div>
-  );
+  </section>;
 }
 
-function TodaysFocus({ work }) {
-  const { t } = useAppPreferences();
-  const order = { critical: 0, high: 1, normal: 2, low: 3 };
-  const items = work.filter((w) => w.open_count > 0)
-    .sort((a, b) => (order[a.priority] ?? 2) - (order[b.priority] ?? 2))
-    .slice(0, 5);
-  return (
-    <section className="rm-card p-5" data-testid="admin-todays-focus">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2"><Target className="h-5 w-5 text-[#FF1F8E]" /><div><div className="font-display text-lg font-extrabold tracking-tight">{t("Fokus Hari Ini")}</div><div className="text-xs text-zinc-500">{items.length} {t("prioritas pekerjaan")}</div></div></div>
-        <Link to="/admin/work" className="inline-flex items-center gap-1 text-xs font-bold text-zinc-400 hover:text-white" data-testid="admin-focus-all">{t("Lihat semua")} <ArrowRight className="h-3.5 w-3.5" /></Link>
-      </div>
-      {items.length === 0 ? (
-        <div className="py-4 text-center text-sm text-emerald-300" data-testid="admin-todays-focus-empty">{t("Semuanya terkendali.")}</div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {items.map((it, i) => {
-            const p = PRIO_META[it.priority] || PRIO_META.normal;
-            return (
-              <Link key={it.work_type} to={it.link} className="group flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 transition-colors hover:bg-white/[0.05]" data-testid={`admin-focus-item-${i}`}>
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#FF1F8E]/15 font-display text-sm font-extrabold text-[#FF1F8E]">{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-bold">{t(it.label_id)}</div>
-                  <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${p.cls}`}>{t(p.label)}</span>
-                </div>
-                <span className="font-display text-lg font-extrabold tabular-nums">{it.open_count}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
+function Steps({ step, total }) {
+  const count = Math.max(1, total || 1);
+  const done = Math.max(0, Math.min(count, step || 0));
+  return <div className="v13-steps" style={{ "--steps": count, "--fraction": count > 1 ? Math.min(1, done / (count - 1)) : 1 }} aria-label={`${done}/${count}`}>
+    {Array.from({ length: count }).map((_, index) => <i key={index} className={index < done ? "is-done" : index === done ? "is-current" : ""}>{index < done && <Check strokeWidth={3} />}</i>)}
+  </div>;
 }
 
-function WorkList({ items, testid, emptyLabel }) {
+function Running({ items, error }) {
   const { t } = useAppPreferences();
-  if (!items.length) return <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.05] p-8 text-center" data-testid={`${testid}-empty`}><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" /><div className="mt-2 font-display font-bold text-sm">{t(emptyLabel)}</div></div>;
-  return (
-    <div className="space-y-2.5" data-testid={testid}>
-      {items.map((it) => {
-        const Ico = iconFor(it.icon);
-        return (
-          <Link key={it.work_type} to={it.link} className="group flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3.5 transition-colors hover:bg-white/[0.05]" data-testid={`work-row-${it.work_type}`}>
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white/5"><Ico className="h-4 w-4 text-pink-300" /></span>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-bold">{t(it.label_id)}</div>
-                {it.overdue_count > 0 ? <div className="mt-0.5 inline-flex items-center gap-1 rounded bg-red-500/15 px-1.5 text-[11px] font-bold text-red-300"><AlertTriangle className="h-3 w-3" />{it.overdue_count} {t("lewat tempo")}</div> : <div className="text-[11px] text-zinc-500">{t(PRIO_META[it.priority]?.label || "Normal")}</div>}
-              </div>
-            </div>
-            <div className="flex items-center gap-2"><span className="font-display text-2xl font-extrabold tabular-nums" data-testid={`work-count-${it.work_type}`}>{it.open_count}</span><ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5" /></div>
-          </Link>
-        );
-      })}
+  return <section className="v13-card" data-testid="admin-inprogress-panel">
+    <div className="v13-card-head"><h2>{t("Pekerjaan Berjalan")}</h2></div>
+    <div className="v13-card-body">
+      {error && items === null ? <p role="alert" className="py-6 text-sm text-[var(--v13-urgent)]">{t("Pekerjaan berjalan belum dapat dimuat.")}</p>
+        : items === null ? <p role="status" className="py-6 text-sm text-[var(--ui-muted)]">{t("Memuat pekerjaan…")}</p>
+          : !items.length ? <p className="py-6 text-sm text-[var(--ui-muted)]" data-testid="admin-inprogress-empty">{t("Tidak ada pekerjaan berjalan.")}</p>
+            : <div data-testid="admin-inprogress">{items.slice(0, 5).map((item) => <Link key={`${item.category}-${item.id}`} to={item.link} className="block border-b border-[var(--ui-border)] py-3.5 last:border-0" data-testid={`inprogress-item-${item.id}`}>
+              <div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="v13-row-title truncate">{t(item.category)} · {item.title}</div><div className="v13-row-sub">{t(item.status_label)}</div></div><Chevron /></div>
+              <Steps step={item.step} total={item.total_steps} />
+            </Link>)}</div>}
     </div>
-  );
+  </section>;
 }
 
-function Panel({ icon: Icon, title, subtitle, to, tint = "text-[#FF1F8E]", children, testid }) {
+function Trend({ trend }) {
+  if (!trend || trend.pct === null || trend.pct === undefined) return <span className="v13-trend">—</span>;
+  const direction = trend.direction === "up" ? "up" : trend.direction === "down" ? "down" : "flat";
+  return <span className="v13-trend" data-trend={direction}>{direction === "up" && <ChevronUp />}{direction === "down" && <ChevronDown />}{trend.pct > 0 ? "+" : ""}{trend.pct}%</span>;
+}
+
+function KpiCard({ label, value, trend, sub, to, testid }) {
+  const inner = <div className="v13-metric h-full" data-testid={testid}>
+    <h3>{label}</h3>
+    <strong data-testid={`${testid}-value`}>{value}</strong>
+    <div className="mt-auto flex flex-wrap items-center gap-2 pt-3"><Trend trend={trend} />{sub && <span className="text-xs text-[var(--ui-muted)]">{sub}</span>}</div>
+  </div>;
+  return to ? <Link to={to}>{inner}</Link> : inner;
+}
+
+// Money KPI with its own independent period dropdown (Today / This week / This month).
+function MoneyKpiCard({ kind, label, sub, testid, defaultPeriod = "today" }) {
   const { t } = useAppPreferences();
-  return (
-    <section className="rm-card p-5 h-full flex flex-col" data-testid={testid}>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2"><Icon className={`h-5 w-5 ${tint}`} /><div><div className="font-display text-lg font-extrabold tracking-tight">{title}</div>{subtitle && <div className="text-xs text-zinc-500">{subtitle}</div>}</div></div>
-        {to && <Link to={to} className="inline-flex items-center gap-1 text-xs font-bold text-zinc-400 hover:text-white">{t("Lihat semua")} <ArrowRight className="h-3.5 w-3.5" /></Link>}
-      </div>
-      <div className="flex-1">{children}</div>
-    </section>
-  );
-}
-
-function Pager({ page, pages, setPage, testid }) {
-  if (pages <= 1) return null;
-  return (
-    <div className="mt-3 flex items-center justify-center gap-2" data-testid={testid}>
-      <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="grid h-7 w-7 place-items-center rounded-full border border-white/10 text-zinc-400 transition-colors hover:bg-white/10 disabled:opacity-30" data-testid={`${testid}-prev`}><ChevronRight className="h-3.5 w-3.5 rotate-180" /></button>
-      {Array.from({ length: pages }).map((_, i) => <button key={i} onClick={() => setPage(i)} className={`h-1.5 rounded-full transition-all ${i === page ? "w-5 bg-[#FF1F8E]" : "w-1.5 bg-white/20"}`} data-testid={`${testid}-dot-${i}`} />)}
-      <button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page === pages - 1} className="grid h-7 w-7 place-items-center rounded-full border border-white/10 text-zinc-400 transition-colors hover:bg-white/10 disabled:opacity-30" data-testid={`${testid}-next`}><ChevronRight className="h-3.5 w-3.5" /></button>
+  const [period, setPeriod] = useState(defaultPeriod);
+  const result = usePollingRead("/admin/dashboard/money", { kind, period }, { refreshEvent: "rilismusik:new-notification" });
+  const data = result.data;
+  return <div className="v13-metric h-full" data-testid={testid}>
+    <div className="flex items-center justify-between gap-2"><h3>{label}</h3>
+      <select value={period} onChange={(e) => setPeriod(e.target.value)} className="v13-select" data-testid={`${testid}-period`}>{PERIODS.map((p) => <option key={p.k} value={p.k}>{t(p.l)}</option>)}</select>
     </div>
-  );
-}
-
-const PAGE_SIZE = 4;
-
-function InProgress({ items, error }) {
-  const { t } = useAppPreferences();
-  const [page, setPage] = useState(0);
-  if (error && items === null) return <p role="alert" className="text-red-300">{t("Pekerjaan berjalan belum dapat dimuat.")}</p>;
-  if (items === null) return <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 animate-pulse rounded bg-white/[0.04]" />)}</div>;
-  if (!items.length) return <div className="py-6 text-center text-sm text-zinc-500" data-testid="admin-inprogress-empty">{t("Tidak ada pekerjaan berjalan.")}</div>;
-  const pages = Math.ceil(items.length / PAGE_SIZE);
-  const view = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  const barColor = (p) => p >= 75 ? "bg-emerald-400" : p >= 50 ? "bg-sky-400" : p > 0 ? "bg-amber-400" : "bg-zinc-600";
-  return (
-    <div data-testid="admin-inprogress">
-      <div className="space-y-3">
-        {view.map((it) => (
-          <Link key={`${it.category}-${it.id}`} to={it.link} className="block rounded-lg border border-white/10 bg-white/[0.02] p-3 transition-colors hover:bg-white/[0.05]" data-testid={`inprogress-item-${it.id}`}>
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <div className="min-w-0"><div className="truncate text-sm font-bold">{it.title}</div><div className="text-[11px] text-zinc-500">{it.category} · <span className="text-zinc-400">{it.status_label}</span></div></div>
-              <span className="shrink-0 font-display text-sm font-extrabold tabular-nums text-zinc-300">{it.percent}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full transition-all ${barColor(it.percent)}`} style={{ width: `${it.percent}%` }} /></div>
-          </Link>
-        ))}
-      </div>
-      <Pager page={page} pages={pages} setPage={setPage} testid="admin-inprogress-pager" />
-    </div>
-  );
-}
-
-const DONUT = [
-  { key: "completed", label: "Completed", color: "#34d399" },
-  { key: "in_progress", label: "In Progress", color: "#38bdf8" },
-  { key: "open", label: "Open", color: "#a1a1aa" },
-  { key: "overdue", label: "Overdue", color: "#fb7185" },
-];
-function WorkSummary({ progress, progressError }) {
-  const { t } = useAppPreferences();
-  const [period, setPeriod] = useState("today");
-  const result = usePollingRead("/admin/dashboard/work-summary", { period, include_progress: false });
-  const data = result.data && progress ? { ...result.data, in_progress: progress.length, total: result.data.completed + result.data.open + progress.length } : null;
-
-  return (
-    <section className="rm-card p-5 h-full flex flex-col" data-testid="admin-work-summary-panel">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><Icons.BarChart3 className="h-5 w-5 text-[#FF1F8E]" /><div><div className="font-display text-lg font-extrabold tracking-tight">{t("Ringkasan Kerja")}</div><div className="text-xs text-zinc-500">{t("Distribusi tugas")}</div></div></div>
-        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-bold text-zinc-200 outline-none focus:border-[#FF1F8E]" data-testid="admin-work-summary-period">
-          {PERIODS.map((p) => <option key={p.k} value={p.k} className="bg-zinc-900">{t(p.l)}</option>)}
-        </select>
-      </div>
-      <div className="flex flex-1 items-center">{result.error || progressError ? <p role="alert" className="text-red-300">{t("Ringkasan kerja belum dapat diperbarui.")}</p> : <WorkSummaryChart data={data} />}</div>
-    </section>
-  );
-}
-
-function useCountUp(target, duration = 700) {
-  const [value, setValue] = useState(0);
-  const fromRef = useRef(0);
-  useEffect(() => {
-    const from = fromRef.current;
-    const to = Number(target) || 0;
-    if (from === to) return undefined;
-    const start = performance.now();
-    let raf;
-    const tick = (now) => {
-      const p = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(from + (to - from) * eased));
-      if (p < 1) raf = requestAnimationFrame(tick); else fromRef.current = to;
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
-
-function WorkSummaryChart({ data }) {
-  const { t } = useAppPreferences();
-  const [ready, setReady] = useState(false);
-  const [hover, setHover] = useState(null);
-  useEffect(() => { setReady(false); const id = requestAnimationFrame(() => setReady(true)); return () => cancelAnimationFrame(id); }, [data]);
-  const overdue = data?.overdue || 0;
-  const openActive = Math.max(0, (data?.open || 0) - overdue);
-  const parts = { completed: data?.completed || 0, in_progress: data?.in_progress || 0, open: openActive, overdue };
-  const total = parts.completed + parts.in_progress + parts.open + parts.overdue;
-  const animatedTotal = useCountUp(ready ? total : 0);
-  if (!data) return <div className="h-40 animate-pulse rounded bg-white/[0.04]" />;
-  const R = 52, C = 2 * Math.PI * R;
-  let offset = 0;
-  const segs = DONUT.map((d) => {
-    const val = parts[d.key] || 0;
-    const frac = total ? val / total : 0;
-    const seg = { ...d, val, pct: total ? Math.round(frac * 100) : 0, dash: frac * C, off: offset };
-    offset += frac * C;
-    return seg;
-  });
-  const focus = hover ? segs.find((s) => s.key === hover) : null;
-  return (
-    <div className="flex w-full flex-col items-center gap-5 sm:flex-row sm:items-center" data-testid="admin-work-summary">
-      <div className="relative h-36 w-36 shrink-0">
-        <svg viewBox="0 0 140 140" className="h-full w-full -rotate-90">
-          <circle cx="70" cy="70" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
-          {segs.map((s) => s.val > 0 && (
-            <circle
-              key={s.key} cx="70" cy="70" r={R} fill="none" stroke={s.color}
-              strokeWidth={hover === s.key ? 18 : 14}
-              strokeDasharray={ready ? `${s.dash} ${C - s.dash}` : `0 ${C}`}
-              strokeDashoffset={-s.off} strokeLinecap="butt"
-              onMouseEnter={() => setHover(s.key)} onMouseLeave={() => setHover(null)}
-              className="cursor-pointer transition-[stroke-dasharray,stroke-width,opacity] duration-700 ease-out"
-              style={{ opacity: hover && hover !== s.key ? 0.3 : 1 }}
-              data-testid={`work-summary-arc-${s.key}`}
-            />
-          ))}
-        </svg>
-        <div className="absolute inset-0 grid place-items-center">
-          <div className="text-center transition-transform">
-            {focus ? (
-              <>
-                <div className="font-display text-3xl font-extrabold tabular-nums" style={{ color: focus.color }}>{focus.val}</div>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500">{t(focus.label)}</div>
-              </>
-            ) : (
-              <>
-                <div className="font-display text-3xl font-extrabold tabular-nums">{animatedTotal}</div>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500">{t("Total Tugas")}</div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="w-full space-y-2">
-        {segs.map((s) => (
-          <div
-            key={s.key}
-            onMouseEnter={() => setHover(s.key)} onMouseLeave={() => setHover(null)}
-            className={`flex items-center justify-between gap-3 rounded-md px-2 py-1 text-sm transition-colors ${hover === s.key ? "bg-white/[0.06]" : ""}`}
-            data-testid={`work-summary-${s.key}`}
-          >
-            <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{t(s.label)}</span>
-            <span className="flex items-center gap-3"><strong className="tabular-nums">{s.val}</strong><span className="w-9 text-right text-xs text-zinc-500">{s.pct}%</span></span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    <strong data-testid={`${testid}-value`}>{data ? fmtIDR(data.value) : result.error ? "—" : "…"}</strong>
+    {result.error && <p role="alert" className="mt-1 text-xs text-[var(--v13-urgent)]">{t("Nilai belum dapat diperbarui.")}</p>}
+    <div className="mt-auto flex flex-wrap items-center gap-2 pt-3"><Trend trend={data?.trend} />{sub && <span className="text-xs text-[var(--ui-muted)]">{sub}</span>}</div>
+  </div>;
 }
 
 function RecentActivity({ selfOnly, userId }) {
   const { t } = useAppPreferences();
   const [items, setItems] = useState(null);
-  const [page, setPage] = useState(0);
   useEffect(() => { api.get("/admin/activity-logs", { params: { limit: 60 } }).then((r) => setItems(r.data || [])).catch(() => setItems([])); }, []);
   // Dashboard feed = Work & Finance activity only (system events excluded).
-  const all = (items || []).filter((a) => (a.category === "work" || a.category === "finance") && (!selfOnly || a.user_id === userId));
-  const pages = Math.ceil(all.length / PAGE_SIZE);
-  const rows = all.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  return (
-    <Panel icon={Activity} title={t("Aktivitas Terbaru")} subtitle={selfOnly ? t("Aktivitas Anda") : t("Kerja & Keuangan")} to="/admin/activity-logs" tint="text-indigo-300" testid="admin-recent-activity">
-      {items === null ? <div className="space-y-2">{[0, 1, 2].map((i) => <div key={i} className="h-8 animate-pulse rounded bg-white/[0.04]" />)}</div>
-        : rows.length === 0 ? <div className="py-6 text-center text-sm text-zinc-600">{t("Belum ada aktivitas.")}</div>
-          : <><ul className="divide-y divide-white/5">
-            {rows.map((a) => {
-              const link = activityLink(a); const Ico = MODULE_ICON[a.module] || Activity;
-              const who = selfOnly ? t("Anda") : (a.user_name || "—");
-              const inner = (
-                <div className="flex items-start gap-3 py-2.5">
-                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md bg-white/5"><Ico className="h-3.5 w-3.5 text-pink-300" /></span>
-                  <div className="min-w-0 flex-1"><div className="text-sm text-zinc-200"><span className="font-semibold">{who}</span> <span className="text-zinc-400">{t(humanize(a.action))}</span></div><div className="text-[11px] text-zinc-500">{t(humanize(a.module))}</div></div>
-                  <div className="shrink-0 text-[11px] tabular-nums text-zinc-500">{hhmm(a.created_at)}</div>
-                </div>
-              );
-              return <li key={a.id}>{link ? <Link to={link} className="block transition-colors hover:bg-white/[0.03]" data-testid={`admin-activity-item-${a.id}`}>{inner}</Link> : <div data-testid={`admin-activity-item-${a.id}`}>{inner}</div>}</li>;
-            })}
-          </ul><Pager page={page} pages={pages} setPage={setPage} testid="admin-activity-pager" /></>}
-    </Panel>
-  );
-}
-
-function Trend({ trend }) {
-  if (!trend || trend.pct === null || trend.pct === undefined) return <span className="text-[11px] text-zinc-500">—</span>;
-  const up = trend.direction === "up"; const flat = trend.direction === "flat";
-  const Ico = up ? TrendingUp : TrendingDown;
-  const cls = flat ? "text-zinc-400" : up ? "text-emerald-400" : "text-rose-400";
-  return <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${cls}`}>{!flat && <Ico className="h-3 w-3" />}{trend.pct > 0 ? "+" : ""}{trend.pct}%</span>;
-}
-
-function KpiCard({ icon: Icon, label, value, trend, sub, accent, to, testid }) {
-  const c = { rose: "from-rose-500/15 to-rose-500/5 text-rose-300", indigo: "from-indigo-500/15 to-indigo-500/5 text-indigo-300", amber: "from-amber-500/15 to-amber-500/5 text-amber-300", emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300", pink: "from-pink-500/15 to-purple-500/15 text-pink-300" }[accent] || "text-zinc-400";
-  const inner = (
-    <div className="rm-card h-full p-5" data-testid={testid}>
-      <div className="flex items-center justify-between"><div className={`grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${c}`}><Icon className="h-4 w-4" /></div>{to && <ChevronRight className="h-4 w-4 text-zinc-600" />}</div>
-      <div className="mt-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
-      <div className="mt-1 font-display text-2xl font-extrabold tracking-tighter" data-testid={`${testid}-value`}>{value}</div>
-      <div className="mt-1.5 flex items-center gap-2"><Trend trend={trend} />{sub && <span className="text-[11px] text-zinc-500">{sub}</span>}</div>
+  const rows = (items || []).filter((a) => (a.category === "work" || a.category === "finance") && (!selfOnly || a.user_id === userId)).slice(0, 6);
+  return <section className="v13-card" data-testid="admin-recent-activity">
+    <div className="v13-card-head"><h2>{t("Aktivitas Terbaru")}</h2><Link to="/admin/activity-logs" className="text-sm text-[var(--ui-muted)] hover:text-[var(--ui-text)]">{t("Lihat semua")}</Link></div>
+    <div className="v13-card-body">
+      {items === null ? <p role="status" className="py-6 text-sm text-[var(--ui-muted)]">{t("Memuat aktivitas…")}</p>
+        : !rows.length ? <p className="py-6 text-sm text-[var(--ui-muted)]">{t("Belum ada aktivitas.")}</p>
+          : rows.map((a) => {
+            const link = activityLink(a);
+            const inner = <><div className="min-w-0"><div className="v13-row-title truncate">{selfOnly ? t("Anda") : (a.user_name || "—")} · {t(humanize(a.action))}</div><div className="v13-row-sub">{t(humanize(a.module))}</div></div><span className="shrink-0 text-xs tabular-nums text-[var(--ui-muted)]">{hhmm(a.created_at)}</span></>;
+            return link ? <Link key={a.id} to={link} className="v13-row" data-testid={`admin-activity-item-${a.id}`}>{inner}</Link> : <div key={a.id} className="v13-row" data-testid={`admin-activity-item-${a.id}`}>{inner}</div>;
+          })}
     </div>
-  );
-  return to ? <Link to={to}>{inner}</Link> : inner;
-}
-
-const KPI_ACCENT = { rose: "from-rose-500/15 to-rose-500/5 text-rose-300", indigo: "from-indigo-500/15 to-indigo-500/5 text-indigo-300", amber: "from-amber-500/15 to-amber-500/5 text-amber-300", emerald: "from-emerald-500/15 to-emerald-500/5 text-emerald-300", pink: "from-pink-500/15 to-purple-500/15 text-pink-300" };
-
-// Money KPI with its own independent period dropdown (Today / This week / This month).
-function MoneyKpiCard({ kind, icon: Icon, label, accent = "emerald", sub, testid, defaultPeriod = "today" }) {
-  const { t } = useAppPreferences();
-  const [period, setPeriod] = useState(defaultPeriod);
-  const result = usePollingRead("/admin/dashboard/money", { kind, period }, { refreshEvent: "rilismusik:new-notification" });
-  const data = result.data;
-  const c = KPI_ACCENT[accent] || "text-zinc-400";
-
-  return (
-    <div className="rm-card h-full p-5" data-testid={testid}>
-      <div className="flex items-center justify-between gap-2">
-        <div className={`grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${c}`}><Icon className="h-4 w-4" /></div>
-        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-zinc-200 outline-none focus:border-[#FF1F8E]" data-testid={`${testid}-period`}>
-          {PERIODS.map((p) => <option key={p.k} value={p.k} className="bg-zinc-900">{t(p.l)}</option>)}
-        </select>
-      </div>
-      <div className="mt-3 text-[11px] uppercase tracking-widest font-bold text-zinc-500">{label}</div>
-      <div className="mt-1 font-display text-2xl font-extrabold tracking-tighter" data-testid={`${testid}-value`}>{data ? fmtIDR(data.value) : result.error ? "—" : "…"}</div>
-      {result.error && <p role="alert" className="mt-1 text-xs text-red-300">{t("Nilai belum dapat diperbarui.")}</p>}
-      <div className="mt-1.5 flex items-center gap-2"><Trend trend={data?.trend} />{sub && <span className="text-[11px] text-zinc-500">{sub}</span>}</div>
-    </div>
-  );
+  </section>;
 }
 
 export default function AdminDashboard() {
@@ -382,70 +166,54 @@ export default function AdminDashboard() {
   const workResult = usePollingRead("/admin/work/queue", { scope: "all" }, { enabled: canWork, refreshEvent: "rilismusik:new-notification" });
   const metricsResult = usePollingRead("/admin/dashboard/metrics", { period: "month", include_money: false }, { refreshEvent: "rilismusik:new-notification" });
   const progressResult = usePollingRead("/admin/dashboard/in-progress");
+  const summaryResult = usePollingRead("/admin/dashboard/work-summary", { period: "today", include_progress: false });
   const metrics = metricsResult.data;
   const inprog = progressResult.data?.items || null;
   const work = workResult.data?.items || [];
   const team = workResult.data?.team_items || [];
   const isManager = Boolean(workResult.data?.is_manager);
   const workPending = canWork && (!workResult.data || workResult.data.synchronizing);
-  const name = user?.name || user?.pic_name || user?.email || "Admin";
+  const completed = summaryResult.data ? summaryResult.data.completed : null;
   const isSuper = user?.role === "super_admin";
-
   const m = metrics || {};
+  const openWork = sum(work, "open_count");
 
-  return (
-    <div className="space-y-6">
-      <Greeting name={name} work={work} team={team} isManager={isManager} pending={workPending} error={workResult.error} canWork={canWork} />
-      {workResult.error && <p role="alert" className="text-red-300">{t("Daftar pekerjaan belum dapat diperbarui. Data terakhir tetap ditampilkan.")}</p>}
-      {workPending && <p role="status" className="text-zinc-400">{t("Memuat daftar pekerjaan…")}</p>}
+  let summary = t("Selamat datang di dashboard.");
+  if (canWork && workResult.error) summary = t("Daftar pekerjaan belum dapat diperbarui.");
+  else if (canWork && workPending) summary = t("Memuat daftar pekerjaan…");
+  else if (canWork) summary = `${openWork} ${t("pekerjaan dalam antrean")}${completed !== null ? ` · ${completed} ${t("pekerjaan selesai hari ini")}` : ""}.`;
+  useMasthead({
+    summary,
+    insight: metrics?.total_labels ? { value: fmtNum(metrics.total_labels.value), title: t("Label dalam ruang kerja Rilis Musik."), detail: `+${fmtNum(metrics.total_labels.added || 0)} ${t("label baru bulan ini.")}`, to: "/admin/labels" } : null,
+  });
 
-      {canWork && !workPending && !workResult.error && <TodaysFocus work={work} />}
+  return <div className="space-y-5" data-testid="admin-dashboard">
+    <p className="sr-only" data-testid="admin-greeting-message">{summary}</p>
+    {canWork && workResult.error && <p role="alert" className="text-sm text-[var(--v13-urgent)]">{t("Daftar pekerjaan belum dapat diperbarui. Data terakhir tetap ditampilkan.")}</p>}
+    {canWork && !workPending && <Attention work={[...work, ...team]} />}
+    {canWork && <WorkStats work={work} team={team} progress={inprog} completed={completed} />}
+    {canWork && <div className="grid gap-5 lg:grid-cols-2">
+      <Queue work={work} team={team} isManager={isManager} pending={workPending} error={workResult.error && !workResult.data} />
+      <Running items={inprog} error={progressResult.error} />
+    </div>}
 
-      {canWork && (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Panel icon={ClipboardList} title={t("Pekerjaan Saya")} subtitle={`${t("Total")} ${work.reduce((s, w) => s + (w.open_count || 0), 0)} ${t("pekerjaan di antrean Anda")}`} to="/admin/work" testid="admin-my-work">
-            {workPending ? <p role="status">{t("Memuat pekerjaan…")}</p> : workResult.error && !workResult.data ? <p role="alert">{t("Pekerjaan belum dapat dimuat.")}</p> : <WorkList items={work.filter((w) => w.open_count > 0)} testid="admin-my-work-list" emptyLabel="Tidak ada pekerjaan untuk Anda." />}
-          </Panel>
-          {isManager ? (
-            <Panel icon={Users} title={t("Pekerjaan Tim")} subtitle={`${t("Total")} ${team.reduce((s, w) => s + (w.open_count || 0), 0)} ${t("pekerjaan dalam antrean tim")}`} to="/admin/work" tint="text-indigo-300" testid="admin-team-monitor">
-              {workPending ? <p role="status">{t("Memuat pekerjaan tim…")}</p> : <WorkList items={team.filter((w) => w.open_count > 0)} testid="admin-team-list" emptyLabel="Tidak ada pekerjaan tim terbuka." />}
-            </Panel>
-          ) : (
-            <Panel icon={Loader2} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel">
-              <InProgress items={inprog} error={progressResult.error} />
-            </Panel>
-          )}
-        </div>
-      )}
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        {isManager && <Panel icon={ListChecks} title={t("Sedang Dikerjakan")} subtitle={t("Pekerjaan yang sedang berjalan")} to="/admin/work" tint="text-sky-300" testid="admin-inprogress-panel"><InProgress items={inprog} error={progressResult.error} /></Panel>}
-        <div className={isManager ? "h-full" : "lg:col-span-2 h-full"}>
-          <WorkSummary progress={inprog} progressError={progressResult.error} />
-        </div>
-        <RecentActivity selfOnly={!isSuper} userId={user?.id} />
-      </div>
-
-      {metricsResult.error && <p role="alert" className="text-red-300">{t("Ringkasan platform belum dapat diperbarui.")}</p>}
-      {progressResult.error && <p role="alert" className="text-red-300">{t("Pekerjaan berjalan belum dapat diperbarui.")}</p>}
-      <section data-testid="admin-kpi-section">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">{t("Ringkasan Platform")}</div>
-        </div>
-        {metrics === null && !metricsResult.error ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{Array.from({ length: isSuper ? 7 : 5 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />)}</div>
-        ) : !metrics ? <p role="alert">{t("Ringkasan belum tersedia.")}</p> : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <MoneyKpiCard kind="sales" icon={Wallet} label={t("Sales Revenue")} sub={t("via Xendit")} accent="emerald" defaultPeriod="today" testid="kpi-sales-revenue" />
-            {isSuper && <MoneyKpiCard kind="withdrawal" icon={Coins} label={t("Requested Withdrawal")} accent="amber" defaultPeriod="month" testid="kpi-requested-withdrawal" />}
-            {isSuper && <KpiCard icon={Icons.Landmark} label={t("Royalty Income")} value={fmtIDR(m.royalty_income?.value)} trend={m.royalty_income?.trend} sub={m.royalty_income?.period ? `${fmtEUR(m.royalty_income?.eur)} · ${m.royalty_income.period}` : t("impor CSV Believe")} accent="indigo" to="/admin/analytics" testid="kpi-royalty-income" />}
-            <KpiCard icon={Building2} label={t("Total Label")} value={fmtNum(m.total_labels?.value)} trend={m.total_labels?.trend} sub={`+${m.total_labels?.added || 0} ${t("Bulan ini")}`} accent="rose" to="/admin/labels" testid={ADMIN_DASHBOARD.totalLabels} />
-            <KpiCard icon={Users2} label={t("Total Artist")} value={fmtNum(m.total_artists?.value)} trend={m.total_artists?.trend} sub={`+${m.total_artists?.added || 0} ${t("Bulan ini")}`} accent="indigo" testid="kpi-total-artists" />
-            <KpiCard icon={Disc3} label={t("Total Rilis")} value={fmtNum(m.total_releases?.value)} trend={m.total_releases?.trend} sub={`+${m.total_releases?.added || 0} ${t("Bulan ini")}`} accent="amber" to="/admin/releases" testid={ADMIN_DASHBOARD.totalReleases} />
-            <KpiCard icon={Crown} label={t("Active Member")} value={fmtNum(m.active_members?.value)} trend={m.active_members?.trend} sub={t("aktivasi akun")} accent="emerald" testid="kpi-active-members" />
+    {metricsResult.error && <p role="alert" className="text-sm text-[var(--v13-urgent)]">{t("Ringkasan platform belum dapat diperbarui.")}</p>}
+    <section className="space-y-3" data-testid="admin-kpi-section">
+      {metrics === null && !metricsResult.error ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-[var(--ui-surface)]" />)}</div>
+        : !metrics ? <p role="alert">{t("Ringkasan belum tersedia.")}</p> : <>
+          <div className={`grid gap-3 ${isSuper ? "md:grid-cols-3" : "md:grid-cols-1"}`}>
+            <MoneyKpiCard kind="sales" label={t("Pendapatan Penjualan")} sub={t("via Xendit")} defaultPeriod="today" testid="kpi-sales-revenue" />
+            {isSuper && <MoneyKpiCard kind="withdrawal" label={t("Penarikan Diajukan")} defaultPeriod="month" testid="kpi-requested-withdrawal" />}
+            {isSuper && <KpiCard label={t("Pendapatan Royalti")} value={fmtIDR(m.royalty_income?.value)} trend={m.royalty_income?.trend} sub={m.royalty_income?.period ? `${fmtEUR(m.royalty_income?.eur)} · ${m.royalty_income.period}` : t("impor CSV Believe")} to="/admin/analytics" testid="kpi-royalty-income" />}
           </div>
-        )}
-      </section>
-    </div>
-  );
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <KpiCard label={t("Total Label")} value={fmtNum(m.total_labels?.value)} trend={m.total_labels?.trend} sub={`+${m.total_labels?.added || 0} ${t("bulan ini")}`} to="/admin/labels" testid={ADMIN_DASHBOARD.totalLabels} />
+            <KpiCard label={t("Total Artis")} value={fmtNum(m.total_artists?.value)} trend={m.total_artists?.trend} sub={`+${m.total_artists?.added || 0} ${t("bulan ini")}`} testid="kpi-total-artists" />
+            <KpiCard label={t("Total Rilisan")} value={fmtNum(m.total_releases?.value)} trend={m.total_releases?.trend} sub={`+${m.total_releases?.added || 0} ${t("bulan ini")}`} to="/admin/releases" testid={ADMIN_DASHBOARD.totalReleases} />
+            <KpiCard label={t("Member Aktif")} value={fmtNum(m.active_members?.value)} trend={m.active_members?.trend} sub={t("aktivasi akun")} testid="kpi-active-members" />
+          </div>
+        </>}
+    </section>
+    <RecentActivity selfOnly={!isSuper} userId={user?.id} />
+  </div>;
 }

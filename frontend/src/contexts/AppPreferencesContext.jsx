@@ -4,6 +4,7 @@ import { setLocale, translateUi } from "@/i18n/languageStore";
 import { useLocation } from "react-router-dom";
 import "@/styles/dashboard-theme.css";
 import "@/styles/theme-compat.css";
+import "@/styles/v13.css";
 import { installSoundUnlock } from "@/lib/notificationSound";
 
 const Context = createContext(null);

@@ -48,8 +48,8 @@ test("super admin dashboard renders money cards after metrics finish loading", a
   expect(element("admin-greeting-message")).not.toBeNull();
   expect(element("kpi-sales-revenue-value").textContent).toContain("125.000");
   expect(element("kpi-requested-withdrawal-value").textContent).toContain("250.000");
-  expect(element("kpi-sales-revenue").querySelector(".text-emerald-300")).not.toBeNull();
-  expect(element("kpi-requested-withdrawal").querySelector(".text-amber-300")).not.toBeNull();
+  expect(element("admin-work-stats")).not.toBeNull();
+  expect(element("admin-attention")).toBeNull();
 });
 
 test("staff dashboard renders sales card and updates its independent period", async () => {

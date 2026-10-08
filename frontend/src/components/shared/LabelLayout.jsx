@@ -5,12 +5,13 @@ import { LABEL_NAV } from "@/constants/testIds";
 import { LabelKycProvider, useLabelKyc } from "@/contexts/LabelKycContext";
 import NotificationBell from "./NotificationBell";
 import LabelSwitcher from "./LabelSwitcher";
-import { DashboardBrand } from "./DashboardBrand";
 import { HeaderPreferences } from "./HeaderPreferences";
 import { KycGate } from "./KycGate";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import LabelChatWidget from "@/components/chat/LabelChatWidget";
-import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole, ChevronLeft, ChevronRight } from "lucide-react";
+import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document } from "@/components/v13/Masthead";
+import { V13Sidebar } from "@/components/v13/V13Sidebar";
+import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut } from "lucide-react";
 
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
@@ -31,6 +32,7 @@ export default function LabelLayout() {
   return <LabelKycProvider><LabelShell /></LabelKycProvider>;
 }
 function LabelShell() {
+  useV13Document();
   const { user, profile, logout } = useAuth();
   const { t } = useAppPreferences();
   const loc = useLocation(); const navigate = useNavigate();
@@ -40,23 +42,19 @@ function LabelShell() {
   const locked = !isKycFreePath(loc.pathname) && (kycLoading || !kyc?.is_verified);
   const onLogout = async () => { await logout(); navigate("/login"); };
   const toggle = () => setCollapsed((value) => { localStorage.setItem("label-sidebar-collapsed", String(!value)); return !value; });
-  return <div className="app-shell" data-testid="label-layout">
-    <aside className={`dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden flex-col border-r transition-[width] duration-300 md:flex ${collapsed ? "w-[72px]" : "w-64"}`} data-testid="label-sidebar-desktop">
-      <Link to="/label/dashboard" className={`flex h-16 shrink-0 items-center border-b border-[var(--ui-border)] ${collapsed ? "justify-center" : "px-5"}`} data-testid="label-sidebar-brand"><DashboardBrand compact={collapsed} testId="label-brand-desktop" /></Link>
-      <button type="button" className="sidebar-divider-toggle" title={t(collapsed ? "Bentangkan sidebar" : "Ciutkan sidebar")} aria-label={t(collapsed ? "Bentangkan sidebar" : "Ciutkan sidebar")} aria-expanded={!collapsed} onClick={toggle} data-testid="label-sidebar-collapse-button">{collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-4"><NavList currentPath={loc.pathname} onPick={() => {}} kycVerified={kyc?.is_verified} collapsed={collapsed} /></div>
-      <div className="border-t border-[var(--ui-border)] p-3">{!collapsed && <div className="mb-3 min-w-0" translate="no"><div className="truncate text-xs font-semibold" data-testid="label-current-name">{profile?.label_name || user?.name}</div><div className="truncate text-[11px] text-[var(--ui-muted)]" data-testid="label-current-email">{user?.email}</div></div>}<button type="button" onClick={onLogout} title={t("Keluar")} className={`flex w-full items-center rounded-md py-2 text-sm text-red-400 hover:bg-red-500/10 ${collapsed ? "justify-center" : "gap-2 px-3"}`} data-testid="label-logout-button-desktop"><LogOut className="h-4 w-4" />{!collapsed && t("Keluar")}</button></div>
-    </aside>
-    {open && <div className="fixed inset-0 z-50 md:hidden" data-testid="label-mobile-sidebar"><button type="button" onClick={() => setOpen(false)} aria-label={t("Tutup menu")} className="absolute inset-0 bg-black/70" data-testid="label-mobile-menu-backdrop" /><aside className="dashboard-sidebar absolute inset-y-0 left-0 flex w-[min(86vw,320px)] flex-col border-r"><div className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--ui-border)] px-4"><DashboardBrand testId="label-brand-mobile" /><button type="button" className="ui-icon-button" onClick={() => setOpen(false)} aria-label={t("Tutup")} data-testid="label-mobile-menu-close"><X className="h-4 w-4" /></button></div><div className="min-h-0 flex-1 overflow-y-auto px-2 py-4"><NavList instance="mobile" currentPath={loc.pathname} onPick={() => setOpen(false)} kycVerified={kyc?.is_verified} /></div><button type="button" onClick={onLogout} className="m-3 flex items-center gap-2 p-3 text-sm text-red-400" data-testid="label-logout-button"><LogOut className="h-4 w-4" />{t("Keluar")}</button></aside></div>}
-    <div className={`min-w-0 transition-[margin] duration-300 ${collapsed ? "md:ml-[72px]" : "md:ml-64"}`}>
-      <header className="dashboard-header sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b px-3 sm:px-6 lg:px-8" data-testid="label-topbar"><div className="flex min-w-0 items-center gap-2"><button type="button" className="ui-icon-button md:hidden" onClick={() => setOpen(true)} aria-label={t("Buka menu")} data-testid="label-mobile-menu-button"><Menu className="h-5 w-5" /></button><div className="md:hidden"><DashboardBrand compact testId="label-header-brand" /></div><div className="hidden min-w-0 md:block"><div className="text-[10px] font-bold text-[var(--ui-muted)]" translate="no">RILIS MUSIK</div><div className="text-sm font-bold">{t("Label Dashboard")}</div></div></div><div className="flex shrink-0 items-center gap-1.5"><LabelSwitcher /><HeaderPreferences instance="label" /><NotificationBell instance="label-header" /></div></header>
-      <main className="label-page-content relative min-w-0 p-4 pb-24 md:p-8"><div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Suspense fallback={<div role="status" className="p-8 text-center text-zinc-400">Memuat halaman…</div>}><Outlet /></Suspense></div>{locked && <KycGate status={kyc?.status} loading={kycLoading} />}</main>
+  const isActive = (item) => loc.pathname === item.to || (item.to !== "/label/dashboard" && item.to !== "/label/releases" && loc.pathname.startsWith(`${item.to}/`)) || (item.to === "/label/releases" && loc.pathname.startsWith("/label/releases/") && !loc.pathname.startsWith("/label/releases/upload"));
+  const links = NAV.map((item) => ({ key: item.to, to: item.to, label: t(item.label), icon: item.icon, active: isActive(item), locked: !item.kycFree && !kyc?.is_verified, testId: item.tid }));
+  const name = profile?.label_name || user?.name || "Label";
+  const footer = { name, sub: user?.email };
+  const tools = <><LabelSwitcher /><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="label" show={["sound"]} /></span><NotificationBell instance="label-header" /><button type="button" onClick={onLogout} title={t("Keluar")} aria-label={t("Keluar")} className="ui-icon-button" data-testid="label-logout-button-desktop"><LogOut className="h-4 w-4" /></button></>;
+  return <MastheadProvider><div className="app-shell v13-shell" data-testid="label-layout">
+    <Masthead name={name} home={loc.pathname === "/label/dashboard"} searchItems={links.map((link) => ({ to: link.to, label: link.label }))} tools={tools} brandTo="/label/dashboard" onMenu={() => setOpen(true)} />
+    {open && <div className="v13-drawer md:hidden" data-testid="label-mobile-sidebar"><button type="button" onClick={() => setOpen(false)} aria-label={t("Tutup menu")} data-testid="label-mobile-menu-backdrop" /><aside><V13Sidebar instance="mobile" links={links} onNavigate={() => setOpen(false)} footer={footer} /><button type="button" onClick={onLogout} className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500" data-testid="label-logout-button"><LogOut className="h-4 w-4" />{t("Keluar")}</button></aside></div>}
+    <div style={{ "--rm-dock-left": collapsed ? "88px" : "272px" }} className={`v13-body ${collapsed ? "has-collapsed-side" : ""}`}>
+      <V13Sidebar links={links} collapsed={collapsed} onToggle={toggle} footer={footer} />
+      <main className="label-page-content v13-main relative min-w-0"><div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Suspense fallback={<div role="status" className="p-8 text-center text-[var(--ui-muted)]">Memuat halaman…</div>}><Outlet /></Suspense></div>{locked && <KycGate status={kyc?.status} loading={kycLoading} />}</main>
     </div>
     <LabelChatWidget />
     <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{[NAV[0], NAV[1], NAV[3], NAV[4], NAV[8]].map((item) => { const Icon = item.icon; const active = loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
-  </div>;
-}
-function NavList({ currentPath, onPick, kycVerified, collapsed = false, instance = "desktop" }) {
-  const { t } = useAppPreferences();
-  return <nav className="space-y-1">{NAV.map((item) => { const Icon = item.icon; const active = currentPath === item.to || (item.to !== "/label/dashboard" && currentPath.startsWith(item.to)); const testId = instance === "desktop" ? item.tid : `${item.tid}-${instance}`; return <Link key={item.to} to={item.to} data-testid={testId} onClick={onPick} title={collapsed ? t(item.label) : undefined} className={`dashboard-nav-link relative flex items-center rounded-md py-2.5 ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${active ? "is-active" : ""}`}><Icon className="h-4 w-4 shrink-0" />{!collapsed && <span className="min-w-0 truncate text-sm font-semibold">{t(item.label)}</span>}{!item.kycFree && !kycVerified && !collapsed && <LockKeyhole className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" data-testid={`${testId}-lock`} />}</Link>; })}</nav>;
+  </div></MastheadProvider>;
 }

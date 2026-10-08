@@ -7,7 +7,7 @@ import { useAuth } from "@/api/AuthContext";
 import { LABEL_DASHBOARD } from "@/constants/testIds";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { LabelAnalyticsOverview } from "@/components/label/LabelAnalyticsOverview";
-import { LabelHero } from "@/components/label/LabelHero";
+import { useMasthead } from "@/components/v13/Masthead";
 import { LiveTodayBanner } from "@/components/label/LiveTodayBanner";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
@@ -89,6 +89,15 @@ export default function LabelDashboardHome() {
   }, [kyc?.is_verified, data?.label?.id]);
   const dismissCelebrate = () => { localStorage.setItem(`rm:verified_seen:${data?.label?.id || "x"}`, "1"); setCelebrate(false); };
 
+  // V13 masthead: greeting summary from real dashboard data; CMS hero copy becomes the insight.
+  const heroCopy = hero?.is_active && hero.headline ? hero : null;
+  const heroTarget = typeof heroCopy?.cta_target === "string" && heroCopy.cta_target.startsWith("/") && !heroCopy.cta_target.startsWith("//") ? heroCopy.cta_target : undefined;
+  const mastheadBalance = { ...(data?.stats || {}), ...(liveBalance || {}) }.balance_available_idr;
+  useMasthead({
+    summary: !data ? null : !kyc?.is_verified ? "Lengkapi verifikasi akun untuk membuka semua fitur." : `${fmtNum(data.stats?.active_releases || 0)} rilisan aktif · saldo tersedia ${fmtIDR(mastheadBalance)}.`,
+    insight: heroCopy ? { title: heroCopy.headline, detail: heroCopy.subheadline || undefined, to: heroTarget } : null,
+  });
+
   if (!data && loadError) return <div role="alert" className="rm-card p-6 text-red-300">{loadError}</div>;
   if (!data) return <DashboardSkeleton />;
   const { label } = data;
@@ -121,7 +130,8 @@ export default function LabelDashboardHome() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Dasbor Label</div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight md:text-3xl" data-testid="label-dashboard-name" translate="no">Halo, {label.label_name}</h1>
+          <h1 className="font-display text-2xl tracking-tight md:text-3xl" data-testid="label-dashboard-name" translate="no">{label.label_name}</h1>
+          <div className="mt-1 text-sm text-[var(--ui-muted)]">{identitySub}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/label/releases/upload" data-testid={LABEL_DASHBOARD.uploadReleaseButton} className="rm-btn-primary">+ Ajukan Rilisan</Link>
@@ -132,8 +142,6 @@ export default function LabelDashboardHome() {
       {/* Multi Label account bar (switcher + aggregated balance) */}
       {account?.is_multi_label && <MultiLabelBar account={account} onSwitch={switchLabel} onWithdraw={withdrawBatch} analyticsLabel={analytics.labelId} onAnalyticsLabel={analytics.setLabelId} locked={locked} />}
 
-      {/* Hero (CMS-managed) */}
-      <LabelHero hero={hero} label={label} verified={kyc?.is_verified} subline={identitySub} />
 
       <LiveTodayBanner releases={data.live_today || []} />
 
