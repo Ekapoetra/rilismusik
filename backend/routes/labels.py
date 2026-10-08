@@ -125,16 +125,17 @@ async def label_update(body: LabelProfileUpdate, user: dict = Depends(require_la
     label = await get_label_by_user(user)
     upd = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     upd["updated_at"] = now_iso()
-    identity_fields = {"label_name", "pic_name", "whatsapp", "address", "city"}
+    # V13: once verified, name and person in charge change through a reviewed
+    # request (/label/profile-change); contact and location save directly and
+    # keep the approved identity valid.
+    reviewed_fields = {"label_name", "pic_name"}
     identity_changed = any(
         key in upd and str(upd.get(key) or "").strip() != str(label.get(key) or "").strip()
-        for key in identity_fields
+        for key in reviewed_fields
     )
     update_doc: Dict[str, Any] = {"$set": upd}
     if label.get("kyc_status") == "verified" and identity_changed:
-        upd["kyc_status"] = "incomplete"
-        upd["kyc_rejection_reason"] = None
-        update_doc["$unset"] = {"kyc_verified_at": "", "kyc_verified_by": ""}
+        raise HTTPException(status_code=409, detail="Perubahan nama label atau penanggung jawab diajukan untuk diperiksa melalui Profil Label.")
     await db.labels.update_one({"id": label["id"]}, update_doc)
     updated = await db.labels.find_one({"id": label["id"]}, {"_id": 0})
     from .kyc_service import compute_kyc_state
@@ -362,3 +363,33 @@ async def list_invoices(user: dict = Depends(require_label)):
     return items
 
 
+
+
+# ---------- V13 plan scheduling ----------
+@label_r.post("/plan/schedule-basic")
+async def schedule_basic_plan(user: dict = Depends(require_label)):
+    """'Gunakan Basic': keep the running package until it ends, then Basic."""
+    from .entitlements import _subscription_active, effective_subscription, pending_plan_change
+    label = await get_label_by_user(user)
+    if not _subscription_active(label):
+        raise HTTPException(status_code=400, detail="Paketmu sudah Basic")
+    if pending_plan_change(label):
+        raise HTTPException(status_code=409, detail="Perubahan paket sudah terjadwal. Tinjau perubahan yang berjalan terlebih dahulu.")
+    change = {"tier": "pay_per_release", "starts_at": effective_subscription(label)["expires_at"],
+              "source": "basic", "created_at": now_iso(), "created_by": user["id"]}
+    await db.labels.update_one({"id": label["id"]}, {"$set": {"scheduled_plan_change": change, "updated_at": now_iso()}})
+    await log_activity(user["id"], "schedule_basic_plan", "label", label["id"], after=change)
+    return {"scheduled_change": change}
+
+
+@label_r.delete("/plan/scheduled")
+async def cancel_scheduled_basic(user: dict = Depends(require_label)):
+    """Only the free Basic schedule can be withdrawn; paid changes stay booked."""
+    from .entitlements import pending_plan_change
+    label = await get_label_by_user(user)
+    change = pending_plan_change(label)
+    if not change or change.get("source") != "basic":
+        raise HTTPException(status_code=400, detail="Tidak ada jadwal Basic yang dapat dibatalkan")
+    await db.labels.update_one({"id": label["id"]}, {"$unset": {"scheduled_plan_change": ""}, "$set": {"updated_at": now_iso()}})
+    await log_activity(user["id"], "cancel_basic_plan", "label", label["id"], before=change)
+    return {"scheduled_change": None}

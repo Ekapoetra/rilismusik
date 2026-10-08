@@ -15,16 +15,53 @@ _ANNUAL_TIERS = {"annual_normal", "annual_vip", "multi_label"}
 _VIP_TIERS = {"annual_vip", "multi_label"}
 
 
-def _subscription_active(label: Dict[str, Any]) -> bool:
-    if (label or {}).get("subscription_status") != "active":
-        return False
-    expires = (label or {}).get("subscription_expires_at")
-    if not expires:
-        return False
+def _parse_time(value: Any):
+    if not value:
+        return None
     try:
-        return datetime.fromisoformat(str(expires).replace("Z", "+00:00")) > datetime.now(timezone.utc)
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     except Exception:
+        return None
+
+
+def effective_subscription(label: Dict[str, Any], now: datetime = None) -> Dict[str, Any]:
+    """Stored subscription, or a scheduled paid change once it has started.
+
+    Downgrades and renewals bought while a package is still running are stored as
+    `scheduled_plan_change` and take over at the current end (V13 Packages122).
+    The hourly expiry job materializes them; this keeps access correct meanwhile.
+    """
+    label = label or {}
+    now = now or datetime.now(timezone.utc)
+    current = {"status": label.get("subscription_status"), "tier": label.get("subscription_tier"),
+               "expires_at": label.get("subscription_expires_at")}
+    expires = _parse_time(current["expires_at"])
+    if current["status"] == "active" and expires and expires > now:
+        return current
+    change = label.get("scheduled_plan_change") or {}
+    starts, ends = _parse_time(change.get("starts_at")), _parse_time(change.get("ends_at"))
+    if change.get("tier") in _ANNUAL_TIERS and starts and ends and starts <= now < ends:
+        return {"status": "active", "tier": change["tier"], "expires_at": change["ends_at"]}
+    return current
+
+
+def _subscription_active(label: Dict[str, Any]) -> bool:
+    current = effective_subscription(label)
+    if current["status"] != "active":
         return False
+    expires = _parse_time(current["expires_at"])
+    return bool(expires and expires > datetime.now(timezone.utc))
+
+
+PLAN_RANK = {"pay_per_release": 0, "annual_normal": 1, "annual_vip": 2, "multi_label": 3}
+
+
+def pending_plan_change(label: Dict[str, Any]) -> Dict[str, Any]:
+    """The scheduled change that has not started yet, if any."""
+    change = (label or {}).get("scheduled_plan_change") or {}
+    starts = _parse_time(change.get("starts_at"))
+    return change if starts and starts > datetime.now(timezone.utc) else None
 
 
 # V13 package names over the stored packages (renamed only; benefits unchanged).
@@ -39,7 +76,8 @@ def resolve_label_entitlements(label: Dict[str, Any]) -> Dict[str, Any]:
     """
     label = label or {}
     active = _subscription_active(label)
-    tier = label.get("subscription_tier") if active else None
+    current = effective_subscription(label)
+    tier = current["tier"] if active else None
     is_annual = active and tier in _ANNUAL_TIERS
     is_vip = active and tier in _VIP_TIERS
     is_multi = active and tier == "multi_label"
@@ -53,7 +91,8 @@ def resolve_label_entitlements(label: Dict[str, Any]) -> Dict[str, Any]:
         "free_addons": is_vip,
         "multi_label": is_multi,
         "daily_release_limit": DAILY_RELEASE_LIMIT,
-        "subscription_expires_at": label.get("subscription_expires_at"),
+        "subscription_expires_at": current["expires_at"],
+        "scheduled_change": pending_plan_change(label),
     }
 
 

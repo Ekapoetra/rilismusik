@@ -614,7 +614,21 @@ def _subscription_expiry(label: Optional[Dict[str, Any]]) -> datetime:
 
 
 async def _fulfill_subscription(payment: Dict[str, Any]) -> None:
+    from routes.entitlements import PLAN_RANK, _subscription_active, effective_subscription
     label = await db.labels.find_one({"id": payment["label_id"]}, {"_id": 0})
+    tier = payment.get("tier") or "annual_vip"
+    current = effective_subscription(label)
+    if _subscription_active(label) and PLAN_RANK.get(tier, 0) < PLAN_RANK.get(current.get("tier"), 0):
+        # V13: a lower package bought while the current one runs starts at its end.
+        starts = datetime.fromisoformat(str(current["expires_at"]).replace("Z", "+00:00"))
+        await db.labels.update_one(
+            {"id": payment["label_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
+            {"$set": {"scheduled_plan_change": {
+                "tier": tier, "starts_at": starts.isoformat(), "ends_at": (starts + timedelta(days=365)).isoformat(),
+                "source": "payment", "payment_id": payment["id"], "created_at": now_iso()}, "updated_at": now_iso()},
+             "$addToSet": {"fulfilled_payment_ids": payment["id"]}},
+        )
+        return
     expiry = _subscription_expiry(label) + timedelta(days=365)
     await db.labels.update_one(
         {"id": payment["label_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},

@@ -73,6 +73,16 @@ function MenuSearch({ items }) {
   </div>;
 }
 
+// Prototype greeting124: a time-of-day greeting, "Halo" or "Senang bertemu lagi",
+// picked deterministically per day so it does not flicker between renders.
+export function greetingFor(name = "", now = new Date()) {
+  const wib = new Date(now.getTime() + 7 * 3600 * 1000);
+  const hour = wib.getUTCHours();
+  const timeOfDay = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 19 ? "Selamat sore" : "Selamat malam";
+  const day = Math.floor(wib.getTime() / 86400000);
+  return [timeOfDay, "Halo", "Senang bertemu lagi"][(day + name.length) % 3];
+}
+
 export function Masthead({ name, home, areas = [], searchItems = [], tools, brandTo, onMenu, defaultSummary }) {
   const { t } = useAppPreferences();
   const content = useContext(MastheadContext)?.content;
@@ -101,7 +111,7 @@ export function Masthead({ name, home, areas = [], searchItems = [], tools, bran
       <div>
         <div className="v13-hero" data-testid="v13-greeting">
           <div>
-            <h1 translate="no">{t("Halo,")}<br />{name}.</h1>
+            <h1 translate="no">{t(greetingFor(name))},<br />{name}.</h1>
             {summary && <p data-testid="v13-greeting-summary">{summary}</p>}
           </div>
           {insight && <InsightTag {...(insight.to ? { to: insight.to } : {})} className="v13-insight" data-testid="v13-insight">

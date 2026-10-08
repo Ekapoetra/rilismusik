@@ -3,7 +3,7 @@
 export const PLAN_TIERS = [
   {
     id: "basic", name: "Basic", legacy: "pay_per_release", priceKey: "pay_per_release_price", defaultPrice: 35000, unit: "lagu",
-    summary: "Bayar sesuai jumlah lagu.",
+    summary: "Bayar layanan sesuai kebutuhan, tanpa berlangganan.",
     features: ["Katalog, draft & pengajuan rilisan", "Biaya per lagu saat rilisan diajukan", "Mode Express/MAX dengan token"],
   },
   {
@@ -18,7 +18,7 @@ export const PLAN_TIERS = [
   },
   {
     id: "business", name: "Business", legacy: "multi_label", priceKey: "multi_label_price", defaultPrice: 1500000, unit: "tahun",
-    summary: "Banyak label dalam satu akun.",
+    summary: "Kelola beberapa label dari satu akun master.",
     features: ["Semua manfaat Pro", "Kelola banyak label dalam satu login", "Satu rekening & pencairan gabungan"],
   },
 ];

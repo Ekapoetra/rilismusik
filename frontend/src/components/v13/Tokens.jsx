@@ -61,7 +61,7 @@ export function TokenChip() {
   const [open, setOpen] = useState(false);
   if (!wallet) return null;
   return <>
-    <button type="button" className="v13-plan-chip" onClick={() => setOpen(true)} title={t("Beli token")} data-testid="token-chip"><span className="tabular-nums">{wallet.balance} {t("token")}</span><Plus className="h-3.5 w-3.5" /></button>
+    <button type="button" className="v13-plan-chip" onClick={() => setOpen(true)} title={t("Beli token")} data-testid="token-chip"><span className="v13-coin" aria-hidden="true">R</span><span className="tabular-nums">{wallet.balance} {t("token")}</span><Plus className="h-3.5 w-3.5" /></button>
     {open && <TokenDialog wallet={wallet} onClose={() => setOpen(false)} />}
   </>;
 }

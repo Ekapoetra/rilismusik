@@ -1,8 +1,9 @@
+// V13 status names (prototype status10/mark105) for production release statuses.
 export const RELEASE_STATUS_LABELS = {
-  draft: "Draf", submitted: "Diajukan", awaiting_payment: "Menunggu Pembayaran",
-  paid: "Sudah Dibayar", under_review: "Sedang Ditinjau", need_revision: "Perlu Revisi",
-  approved: "Disetujui", delivered: "Dikirim ke Believe", live: "Tayang",
-  rejected: "Ditolak", takedown_requested: "Permintaan Penurunan", taken_down: "Sudah Diturunkan",
+  draft: "Draft", submitted: "Menunggu pemeriksaan", awaiting_payment: "Menunggu pembayaran",
+  paid: "Sudah dibayar", under_review: "Dalam pemeriksaan", need_revision: "Menunggu perbaikan label",
+  approved: "Siap dikirim", delivered: "Dalam distribusi", live: "Tayang",
+  rejected: "Ditolak", takedown_requested: "Penurunan diajukan", taken_down: "Diturunkan",
 };
 
 export const releaseStatusLabel = (status) => RELEASE_STATUS_LABELS[status] || status;

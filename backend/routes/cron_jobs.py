@@ -23,6 +23,30 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 cron_r = APIRouter(prefix="/admin/cron", tags=["admin-cron"])
 
 
+async def _start_scheduled_plan(label_id: str, now: datetime) -> bool:
+    """Move a scheduled paid package into place when the previous one ends."""
+    from .entitlements import PLAN_NAMES, effective_subscription
+    label = await db.labels.find_one({"id": label_id}, {"_id": 0})
+    change = (label or {}).get("scheduled_plan_change") or {}
+    if not change:
+        return False
+    if change.get("tier") == "pay_per_release":
+        await db.labels.update_one({"id": label_id}, {"$unset": {"scheduled_plan_change": ""}})
+        return False
+    effective = effective_subscription(label, now)
+    if effective.get("tier") != change.get("tier") or effective.get("expires_at") != change.get("ends_at"):
+        return False
+    await db.labels.update_one({"id": label_id, "scheduled_plan_change.starts_at": change["starts_at"]}, {
+        "$set": {"subscription_status": "active", "subscription_tier": change["tier"], "payment_type": "annual_subscription",
+                 "subscription_expires_at": change["ends_at"], "updated_at": now_iso()},
+        "$unset": {"scheduled_plan_change": ""}})
+    if label.get("user_id"):
+        name = PLAN_NAMES.get(change["tier"], change["tier"])
+        await notify(label["user_id"], "subscription_started", f"Paket {name} dimulai",
+                     f"Paket {name} kini aktif sampai {change['ends_at'][:10]}.", "/label/invoices", {"label_id": label_id})
+    return True
+
+
 async def check_subscription_expiry_job():
     """Hourly cron: transition expired subscriptions and send reminders at T-7, T-3, T-1 days."""
     try:
@@ -42,6 +66,8 @@ async def check_subscription_expiry_job():
             except Exception:
                 continue
             if expires <= now:
+                if await _start_scheduled_plan(lab["id"], now):
+                    continue
                 await db.labels.update_one(
                     {"id": lab["id"]},
                     {"$set": {

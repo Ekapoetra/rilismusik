@@ -10,27 +10,30 @@ import { KycGate } from "./KycGate";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import LabelChatWidget from "@/components/chat/LabelChatWidget";
 import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document } from "@/components/v13/Masthead";
-import { V13Sidebar } from "@/components/v13/V13Sidebar";
+import { V13Sidebar, initialsOf } from "@/components/v13/V13Sidebar";
 import { PlanChip } from "@/components/v13/Plans";
 import { TokenChip } from "@/components/v13/Tokens";
-import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, Music, LogOut, ShieldCheck, Sparkles, UserRound, History } from "lucide-react";
 
-// V13 label menu order and names; Artis and Kontrak stay because production uses them.
+// V13 label menu (prototype navSeed115 "label-platform"). Artis stays nested under
+// Rilisan and Kontrak lives in Profil Label, so no production function is lost.
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
+  { to: "/label/standards", label: "Standar & Penanda", icon: ShieldCheck, tid: "label-nav-standards", kycFree: true },
   { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
+  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists, child: true },
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
   { to: "/label/withdraw", label: "Penarikan", icon: Wallet, tid: LABEL_NAV.withdraw },
   { to: "/label/invoices", label: "Transaksi", icon: FileText, tid: LABEL_NAV.invoices },
+  { to: "/label/addons", label: "Layanan Tambahan", icon: Sparkles, tid: "label-nav-addons" },
   { to: "/label/wami", label: "Registrasi WAMI", icon: Music, tid: "label-nav-wami" },
   { to: "/label/support", label: "Tiket Bantuan", icon: LifeBuoy, tid: LABEL_NAV.support },
-  { to: "/label/profile", label: "Profil Label", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
-  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists },
-  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true },
+  { to: "/label/profile", label: "Profil Label", icon: UserRound, tid: LABEL_NAV.profile, kycFree: true },
+  { to: "/label/history", label: "Riwayat", icon: History, tid: "label-nav-history", kycFree: true },
 ];
 const UPLOAD_NAV = { to: "/label/releases/upload", label: "Ajukan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease };
-const BOTTOM_NAV = [NAV[0], UPLOAD_NAV, NAV[1], NAV[2], NAV[3]];
-const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
+const BOTTOM_NAV = [NAV[0], UPLOAD_NAV, NAV[2], NAV[4], NAV[10]];
+const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract", "/label/standards", "/label/history"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 
 export default function LabelLayout() {
   return <LabelKycProvider><LabelShell /></LabelKycProvider>;
@@ -46,11 +49,11 @@ function LabelShell() {
   const locked = !isKycFreePath(loc.pathname) && (kycLoading || !kyc?.is_verified);
   const onLogout = async () => { await logout(); navigate("/login"); };
   const toggle = () => setCollapsed((value) => { localStorage.setItem("label-sidebar-collapsed", String(!value)); return !value; });
-  const isActive = (item) => loc.pathname === item.to || (item.to !== "/label/dashboard" && loc.pathname.startsWith(`${item.to}/`));
-  const links = NAV.map((item) => ({ key: item.to, to: item.to, label: t(item.label), icon: item.icon, active: isActive(item), locked: !item.kycFree && !kyc?.is_verified, testId: item.tid }));
+  const isActive = (item) => loc.pathname === item.to || (item.to !== "/label/dashboard" && loc.pathname.startsWith(`${item.to}/`)) || (item.to === "/label/profile" && loc.pathname === "/label/contract");
+  const links = NAV.map((item) => ({ key: item.to, to: item.to, label: t(item.label), icon: item.icon, child: item.child, active: isActive(item), locked: !item.kycFree && !kyc?.is_verified, testId: item.tid }));
   const name = profile?.label_name || user?.name || "Label";
   const footer = { name, sub: user?.email };
-  const tools = <><span className="v13-optional"><TokenChip /></span><PlanChip /><LabelSwitcher /><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="label" show={["sound"]} /></span><NotificationBell instance="label-header" /><button type="button" onClick={onLogout} title={t("Keluar")} aria-label={t("Keluar")} className="ui-icon-button" data-testid="label-logout-button-desktop"><LogOut className="h-4 w-4" /></button></>;
+  const tools = <><span className="v13-optional"><TokenChip /></span><PlanChip /><LabelSwitcher /><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="label" show={["sound"]} /></span><NotificationBell instance="label-header" /><Link to="/label/profile" className="v13-avatar-btn" title={t("Profil Label")} aria-label={t("Profil Label")} data-testid="label-avatar-button" translate="no">{initialsOf(name)}</Link></>;
   return <MastheadProvider><div className="app-shell v13-shell" data-testid="label-layout">
     <Masthead name={name} home={loc.pathname === "/label/dashboard"} searchItems={links.map((link) => ({ to: link.to, label: link.label }))} tools={tools} brandTo="/label/dashboard" onMenu={() => setOpen(true)} />
     {open && <div className="v13-drawer md:hidden" data-testid="label-mobile-sidebar"><button type="button" onClick={() => setOpen(false)} aria-label={t("Tutup menu")} data-testid="label-mobile-menu-backdrop" /><aside><V13Sidebar instance="mobile" links={links} onNavigate={() => setOpen(false)} footer={footer} /><button type="button" onClick={onLogout} className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500" data-testid="label-logout-button"><LogOut className="h-4 w-4" />{t("Keluar")}</button></aside></div>}
@@ -59,6 +62,6 @@ function LabelShell() {
       <main className="label-page-content v13-main relative min-w-0"><div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Suspense fallback={<div role="status" className="p-8 text-center text-[var(--ui-muted)]">Memuat halaman…</div>}><Outlet /></Suspense></div>{locked && <KycGate status={kyc?.status} loading={kycLoading} />}</main>
     </div>
     <LabelChatWidget />
-    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{BOTTOM_NAV.map((item) => { const Icon = item.icon; const active = item === NAV[1] ? loc.pathname.startsWith(item.to) && !loc.pathname.startsWith(UPLOAD_NAV.to) : loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
+    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{BOTTOM_NAV.map((item) => { const Icon = item.icon; const active = item === NAV[2] ? loc.pathname.startsWith(item.to) && !loc.pathname.startsWith(UPLOAD_NAV.to) : loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
   </div></MastheadProvider>;
 }

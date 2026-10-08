@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
-from .entitlements import PLAN_NAMES
+from .entitlements import PLAN_NAMES, pending_plan_change
 from .deps import (
     ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
     require_kyc_for_label_user,
@@ -48,6 +49,8 @@ async def payment_config(user: dict = Depends(get_current_user)):
 @pay_r.post("/subscription")
 async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
+    if pending_plan_change(label):
+        raise HTTPException(status_code=409, detail="Perubahan paket sudah terjadwal. Tinjau perubahan yang berjalan terlebih dahulu.")
     tier = body.tier or "annual_vip"
     existing = await db.payments.find_one({
         "label_id": label["id"], "type": "annual_subscription", "tier": tier, "status": "pending",
@@ -136,8 +139,13 @@ async def list_payment_products(user: dict = Depends(require_label)):
     return await db.payment_products.find({"active": True}, {"_id": 0}).sort("created_at", -1).to_list(200)
 
 
+class ServiceOrderIn(BaseModel):
+    release_id: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+
 @pay_r.post("/service/{product_id}")
-async def create_service_invoice(product_id: str, user: dict = Depends(require_label)):
+async def create_service_invoice(product_id: str, body: Optional[ServiceOrderIn] = None, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
     product = await db.payment_products.find_one({"id": product_id, "active": True}, {"_id": 0})
     if not product:
@@ -146,6 +154,7 @@ async def create_service_invoice(product_id: str, user: dict = Depends(require_l
     await db.service_orders.insert_one({
         "id": order_id, "product_id": product_id, "label_id": label["id"],
         "name": product["name"], "amount": int(product["amount"]), "status": "unpaid",
+        "release_id": (body.release_id if body else None), "note": ((body.note or "").strip() or None) if body else None,
         "created_at": now_iso(), "updated_at": now_iso(),
     })
     return await create_payment_document(PaymentCreateData(

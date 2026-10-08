@@ -65,7 +65,8 @@ async def get_current_user(request: Request) -> dict:
 KYC_ALLOWED_LABEL_PREFIXES = (
     "/api/label/me", "/api/label/account", "/api/label/active-label", "/api/label/dashboard", "/api/label/bank-account",
     "/api/label/kyc", "/api/label/logo", "/api/label/claim", "/api/contracts/label",
-    "/api/label/addon-orders",
+    "/api/label/addon-orders", "/api/label/history", "/api/label/profile-change", "/api/label/plan",
+    "/api/tokens/me",
 )
 
 

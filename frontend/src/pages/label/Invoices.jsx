@@ -1,59 +1,66 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
-import { CreditCard, Crown, Music, ShoppingBag, RefreshCw } from "lucide-react";
-import { PlansDialog, useLabelPlan } from "@/components/v13/Plans";
+import { useAppPreferences } from "@/contexts/AppPreferencesContext";
+import { PLAN_EVENT } from "@/components/v13/Plans";
 import { TOKEN_EVENT, TokenHistory } from "@/components/v13/Tokens";
 import { planName } from "@/lib/plans";
 
-const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-const TYPE_LABELS = { token_pack: "Pembelian Token", annual_subscription: "Paket Tahunan", pay_per_release: "Biaya Rilisan per Lagu", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
+const idr = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }) : "—");
+const KINDS = { annual_subscription: "plan", token_pack: "token", custom_service: "service", wami_addon: "service", pay_per_release: "release", release_shortfall: "release" };
+const KIND_NAMES = { plan: "Paket", token: "Token", service: "Layanan", release: "Rilisan" };
+const TYPE_NAMES = { token_pack: "Pembelian token", annual_subscription: "Paket", pay_per_release: "Biaya rilisan per lagu", release_shortfall: "Kekurangan paket album", wami_addon: "Registrasi WAMI", custom_service: "Layanan tambahan" };
+const STATUS = { pending: ["mustard", "Menunggu pembayaran"], paid: ["green", "Berhasil"], expired: [undefined, "Kedaluwarsa"], failed: ["red", "Gagal"], cancelled: [undefined, "Dibatalkan"] };
+const FOLLOW_UP = ["expired", "failed", "cancelled"];
+
+// Prototype result line ("Pembayaran / Hasil").
+function resultText(item, t) {
+  if (item.refund_status === "refunded") return t("Dana dikembalikan");
+  if (item.status !== "paid") return t("Pembelian belum dipenuhi");
+  if (item.type === "token_pack") return `${item.token_quantity || ""} ${t("token telah ditambahkan")}`.trim();
+  if (item.type === "annual_subscription") return `${t("Paket")} ${planName(item.tier)} ${t("diterapkan")}`;
+  if (item.type === "pay_per_release" || item.type === "release_shortfall") return t("Rilisan diproses");
+  return t("Permintaan telah diterima");
+}
 
 export default function Invoices() {
+  const { t } = useAppPreferences();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [items, setItems] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [chooseOpen, setChooseOpen] = useState(false);
-  const plan = useLabelPlan();
+  const [items, setItems] = useState(null);
+  const [tab, setTab] = useState("transactions");
+  const [filters, setFilters] = useState({ q: "", kind: "", status: "", from: "", to: "", followUp: false });
   const [loading, setLoading] = useState(false);
   const [pollingId, setPollingId] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
   const load = useCallback(async () => {
-    const [{ data: invoices }, { data: services }] = await Promise.all([
-      api.get("/label/invoices"), api.get("/payments/products"),
-    ]);
-    setItems(invoices); setProducts(services);
+    const { data } = await api.get("/label/invoices");
+    setItems(Array.isArray(data) ? data : []);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load().catch((e) => setErr(formatApiError(e.response?.data?.detail))); }, [load]);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
-    if (!paymentId) return;
+    if (!paymentId) return undefined;
     let active = true;
-    setPollingId(paymentId); setMsg("Mengonfirmasi pembayaran ke Xendit…");
+    setPollingId(paymentId); setMsg(t("Mengonfirmasi pembayaran ke Xendit…"));
     pollPaymentUntilTerminal(paymentId, () => {}, 75)
       .then(async (result) => {
         if (!active) return;
-        if (result.status === "paid") setMsg("Pembayaran berhasil dikonfirmasi.");
-        else if (result.status === "pending") setMsg("Pembayaran masih diproses. Status akan diperbarui otomatis.");
-        else setErr(`Pembayaran berstatus ${result.status}.`);
-        setPollingId(null); setSearchParams({}); await load(); window.dispatchEvent(new Event(TOKEN_EVENT));
+        if (result.status === "paid") setMsg(t("Pembayaran berhasil dikonfirmasi."));
+        else if (result.status === "pending") setMsg(t("Pembayaran masih diproses. Status akan diperbarui otomatis."));
+        else setErr(`${t("Pembayaran berstatus")} ${result.status}.`);
+        setPollingId(null); setSearchParams({}); await load();
+        window.dispatchEvent(new Event(TOKEN_EVENT)); window.dispatchEvent(new Event(PLAN_EVENT));
       })
       .catch((e) => active && setErr(formatApiError(e.response?.data?.detail || e.message)))
       .finally(() => active && setPollingId(null));
     return () => { active = false; };
-  }, [searchParams, setSearchParams, load]);
-
-  const createAndCheckout = async (path, payload) => {
-    setErr(""); setMsg(""); setLoading(true);
-    try {
-      const { data } = await api.post(path, payload);
-      await openXenditCheckout(data.id);
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); setLoading(false); }
-  };
+  }, [searchParams, setSearchParams, load, t]);
 
   const payExisting = async (id) => {
     setErr(""); setLoading(true);
@@ -61,66 +68,55 @@ export default function Invoices() {
     catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); setLoading(false); }
   };
 
-  return (
-    <div className="space-y-7 max-w-5xl">
-      <div className="flex justify-between items-center flex-wrap gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Invoice & Subscription</div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tighter">Pembayaran</h1>
-          <p className="text-sm text-zinc-400 mt-1">Checkout aman melalui Xendit Production. Status dikonfirmasi otomatis oleh sistem.</p>
-        </div>
-        <button className="rm-btn-primary flex items-center gap-2" onClick={() => setChooseOpen(true)} disabled={loading} data-testid="label-subscription-button">
-          <Crown className="w-4 h-4" /> Ubah Paket
-        </button>
-      </div>
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="payment-success-message">{pollingId && <RefreshCw className="inline w-4 h-4 mr-2 animate-spin" />}{msg}</div>}
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="payment-error-message">{err}</div>}
+  const all = useMemo(() => items || [], [items]);
+  const rows = useMemo(() => all.filter((item) => {
+    if (tab === "refunds" && !item.refund_status) return false;
+    const text = `${item.description || ""} ${TYPE_NAMES[item.type] || ""} ${item.reference_id || ""}`.toLowerCase();
+    if (filters.q && !text.includes(filters.q.toLowerCase())) return false;
+    if (filters.kind && KINDS[item.type] !== filters.kind) return false;
+    if (filters.status && item.status !== filters.status) return false;
+    if (filters.from && String(item.created_at).slice(0, 10) < filters.from) return false;
+    if (filters.to && String(item.created_at).slice(0, 10) > filters.to) return false;
+    if (filters.followUp && !FOLLOW_UP.includes(item.status)) return false;
+    return true;
+  }), [all, tab, filters]);
+  const sum = (list) => list.reduce((total, item) => total + (item.amount || 0), 0);
+  const pending = all.filter((item) => item.status === "pending");
+  const paid = all.filter((item) => item.status === "paid");
+  const followUp = all.filter((item) => FOLLOW_UP.includes(item.status));
 
-      <div className="rm-card p-4 text-xs text-zinc-400 flex flex-col md:flex-row md:items-center justify-between gap-2" data-testid="invoices-legal-entity">
-        <div><div className="text-zinc-200 font-semibold">Ditagihkan oleh: PT. Jeeres Group Indonesia</div><div>Jl. Sintang Pontianak RT 12 / RW 5, Kec. Sintang 78614, Indonesia</div></div>
-        <div className="text-zinc-500">NIB <span className="text-zinc-300 font-mono">2202260059749</span> • WA 085864137150</div>
-      </div>
-
-      <TokenHistory />
-
-      {products.length > 0 && (
-        <section className="space-y-3" data-testid="label-payment-services-section">
-          <div><div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Layanan Tambahan</div><h2 className="font-display text-xl font-bold">Pilihan layanan</h2></div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {products.map((product) => (
-              <div key={product.id} className="rm-card p-5 flex flex-col gap-3" data-testid={`payment-service-${product.id}`}>
-                <ShoppingBag className="w-5 h-5 text-pink-300" />
-                <div><div className="font-bold">{product.name}</div><div className="text-xs text-zinc-500 mt-1">{product.description}</div></div>
-                <div className="font-display text-xl font-extrabold mt-auto">{fmtIDR(product.amount)}</div>
-                <button className="rm-btn-ghost" disabled={loading} onClick={() => createAndCheckout(`/payments/service/${product.id}`, {})} data-testid={`payment-service-buy-${product.id}`}>Pesan via Xendit</button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="space-y-3">
-        <div><div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Riwayat</div><h2 className="font-display text-xl font-bold">Invoice</h2></div>
-        <div className="rm-card overflow-hidden">
-          {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada invoice.</div> : items.map((invoice) => {
-            const Icon = invoice.type === "wami_addon" ? Music : invoice.type === "custom_service" ? ShoppingBag : CreditCard;
-            const tier = invoice.tier ? ` — ${planName(invoice.tier)}` : "";
-            return (
-              <div key={invoice.id} className="px-5 py-4 border-b border-white/5 last:border-0 flex items-center justify-between gap-3 flex-wrap" data-testid={`invoice-row-${invoice.id}`}>
-                <div className="flex items-center gap-3 min-w-0"><div className="w-10 h-10 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center"><Icon className="w-4 h-4" /></div><div className="min-w-0"><div className="font-semibold text-sm">{TYPE_LABELS[invoice.type] || invoice.description}{tier}</div><div className="text-xs text-zinc-500 truncate">{invoice.xendit_session_id || invoice.reference_id || invoice.id} • {invoice.created_at?.slice(0, 10)}</div></div></div>
-                <div className="flex items-center gap-3"><div className="font-display font-extrabold">{fmtIDR(invoice.amount)}</div><StatusPill status={invoice.status} />{["pending", "expired", "cancelled", "failed"].includes(invoice.status) && <button className="rm-btn-primary text-xs" onClick={() => payExisting(invoice.id)} disabled={loading} data-testid={`invoice-pay-${invoice.id}`}>{invoice.status === "pending" ? "Bayar via Xendit" : "Coba Bayar Lagi"}</button>}</div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {chooseOpen && <PlansDialog entitlements={plan} onClose={() => setChooseOpen(false)} />}
+  return <div className="space-y-5" data-testid="label-transactions">
+    <header><div className="v13-section-label">{t("Pembelian & Pembayaran")}</div><h1 className="mt-1 text-3xl">{t("Transaksi")}</h1><p className="mt-1 text-sm text-[var(--ui-muted)]">{t("Pembayaran yang jelas. Setiap pembelian terselesaikan.")}</p></header>
+    {msg && <div role="status" className="text-sm text-[var(--v13-up)]" data-testid="payment-success-message">{pollingId && <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" />}{msg}</div>}
+    {err && <div role="alert" className="text-sm text-[var(--v13-urgent)]" data-testid="payment-error-message">{err}</div>}
+    <div className="grid gap-3 md:grid-cols-3">
+      <div className="v13-metric"><h3>{t("Menunggu pembayaran")}</h3><strong>{pending.length}</strong><div className="mt-auto pt-3 text-xs text-[var(--ui-muted)]">{idr(sum(pending))}</div></div>
+      <div className="v13-metric"><h3>{t("Pembayaran berhasil")}</h3><strong>{paid.length}</strong><div className="mt-auto pt-3 text-xs text-[var(--ui-muted)]">{idr(sum(paid))}</div></div>
+      <div className="v13-metric"><h3>{t("Perlu tindak lanjut")}</h3><strong>{followUp.length}</strong><div className="mt-auto pt-3 text-xs text-[var(--ui-muted)]">{t("Kedaluwarsa, gagal, atau dibatalkan")}</div></div>
     </div>
-  );
-}
-
-function StatusPill({ status }) {
-  const style = { pending: "bg-amber-500/15 text-amber-300", paid: "bg-emerald-500/15 text-emerald-300", expired: "bg-white/[0.06] text-zinc-400", failed: "bg-red-500/15 text-red-300", cancelled: "bg-white/[0.06] text-zinc-400" };
-  return <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${style[status] || "bg-white/[0.06] text-zinc-400"}`} data-testid={`payment-status-${status}`}>{status}</span>;
+    <nav className="v13-tabs" style={{ display: "inline-flex" }}>{[["transactions", "Transaksi"], ["refunds", "Pengembalian Dana"]].map(([key, name]) => <a key={key} href={`#${key}`} onClick={(event) => { event.preventDefault(); setTab(key); }} className={tab === key ? "is-active" : ""}>{t(name)}</a>)}</nav>
+    <section className="v13-card overflow-hidden">
+      <div className="flex flex-wrap items-end gap-2 px-5 pt-5">
+        <input value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} placeholder={t("Cari pembelian")} className="v13-select w-56" />
+        <select value={filters.kind} onChange={(event) => setFilters({ ...filters, kind: event.target.value })} className="v13-select"><option value="">{t("Semua jenis")}</option>{Object.entries(KIND_NAMES).map(([key, name]) => <option key={key} value={key}>{t(name)}</option>)}</select>
+        <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} className="v13-select"><option value="">{t("Semua status")}</option>{Object.entries(STATUS).map(([key, [, name]]) => <option key={key} value={key}>{t(name)}</option>)}</select>
+        <label className="text-xs text-[var(--ui-muted)]">{t("Dari")}<input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} className="v13-select ml-1" /></label>
+        <label className="text-xs text-[var(--ui-muted)]">{t("Sampai")}<input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} className="v13-select ml-1" /></label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={filters.followUp} onChange={(event) => setFilters({ ...filters, followUp: event.target.checked })} />{t("Perlu tindak lanjut")}</label>
+        <button type="button" className="text-sm text-[var(--ui-muted)] underline" onClick={() => setFilters({ q: "", kind: "", status: "", from: "", to: "", followUp: false })}>{t("Reset filter")}</button>
+      </div>
+      <div className="overflow-x-auto"><table className="mt-3 w-full min-w-[720px] text-sm">
+        <thead><tr className="text-left text-xs uppercase tracking-wide text-[var(--ui-muted)]">{["Pembelian", "Tanggal", "Nominal", "Pembayaran / Hasil", ""].map((head) => <th key={head} className="px-5 py-3 font-normal">{t(head)}</th>)}</tr></thead>
+        <tbody>{items === null ? <tr><td colSpan={5} className="px-5 py-8 text-center text-[var(--ui-muted)]">{t("Memuat transaksi…")}</td></tr> : rows.length === 0 ? <tr><td colSpan={5} className="px-5 py-8 text-center text-[var(--ui-muted)]">{t("Belum ada transaksi.")}</td></tr> : rows.map((item) => { const [tone, name] = STATUS[item.status] || [undefined, item.status]; return <tr key={item.id} className="border-t border-[var(--ui-border)]" data-testid={`invoice-row-${item.id}`}>
+          <td className="px-5 py-3"><div className="font-medium">{t(TYPE_NAMES[item.type] || "Pembayaran")}{item.tier ? ` · ${planName(item.tier)}` : ""}</div><div className="max-w-[300px] truncate text-xs text-[var(--ui-muted)]">{item.description || item.reference_id}</div></td>
+          <td className="px-5 py-3">{day(item.created_at)}</td>
+          <td className="px-5 py-3 tabular-nums">{idr(item.amount)}</td>
+          <td className="px-5 py-3"><span className="v13-pill" data-tone={tone} data-testid={`payment-status-${item.status}`}>{t(name)}</span><div className="mt-1 text-xs text-[var(--ui-muted)]">{resultText(item, t)}</div></td>
+          <td className="px-5 py-3 text-right">{["pending", "expired", "cancelled", "failed"].includes(item.status) && item.refund_status !== "refunded" && <button type="button" className="v13-plan-cta px-4 py-1.5 text-xs" style={{ width: "auto" }} onClick={() => payExisting(item.id)} disabled={loading} data-testid={`invoice-pay-${item.id}`}>{item.status === "pending" ? t("Bayar sekarang") : t("Coba bayar lagi")}</button>}</td>
+        </tr>; })}</tbody>
+      </table></div>
+    </section>
+    <TokenHistory />
+    <p className="text-xs text-[var(--ui-muted)]" data-testid="invoices-legal-entity">{t("Ditagihkan oleh")} PT. Jeeres Group Indonesia · Jl. Sintang Pontianak RT 12 / RW 5, Kec. Sintang 78614 · NIB 2202260059749 · {t("Pembayaran diproses aman melalui Xendit.")}</p>
+  </div>;
 }
