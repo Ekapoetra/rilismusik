@@ -1,0 +1,343 @@
+============================================================
+FASE 2 — PETA KEBERANGKATAN: STATUS → ENDPOINT → AKSI
+============================================================
+Peta ini menghubungkan setiap status di prototype V13.0 ke
+status & endpoint nyata di main (backend/ FastAPI), beserta
+aktor yang berwenang. Daftar endpoint lengkap hasil sapuan:
+PHASE2-ENDPOINTS-MAIN.txt (363 endpoint).
+
+Kunci:
+  [=]  padanan langsung     [~]  padanan sebagian / perlu peta
+  [+]  baru di prototype (belum ada di main → endpoint baru)
+  [-]  ada di main, tidak dipakai prototype (dipertahankan)
+  [!]  konflik desain yang harus diputuskan sebelum migrasi
+
+------------------------------------------------------------
+1. AUTH & AKTIVASI (D7)
+------------------------------------------------------------
+Status main: label.account_status =
+  no_account | active | suspended | blacklisted
+  + kyc_status: none | pending_review | verified | rejected
+  + mda_accepted_at (timestamp), email_verified
+
+Endpoint main:
+  POST /auth/register            label baru (MDA wajib dicentang)
+  POST /auth/verify-email        token email → email_verified
+  POST /auth/login · /auth/refresh · /auth/logout · /auth/me
+  POST /auth/google/id-token     login Google
+  POST /auth/google/link         tautkan Google ke akun
+  POST /label/logo · POST /label/kyc/ktp   unggah logo & KTP
+  GET  /label/kyc                status KYC member
+  GET  /admin/kyc · GET /admin/kyc/{label_id}   antrean review
+  POST /admin/kyc/{label_id}/action  approve/reject — SUPER saja
+       (_kyc_approver → require_super_admin)
+
+Peta prototype → main:
+  m.active              [=] account_status==='active'
+  m.emailConfirmed      [=] email_verified
+  m.contract            [~] mda_accepted_at (prototype menerbitkan
+                          dokumen kontrak sendiri → kontrak label
+                          tersimpan; main hanya cap waktu MDA)
+  m.identity.document   [~] kyc_status==='verified' +
+                          kyc_documents.is_current
+  m.bank.approved       [~] bank_verifications (admin action)
+  application.pending   [~] kyc_status==='pending_review'
+  application.correction[+] belum ada status koreksi di main —
+                          main pakai rejected + alasan
+
+Celah:
+  [!] D7 mengharuskan pembayaran TIDAK menggerbang aktivasi —
+      main juga tidak menggerbang; paket diaktifkan terpisah.
+      Konsisten.
+  [!] Tombol "Cabut Akses" (D7) → POST /admin/labels/{id}/
+      revoke-account SUDAH ADA di main — tinggal sambung UI.
+  [+] Menu "Pembaruan" & wizard onboarding (langkah, draft
+      onboardingDraft105) adalah UI murni — tanpa endpoint.
+
+------------------------------------------------------------
+2. LABEL & KLAIM WARISAN (D8)
+------------------------------------------------------------
+Status main: users.claim_status = pending_link (dari
+  /admin/migrate/claims), claim_requested_at
+
+Endpoint main:
+  POST /label/claim-request                       label mengajukan
+  GET  /admin/migrate/claims                      antrean (super)
+  POST /admin/migrate/claims/{uid}/link/{legacy}  tautkan (super)
+  POST /admin/migrate/claims/{uid}/reject         tolak (super)
+  GET  /admin/migrate/labels/unclaimed            label yatim
+  PATCH /admin/labels/{label_id}                  profil + status
+  POST /admin/labels/{label_id}/create-account    buatkan akun
+  POST /admin/labels/{label_id}/revoke-account    cabut akses
+  POST /admin/labels/{label_id}/blacklist|unblacklist
+  GET  /admin/labels/{label_id}/bank-change-requests
+  POST /admin/bank-account-change-requests/{id}/action
+
+Peta prototype → main:
+  claim pending     [=] claim_status pending_link
+  claim approved    [=] link/{legacy_label_id}
+  claim rejected    [=] claims/{uid}/reject
+  claim conflict    [+] BELUM ADA — deteksi ganda & status
+                    'conflict' perlu kolom/status baru di main
+  claim superseded  [+] status baru (otomatis saat klaim lain
+                    disetujui)
+  claim revoked     [~] revoke-account ada, tapi tidak mengisi
+                    claim_status — perlu penanda
+  karantina saldo   [+] kolom baru (mis. withdraw_hold_reason)
+                    yang dibaca /withdraw/label/request
+
+------------------------------------------------------------
+3. PAKET, TARIF & TOKEN (D1, D2, D9)
+------------------------------------------------------------
+Status main: label.subscription_tier =
+  pay_per_release | annual_normal | annual_vip | multi_label
+  + subscription_status, subscription_expires_at,
+    royalty_percentage_default, payment_type
+
+Endpoint main:
+  PATCH /admin/labels/{label_id}/package      ganti paket
+        (izin labels.package; multi_label → labels.multi_label.manage)
+  POST  /admin/labels/{label_id}/package-request  (sensitive_requests)
+  label_rate_change.py  GET/POST riwayat + ubah tarif royalti
+  label_rate_import.py  impor massal tarif
+  entitlements.py       hak akses fitur per paket
+
+Peta prototype → main:
+  Basic    [~] pay_per_release (Rp35rb/rilis — harga final akhir)
+  Studio   [~] annual_normal
+  Pro      [~] annual_vip
+  Business [~] multi_label
+  royaltyRate [=] royalty_percentage_default (D9 sudah selaras
+             dengan data produksi: 35–80%)
+  previewPlan121 [+] "mode coba" — UI murni, tanpa endpoint
+  subscription activation/scheduled/active [~] subscription_status
+             + subscription_expires_at
+
+Celah:
+  [+] TOKEN D1 belum ada di main sama sekali: perlu koleksi
+      token_balance/token_ledger, pematokan layanan, hangus-vs-
+      kembali (ANNEX-E1), dan dua dompet refund.
+  [+] Kuota D4 (per tier) perlu dibaca dari entitlements atau
+      tabel benefit baru.
+
+------------------------------------------------------------
+4. RILISAN
+------------------------------------------------------------
+Status main:
+  draft → submitted → under_review → approved → delivered → live
+    ↘ need_revision ↗ (submit ulang)   ↘ rejected
+  awaiting_payment (bila PPR belum lunas) · taken_down
+  override_status (super, bebas + catatan)
+
+Status prototype (status10 + v105):
+  draft, submitted, review, revision, clarification, approved,
+  delivered, followup, live, partial, partial_closed, closed,
+  cancel_requested
+
+Peta prototype → main:
+  draft            [=] draft
+  submitted        [=] submitted
+  review           [=] under_review
+  revision         [=] need_revision
+  clarification    [+] belum ada — jeda klarifikasi label↔staff
+                   perlu status baru atau sub-state
+  approved         [=] approved
+  delivered        [=] delivered
+  followup         [~] tindak lanjut Believe — di main status
+                   tetap delivered + tiket/cron menandai;
+                   prototype menjadikannya status → putuskan
+  live             [=] live
+  partial          [+] per-lagu tayang — main menandai di level
+                   rilisan; partial perlu status/agregat baru
+  partial_closed   [+] idem (rilisan selesai sebagian tayang)
+  closed           [~] mendekati rejected/cancelled — bedakan:
+                   closed = arsip sukarela label
+  cancel_requested [+] permintaan batal — perlu status baru
+  (main) awaiting_payment [-] prototype meniadakan gerbang bayar
+                   (D7) — endpoint PPR tetap ada untuk PPR
+  (main) rejected   [~] prototype: penolakan masuk jalur revision
+  (main) taken_down [~] prototype memetakan ke live + penanda
+                   (v131-sample mengubah taken_down → live)
+
+Endpoint utama:
+  POST /releases/draft · PATCH /releases/{id}
+  POST /releases/{id}/submit          label kirim
+  POST /releases/{id}/upload-cover|upload-audio
+  POST /releases/{id}/admin/action    approve/need_revision/
+        reject/deliver/mark_live/reschedule/override_status/takedown
+  GET  /admin/releases/ready-to-live · POST bulk-go-live
+  POST /admin/releases/takedown-import/preview|process
+  GET  /releases/submission-quota
+  POST /releases/{id}/admin/metadata-edit + review (super)
+
+------------------------------------------------------------
+5. PEMBAYARAN, LAYANAN & ADD-ON (D11 sebagian)
+------------------------------------------------------------
+Status main:
+  payments.status: pending | paid | expired | cancelled
+  addon_orders: pending → in_progress → delivered → completed
+  wami_orders: unpaid → paid → registered ...
+
+Endpoint main:
+  POST /payments/subscription-invoice   invoice paket (Xendit)
+  POST /payments/wami                   invoice WAMI
+  GET  /admin/payments · /summary       admin baca (payments.view)
+  xendit_reconciliation.py              rekonsiliasi otomatis
+  PATCH /admin/addon-orders/{id}/status · /delivery · /delivery-file
+  POST /admin/addon-orders/backfill
+
+Peta prototype → main:
+  addon pending    [=] pending
+  addon working    [=] in_progress
+  addon response   [~] delivered (hasil menunggu diterima label)
+  addon revision   [+] permintaan revisi label — status baru
+  addon resolution [+] sengketa/keputusan super — status baru
+  refund_pending /
+  benefit_pending  [+] jalur refund ganda (rupiah vs manfaat,
+                   D1 dompet ganda) — main: refund_service.py
+  invoice pending  [=] pending · paid [=] paid · cancelled [=]
+                   cancelled/expired
+
+Celah:
+  [+] Kredit/token internal prototype (D1) → lihat §3.
+  [!] D11: kategori tiket "Masalah Royalti"/"Permintaan Lainnya"
+      → tambahkan ke tiket kategori di main.
+
+------------------------------------------------------------
+6. ROYALTI & PENARIKAN (D5, D8, D9)
+------------------------------------------------------------
+Status main (withdraw):
+  requested → approved → processing → paid   ↘ rejected
+  + batch gabungan multi-label
+  + GET /withdraw/window (aturan jendela 1–14 / cair 15–20 — D5
+    sudah ada sebagai konfigurasi window di main!)
+
+Status prototype (v108):
+  requested → ready → processing → paid
+    ↘ delayed ↗ resume   ↘ correction → correction-keep|reopen
+    + uncertain (flag transfer meragukan) + quarantined (D8)
+
+Peta prototype → main:
+  requested   [=] requested
+  ready       [~] approved (disetujui, siap bayar siklus 15–20)
+  processing  [=] processing
+  paid        [=] paid
+  delayed     [+] status baru — penundaan + alasan
+  correction  [+] status baru — koreksi pasca-bayar
+  uncertain   [+] flag baru — transfer meragukan
+  rejected    [-] ada di main; prototype memetakan 'rejected'
+              ke 'paid' saat impor (v131-sample) — harus dibenahi
+  quarantined [+] D8 — blokir request via withdraw_hold_reason
+
+Endpoint main:
+  POST /withdraw/label/request · /label/batch
+  POST /withdraw/admin/{wd_id}/action   approve/start/paid/reject
+  POST /withdraw/admin/upload-proof
+  POST /withdraw/admin/legacy-manual[/preview] · legacy-edit
+  GET  /withdraw/admin · /summary · /batches
+  royalty.py + royalty_adjustments.py + recalculation +
+  import_replacement + report_export + duplicate_audit
+
+------------------------------------------------------------
+7. TIKET BANTUAN (D11)
+------------------------------------------------------------
+Status main:
+  open → waiting_admin → in_progress → waiting_label
+    → submitted_to_believe → done   ↘ rejected · cancelled
+
+Status prototype (states112):
+  submitted → handling → label → distributor → done (+draft)
+
+Peta prototype → main:
+  submitted    [=] open (atau submitted awal — lihat ticket
+               workflow create)
+  handling     [=] in_progress / waiting_admin
+  label        [=] waiting_label
+  distributor  [=] submitted_to_believe
+  done         [=] done
+  draft        [+] tiket draf sisi label — baru
+  (main) open/waiting_admin granularity [-] prototype
+               menyederhanakan — putuskan apakah dipertahankan
+
+Endpoint main:
+  POST /tickets/label/create · GET /tickets/label
+  POST /tickets/{id}/comment (ponggir status otomatis
+       waiting_admin↔waiting_label sesuai penjawab)
+  POST /tickets/{id}/cancel
+  POST /tickets/admin/{id}/status · /believe-recheck · bulk-status
+  contentid_assets.py — lampiran Content ID & surat DMCA
+
+------------------------------------------------------------
+8. STAFF & IZIN (D10)
+------------------------------------------------------------
+Main sudah punya matriks izin granular (ANNEX-H):
+  admin_permission_service.py · admin_access.py · staff.py
+  permission keys: kyc.review, labels.package, payments.view,
+  withdraw.*, migration.view, dst. + preset role.
+
+Peta prototype → main:
+  user114 (super/scope/labels) [~] admin_users + permissions
+  handoff tugas (Kartu Kerja)  [~] work_service.py + tasks
+  sinyal "butuh role"          [+] metrik antrean vs kapasitas —
+                               agregasi baru di atas task/work
+  preview staff (ui114)        [+] read-only impersonation — baru
+
+Endpoint main:
+  GET/POST /admin/admin-users · PATCH · DELETE · bulk-delete
+  GET /admin/activity-logs · /actors
+
+------------------------------------------------------------
+9. SISTEM: CMS, MAINTENANCE (D13), PEMBARUAN (D14)
+------------------------------------------------------------
+Endpoint main yang ada:
+  GET/PATCH /cms/landing · POST upload-image · upload-signature
+  GET  /cms/mda/preview
+  POST /admin/cron/* (payment-reminders, xendit-check,
+       monthly-royalty-summary, contract-check)
+  GET  /withdraw/window
+
+Peta prototype → main:
+  System115 draft→publish  [+] BELUM ADA — main CMS hanya
+    landing+MDA tanpa versioning. Perlu koleksi area berversi
+    (content/navigation/procedures/maintenance) + catatan
+    implementasi wajib.
+  Jendela pemeliharaan     [+] koleksi baru maintenance_windows:
+    title/kind/mode/start/end/modules/message/notify/status —
+    status dihitung dari waktu, manual override menang.
+    Endpoint label: GET publik jendela aktif untuk banner.
+  Mode baca-saja           [+] saat mode=readonly & modul
+    terdampak → guard penulisan di modul itu (middleware).
+  Menu Pembaruan (D14)     [~] konten statis UI; bisa tetap
+    hardcode bilingual di frontend, atau CMS area baru
+    'updates' bila ingin diedit super tanpa deploy.
+
+------------------------------------------------------------
+10. DOMAIN TAMBAHAN DI MAIN (dipertahankan, bukan target V1.1)
+------------------------------------------------------------
+  contentid_* (aset Content ID + PDF/DMCA), artists.py +
+  artist_social_service, analytics_eligibility + label_analytics
+  + admin_analytics, dashboard_* + performance_*,
+  monthly_royalty_email, sensitive_requests, notifications,
+  chat, multi_label_merge, direct_uploads, working_days,
+  compensation_*, bank_data, dashboard_metrics, query_concurrency.
+  → Tidak ada perubahan status; masuk peta hanya bila V1.1
+    menyentuhnya.
+
+============================================================
+RINGKASAN CELAH UTAMA (yang perlu keputusan sebelum migrasi)
+============================================================
+  [+] Endpoint/koleksi baru: maintenance_windows, token (D1),
+      kuota benefit (D4), status withdraw delayed/correction/
+      uncertain/quarantined, klaim conflict/superseded/revoked,
+      tiket draft, addon revision/resolution + refund ganda,
+      rilisan partial/partial_closed/closed/cancel_requested/
+      clarification.
+  [!] Keputusan: followup rilisan jadi status atau flag?
+      'rejected' withdraw tidak boleh dipetakan ke 'paid' lagi.
+      awaiting_payment PPR tetap hidup walau bukan gerbang
+      aktivasi. Granularitas tiket main vs penyederhanaan
+      prototype.
+  [=] Sudah selaras: paket 4-tier, tarif per-label, jendela
+      penarikan 1–14/15–20, klaim→link/reject, revoke-account,
+      persetujuan KYC khusus super.
+============================================================

@@ -274,3 +274,27 @@ RINGKASAN STATUS (diperbarui)
   PARKED  : D6 (artis - rancangan dasar diam-diam), D12
   PLANNED : —
 ====================================================
+
+============================================================
+FASE 2 — PETA KEBERANGKATAN (mulai)
+============================================================
+  PHASE2-MAP.txt menghubungkan setiap status prototype V13.0
+  ke status & endpoint nyata di backend/ main (363 endpoint
+  tersapu ke PHASE2-ENDPOINTS-MAIN.txt), beserta aktor/izin
+  dan daftar celah per domain:
+
+  [=] langsung · [~] sebagian · [+] baru untuk main ·
+  [-] ada di main tak dipakai prototype · [!] konflik desain
+
+  Temuan utama: paket 4-tier, tarif per-label, jendela
+  penarikan 1-14/15-20, klaim->link/reject, revoke-account,
+  dan persetujuan KYC khusus super SUDAH ADA di main.
+  Yang belum ada: maintenance_windows (D13), token (D1),
+  kuota benefit (D4), status withdraw delayed/correction/
+  uncertain/quarantined, klaim conflict/superseded/revoked,
+  tiket draft, addon revision/resolution, rilisan partial/
+  partial_closed/closed/cancel_requested/clarification.
+
+  Peta ini referensi untuk implementasi di main; belum ada
+  migrasi atau perubahan produksi yang diotorisasi.
+============================================================
