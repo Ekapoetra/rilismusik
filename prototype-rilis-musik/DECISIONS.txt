@@ -10,7 +10,7 @@ dikomentari/dibantah.
 
 
 ------------------------------------------------------------
-D1. TOKEN — REL PEMBAYARAN KEDUA                  DRAFT   [ARSITEKTUR][BIAYA]
+D1. TOKEN — REL PEMBAYARAN KEDUA                  DECIDED [ARSITEKTUR][BIAYA]
 ------------------------------------------------------------
 Arah pemilik (final, menggantikan draft sebelumnya):
   • Token adalah OPSI pembayaran kedua — member yang tidak tertarik
@@ -22,17 +22,24 @@ Arah pemilik (final, menggantikan draft sebelumnya):
 
 Rancangan lengkap → ANNEX-E. Inti:
   1 token = satuan layanan. Harga layanan dalam token =
-  ceil(harga rupiah / 35.000) — konversi selalu menguntungkan member.
-  Harga jual token bertingkat tapi TIDAK PERNAH ≥ Rp35.000.
+  konfigurasi manual per layanan (fitur "Harga layanan" milik super,
+  sudah live di prototype — kolom: nama, rupiah, token, vonis).
+  Harga beli 1 token = Rp35.000 flat; paket TIDAK bisa dibeli token.
   Tiga pool: Bawaan paket / Beli / Ganti (kompensasi).
   Saldo Rupiah = kredit toko — hanya bisa dibelanjakan, tidak bisa
   ditarik tunai, tidak bisa membeli token.
+  Auto-hide: token hanya ditawarkan bila biayanya < harga rupiah.
 
-KEPUTUSAN: DRAFT — menunggu konfirmasi pemilik atas ANNEX-E.
+ADDENDUM (disahkan): rilisan yang GAGAL dari sisi distributor
+(Believe) → token HANGUS, tidak ada pengembalian. Pembedaan wajib:
+kesalahan label/distributor = hangus; kegagalan teknis platform =
+kembali/pool Ganti. Detail + analisis celah → ANNEX-E1.
+
+KEPUTUSAN: SAHKAN — ANNEX-E + addendum ANNEX-E1.
 
 
 ------------------------------------------------------------
-D2. PAKET 4 TIER                                    DRAFT   [ARSITEKTUR][BIAYA]
+D2. PAKET 4 TIER                                    DECIDED [ARSITEKTUR][BIAYA]
 ------------------------------------------------------------
 Keputusan pemilik:
   Harga ditentukan TERAKHIR. Benefit per tier dikembangkan dulu sampai
@@ -52,7 +59,10 @@ Dasar harga produksi saat ini (payment_service.py DEFAULT_PRICES):
 Pekerjaan lanjutan: susun "peta benefit" per tier (fitur apa saja,
   kuantitasnya, nilai setara harga main) → lihat ANNEX-A (dikerjakan).
 
-KEPUTUSAN: DRAFT — harga terakhir; benefit menyusul lewat peta benefit.
+KEPUTUSAN: SAHKAN — fondasi benefit 4 tier BERLANJUT hingga produk
+  final ("fondasi ini akan berlanjut hingga produk final"). Harga
+  final tetap ditentukan terakhir lewat proses keputusan tersendiri;
+  yang disahkan adalah struktur tier + peta benefit (ANNEX-A).
 
 
 ------------------------------------------------------------
@@ -112,13 +122,18 @@ KEPUTUSAN: PARKED — rancangan dasar boleh disiapkan diam-diam.
 
 
 ------------------------------------------------------------
-D7. AUDIT AKTIVASI LABEL                          DRAFT → audit diminta
+D7. AUDIT AKTIVASI LABEL                          OPEN — pembanding siap
 ------------------------------------------------------------
   Pemilik minta audit detail rute & prosedur, bukan hanya isian.
-  Hasil audit → ANNEX-B (dikerjakan). Ringkasan: dua pintu (prototype
-  vs main) sudah dianalisis; usulan alur gabungan ada di ANNEX-B.
+  Hasil audit → ANNEX-B (dikerjakan). Pembanding langkah-demi-langkah
+  main vs prototype → ANNEX-G (dikerjakan). Temuan kunci: main unggul
+  di gerbang hukum MDA + approve khusus super; prototype unggul di
+  klaim warisan (OTP+karantina) + wizard. Celah prototype: kontrak
+  hanya flag, approve bisa sembarang staff, pembayaran menggerbang
+  aktivasi.
 
-KEPUTUSAN: OPEN — menunggu persetujuan atas rute usulan di ANNEX-B.
+KEPUTUSAN: OPEN — pemilik meninjau pembanding ANNEX-G + rute usulan
+  ANNEX-B sebelum memutuskan rute final.
 
 
 ------------------------------------------------------------
@@ -150,15 +165,21 @@ KEPUTUSAN: SAHKAN — 60% untuk label baru; legacy pakai tarifnya sendiri.
 
 
 ------------------------------------------------------------
-D10. SISTEM STAFF                                 DRAFT — desain diminta
+D10. SISTEM STAFF                                 DRAFT — detail diminta
 ------------------------------------------------------------
   Keputusan pemilik: mulai 1 staff (Cantika Dewi, akses penuh).
   Tujuan: pekerjaan tercatat → evaluasi & monitoring terukur → sinyal
   kebutuhan staff baru → rekomendasi posisi.
   Rancangan → ANNEX-D (dikerjakan): struktur peran bertumbuh, metrik
   beban kerja, laporan evaluasi otomatis, indikator "butuh staff".
+  Pemilik butuh detail keuangan: pencairan royalti hanya milik super,
+  tapi admin perlu MELIHAT status pembayaran layanan tambahan.
+  → Matriks izin lengkap dipetakan dari model granular main
+    (admin_permission_service.py) → ANNEX-H. Jawaban: payments.view
+    = izin baca untuk admin; withdraw.approve/pay + payments.refund
+    tetap sensitive → super.
 
-KEPUTUSAN: DRAFT — menunggu persetujuan rancangan ANNEX-D.
+KEPUTUSAN: DRAFT — menunggu persetujuan atas ANNEX-D + ANNEX-H.
 
 
 ------------------------------------------------------------
@@ -201,11 +222,9 @@ KEPUTUSAN: PLANNED — antrean fitur.
 
 ====================================================
 RINGKASAN STATUS (diperbarui)
-  DECIDED : D3, D4, D5, D8, D9, D11
-  DRAFT   : D1 (ANNEX-E/F, konfigurasi harga+vonis sudah live,
-            janji "token selalu lebih murah" menunggu vonis),
-            D2 (benefit via peta, harga di akhir), D10 (ANNEX-D)
-  OPEN    : D7 (audit ANNEX-B, menunggu persetujuan rute)
+  DECIDED : D1 (ANNEX-E+E1), D2, D3, D4, D5, D8, D9, D11
+  DRAFT   : D10 (ANNEX-D + matriks izin ANNEX-H, menunggu persetujuan)
+  OPEN    : D7 (pembanding ANNEX-G tersaji, menunggu pilihan rute)
   PARKED  : D6 (artis - rancangan dasar diam-diam), D12
   PLANNED : D13 (menu maintenance), D14 (menu update V1.1)
 ====================================================

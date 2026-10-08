@@ -334,3 +334,136 @@ Jenjang jual token (draft ANNEX-E): 1–9 → Rp33.000 · 10–49 → Rp31.000 �
    (default = round(P/35k), dapat ditimpa Super Admin) — sama seperti
    kuota D4 yang sudah jadi konfigurasi, bukan kode.
 ============================================================
+
+
+
+============================================================
+ANNEX-E1 · D1 — ADDENDUM: TOKEN HANGUS PADA KEGAGALAN BELIEVE
+============================================================
+
+Aturan pemilik (disahkan): rilisan yang GAGAL dari sisi distributor
+(Believe) → token hangus, tidak ada pengembalian.
+
+Siklus pakai diperbarui (menggantikan butir 5 ANNEX-E):
+  reserve saat pengajuan
+   → ditolak review internal / dibatalkan sebelum kirim = KEMBALI utuh
+     (belum ada biaya nyata ke distributor)
+   → gagal/ditolak BELIEVE setelah dikirim = HANGUS (biaya proses
+     sudah terjadi; ini risiko yang diambil member rel token)
+   → tayang = settle (token terpakai)
+   → takedown setelah tayang = tetap terpakai, tidak kembali
+     (layanan sudah terdeliver)
+
+Analisis celah yang perlu dijaga (pelajaran dari desain):
+ 1. ATENSI PENYEBAB. Hangus hanya sah bila kegagalan berada di pihak
+    label/distributor (metadata, konten, duplikat, pelanggaran).
+    Kegagalan teknis platform KITA (salah kirim, error sistem) bukan
+    kesalahan member → token kembali ke pool atau diterbitkan ulang
+    sebagai pool Ganti. Tanpa pembedaan ini, member membayar kesalahan
+    kita = sumber sengketa terbesar.
+ 2. BUKTI WAJIB. Token hangus mencatat alasan penolakan dari Believe
+    (referensi notice/rejection) — transparansi ini yang membuat
+    member percaya hangus itu nyata, bukan alasan.
+ 3. ALBUM PARSIAL. Token dihitung per item: hanya token lagu yang
+    gagal yang hangus; lagu yang tayang tetap settle.
+ 4. PENGUNGKAPAN SEBELUM BAYAR. Checkout token menampilkan satu baris:
+    "Rilisan ditolak distributor = token hangus." Tanpa ini, janji
+    "lebih murah" terasa menipu saat kegagalan pertama terjadi.
+ 5. AKUNTANSI. Token hangus = pendapatan diakui (deferred → revenue)
+    dan tercatat di ledger token dengan alasan — tetap jejak di
+    Pemantauan Keuangan.
+ 6. DIVERGENSI DENGAN KREDIT. Sistem kredit mengembalikan saat
+    ditolak; token sengaja tidak. Perbedaan ini adalah harga diskon
+    permanen token — dokumentasikan di guide agar member paham.
+
+============================================================
+ANNEX-G · D7 — PEMBANDING ALUR AKTIVASI: MAIN vs PROTOTYPE
+============================================================
+
+Sumber: backend/routes/auth.py + kyc.py (main), v10-model.js +
+onboarding105 (prototype).
+
+ LANGKAH            | MAIN (V1.0)                    | PROTOTYPE (V1.1)
+ -------------------+-------------------------------+-----------------------
+ Registrasi         | /register: email+password+     | Wizard: identitas,
+                    | label+PIC+mda_accepted WAJIB   | kontrak, apply
+ Gerbang hukum      | MDA dicentang saat daftar;     | Kontrak = langkah
+                    | PDF MDA auto-dibuat,           | wizard; flag boolean
+                    | mda_accepted_at tercatat       | (tanpa dokumen/versi)
+ Verifikasi email   | Token email terkirim           | flag emailConfirmed
+ Pembayaran         | TIDAK menggerbang; bebas kapan | Wajib sebelum apply
+                    | saja                           | (m.paid → contract)
+ Checklist profil   | Wajib lengkap sebelum upload   | Bagian wizard
+                    | KTP (409 bila belum)           |
+ Dokumen KTP        | Upload JPG/PNG ≤10MB, sha256,  | Gambar + workbench
+                    | dokumen digantikan tersimpan   | penyesuaian
+ Antrean review     | Admin LIHAT antrean KYC,       | staff(s) = admin ATAU
+                    | tapi hanya SUPER boleh         | super bisa approve
+                    | approve/reject (_kyc_approver) | (lebih longgar!)
+ Klaim label lama   | legacy_label_name saat daftar  | Wizard klaim + OTP +
+                    | → notif admin → Migrasi/Claims | konflik + karantina
+                    | (hanya kejujuran, LEMAH)       | (kuat, D8)
+
+ TEMUAN KUNCI:
+ • Lebih kuat di main : MDA sebagai gerbang hukum (dokumen+tanggal
+   tercatat), checklist profil sebelum KTP, approve khusus super.
+ • Lebih kuat di prototype: klaim warisan (OTP+karantina+konflik),
+   satu layar review, wizard terpandu.
+ • Celah prototype yang harus diperbaiki saat implementasi: (a) kontrak
+   hanya flag — simpan dokumen MDA + versi seperti main; (b) approve
+   aktivasi seharusnya super saja, bukan sembarang staff; (c) pembayaran
+   sebelum apply menggerbang label gratis — usul: aktifkan dulu,
+   beli paket kapan saja (selaras main).
+ • Rute usulan gabungan (ANNEX-B): Daftar+MDA → email → checklist+
+   KTP → review SUPER → aktif; pembayaran tidak menggerbang.
+
+============================================================
+ANNEX-H · D10 — MATRIKS IZIN STAFF (detail, dari model main)
+============================================================
+
+Kabar baik: main sudah punya matriks izin granular per modul
+(admin_permission_service.py). Tidak perlu mengarang ulang — tiga
+role operator D10 dipetakan langsung ke preset main:
+
+ JAWABAN LANGSUNG atas pertanyaan keuangan:
+ • Pencairan royalti = withdraw.approve + withdraw.pay — dua-duanya
+   bertipe "sensitive"/"approval" di main → tetap milik SUPER.
+ • Verifikasi pembayaran layanan = payments.view — ini IZIN BACA:
+   admin melihat status transaksi (berhasil/gagal/proses) tanpa bisa
+   mengubah apa pun. Ini persis kebutuhan Anda.
+ • payments.manage / payments.refund = aksi uang → super (atau
+   approval ganda bila nanti diperlukan).
+
+ PETA PERAN (super = semua):
+ ┌──────────────────┬─────────────────────────────────────────────┐
+ │ Operator         │ Izin (kunci main)                            │
+ ├──────────────────┼─────────────────────────────────────────────┤
+ │ RILISAN          │ releases.view/review/go_live · work.* ·      │
+ │                  │ artists.* · support.view (rilisan terkait)   │
+ ├──────────────────┼─────────────────────────────────────────────┤
+ │ KEUANGAN         │ payments.view (lihat status transaksi) ·     │
+ │                  │ royalty.view/import/publish/manage ·         │
+ │                  │ withdraw.view/manage (kelola, bukan cair) ·  │
+ │                  │ analytics.*                                │
+ │                  │ — TANPA withdraw.approve/pay, payments.      │
+ │                  │   refund, labels.rate.* (semua → super)      │
+ ├──────────────────┼─────────────────────────────────────────────┤
+ │ LAYANAN          │ payments.view · addon.view/manage ·          │
+ │                  │ wami.view/manage · support.view/manage ·     │
+ │                  │ tickets · labels.view (baca)                 │
+ ├──────────────────┼─────────────────────────────────────────────┤
+ │ SUPER (Anda)     │ SEMUA + withdraw.approve/pay · kyc.review ·  │
+ │                  │ labels.rate/package/blacklist.approve ·      │
+ │                  │ payments.refund · migration.* · access.* ·   │
+ │                  │ staff.* · system.*                         │
+ └──────────────────┴─────────────────────────────────────────────┘
+
+ Prinsip turunan (selaras filosofi main):
+ • view ≠ manage ≠ approve — tiga tingkat, tidak dicampur.
+ • Aksi uang keluar (pay, refund, rate) selalu bertipe sensitive
+   dan/atau berantai approval → super.
+ • Klaim warisan (D8) → migration.claims, tetap super karena
+   menyentuh identitas & saldo.
+ • Satu staff (Cantika) sekarang = preset gabungan semua operator
+   minus aksi super — sesuai pengalaman awalnya.
+============================================================
