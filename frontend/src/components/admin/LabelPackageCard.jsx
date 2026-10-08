@@ -5,7 +5,7 @@ import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/sonner";
 
-export const PACKAGE_NAMES = { pay_per_release: "Pay Per Release", annual_normal: "Annual", annual_vip: "VIP", multi_label: "Multi Label" };
+export const PACKAGE_NAMES = { pay_per_release: "Basic", annual_normal: "Studio", annual_vip: "Pro", multi_label: "Business" };
 const selectedPackage = (label) => label.payment_type === "annual_subscription" ? label.subscription_tier || "annual_normal" : "pay_per_release";
 
 export const LabelPackageCard = ({ label, onChanged, mode = "direct" }) => {

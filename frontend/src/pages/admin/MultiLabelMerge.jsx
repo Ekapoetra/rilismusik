@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/api/AuthContext";
 
 const fmtIDR = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
-const PKG = { pay_per_release: "Pay Per Release", annual_normal: "Annual", annual_vip: "VIP", multi_label: "Multi Label" };
+const PKG = { pay_per_release: "Basic", annual_normal: "Studio", annual_vip: "Pro", multi_label: "Business" };
 const STEPS = ["Pilih Label", "Akun Utama", "Penanggung Jawab", "Rekening", "Review"];
 
 export default function MultiLabelMerge() {

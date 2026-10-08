@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from .entitlements import PLAN_NAMES
 from .deps import (
     ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
     require_kyc_for_label_user,
@@ -56,7 +57,7 @@ async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: d
     amount = await payment_price(tier)
     return await create_payment_document(PaymentCreateData(
         label_id=label["id"], payment_type="annual_subscription", amount=amount,
-        tier=tier, description=f"Paket {tier.replace('_', ' ').title()} 1 Tahun",
+        tier=tier, description=f"Paket {PLAN_NAMES.get(tier, tier)} 1 Tahun",
         return_path="/label/invoices",
     ))
 

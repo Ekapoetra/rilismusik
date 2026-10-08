@@ -19,10 +19,10 @@ const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slic
 const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
 
 const PLAN_META = {
-  multi_label: { label: "Multi Label", cls: "border-violet-400/40 bg-violet-400/10 text-violet-200" },
-  annual_vip: { label: "VIP", cls: "border-amber-400/40 bg-amber-400/10 text-amber-200" },
-  annual_normal: { label: "Annual", cls: "border-sky-400/40 bg-sky-400/10 text-sky-200" },
-  pay_per_release: { label: "PPR", cls: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300" },
+  multi_label: { label: "Business", cls: "border-violet-400/40 bg-violet-400/10 text-violet-200" },
+  annual_vip: { label: "Pro", cls: "border-amber-400/40 bg-amber-400/10 text-amber-200" },
+  annual_normal: { label: "Studio", cls: "border-sky-400/40 bg-sky-400/10 text-sky-200" },
+  pay_per_release: { label: "Basic", cls: "border-zinc-500/40 bg-zinc-500/10 text-zinc-300" },
 };
 function PlanBadge({ plan, id }) {
   const meta = PLAN_META[plan] || PLAN_META.pay_per_release;

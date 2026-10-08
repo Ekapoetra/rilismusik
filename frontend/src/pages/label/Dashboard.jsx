@@ -16,6 +16,7 @@ import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, L
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { planName } from "@/lib/plans";
 
 function fmtIDR(n) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -113,7 +114,7 @@ export default function LabelDashboardHome() {
 
   const identitySub = [
     "Label Musik • Indonesia",
-    stats.payment_type === "annual_subscription" ? "Annual" : "Pay Per Release",
+    `Paket ${(account?.entitlements ? planName(account.entitlements.package) : "…")}`,
   ].filter(Boolean).join(" • ");
 
   // Derive "Yang Perlu Diperhatikan" from existing data only.
@@ -151,7 +152,7 @@ export default function LabelDashboardHome() {
       <div className="flex flex-wrap gap-2">
         <StatusPill icon={Crown} label={`Subscription: ${stats.subscription_status === "active" ? "Aktif" : "Tidak Aktif"}`} active={stats.subscription_status === "active"} />
         <StatusPill icon={ShieldCheck} label={`Kontrak: ${stats.contract_status === "contract_active" ? "Aktif" : stats.contract_status?.replace("_", " ") || "—"}`} active={stats.contract_status === "contract_active"} />
-        <StatusPill icon={Receipt} label={`Tipe: ${stats.payment_type === "annual_subscription" ? "Annual" : "Pay Per Release"}`} active />
+        <StatusPill icon={Receipt} label={`Paket: ${(account?.entitlements ? planName(account.entitlements.package) : "…")}`} active />
         {!stats.bank_verified && <StatusPill icon={AlertCircle} label="Rekening belum diverifikasi" warn />}
       </div>
 

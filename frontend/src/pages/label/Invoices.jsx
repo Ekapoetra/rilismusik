@@ -2,20 +2,19 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
-import { CreditCard, Crown, Star, Music, ShoppingBag, RefreshCw } from "lucide-react";
+import { CreditCard, Crown, Music, ShoppingBag, RefreshCw } from "lucide-react";
+import { PlansDialog, useLabelPlan } from "@/components/v13/Plans";
+import { planName } from "@/lib/plans";
 
 const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-const TIERS = [
-  { key: "annual_normal", name: "Annual Normal", price: 350000, desc: "Unlimited release tanpa biaya per release.", icon: Crown, perks: ["Submit unlimited release", "Prioritas review", "Tanpa biaya per release"] },
-  { key: "annual_vip", name: "Annual VIP", price: 500000, desc: "Plus GRATIS WAMI + konten promosi.", icon: Star, vip: true, perks: ["Submit unlimited release", "Prioritas review", "GRATIS daftar LMKN-WAMI semua lagu", "GRATIS konten promosi (JPG)", "Status WAMI real-time"] },
-];
-const TYPE_LABELS = { annual_subscription: "Annual Subscription", pay_per_release: "Pay Per Release", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
+const TYPE_LABELS = { annual_subscription: "Paket Tahunan", pay_per_release: "Biaya Rilisan per Lagu", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
 
 export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [chooseOpen, setChooseOpen] = useState(false);
+  const plan = useLabelPlan();
   const [loading, setLoading] = useState(false);
   const [pollingId, setPollingId] = useState(null);
   const [err, setErr] = useState("");
@@ -70,7 +69,7 @@ export default function Invoices() {
           <p className="text-sm text-zinc-400 mt-1">Checkout aman melalui Xendit Production. Status dikonfirmasi otomatis oleh sistem.</p>
         </div>
         <button className="rm-btn-primary flex items-center gap-2" onClick={() => setChooseOpen(true)} disabled={loading} data-testid="label-subscription-button">
-          <Crown className="w-4 h-4" /> Pilih Paket Tahunan
+          <Crown className="w-4 h-4" /> Ubah Paket
         </button>
       </div>
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="payment-success-message">{pollingId && <RefreshCw className="inline w-4 h-4 mr-2 animate-spin" />}{msg}</div>}
@@ -102,7 +101,7 @@ export default function Invoices() {
         <div className="rm-card overflow-hidden">
           {items.length === 0 ? <div className="p-10 text-center text-zinc-500 text-sm">Belum ada invoice.</div> : items.map((invoice) => {
             const Icon = invoice.type === "wami_addon" ? Music : invoice.type === "custom_service" ? ShoppingBag : CreditCard;
-            const tier = invoice.tier ? ` — ${invoice.tier === "annual_vip" ? "VIP" : "Normal"}` : "";
+            const tier = invoice.tier ? ` — ${planName(invoice.tier)}` : "";
             return (
               <div key={invoice.id} className="px-5 py-4 border-b border-white/5 last:border-0 flex items-center justify-between gap-3 flex-wrap" data-testid={`invoice-row-${invoice.id}`}>
                 <div className="flex items-center gap-3 min-w-0"><div className="w-10 h-10 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center"><Icon className="w-4 h-4" /></div><div className="min-w-0"><div className="font-semibold text-sm">{TYPE_LABELS[invoice.type] || invoice.description}{tier}</div><div className="text-xs text-zinc-500 truncate">{invoice.xendit_session_id || invoice.reference_id || invoice.id} • {invoice.created_at?.slice(0, 10)}</div></div></div>
@@ -113,24 +112,7 @@ export default function Invoices() {
         </div>
       </section>
 
-      {chooseOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" onClick={() => setChooseOpen(false)} data-testid="subscription-modal">
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl rm-glass-strong rounded-[24px] p-6 space-y-4">
-            <div><h3 className="font-display font-extrabold text-2xl tracking-tighter">Pilih Paket Subscription</h3><p className="text-sm text-zinc-400 mt-1">Pembayaran satu kali untuk masa aktif satu tahun.</p></div>
-            <div className="grid md:grid-cols-2 gap-4">
-              {TIERS.map((tier) => { const Icon = tier.icon; return (
-                <div key={tier.key} className={`rounded-2xl p-5 flex flex-col ${tier.vip ? "rm-glass-strong border border-pink-500/30" : "rm-glass"}`}>
-                  <div className="flex items-center gap-2"><Icon className={`w-5 h-5 ${tier.vip ? "text-pink-300" : "text-zinc-400"}`} /><span className="text-xs uppercase tracking-widest font-bold text-zinc-400">{tier.name}</span></div>
-                  <div className="mt-3"><span className={`font-display text-3xl font-extrabold ${tier.vip ? "rm-gradient-text" : ""}`}>{fmtIDR(tier.price)}</span><span className="text-xs text-zinc-500"> / tahun</span></div>
-                  <p className="text-xs text-zinc-400 mt-1">{tier.desc}</p><ul className="mt-4 space-y-1.5 text-xs flex-1">{tier.perks.map((perk) => <li key={perk}>✓ {perk}</li>)}</ul>
-                  <button onClick={() => createAndCheckout("/payments/subscription", { tier: tier.key })} disabled={loading} className={`mt-5 ${tier.vip ? "rm-btn-primary" : "rm-btn-ghost"}`} data-testid={`label-pick-tier-${tier.key}`}>{loading ? "Membuka Xendit…" : `Pilih ${tier.name}`}</button>
-                </div>
-              ); })}
-            </div>
-            <button className="rm-btn-ghost w-full text-sm" onClick={() => setChooseOpen(false)} data-testid="subscription-modal-close">Tutup</button>
-          </div>
-        </div>
-      )}
+      {chooseOpen && <PlansDialog entitlements={plan} onClose={() => setChooseOpen(false)} />}
     </div>
   );
 }

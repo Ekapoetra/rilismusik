@@ -27,6 +27,10 @@ def _subscription_active(label: Dict[str, Any]) -> bool:
         return False
 
 
+# V13 package names over the stored packages (renamed only; benefits unchanged).
+PLAN_NAMES = {"pay_per_release": "Basic", "annual_normal": "Studio", "annual_vip": "Pro", "multi_label": "Business"}
+
+
 def resolve_label_entitlements(label: Dict[str, Any]) -> Dict[str, Any]:
     """Derive the effective capability set for a label/account.
 
@@ -41,6 +45,7 @@ def resolve_label_entitlements(label: Dict[str, Any]) -> Dict[str, Any]:
     is_multi = active and tier == "multi_label"
     return {
         "package": tier if is_annual else "pay_per_release",
+        "plan_name": PLAN_NAMES.get(tier if is_annual else "pay_per_release", "Basic"),
         "active": active,
         "unlimited_release": is_annual,
         "vip_benefits": is_vip,

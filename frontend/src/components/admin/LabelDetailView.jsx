@@ -1,5 +1,6 @@
 import React from "react";
 import { LabelPackageCard } from "./LabelPackageCard";
+import { planName } from "@/lib/plans";
 
 const fmtIDR = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
 
@@ -12,7 +13,7 @@ function AccountActions({ label, openEmail, openRevoke }) {
 
 export function LabelDetailCards({ data, permissions, actions, onChanged, onPackageChanged }) {
   const label = data.label;
-  const packageName = label.payment_type === "annual_subscription" ? (label.subscription_tier === "annual_vip" ? "Annual VIP" : "Annual Normal") : "Pay Per Release";
+  const packageName = planName(label.payment_type === "annual_subscription" ? label.subscription_tier || "annual_normal" : "pay_per_release");
   return <div className="grid md:grid-cols-2 gap-4">
     {data.financial_summary && <FinancialOverview summary={data.financial_summary} />}
     <div className="rm-card p-5 space-y-2"><h3 className="font-display font-bold tracking-tight text-lg">Info Label</h3><DetailRow label="Penanggung Jawab" value={label.pic_name} /><DetailRow label="Email" value={label.email} /><DetailRow label="WhatsApp" value={label.whatsapp} /><DetailRow label="Tipe" value={label.label_type} /><DetailRow label="Paket" value={packageName} /><DetailRow label="Subscription" value={label.subscription_status} /><DetailRow label="Masa Berlaku" value={label.subscription_expires_at ? new Date(label.subscription_expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "—"} /><DetailRow label="Kontrak" value={label.contract_status} /><DetailRow label="Status Akun" value={label.account_status} /><DetailRow label="Royalti %" value={`${label.royalty_percentage_default}%`} /><DetailRow label="Created" value={label.created_at?.slice(0, 10)} /></div>
