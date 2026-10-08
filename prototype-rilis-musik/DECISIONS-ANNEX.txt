@@ -1,7 +1,8 @@
 DECISIONS — ANNEX (analisis pendukung Fase 1)
 ============================================
 Lampiran kerja untuk D2 (paket), D7 (aktivasi), D8 (klaim warisan),
-D10 (sistem staff). Semua masih DRAFT — dibuat untuk direvisi bersama.
+D10 (sistem staff), D1 (token). Semua masih DRAFT — dibuat untuk
+direvisi bersama.
 
 
 ============================================================
@@ -179,4 +180,86 @@ siap tumbuh.
    Absensi detail + KPI berbobot + ulasan AI bulanan = HR suite,
    bukan produk musik. Untuk 1 staff cukup: metrik kerja + SLA.
    Simpan "ulasan bulanan" sebagai teks ringkas otomatis, bukan fitur.
+
+
+============================================================
+ANNEX-E  ·  D1 — SISTEM TOKEN (rancangan fresh)
+============================================================
+
+Premis pemilik: token = REL PEMBAYARAN KEDUA yang opsional. Yang tidak
+tertarik tetap bayar rupiah. Benefit permanen: token selalu lebih murah.
+Kunci dasar: 1 token = 1 rilisan (lantai nilai Rp35.000).
+
+1. DUA REL, SATU KERANJANG
+   Setiap layanan punya harga rupiah (kanonik, dari produk) dan harga
+   token (turunan). Member memilih per transaksi. Label tanpa token
+   hanya melihat harga rupiah + hint "hemat dengan Token".
+
+2. NILAI PAKAI TOKEN (pematokan layanan, bukan rupiah)
+   1 token = 1 unit layanan dasar = 1 rilisan (Rp35.000).
+   Harga layanan dalam token = ceil(harga_rupiah / 35.000):
+     Rilisan Rp35.000      →  1 token   (nilai nominal Rp35.000)
+     WAMI    Rp100.000     →  3 token   (Rp105.000 ≥ 100.000)
+     Album   Rp200.000     →  6 token   (Rp210.000 ≥ 200.000)
+     Normal  Rp350.000     → 10 token   (Rp350.000 =)
+     VIP     Rp500.000     → 15 token   (Rp525.000 ≥ 500.000)
+     Multi   Rp1.500.000   → 43 token   (Rp1.505.000 ≥ 1.500.000)
+   Pembulatan selalu KE ATAS → nilai pakai token ≥ harga rupiah.
+   Member tidak pernah rugi konversi, bahkan sebelum diskon beli.
+
+3. HARGA BELI TOKEN — benefit permanen
+   Selalu < Rp35.000 dan ≥ Rp25.000 (lantai bisnis).
+   Jenjang usulan: 1–9 → Rp33.000 · 10–49 → Rp31.000 · ≥50 → Rp29.000.
+   Contoh: 10 token @Rp31.000 = Rp310.000 → membayar layanan senilai
+   ≥Rp350.000 → hemat ≥11%. Angka dapat disetel tanpa kode.
+
+4. TIGA POOL TOKEN (mewarisi mekanisme lot prototype)
+   • Bawaan — dari paket/kebijakan; hangus akhir periode; terpakai dulu.
+   • Beli   — via Xendit; tidak pernah hangus.
+   • Ganti  — kompensasi kesalahan platform; 48 jam.
+   Urutan pakai: Bawaan → Ganti → Beli (kedaluwarsa terdekat dulu).
+
+5. SIKLUS PAKAI (sudah terbukti di prototype)
+   reserve saat pengajuan → settle saat lagu terkonfirmasi tayang →
+   kembali utuh jika ditolak/dibatal sebelum diproses. Per item.
+
+6. MATRIKS REFUND
+   Dibayar rupiah  → masuk SALDO RUPIAH (kredit toko: hanya bisa
+                     dibelanjakan, TIDAK dapat ditarik tunai, TIDAK
+                     dapat membeli token).
+   Dibayar token   → token kembali utuh ke pool Beli.
+   Pembelian token → non-refundable; token tak terpakai tidak hangus.
+   (Reversal Xendit tetap opsi admin untuk kasus luar biasa.)
+   CATATAN HUKUM: saldo yang bisa ditarik = uang elektronik (lisensi BI).
+   Saldo spend-only menghindari itu — itulah alasan teknisnya.
+
+7. ANTI-PENYALAHGUNAAN
+   Non-transferable · tidak dapat dibeli pakai token/saldo · lantai jual
+   Rp25.000 (diskon maks ~29%) · ledger token & saldo terpisah,
+   immutable, ter-audit seperti ledger royalti.
+
+8. AKUNTANSI
+   Penjualan token = pendapatan ditangguhkan (liabilitas); diakui saat
+   token terpakai atau hangus. Saldo outstanding token + saldo rupiah
+   wajib tampil di Pemantauan Keuangan.
+
+9. POLA UI (kesederhanaan)
+   Tanpa token  : "Rp35.000" + hint kecil "hemat dengan Token".
+   Dengan token : "1 Token" besar + "atau Rp35.000" kecil.
+   Checkout     : bila kurang — "Bayar 3 token · saldo 1 · beli 2
+                  token Rp62.000" satu layar, bukan dua langkah.
+
+10. RISIKO JUJUR
+   • Dua harga di setiap titik harga → hanya layak dengan pola harga
+     ganda yang konsisten; tanpa itu halaman jadi ramai.
+   • Diskon permanen menekan margin — diterima karena token = loyalitas
+     + arus kas di muka (breakage).
+   • Token outstanding adalah utang layanan — wajib dilacak seperti
+     liabilitas, bukan dianggap pendapatan.
+
+11. PEMETAAN KE MAIN
+   • "token_pack" = 1 SKU Xendit dengan kuantitas — backend kecil.
+   • saldo rupiah = ledger baru, menyerupai pola balance_* royalti.
+   • order token = method 'token' di commerce113 → payment_method:
+     'token_balance' di main.
 ============================================================

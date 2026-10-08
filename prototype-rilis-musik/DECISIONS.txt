@@ -10,29 +10,25 @@ dikomentari/dibantah.
 
 
 ------------------------------------------------------------
-D1. KREDIT → "TOKEN"                                DRAFT   [ARSITEKTUR]
+D1. TOKEN — REL PEMBAYARAN KEDUA                  DRAFT   [ARSITEKTUR][BIAYA]
 ------------------------------------------------------------
-Keputusan pemilik:
-  Istilah "kredit" diganti "token" — "kredit" bentrok dengan konteks
-  contributor credits pada karya. Butuh rancangan token yang lebih tepat.
+Arah pemilik (final, menggantikan draft sebelumnya):
+  • Token adalah OPSI pembayaran kedua — member yang tidak tertarik
+    tetap membayar rupiah seperti biasa.
+  • Benefit permanen: token SELALU lebih murah dari nilai rupiah.
+  • Kunci dasar: nilai 1 token = 1 rilisan (lantai Rp35.000),
+    berlaku juga untuk biaya layanan lain.
+  • Order rupiah yang di-refund → menjadi SALDO RUPIAH milik label.
 
-Rancangan usulan (untuk disetujui):
-  Token = SATUAN KERJA, bukan mata uang. 1 token = 1 lagu diproses.
-  Tiga sumber, tiga umur:
-    • Bawaan paket — diisi ulang tiap periode tagihan, hangus di akhir
-      periode (tidak diakumulasi; mencegah penimbunan & liabilitas).
-    • Beli — top-up via Xendit, tidak pernah hangus (hak yang dibayar).
-    • Ganti — kompensasi internal (revisi/gagal karena kesalahan kita),
-      48 jam, otomatis.
-  Aturan pakai: dipesan saat submit → hangus/terpakai hanya saat lagu
-  terkonfirmasi tayang → kembali utuh jika ditolak/dibatalkan sebelum
-  dikirim distributor.
-  Tidak ada konversi token↔uang, tidak ada transfer antar-akun.
-  Pemetaan ke main: grant = kuota subscription; top-up = pay_per_release.
+Rancangan lengkap → ANNEX-E. Inti:
+  1 token = satuan layanan. Harga layanan dalam token =
+  ceil(harga rupiah / 35.000) — konversi selalu menguntungkan member.
+  Harga jual token bertingkat tapi TIDAK PERNAH ≥ Rp35.000.
+  Tiga pool: Bawaan paket / Beli / Ganti (kompensasi).
+  Saldo Rupiah = kredit toko — hanya bisa dibelanjakan, tidak bisa
+  ditarik tunai, tidak bisa membeli token.
 
-Terbuka: jumlah token bawaan per tier (mengikuti D2/D4).
-
-KEPUTUSAN: DRAFT — menunggu konfirmasi pemilik atas rancangan di atas.
+KEPUTUSAN: DRAFT — menunggu konfirmasi pemilik atas ANNEX-E.
 
 
 ------------------------------------------------------------
@@ -60,23 +56,14 @@ KEPUTUSAN: DRAFT — harga terakhir; benefit menyusul lewat peta benefit.
 
 
 ------------------------------------------------------------
-D3. EMBLEM                                        DRAFT
+D3. EMBLEM                                        DECIDED
 ------------------------------------------------------------
-Keputusan pemilik: ragu — butuh opini.
-Kebutuhan ASLI pemilik: "penanda untuk melihat kondisi keuangan tiap
-  label dengan mudah" — hadiah adalah turunan yang mulai terasa tak perlu.
+  DIPUTUSKAN pemilik: hapus seluruh fitur emblem.
+  Antrean implementasi: bersihkan achievement/levels/bonus-lot dari
+  model & UI prototype; jika masih dibutuhkan penanda kondisi label,
+  gunakan indikator kesehatan untuk staf (opsional, bukan gamifikasi).
 
-Opini & rekomendasi:
-  Kebutuhan aslinya bukan gamifikasi — itu OBSERVABILITAS. Jawabannya
-  bukan emblem-hadiah, melainkan INDIKATOR KESEHATAN LABEL: penanda
-  komputasi (hijau/stabil, kuning/perhatian, merah/masalah) dari sinyal
-  yang sudah ada: saldo tertahan, penarikan jatuh tempo, tiket berlarut,
-  royalti pending lama. Tampil untuk staf, bukan untuk label.
-  Hadiah-emblem & baseline dari royalti historis: BUANG — selaras larangan
-  PARKED ("no reward based on untrusted legacy royalty data").
-
-KEPUTUSAN: DRAFT — emblem-gamifikasi dibuang; diganti indikator
-  kesehatan label untuk staf. Menunggu konfirmasi.
+KEPUTUSAN: SAHKAN — emblem dihapus.
 
 
 ------------------------------------------------------------
@@ -92,14 +79,16 @@ Dasar bobot (dari model & harga main):
   Kapasitas 1 staf (Cantika): ~20 hari kerja/bulan — kuota harus
   dijaga di bawah ~25% kapasitas agar tidak memakan antrean rilisan.
 
-Angka usulan per TAHUN (dapat direvisi saat harga final):
+Angka rancangan (disahkan sebagai draft kerja):
   Basic    : WAMI 0  · Design 0
   Studio   : WAMI 2  · Design 1
   Pro      : WAMI 6  · Design 3
   Business : WAMI 12 · Design 6
   (Business juga berhak multi-label → kuota dibagi antar label anak)
+  Angka sudah menjadi konfigurasi di pengaturan paket — dapat diubah
+  admin kapan saja tanpa kode baru.
 
-KEPUTUSAN: DRAFT — angka usulan; final mengikuti harga (D2).
+KEPUTUSAN: SAHKAN sebagai rancangan — angka di atas dipakai.
 
 
 ------------------------------------------------------------
@@ -136,11 +125,13 @@ KEPUTUSAN: OPEN — menunggu persetujuan atas rute usulan di ANNEX-B.
 D8. MIGRASI & KLAIM DATA WARISAN                  DRAFT
 ------------------------------------------------------------
   Masalah: sistem lama hanya mengandalkan kejujuran akun yang mengklaim.
-  Usulan mekanisme verifikasi → ANNEX-C (dikerjakan): OTP ke kontak
-  historis, bukti unggah, karantina klaim, deteksi konflik ganda,
-  baseline saldo bertahap oleh super admin.
+  Usulan mekanisme verifikasi → ANNEX-C: OTP ke kontak historis,
+  bukti unggah, karantina klaim, deteksi konflik ganda, baseline saldo
+  bertahap oleh super admin.
+  Pemilik: "Oke aku mau mencobanya" → implementasikan alur klaim di
+  prototype (wizard + verifikasi + karantina + review super).
 
-KEPUTUSAN: DRAFT — menunggu persetujuan.
+KEPUTUSAN: SAHKAN — implementasikan mekanisme klaim di prototype.
 
 
 ------------------------------------------------------------
@@ -149,11 +140,10 @@ D9. TARIF ROYALTI PER LABEL                       DECIDED-SEBAGIAN
   Penjelasan: main memotong royalti — label menerima 60% (default),
   platform 40%. Persentase dapat dinegosiasi per label lewat alur
   rate-change dengan approval. Prototype saat ini mengasumsikan 100%.
-  → Ketersediaan kolom per-label sudah ada di main; keputusan
-    seragam-vs-perlabel masih menunggu pemilik (rekomendasi: seragam
-    60% sekarang, per-label bila perlu nanti).
+  → DIPUTUSKAN pemilik: tarif seragam 60% untuk semua label sekarang;
+    kolom per-label tetap tersedia bila diperlukan negosiasi khusus.
 
-KEPUTUSAN: OPEN — pilih: seragam / per-label / seragam-dulu.
+KEPUTUSAN: SAHKAN — seragam 60%, per-label bila perlu nanti.
 
 
 ------------------------------------------------------------
