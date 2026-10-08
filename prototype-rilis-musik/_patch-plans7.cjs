@@ -1,0 +1,18 @@
+const fs = require('fs');
+const f = 'prototype-v13.0/v122-packages.js';
+let s = fs.readFileSync(f, 'utf8');
+const R = (a, b) => { if (!s.includes(a)) throw new Error('NOT FOUND: ' + a.slice(0, 90)); s = s.split(a).join(b); };
+
+// 1) Heading: hapus h1, jadi satu baris — subjudul kiri | tab tengah | chip paket kanan
+R(`<header class="plans-heading122"><small>RILIS MUSIK / \${T('PAKET LAYANAN','SERVICE PLANS')}</small><h1>\${T('Ruang untuk setiap langkahmu.','Room for every step.')}</h1><p>\${T('Pilih alat dan layanan yang paling sesuai dengan cara labelmu bekerja.','Choose the tools and services that fit the way your label works.')}</p><div class="current-package122">\${badge104(Packages122.tier(ten,m))}<span>\${expiry103(m)}</span></div></header><div class="plans-toolbar122"><div class="plan-period122 \${ui122.group==='multi'?'is-year':''}" role="group" aria-label="\${T('Pengelolaan label','Label management')}"><i></i>\${B122(T('1 Label','Single label'),'plan-group','single',ui122.group==='single'?'selected':'')}\${B122('Multi Label','plan-group','multi',ui122.group==='multi'?'selected':'')}</div></div>`,
+  `<header class="plans-heading122"><small>RILIS MUSIK / \${T('PAKET LAYANAN','SERVICE PLANS')}</small><div class="plans-bar122"><p>\${T('Pilih alat dan layanan yang paling sesuai dengan cara labelmu bekerja.','Choose the tools and services that fit the way your label works.')}</p><div class="plan-period122 \${ui122.group==='multi'?'is-year':''}" role="group" aria-label="\${T('Pengelolaan label','Label management')}"><i></i>\${B122(T('1 Label','Single label'),'plan-group','single',ui122.group==='single'?'selected':'')}\${B122('Multi Label','plan-group','multi',ui122.group==='multi'?'selected':'')}</div><div class="current-package122">\${badge104(Packages122.tier(ten,m))}<span>\${expiry103(m)}</span></div></div></header>`);
+
+// 2) Animasi keluar: ghost Business melayang pergi saat kembali ke Single
+R(`if(a==='plan-group'){if(!isLabel10())return;const grid=document.querySelector('.package-grid122'),body=document.querySelector('#dialog .dialog-body'),sc=body?.scrollTop||0,rects=grid?[...grid.children].map(c=>c.getBoundingClientRect()):[];ui122.group=id;plans10();`,
+  `if(a==='plan-group'){if(!isLabel10())return;const grid=document.querySelector('.package-grid122'),body=document.querySelector('#dialog .dialog-body'),sc=body?.scrollTop||0,rects=grid?[...grid.children].map(c=>c.getBoundingClientRect()):[],biz=grid?grid.querySelector('[data-package122="Business"]'):null,bizEl=biz?biz.cloneNode(true):null,bizRect=biz?biz.getBoundingClientRect():null;ui122.group=id;plans10();`);
+
+R("document.querySelectorAll('.package-card122').forEach((c,i)=>{if(i>=rects.length)return;const r=c.getBoundingClientRect(),dx=rects[i].left-r.left,dy=rects[i].top-r.top;if(dx||dy)c.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:520,easing:'cubic-bezier(.22,.75,.15,1)'})});return}",
+  "document.querySelectorAll('.package-card122').forEach((c,i)=>{if(i>=rects.length)return;const r=c.getBoundingClientRect(),dx=rects[i].left-r.left,dy=rects[i].top-r.top;if(dx||dy)c.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:520,easing:'cubic-bezier(.22,.75,.15,1)'})});if(bizEl&&bizRect&&id==='single'){Object.assign(bizEl.style,{position:'fixed',left:bizRect.left+'px',top:bizRect.top+'px',width:bizRect.width+'px',height:bizRect.height+'px',zIndex:60,pointerEvents:'none',margin:0});bizEl.classList.remove('enter122');document.body.appendChild(bizEl);bizEl.animate([{transform:'none',opacity:1},{transform:'translateX(56px)',opacity:0}],{duration:480,easing:'cubic-bezier(.22,.75,.15,1)'}).onfinish=()=>bizEl.remove()}return}");
+
+fs.writeFileSync(f, s);
+console.log('js ok');
