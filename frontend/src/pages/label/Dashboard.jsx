@@ -238,8 +238,8 @@ export default function LabelDashboardHome() {
               <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="streamGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FF1F8E" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#FF1F8E" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#3a8dff" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#3a8dff" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="period" tickFormatter={(p) => (p || "").slice(5)} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -247,7 +247,7 @@ export default function LabelDashboardHome() {
                   contentStyle={{ background: "#101010", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
                   labelStyle={{ color: "#a1a1aa" }} formatter={(v) => [Number(v).toLocaleString("id-ID"), "Stream"]}
                 />
-                <Area type="monotone" dataKey="streams" stroke="#FF1F8E" strokeWidth={2} fill="url(#streamGrad)" />
+                <Area type="monotone" dataKey="streams" stroke="#3a8dff" strokeWidth={2} fill="url(#streamGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

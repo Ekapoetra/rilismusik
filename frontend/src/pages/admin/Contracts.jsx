@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import { FileSignature, Plus, Upload, Download, AlertTriangle, CheckCircle2, X, Calendar, Ban, RefreshCw, ChevronDown } from "lucide-react";
+import { toneOf } from "@/lib/v13Tone";
 
 const STATUS_LABELS = {
   active: "Aktif",
@@ -19,7 +20,7 @@ const STATUS_STYLES = {
 function StatusBadge({ status }) {
   const s = STATUS_STYLES[status] || STATUS_STYLES.active;
   return (
-    <span className="rm-badge" style={{ background: s.bg, color: s.color }}>
+    <span className="v13-pill" data-tone={toneOf(s.dot)}>
       <span className="rm-badge-dot" style={{ background: s.dot }} />
       {STATUS_LABELS[status] || status}
     </span>

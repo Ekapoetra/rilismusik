@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { Music, CheckCircle2, Clock, AlertTriangle, X, Star } from "lucide-react";
 import WamiMigrationImport from "./WamiMigrationImport";
+import { toneOf } from "@/lib/v13Tone";
 
 const STATUS_LABELS = {
   unpaid: "Belum Bayar",
@@ -121,7 +122,7 @@ export default function AdminWami() {
                 ) : <span>{fmtIDR(o.amount_idr)}</span>}
               </div>
               <div className="col-span-12 md:col-span-2">
-                <span className="rm-badge" style={{ background: s.bg, color: s.color }}>
+                <span className="v13-pill" data-tone={toneOf(s.dot)}>
                   <span className="rm-badge-dot" style={{ background: s.dot }} />
                   {STATUS_LABELS[o.status] || o.status}
                 </span>

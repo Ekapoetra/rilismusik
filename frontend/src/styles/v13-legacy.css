@@ -1,0 +1,101 @@
+/* V13 theme for pages not yet rebuilt in the V13 layout.
+   Remaps the legacy dark/magenta classes onto the V13 tokens so every admin and
+   label page shares the prototype palette, type and controls in both themes.
+   Scoped to html.v13 (dashboard layouts mounted); public pages are untouched.
+   Portals (dialogs, menus) live outside .app-shell, so selectors start at html.v13. */
+
+html.v13 {
+  --v13-accent: #2e689e;
+  --v13-accent-soft: #eaf2fb;
+}
+html.v13[data-app-theme="dark"] {
+  --v13-accent: #9acdfa;
+  --v13-accent-soft: #233747;
+}
+
+/* shadcn/radix tokens follow the V13 palette. */
+html.v13[data-app-theme="light"] {
+  --background: 200 14% 95%; --foreground: 213 11% 18%;
+  --card: 0 0% 100%; --card-foreground: 213 11% 18%;
+  --popover: 0 0% 100%; --popover-foreground: 213 11% 18%;
+  --primary: 213 11% 18%; --primary-foreground: 0 0% 100%;
+  --secondary: 204 15% 93%; --secondary-foreground: 213 11% 18%;
+  --muted: 204 15% 93%; --muted-foreground: 211 7% 45%;
+  --accent: 204 15% 91%; --accent-foreground: 213 11% 18%;
+  --border: 204 20% 89%; --input: 204 20% 89%; --ring: 213 11% 18%;
+}
+html.v13[data-app-theme="dark"] {
+  --background: 210 4% 7%; --foreground: 200 8% 94%;
+  --card: 210 5% 12%; --card-foreground: 200 8% 94%;
+  --popover: 210 5% 12%; --popover-foreground: 200 8% 94%;
+  --primary: 200 8% 94%; --primary-foreground: 210 5% 12%;
+  --secondary: 210 6% 16%; --secondary-foreground: 200 8% 94%;
+  --muted: 210 6% 16%; --muted-foreground: 202 7% 72%;
+  --accent: 210 7% 20%; --accent-foreground: 200 8% 94%;
+  --border: 210 7% 22%; --input: 210 7% 22%; --ring: 200 8% 94%;
+}
+html.v13 { font-family: var(--v13-font); }
+html.v13 body { font-family: var(--v13-font); }
+html.v13 ::selection { background: rgba(46, 104, 158, .28); color: inherit; }
+
+/* Type: V13 caps weight at 600 and draws page titles light. */
+html.v13 :is(.font-bold, .font-extrabold, .font-black) { font-weight: 600; }
+html.v13 .app-shell main h1 { font-weight: 400; letter-spacing: -.025em; }
+html.v13 .app-shell main h1:is(.text-3xl, .text-4xl) { font-size: 30px; line-height: 1.2; }
+html.v13 .app-shell main :is(h2, h3) { letter-spacing: -.01em; }
+html.v13 .tracking-tighter, html.v13 .tracking-tight { letter-spacing: -.015em; }
+html.v13 .font-display { font-family: var(--v13-font); }
+
+/* Surfaces */
+html.v13 :is(.rm-card, .rm-card-elev) { background: var(--ui-surface); border: 0; border-radius: var(--v13-radius); box-shadow: none; color: var(--ui-text); }
+html.v13 :is(.rm-glass, .rm-glass-strong) { background: var(--ui-surface); border: 1px solid var(--ui-border); box-shadow: 0 18px 40px rgba(16, 24, 40, .12); backdrop-filter: none; -webkit-backdrop-filter: none; color: var(--ui-text); }
+html.v13 :is(.rm-mesh, .rm-mesh-dim) { background: var(--ui-bg); }
+html.v13 [class*="bg-[#0"], html.v13 [class*="bg-[#1"], html.v13 :is(.bg-zinc-950, .bg-zinc-900, .bg-neutral-950, .bg-neutral-900) { background-color: var(--ui-surface); }
+html.v13 :is(.bg-zinc-800, .bg-neutral-800) { background-color: var(--ui-raised); }
+html.v13 [class*="border-white/"], html.v13 :is(.border-zinc-800, .border-zinc-700) { border-color: var(--ui-border); }
+html.v13[data-app-theme="dark"] :is(.text-zinc-400, .text-zinc-500, .text-zinc-600) { color: var(--ui-muted); }
+html.v13 .bg-black\/60, html.v13 .bg-black\/70, html.v13 .bg-black\/80 { background-color: rgba(5, 10, 18, .55); }
+
+/* Buttons: one dark pill for primary, quiet outline for ghost. */
+html.v13 .rm-btn-primary { background: var(--ui-text); color: var(--ui-surface); font-weight: 500; box-shadow: none; filter: none; }
+html.v13 .rm-btn-primary:hover { background: var(--ui-text); opacity: .88; box-shadow: none; transform: none; filter: none; }
+html.v13 .rm-btn-ghost { background: var(--ui-surface); color: var(--ui-text); border: 1px solid var(--ui-border); font-weight: 500; }
+html.v13 .rm-btn-ghost:hover { background: var(--ui-hover); border-color: var(--ui-border); }
+
+/* Inputs */
+html.v13 .rm-input { background-color: var(--ui-raised); border: 1px solid transparent; border-radius: 10px; color: var(--ui-text); }
+html.v13 .rm-input:focus { background-color: var(--ui-surface); border-color: var(--ui-text); box-shadow: none; }
+html.v13 select.rm-input { background-color: var(--ui-raised); color-scheme: light; }
+html.v13[data-app-theme="dark"] select.rm-input { color-scheme: dark; }
+html.v13 select option, html.v13 select optgroup { background-color: var(--ui-surface); color: var(--ui-text); }
+html.v13 select option:checked { background-color: var(--ui-raised); color: var(--ui-text); }
+html.v13 .rm-label { font-weight: 500; letter-spacing: .06em; color: var(--ui-muted); }
+html.v13 :is([class*="accent-[#"], [class*="accent-pink"]) { accent-color: var(--ui-text); }
+
+/* Magenta/purple accents become the V13 blue accent; gradients become the dark pill. */
+html.v13 .rm-gradient-text { background: none; -webkit-text-fill-color: currentColor; color: var(--ui-text); }
+html.v13 :is([class*="text-pink-"], [class*="text-[#FF1F8E]"], [class*="text-[#FF4FA8]"], [class*="text-[#A24EFF]"], [class*="text-[#C79BFF]"], [class*="text-purple-"], [class*="text-fuchsia-"]) { color: var(--v13-accent); }
+html.v13 :is([class*="hover:text-pink-"], [class*="hover:text-white"]):hover { color: var(--ui-text); }
+html.v13 :is([class*="bg-pink-500/"], [class*="bg-[#FF1F8E]/"], [class*="bg-[#A24EFF]/"], [class*="bg-purple-500/"], [class*="from-[#A24EFF]/"], [class*="from-[#FF1F8E]/"]) { background: var(--v13-accent-soft); }
+html.v13 :is([class*="border-pink-"], [class*="border-[#FF1F8E]"], [class*="border-[#A24EFF]"]) { border-color: var(--ui-border); }
+html.v13 :is(.bg-pink-500, .bg-pink-600, [class~="bg-[#FF1F8E]"], [class~="bg-[#A24EFF]"]) { background: var(--ui-text); color: var(--ui-surface); }
+html.v13 :is([class*="from-[#FF1F8E]"]:not([class*="from-[#FF1F8E]/"]), [class*="from-[#A24EFF]"]:not([class*="from-[#A24EFF]/"]), [class*="from-pink-500"]:not([class*="from-pink-500/"])) { background: var(--ui-text); color: var(--ui-surface); }
+html.v13 :is([class*="from-[#FF1F8E]"]:not([class*="from-[#FF1F8E]/"]), [class*="from-[#A24EFF]"]:not([class*="from-[#A24EFF]/"])) :is(svg, span, div) { color: inherit; }
+html.v13 [class*="shadow-[#FF1F8E]"], html.v13 [class*="shadow-pink-"] { box-shadow: none; }
+html.v13 [class*="hover:scale-"]:hover { transform: none; }
+html.v13 [class*="to-[#FF1F8E]/"] { background: var(--ui-surface); }
+html.v13 [class*="hover:border-[#FF1F8E]"]:hover { border-color: var(--ui-text); }
+html.v13 :is([class*="focus:border-[#FF1F8E]"], [class*="focus:border-pink"]):focus { border-color: var(--ui-text); }
+html.v13 .rm-pulse-glow { animation: none; }
+
+/* Release status badges use the V13 soft pill look in both themes. */
+html.v13 .rm-badge { height: 20px; padding: 2px 8px; gap: 5px; border: 0; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+html.v13 .rm-badge-dot { width: 4px; height: 4px; }
+
+/* Tables and dividers */
+html.v13 .app-shell main table thead { color: var(--ui-muted); }
+html.v13 .app-shell main :is(.divide-white\/5, .divide-white\/10) > * + * { border-color: var(--ui-border); }
+
+/* Legacy floating chat toggle keeps the V13 neutral pill. */
+html.v13 :is([data-testid="admin-chat-toggle"], [data-testid="label-chat-toggle"]) { background: var(--ui-text) !important; color: var(--ui-surface) !important; box-shadow: 0 10px 24px rgba(16, 24, 40, .2) !important; }
+html.v13 .v13-pill .rm-badge-dot { display: none; }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, fileUrl } from "@/api/client";
 import { FileSignature, Download, AlertTriangle, CheckCircle2, Clock, Ban } from "lucide-react";
+import { toneOf } from "@/lib/v13Tone";
 
 const STATUS_LABELS = {
   active: "Aktif",
@@ -73,7 +74,7 @@ function ContractCard({ c }) {
             <div className="text-xs text-zinc-500">Dibuat {new Date(c.created_at).toLocaleDateString("id-ID")}</div>
           </div>
         </div>
-        <span className="rm-badge" style={{ background: s.bg, color: s.color }}>
+        <span className="v13-pill" data-tone={toneOf(s.dot)}>
           <span className="rm-badge-dot" style={{ background: s.dot }} />
           {STATUS_LABELS[c.effective_status]}
         </span>

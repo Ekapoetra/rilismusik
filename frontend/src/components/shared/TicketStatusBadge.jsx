@@ -1,4 +1,5 @@
 import React from "react";
+import { toneOf } from "@/lib/v13Tone";
 
 export const TICKET_STATUS_LABELS = {
   open: "Open",
@@ -37,9 +38,7 @@ export default function TicketStatusBadge({ status }) {
   const s = STYLES[status] || STYLES.open;
   const label = TICKET_STATUS_LABELS[status] || status;
   return (
-    <span
-      className="rm-badge"
-      style={{ background: s.bg, color: s.color }}
+    <span className="v13-pill" data-tone={toneOf(s.dot)}
       data-testid={`ticket-status-badge-${status}`}
     >
       <span className="rm-badge-dot" style={{ background: s.dot }} />

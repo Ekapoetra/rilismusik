@@ -3,6 +3,7 @@ import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import { useSearchParams } from "react-router-dom";
 import { Music, CheckCircle2, Clock, AlertTriangle, Star, Plus, X } from "lucide-react";
+import { toneOf } from "@/lib/v13Tone";
 
 const STATUS_LABELS = {
   unpaid: "Belum Bayar",
@@ -182,7 +183,7 @@ export default function LabelWami() {
                 )}
               </div>
               <div className="col-span-12 md:col-span-3">
-                <span className="rm-badge" style={{ background: s.bg, color: s.color }}>
+                <span className="v13-pill" data-tone={toneOf(s.dot)}>
                   <Icon className="w-3 h-3" />
                   {STATUS_LABELS[o.status] || o.status}
                 </span>
