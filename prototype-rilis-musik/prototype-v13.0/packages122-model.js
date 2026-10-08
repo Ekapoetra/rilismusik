@@ -2,8 +2,8 @@
 (function(root){'use strict';
 const copy=v=>structuredClone(v),ok=(v,m)=>{if(!v)throw Error(m)},names=['Basic','Studio','Pro','Business'],aliases={Basic:'Flex',Studio:'Go',Pro:'Pro',Business:'Business'},ranks={Basic:0,Studio:1,Pro:2,Business:3};
 function name(id){return ({Flex:'Basic',Go:'Studio'})[id]||id||'Basic'}
-function init(s,old){if(s.packages122)return s.packages122;
- const colors=[['#36576e','#7094ad'],['#096b80','#25b9a5'],['#075697','#19b6bd'],['#343587','#7876dc']];
+function init(s,old){const DEF=[['#36576e','#7094ad'],['#096b80','#25b9a5'],['#075697','#19b6bd'],['#343587','#7876dc']],colors=[['#36576e','#7094ad'],['#0d4f3c','#2ea36b'],['#0b2f6e','#4f8ef7'],['#3d1673','#9761e8']];
+ if(s.packages122){s.packages122.plans.forEach(p=>{const j=names.indexOf(p.id);if(j>=0&&JSON.stringify(p.colors)===JSON.stringify(DEF[j]))p.colors=colors[j].slice()});return s.packages122}
  return s.packages122={schema:1,version:1,plans:names.map((id,i)=>{const p=old?.plans?.find(p=>p.id===aliases[id]);return {id,name:id,rank:i,monthly:id==='Basic'?0:p?.monthly??null,annual:id==='Basic'?0:p?.annual??null,enabled:true,discount:p?.discount||0,until:p?.until||'',limited:false,colors:colors[i],planning:i>0,campaign:i>1,wami:null,design:null,notes:''}}),subscriptions:[],usage:[],history:[]};
 }
 function offer(s,id){return init(s).plans.find(p=>p.id===name(id))}
