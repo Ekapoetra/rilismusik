@@ -122,18 +122,31 @@ KEPUTUSAN: PARKED — rancangan dasar boleh disiapkan diam-diam.
 
 
 ------------------------------------------------------------
-D7. AUDIT AKTIVASI LABEL                          OPEN — pembanding siap
+D7. AUDIT AKTIVASI LABEL                          DECIDED — rute final
 ------------------------------------------------------------
   Pemilik minta audit detail rute & prosedur, bukan hanya isian.
-  Hasil audit → ANNEX-B (dikerjakan). Pembanding langkah-demi-langkah
-  main vs prototype → ANNEX-G (dikerjakan). Temuan kunci: main unggul
-  di gerbang hukum MDA + approve khusus super; prototype unggul di
-  klaim warisan (OTP+karantina) + wizard. Celah prototype: kontrak
-  hanya flag, approve bisa sembarang staff, pembayaran menggerbang
-  aktivasi.
+  Hasil audit → ANNEX-B. Pembanding main vs prototype → ANNEX-G.
 
-KEPUTUSAN: OPEN — pemilik meninjau pembanding ANNEX-G + rute usulan
-  ANNEX-B sebelum memutuskan rute final.
+  RUTE FINAL (arahan pemilik):
+    Daftar → login → POPUP WELCOME: "member baru / member lama?"
+      → Member lama → klaim label (kejujuran + bukti pendukung) →
+        antrean approval SUPER; bila bermasalah super dapat mencabut
+        akun dari label yang diklaim.
+      → Member baru → pilih bahasa & tema → Dashboard.
+    Dashboard member baru: boleh menjelajah + merasakan benefit tiap
+    paket (mode coba). Atensi "Aktivasi Akun" tampil sampai selesai:
+      1. Identitas Label — penanggung jawab, KTP, email, alamat
+         (checklist seperti prototype sekarang)
+      2. Kontrak — auto-dibuat, tanggal tercatat, checkbox sepakat,
+         menu Kontrak menyediakan unduh PDF bila dibutuhkan
+      3. Verifikasi rekening — disetujui super
+    Approval: akun baru = admin boleh; klaim label = hanya super;
+    verifikasi rekening = hanya super.
+    Pembayaran/paket TIDAK menggerbang aktivasi.
+
+KEPUTUSAN: SAHKAN — rute di atas adalah target implementasi.
+  Klaim tetap memakai pengaman D8 (konflik + karantina) sebagai alat
+  super menandai klaim bermasalah; OTP turun jadi bukti pendukung.
 
 
 ------------------------------------------------------------
@@ -147,6 +160,11 @@ D8. MIGRASI & KLAIM DATA WARISAN                  DRAFT
   prototype (wizard + verifikasi + karantina + review super).
 
 KEPUTUSAN: SAHKAN — implementasikan mekanisme klaim di prototype.
+  ADDENDUM (D7): pengajuan klaim memakai kejujuran — OTP tidak lagi
+  gerbang wajib, menjadi bukti pendukung opsional. Approval klaim =
+  hanya super; super juga dapat MENCABUT akun dari label bila klaim
+  bermasalah. Deteksi konflik + karantina saldo tetap berjalan sebagai
+  pengaman otomatis.
 
 
 ------------------------------------------------------------
@@ -165,21 +183,18 @@ KEPUTUSAN: SAHKAN — 60% untuk label baru; legacy pakai tarifnya sendiri.
 
 
 ------------------------------------------------------------
-D10. SISTEM STAFF                                 DRAFT — detail diminta
+D10. SISTEM STAFF                                 DECIDED — fokus Cantika
 ------------------------------------------------------------
-  Keputusan pemilik: mulai 1 staff (Cantika Dewi, akses penuh).
-  Tujuan: pekerjaan tercatat → evaluasi & monitoring terukur → sinyal
-  kebutuhan staff baru → rekomendasi posisi.
-  Rancangan → ANNEX-D (dikerjakan): struktur peran bertumbuh, metrik
-  beban kerja, laporan evaluasi otomatis, indikator "butuh staff".
-  Pemilik butuh detail keuangan: pencairan royalti hanya milik super,
-  tapi admin perlu MELIHAT status pembayaran layanan tambahan.
-  → Matriks izin lengkap dipetakan dari model granular main
-    (admin_permission_service.py) → ANNEX-H. Jawaban: payments.view
-    = izin baca untuk admin; withdraw.approve/pay + payments.refund
-    tetap sensitive → super.
+  Keputusan pemilik: fokus pada 1 staff (Cantika Dewi, akses penuh
+  operator — gabungan semua operator minus aksi super). Fitur terbaik
+  yang dipertahankan: SINYAL kebutuhan role khusus — sistem mengukur
+  beban kerja seiring waktu dan menandai kapan domain butuh penanganan
+  khusus. Matriks izin granular (ANNEX-H, dari model main) menjadi
+  REFERENSI masa depan saat tim tumbuh — bukan implementasi sekarang.
+  Rancangan → ANNEX-D; detail izin → ANNEX-H (arsip rujukan).
 
-KEPUTUSAN: DRAFT — menunggu persetujuan atas ANNEX-D + ANNEX-H.
+KEPUTUSAN: SAHKAN — Cantika satu-satunya staff; sinyal kebutuhan role
+  dipertahankan; ANNEX-H disimpan untuk saat tim berkembang.
 
 
 ------------------------------------------------------------
@@ -222,9 +237,9 @@ KEPUTUSAN: PLANNED — antrean fitur.
 
 ====================================================
 RINGKASAN STATUS (diperbarui)
-  DECIDED : D1 (ANNEX-E+E1), D2, D3, D4, D5, D8, D9, D11
-  DRAFT   : D10 (ANNEX-D + matriks izin ANNEX-H, menunggu persetujuan)
-  OPEN    : D7 (pembanding ANNEX-G tersaji, menunggu pilihan rute)
+  DECIDED : D1 (ANNEX-E+E1), D2, D3, D4, D5, D7 (rute final),
+            D8+addendum, D9, D10 (fokus Cantika), D11
+  DRAFT   : —
   PARKED  : D6 (artis - rancangan dasar diam-diam), D12
   PLANNED : D13 (menu maintenance), D14 (menu update V1.1)
 ====================================================
