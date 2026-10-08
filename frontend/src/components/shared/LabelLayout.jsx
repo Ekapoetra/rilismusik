@@ -13,19 +13,21 @@ import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document
 import { V13Sidebar } from "@/components/v13/V13Sidebar";
 import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut } from "lucide-react";
 
+// V13 label menu order and names; Artis and Kontrak stay because production uses them.
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
-  { to: "/label/releases/upload", label: "Ajukan Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
   { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
-  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists },
   { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
-  { to: "/label/withdraw", label: "Penarikan Dana", icon: Wallet, tid: LABEL_NAV.withdraw },
-  { to: "/label/wami", label: "WAMI", icon: Music, tid: "label-nav-wami" },
-  { to: "/label/support", label: "Bantuan", icon: LifeBuoy, tid: LABEL_NAV.support },
+  { to: "/label/withdraw", label: "Penarikan", icon: Wallet, tid: LABEL_NAV.withdraw },
+  { to: "/label/invoices", label: "Transaksi", icon: FileText, tid: LABEL_NAV.invoices },
+  { to: "/label/wami", label: "Registrasi WAMI", icon: Music, tid: "label-nav-wami" },
+  { to: "/label/support", label: "Tiket Bantuan", icon: LifeBuoy, tid: LABEL_NAV.support },
+  { to: "/label/profile", label: "Profil Label", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
+  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists },
   { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true },
-  { to: "/label/invoices", label: "Tagihan", icon: FileText, tid: LABEL_NAV.invoices },
-  { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
 ];
+const UPLOAD_NAV = { to: "/label/releases/upload", label: "Ajukan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease };
+const BOTTOM_NAV = [NAV[0], UPLOAD_NAV, NAV[1], NAV[2], NAV[3]];
 const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 
 export default function LabelLayout() {
@@ -42,7 +44,7 @@ function LabelShell() {
   const locked = !isKycFreePath(loc.pathname) && (kycLoading || !kyc?.is_verified);
   const onLogout = async () => { await logout(); navigate("/login"); };
   const toggle = () => setCollapsed((value) => { localStorage.setItem("label-sidebar-collapsed", String(!value)); return !value; });
-  const isActive = (item) => loc.pathname === item.to || (item.to !== "/label/dashboard" && item.to !== "/label/releases" && loc.pathname.startsWith(`${item.to}/`)) || (item.to === "/label/releases" && loc.pathname.startsWith("/label/releases/") && !loc.pathname.startsWith("/label/releases/upload"));
+  const isActive = (item) => loc.pathname === item.to || (item.to !== "/label/dashboard" && loc.pathname.startsWith(`${item.to}/`));
   const links = NAV.map((item) => ({ key: item.to, to: item.to, label: t(item.label), icon: item.icon, active: isActive(item), locked: !item.kycFree && !kyc?.is_verified, testId: item.tid }));
   const name = profile?.label_name || user?.name || "Label";
   const footer = { name, sub: user?.email };
@@ -55,6 +57,6 @@ function LabelShell() {
       <main className="label-page-content v13-main relative min-w-0"><div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Suspense fallback={<div role="status" className="p-8 text-center text-[var(--ui-muted)]">Memuat halaman…</div>}><Outlet /></Suspense></div>{locked && <KycGate status={kyc?.status} loading={kycLoading} />}</main>
     </div>
     <LabelChatWidget />
-    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{[NAV[0], NAV[1], NAV[3], NAV[4], NAV[8]].map((item) => { const Icon = item.icon; const active = loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
+    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{BOTTOM_NAV.map((item) => { const Icon = item.icon; const active = item === NAV[1] ? loc.pathname.startsWith(item.to) && !loc.pathname.startsWith(UPLOAD_NAV.to) : loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
   </div></MastheadProvider>;
 }

@@ -14,7 +14,7 @@ import { AdminNavigationProvider, useAdminNavigation } from "@/contexts/AdminNav
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document } from "@/components/v13/Masthead";
 import { V13Sidebar } from "@/components/v13/V13Sidebar";
-import { ADMIN_AREAS, DEDICATED_AREAS, areaForKey, areaForPath, itemsByArea, matchNavItem } from "@/components/v13/adminAreas";
+import { ADMIN_AREAS, DEDICATED_AREAS, FINANCE_MONITOR_ITEMS, V13_LABELS, areaForKey, areaForPath, arrangeV13, itemsByArea, matchNavItem } from "@/components/v13/adminAreas";
 
 const iconFor = (name) => Icons[name] || Icons.Circle;
 
@@ -67,24 +67,22 @@ export const AdminSidebarView = ({ instance, collapsed, onCollapse, onNavigate, 
 const AdminLayoutInner = () => {
   useV13Document();
   const { user, logout } = useAuth();
-  const { items } = useAdminNavigation();
+  const { items: navItems } = useAdminNavigation();
   const { locale, t } = useAppPreferences();
+  const items = useMemo(() => (user?.role === "super_admin" ? [...FINANCE_MONITOR_ITEMS, ...navItems] : navItems), [user?.role, navItems]);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(localStorage.getItem("admin-sidebar-collapsed") === "true");
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggle = () => setCollapsed((current) => { localStorage.setItem("admin-sidebar-collapsed", String(!current)); return !current; });
-  const labelFor = (item) => item.labels?.[locale] || item.labels?.id || item.key;
+  const labelFor = (item) => V13_LABELS[item.key]?.[locale] || item.labels?.[locale] || item.labels?.id || item.key;
   const grouped = useMemo(() => itemsByArea(items), [items]);
   const current = matchNavItem(items, pathname);
   const area = areaForPath(items, pathname);
   const mode = area === "staff" ? "staff" : "platform";
   const dedicated = DEDICATED_AREAS.has(area);
   const firstRoute = (list, fallback) => list[0]?.route || fallback;
-  const linksFor = (list) => {
-    const keys = new Set(list.map((item) => item.key));
-    return list.map((item) => ({ key: item.key, to: item.route, label: labelFor(item), icon: iconFor(item.icon), child: Boolean(item.parent_key && keys.has(item.parent_key)), active: current?.key === item.key, testId: `admin-nav-${item.key}` }));
-  };
+  const linksFor = (list) => arrangeV13(list).map((item) => ({ key: item.key, to: item.route, label: labelFor(item), icon: iconFor(item.icon), child: item.v13Child, active: current?.key === item.key, testId: `admin-nav-${item.key}` }));
   const sideLinks = linksFor(mode === "staff" ? grouped.staff : grouped.platform);
   const areas = ADMIN_AREAS.filter((entry) => entry.id === "platform" || grouped[entry.id].length)
     .map((entry) => ({ ...entry, to: entry.id === "platform" ? firstRoute(grouped.platform, "/admin/dashboard") : firstRoute(grouped[entry.id], "/admin/dashboard"), active: entry.id === "platform" ? !dedicated : entry.id === area }));
