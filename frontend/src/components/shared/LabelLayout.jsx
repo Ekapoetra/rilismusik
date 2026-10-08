@@ -12,6 +12,7 @@ import LabelChatWidget from "@/components/chat/LabelChatWidget";
 import { LanguageToggle, Masthead, MastheadProvider, ThemeSwitch, useV13Document } from "@/components/v13/Masthead";
 import { V13Sidebar } from "@/components/v13/V13Sidebar";
 import { PlanChip } from "@/components/v13/Plans";
+import { TokenChip } from "@/components/v13/Tokens";
 import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut } from "lucide-react";
 
 // V13 label menu order and names; Artis and Kontrak stay because production uses them.
@@ -49,7 +50,7 @@ function LabelShell() {
   const links = NAV.map((item) => ({ key: item.to, to: item.to, label: t(item.label), icon: item.icon, active: isActive(item), locked: !item.kycFree && !kyc?.is_verified, testId: item.tid }));
   const name = profile?.label_name || user?.name || "Label";
   const footer = { name, sub: user?.email };
-  const tools = <><PlanChip /><LabelSwitcher /><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="label" show={["sound"]} /></span><NotificationBell instance="label-header" /><button type="button" onClick={onLogout} title={t("Keluar")} aria-label={t("Keluar")} className="ui-icon-button" data-testid="label-logout-button-desktop"><LogOut className="h-4 w-4" /></button></>;
+  const tools = <><span className="v13-optional"><TokenChip /></span><PlanChip /><LabelSwitcher /><ThemeSwitch /><LanguageToggle /><span className="v13-optional"><HeaderPreferences instance="label" show={["sound"]} /></span><NotificationBell instance="label-header" /><button type="button" onClick={onLogout} title={t("Keluar")} aria-label={t("Keluar")} className="ui-icon-button" data-testid="label-logout-button-desktop"><LogOut className="h-4 w-4" /></button></>;
   return <MastheadProvider><div className="app-shell v13-shell" data-testid="label-layout">
     <Masthead name={name} home={loc.pathname === "/label/dashboard"} searchItems={links.map((link) => ({ to: link.to, label: link.label }))} tools={tools} brandTo="/label/dashboard" onMenu={() => setOpen(true)} />
     {open && <div className="v13-drawer md:hidden" data-testid="label-mobile-sidebar"><button type="button" onClick={() => setOpen(false)} aria-label={t("Tutup menu")} data-testid="label-mobile-menu-backdrop" /><aside><V13Sidebar instance="mobile" links={links} onNavigate={() => setOpen(false)} footer={footer} /><button type="button" onClick={onLogout} className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500" data-testid="label-logout-button"><LogOut className="h-4 w-4" />{t("Keluar")}</button></aside></div>}

@@ -11,7 +11,7 @@ export const ADMIN_AREAS = [
 ];
 
 const AREA_BY_KEY = {
-  finance_funds: "finance", finance_catalogue: "finance", finance_cash: "finance",
+  finance_funds: "finance", finance_catalogue: "finance", finance_cash: "finance", finance_tokens: "finance", settings_plans: "settings",
   analytics: "finance", analytics_audit: "finance", xendit_recon: "finance",
   staff: "access", attendance: "access", staff_config: "access", performance: "access",
   performance_config: "access", admin_users: "access", roles: "access",
@@ -26,7 +26,7 @@ export const areaForKey = (key) => AREA_BY_KEY[key] || "platform";
 export const DEDICATED_AREAS = new Set(["finance", "access", "settings"]);
 
 // Routes outside the configurable navigation that still belong to an area.
-const EXTRA_ROUTE_AREAS = [["/admin/notifications", "settings"], ["/admin/finance", "finance"]];
+const EXTRA_ROUTE_AREAS = [["/admin/notifications", "settings"], ["/admin/finance", "finance"], ["/admin/settings", "settings"]];
 
 export function matchNavItem(items, pathname) {
   let best = null;
@@ -84,4 +84,6 @@ export const FINANCE_MONITOR_ITEMS = [
   { key: "finance_funds", route: "/admin/finance/funds", icon: "Wallet", labels: { id: "Pemantauan Dana", en: "Funds Monitoring" } },
   { key: "finance_catalogue", route: "/admin/finance/catalogue", icon: "TrendingUp", labels: { id: "Perkembangan Katalog", en: "Catalogue Growth" } },
   { key: "finance_cash", route: "/admin/finance/cash", icon: "Scale", labels: { id: "Rekonsiliasi Kas", en: "Cash Reconciliation" } },
+  { key: "finance_tokens", route: "/admin/finance/tokens", icon: "Coins", labels: { id: "Token", en: "Tokens" } },
+  { key: "settings_plans", route: "/admin/settings/plans", icon: "Tags", labels: { id: "Paket & Layanan", en: "Plans & Services" } },
 ];

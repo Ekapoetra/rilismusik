@@ -72,6 +72,7 @@ def _admin_payment_instruction(payment_type: str) -> str:
         "custom_service": "Tandai layanan sedang dikerjakan, lalu selesai setelah pekerjaan tuntas.",
         "wami_addon": "Buka WAMI dan lanjutkan proses pendaftaran.",
         "annual_subscription": "Langganan sudah aktif otomatis; tidak ada tindakan manual.",
+        "token_pack": "Token sudah masuk otomatis ke dompet label; tidak ada tindakan manual.",
     }.get(payment_type, "Tinjau detail pembayaran di dashboard admin.")
 
 
@@ -146,6 +147,7 @@ class PaymentCreateData:
     addon_amount: Optional[int] = None
     addon_product_ids: Optional[List[str]] = None
     approval_required_before_payment: bool = False
+    token_quantity: Optional[int] = None
 
 
 def _required_env(name: str) -> str:
@@ -255,6 +257,7 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
         "addon_amount": data.addon_amount,
         "addon_product_ids": data.addon_product_ids or [],
         "approval_required_before_payment": data.approval_required_before_payment,
+        "token_quantity": data.token_quantity,
     }
     try:
         await db.payments.insert_one(document)
@@ -648,7 +651,13 @@ async def _fulfill_release_shortfall(payment: Dict[str, Any]) -> None:
     )
 
 
+async def _fulfill_token_pack(payment: Dict[str, Any]) -> None:
+    from routes.tokens import fulfill_token_pack
+    await fulfill_token_pack(payment)
+
+
 FULFILLMENT_HANDLERS = {
+    "token_pack": _fulfill_token_pack,
     "pay_per_release": _fulfill_release,
     "release_shortfall": _fulfill_release_shortfall,
     "annual_subscription": _fulfill_subscription,

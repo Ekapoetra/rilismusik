@@ -179,6 +179,7 @@ class ReleaseDraftIn(BaseModel):
 class ReleaseSubmitConfirmation(BaseModel):
     contract_declaration_checked: bool
     addon_product_ids: List[str] = Field(default_factory=list)
+    service_mode: Literal["standard", "express", "max"] = "standard"
 
 
 class AdminReleaseAction(BaseModel):

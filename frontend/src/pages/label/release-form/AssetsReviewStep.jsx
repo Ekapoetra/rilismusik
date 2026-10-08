@@ -5,7 +5,7 @@ import { api, formatApiError } from "@/api/client";
 import { validateCoverFile, readWavSampleRate } from "./fileValidation";
 import { AudioPreviewButton } from "@/components/releases/AudioPreviewButton";
 
-export const AssetsReviewStep = ({ release, products, selectedAddons, setSelectedAddons, isPpr, addonTotal, baseEstimate = 35000, pricingLabel = "Single (1 lagu)", declaration, setDeclaration, saving, quotaBlocked = false, setError, reloadRelease, onBack, onSubmit }) => {
+export const AssetsReviewStep = ({ release, products, selectedAddons, setSelectedAddons, isPpr, addonTotal, baseEstimate = 35000, pricingLabel = "Single (1 lagu)", declaration, setDeclaration, saving, quotaBlocked = false, setError, reloadRelease, onBack, onSubmit, modePicker = null }) => {
   const [uploading, setUploading] = useState("");
   const upload = async (path, formData, key) => {
     setUploading(key); setError("");
@@ -37,6 +37,7 @@ export const AssetsReviewStep = ({ release, products, selectedAddons, setSelecte
     <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed"><input type="checkbox" checked={declaration} onChange={(event) => setDeclaration(event.target.checked)} className="mt-1" data-testid="upload-release-declaration-checkbox" /><span>Saya menyatakan memiliki hak distribusi atas audio dan cover, seluruh metadata serta nama kredit benar, dan bertanggung jawab atas sengketa yang muncul.</span></label>
     <div className={`flex items-center gap-2 text-sm ${filesReady ? "text-emerald-300" : "text-amber-300"}`} data-testid="upload-release-files-readiness">{filesReady ? <CheckCircle2 className="h-4 w-4" /> : <FileAudio className="h-4 w-4" />}{filesReady ? "Semua file lolos validasi" : "Cover dan seluruh audio wajib dilengkapi"}</div>
     {quotaBlocked && <p className="text-sm text-amber-400" data-testid="upload-release-quota-blocked">Kuota harian habis. Draft tetap dapat disimpan; pengiriman kembali tersedia pukul 00.00 WIB.</p>}
+    {modePicker}
     <div className="flex flex-wrap justify-between gap-3"><button type="button" className="rm-btn-ghost inline-flex items-center gap-2" onClick={onBack} data-testid="upload-release-assets-back-button"><ArrowLeft className="h-4 w-4" /> Edit Metadata</button><button type="button" className="rm-btn-primary inline-flex items-center gap-2" disabled={saving || quotaBlocked || !declaration || !filesReady || Boolean(uploading)} onClick={onSubmit} data-testid="upload-release-submit-button"><Send className="h-4 w-4" /> {saving ? "Mengirim…" : "Kirim ke Admin"}</button></div>
   </div>
   </section>;

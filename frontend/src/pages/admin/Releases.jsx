@@ -14,6 +14,7 @@ import TakedownImportModal from "@/components/releases/TakedownImportModal";
 import { WamiBadge } from "@/components/shared/WamiBadge";
 import { ReleaseCoverGrid } from "@/components/releases/ReleaseCoverGrid";
 import { ReleaseViewToggle, useReleaseView } from "@/components/releases/ReleaseViewToggle";
+import { ReleaseModeTag } from "@/components/v13/Tokens";
 
 const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
@@ -228,7 +229,7 @@ export default function AdminReleases() {
               {isReadyToLive(r) && (
                 <button type="button" onClick={() => setGoLiveId(r.id)} className="inline-flex items-center gap-1.5 rounded-full bg-pink-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-pink-400" data-testid={`admin-release-golive-btn-${r.id}`}><Rocket className="h-3.5 w-3.5" /> Tayangkan</button>
               )}
-              <span data-testid={`admin-release-status-${r.id}`}><StatusBadge status={r.status} /></span>
+              <span data-testid={`admin-release-status-${r.id}`}><StatusBadge status={r.status} /></span><ReleaseModeTag release={r} />
               <AdminDeleteReleaseButton release={r} compact onDeleted={(id) => setItems((current) => current.filter((item) => item.id !== id))} />
             </div>
             {expandedIsrc === r.id && <ReleaseIsrcPanel release={r} />}

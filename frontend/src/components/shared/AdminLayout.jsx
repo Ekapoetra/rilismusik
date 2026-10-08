@@ -69,7 +69,13 @@ const AdminLayoutInner = () => {
   const { user, logout } = useAuth();
   const { items: navItems } = useAdminNavigation();
   const { locale, t } = useAppPreferences();
-  const items = useMemo(() => (user?.role === "super_admin" ? [...FINANCE_MONITOR_ITEMS, ...navItems] : navItems), [user?.role, navItems]);
+  const items = useMemo(() => {
+    if (user?.role !== "super_admin") return navItems;
+    // Super Admin-only V13 pages: finance tabs lead their area, settings tabs follow the server ones.
+    const finance = FINANCE_MONITOR_ITEMS.filter((item) => item.key.startsWith("finance_"));
+    const settings = FINANCE_MONITOR_ITEMS.filter((item) => !item.key.startsWith("finance_"));
+    return [...finance, ...navItems, ...settings];
+  }, [user?.role, navItems]);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(localStorage.getItem("admin-sidebar-collapsed") === "true");

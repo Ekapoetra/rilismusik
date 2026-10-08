@@ -10,6 +10,7 @@ import { AssetsReviewStep } from "./release-form/AssetsReviewStep";
 import { defaultReleaseForm, mapReleaseToForm, serializeReleaseForm, validateStep } from "./release-form/releaseFormState";
 import { useSubmissionQuota } from "@/hooks/useSubmissionQuota";
 import { SubmissionQuotaView } from "@/components/label/SubmissionQuota";
+import { ReleaseModePicker, TOKEN_EVENT } from "@/components/v13/Tokens";
 
 export default function UploadRelease() {
   const { id } = useParams();
@@ -23,6 +24,7 @@ export default function UploadRelease() {
   const [savedArtists, setSavedArtists] = useState([]);
   const [selectedAddons, setSelectedAddons] = useState([]);
   const [declaration, setDeclaration] = useState(false);
+  const [serviceMode, setServiceMode] = useState("standard");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const quotaState = useSubmissionQuota(release?.id || id);
@@ -87,8 +89,10 @@ export default function UploadRelease() {
     try {
       const { data } = await api.post(`/releases/${release.id}/submit`, {
         contract_declaration_checked: true,
-        addon_product_ids: isPpr ? selectedAddons : [],
+        addon_product_ids: isPpr && serviceMode === "standard" ? selectedAddons : [],
+        service_mode: serviceMode,
       });
+      window.dispatchEvent(new Event(TOKEN_EVENT));
       navigate(`/label/releases/${data.id}`);
     } catch (requestError) {
       setError(formatApiError(requestError.response?.data?.detail) || "Submit gagal");
@@ -105,6 +109,6 @@ export default function UploadRelease() {
     {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
     {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} savedArtists={savedArtists} onBack={() => setStep(1)} onNext={goNext} />}
     {step === 3 && <TracksStep form={form} updateForm={updateForm} savedArtists={savedArtists} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
-    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
+    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr && serviceMode === "standard"} modePicker={<ReleaseModePicker trackCount={trackCount} releaseDate={release.release_date || form.release_date} mode={serviceMode} onMode={setServiceMode} packageName={isPpr ? "Basic" : "annual"} />} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
   </div>;
 }

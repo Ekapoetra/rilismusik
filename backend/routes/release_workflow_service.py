@@ -58,13 +58,18 @@ def normalize_artist_credits(values: List[Any], fallback_name: Optional[str] = N
     return credits
 
 
-def validate_release_date(value: str) -> date:
+def validate_release_date(value: str, min_days: int = 7) -> date:
+    """Parse a release date and enforce a calendar-day floor.
+
+    The per-mode lead time (Standard/Express/MAX working days) is enforced at
+    submission by routes.tokens.validate_mode_release_date.
+    """
     try:
         release_date = date.fromisoformat(value)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Tanggal rilis digital tidak valid")
-    if release_date < date.today() + timedelta(days=7):
-        raise HTTPException(status_code=400, detail="Tanggal rilis digital minimal 7 hari setelah submit")
+    if release_date < date.today() + timedelta(days=min_days):
+        raise HTTPException(status_code=400, detail=f"Tanggal rilis digital minimal {min_days} hari setelah hari ini")
     return release_date
 
 
@@ -89,7 +94,7 @@ def validate_release_submission(release: Dict[str, Any], tracks: List[Dict[str, 
         validate_spotify_artist_url(item.get("spotify_url"), f"URL Spotify {item.get('name') or 'featuring'}")
         normalize_social_links(item.get("social_links") or [], required=True, owner=item.get("name") or "Artis featuring")
     validate_artist_web_url(release.get("artist_web_url"))
-    validate_release_date(release.get("release_date"))
+    validate_release_date(release.get("release_date"), min_days=0)
     if not release.get("cover_url") or release.get("cover_width") != 3000 or release.get("cover_height") != 3000:
         missing.append("Cover JPG/PNG tepat 3000×3000")
     if not tracks:

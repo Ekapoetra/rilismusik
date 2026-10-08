@@ -15,7 +15,7 @@ export const newTrack = () => ({
 });
 
 export const defaultReleaseForm = () => ({
-  release_title: "", release_type: "single", release_date: todayPlus(7),
+  release_title: "", release_type: "single", release_date: todayPlus(11),
   genre: "", subgenre: "", copyright_line: "", p_line: "",
   year: new Date().getFullYear(), artist_web_url: "",
   primary_artists: [newArtist()], featured_artists: [], tracks: [newTrack()],
@@ -64,7 +64,7 @@ export const serializeReleaseForm = (form) => {
 export const validateStep = (step, form) => {
   if (step === 1 && [form.release_title, form.genre, form.subgenre, form.copyright_line, form.p_line].some((value) => !String(value || "").trim())) return "Lengkapi seluruh informasi rilisan yang wajib.";
   if (step === 1 && form.artist_web_url?.trim()) { try { const url = new URL(form.artist_web_url.trim()); if (!["http:", "https:"].includes(url.protocol)) return "URL web artist atau YouTube tidak valid"; } catch { return "URL web artist atau YouTube tidak valid"; } }
-  if (step === 1 && form.release_date < todayPlus(7)) return "Tanggal rilis digital minimal 7 hari setelah submit.";
+  if (step === 1 && form.release_date < todayPlus(2)) return "Tanggal rilis digital minimal 2 hari dari hari ini; batas tiap mode dicek saat pengajuan.";
   if (step === 2 && (!form.primary_artists.length || form.primary_artists.some((item) => !item.name.trim()))) return "Minimal satu nama artist utama wajib diisi.";
   if (step === 2 && [...form.primary_artists, ...form.featured_artists].some((item) => item.name.trim() && !socialLinksAreValid(item.social_links))) return "Setiap artis wajib memiliki minimal satu tautan media sosial yang valid.";
   if (step === 3 && form.release_type === "single" && form.tracks.length !== 1) return "SINGLE harus memiliki tepat satu track.";

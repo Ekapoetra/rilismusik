@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
+import { ReleaseModeTag } from "@/components/v13/Tokens";
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -93,7 +94,7 @@ export default function ReleaseDetail() {
             <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{data.release_type}</div>
             <h1 className="font-display text-3xl font-extrabold tracking-tighter">{data.release_title}</h1>
             <div className="text-zinc-400 mt-1">{data.artist_name} • Rilis {data.release_date}</div>
-            <div className="mt-2"><StatusBadge status={data.status} /></div>
+            <div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge status={data.status} /><ReleaseModeTag release={data} /></div>
           </div>
         </div>
         {["draft", "need_revision", "rejected"].includes(data.status) && (

@@ -56,6 +56,10 @@ from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 from .admin_permission_service import assert_admin_permission, has_permission
 from payment_service import PaymentCreateData, create_payment_document, ppr_pricing, ppr_base_amount, ppr_line_item_text, cancel_release_pending_payments
 from email_service import send_release_invoice_email, send_release_submission_email, send_release_live_email, send_release_status_email
+from .tokens import (
+    refund_release_tokens, reserve_release_tokens, token_covers_release, token_settings,
+    undo_release_token_change, validate_mode_release_date,
+)
 from .release_workflow_service import (
     EDITABLE_STATUSES, normalize_artist_credits, require_status,
     validate_artist_web_url, validate_release_date, validate_release_submission,
@@ -184,7 +188,7 @@ async def get_release(release_id: str, user: dict = Depends(require_kyc_for_labe
         "postcode": label_doc.get("postcode") or "",
     }
     covered = await release_subscription_covered(rel)
-    requires_ppr_payment = (not covered) and rel.get("payment_status") != "paid"
+    requires_ppr_payment = (not covered) and not token_covers_release(rel) and rel.get("payment_status") != "paid"
     pending_metadata_edit = None
     if user["role"] != LABEL_ROLE:
         pending_metadata_edit = await db.release_metadata_edits.find_one(
@@ -244,6 +248,11 @@ async def download_copyright_letter(release_id: str, user: dict = Depends(requir
     )
 
 
+# Drafts may hold any date a mode can reach (MAX on Friday morning: two days);
+# the selected mode's working-day lead is enforced at submission.
+MIN_DRAFT_LEAD_DAYS = 2
+
+
 @release_r.post("/draft")
 async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)
@@ -253,7 +262,7 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
         raise HTTPException(status_code=403, detail="Kontrak expired - tidak bisa submit rilisan baru")
 
     # validate release date >= today+7
-    rdate = validate_release_date(body.release_date)
+    rdate = validate_release_date(body.release_date, min_days=MIN_DRAFT_LEAD_DAYS)
     primary_artists = normalize_artist_credits(body.primary_artists, body.artist_name)
     featured_artists = normalize_artist_credits(body.featured_artists)
     validate_artist_web_url(body.artist_web_url)
@@ -346,7 +355,7 @@ async def update_release(release_id: str, body: ReleaseDraftIn, user: dict = Dep
     if rel["status"] not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Rilisan tidak dapat diedit pada status saat ini")
 
-    rdate = validate_release_date(body.release_date)
+    rdate = validate_release_date(body.release_date, min_days=MIN_DRAFT_LEAD_DAYS)
     primary_artists = normalize_artist_credits(body.primary_artists, body.artist_name)
     featured_artists = normalize_artist_credits(body.featured_artists)
     validate_artist_web_url(body.artist_web_url)
@@ -523,6 +532,8 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
 
     tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0}).sort("track_number", 1).to_list(200)
     validate_release_submission(rel, tracks)
+    mode_settings = await token_settings()
+    validate_mode_release_date(rel.get("release_date"), body.service_mode, mode_settings)
     all_credits = list(rel.get("primary_artists") or []) + list(rel.get("featured_artists") or [])
     for track in tracks:
         all_credits.extend(track.get("featured_artists") or [])
@@ -546,7 +557,16 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         if len(selected_addons) != len(addon_ids):
             raise HTTPException(status_code=400, detail="Salah satu layanan tambahan tidak tersedia")
 
-    if is_subscribed:
+    if body.service_mode != "standard":
+        # Express/MAX are paid with tokens per track for every package.
+        if selected_addons and not free_addons:
+            raise HTTPException(status_code=400, detail="Layanan tambahan untuk mode Express/MAX dipesan terpisah setelah submit")
+        new_status = "submitted"
+        payment_status = "token"
+        billing_flow = "token"
+        payment_id = None
+        base_amount = 0
+    elif is_subscribed:
         if selected_addons and not free_addons:
             raise HTTPException(status_code=400, detail="Layanan tambahan gabungan saat submit hanya tersedia untuk Pay Per Release")
         new_status = "submitted"
@@ -572,31 +592,39 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             size = len(track.get("featured_artists") or [])
             await db.tracks.update_one({"id": track["id"], "release_id": release_id}, {"$set": {"featured_artists": resolved_credits[cursor:cursor + size]}})
             cursor += size
-        result = await db.releases.update_one(
-        {"id": release_id, "status": rel.get("status"), "updated_at": rel.get("updated_at"), "$expr": {"$eq": [{"$dateToString": {"date": "$$NOW", "format": "%Y-%m-%d", "timezone": "Asia/Jakarta"}}, slot["day"]]}},
-        {"$set": {
-            "primary_artists": resolved_credits[:primary_count],
-            "featured_artists": resolved_credits[primary_count:primary_count + featured_count],
-            "artist_name": ", ".join(item["name"] for item in resolved_credits[:primary_count]),
-            "label_whatsapp_snapshot": label.get("whatsapp"),
-            "status": new_status,
-            "payment_status": payment_status,
-            "payment_id": payment_id,
-            "ppr_base_amount": base_amount,
-            "selected_addons": selected_addons,
-            "selected_addon_product_ids": addon_ids,
-            "billing_flow": billing_flow,
-            "submitted_at": now_iso(),
-            "contract_declaration_checked": True,
-            "admin_note": None,
-            "updated_at": now_iso(),
-        }, "$push": {"status_history": {
-            "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
-            "quota_token": slot["token"], "submission_day": slot["day"],
-            "changed_at": now_iso(), "note": "Submit ulang setelah revisi/penolakan" if rel.get("status") in ("need_revision", "rejected") else "Submit pertama",
-        }}},
-    )
+        token_fields = await reserve_release_tokens(rel, label, body.service_mode, len(tracks), mode_settings, user["id"])
+        try:
+            result = await db.releases.update_one(
+            {"id": release_id, "status": rel.get("status"), "updated_at": rel.get("updated_at"), "$expr": {"$eq": [{"$dateToString": {"date": "$$NOW", "format": "%Y-%m-%d", "timezone": "Asia/Jakarta"}}, slot["day"]]}},
+            {"$set": {
+                "primary_artists": resolved_credits[:primary_count],
+                "featured_artists": resolved_credits[primary_count:primary_count + featured_count],
+                "artist_name": ", ".join(item["name"] for item in resolved_credits[:primary_count]),
+                "label_whatsapp_snapshot": label.get("whatsapp"),
+                "status": new_status,
+                "payment_status": payment_status,
+                "payment_id": payment_id,
+                "ppr_base_amount": base_amount,
+                "selected_addons": selected_addons,
+                "selected_addon_product_ids": addon_ids,
+                "billing_flow": billing_flow,
+                "service_mode": body.service_mode,
+                **token_fields,
+                "submitted_at": now_iso(),
+                "contract_declaration_checked": True,
+                "admin_note": None,
+                "updated_at": now_iso(),
+            }, "$push": {"status_history": {
+                "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
+                "quota_token": slot["token"], "submission_day": slot["day"],
+                "changed_at": now_iso(), "note": "Submit ulang setelah revisi/penolakan" if rel.get("status") in ("need_revision", "rejected") else "Submit pertama",
+            }}},
+        )
+        except Exception:
+            await undo_release_token_change(rel, label, token_fields, user["id"])
+            raise
         if result.modified_count != 1:
+            await undo_release_token_change(rel, label, token_fields, user["id"])
             raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
     if is_subscribed and free_addons and selected_addons:
         try:
@@ -711,6 +739,11 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     # MUST be paid before it can be approved or delivered to Believe.
     covered_by_subscription = await release_subscription_covered(rel)
     already_paid = rel.get("payment_status") == "paid"
+    if token_covers_release(rel):
+        # Express/MAX paid with tokens: follows the covered (no invoice) path.
+        if body.action in ("send_payment", "bill_ppr"):
+            raise HTTPException(status_code=409, detail="Rilisan ini dibayar dengan token; tidak memerlukan invoice")
+        covered_by_subscription = True
     if body.action == "start_review":
         require_status(rel, ("submitted",), "Mulai pemeriksaan")
         new_status = "under_review"
@@ -835,6 +868,10 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         upd["release_date"] = body.release_date  # admin may set any date (no H+7)
     if body.action == "mark_live":
         upd["live_at"] = now_iso()
+        if rel.get("token_status") == "reserved":
+            upd["token_status"] = "settled"
+    if new_status == "rejected" or (body.action == "override_status" and new_status == "draft"):
+        upd.update(await refund_release_tokens(rel, user["id"], "Rilisan ditolak" if new_status == "rejected" else "Status dikembalikan ke draft") or {})
     await db.releases.update_one({"id": release_id}, {"$set": upd, "$push": {"status_history": {
         "from": rel.get("status"), "to": new_status, "changed_by": user["id"],
         "changed_at": now_iso(), "note": body.note,

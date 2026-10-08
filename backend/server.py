@@ -40,6 +40,7 @@ from routes.sensitive_requests import sensitive_r
 from routes.work_service import work_r
 from routes.dashboard_metrics import dashboard_metrics_r
 from routes.finance_monitor import finance_monitor_r
+from routes.tokens import tokens_r, admin_tokens_r
 from routes.staff import staff_r
 from routes.performance_service import perf_r
 from routes.xendit_reconciliation import xendit_recon_r
@@ -144,6 +145,8 @@ api.include_router(sensitive_r)
 api.include_router(work_r)
 api.include_router(dashboard_metrics_r)
 api.include_router(finance_monitor_r)
+api.include_router(tokens_r)
+api.include_router(admin_tokens_r)
 api.include_router(staff_r)
 api.include_router(perf_r)
 api.include_router(xendit_recon_r)

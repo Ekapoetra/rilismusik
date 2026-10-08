@@ -10,6 +10,7 @@ import { useAuth } from "@/api/AuthContext";
 import { WhatsAppFollowUpButton } from "@/components/releases/WhatsAppFollowUpButton";
 import { AdminDeleteReleaseButton } from "@/components/releases/AdminDeleteReleaseButton";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
+import { ReleaseModeTag } from "@/components/v13/Tokens";
 
 export default function AdminReleaseDetail() {
   const { id } = useParams();
@@ -63,7 +64,7 @@ export default function AdminReleaseDetail() {
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             {canMutate && release.status !== "draft" && <button type="button" onClick={downloadPackage} disabled={downloading} className="rm-btn-ghost inline-flex items-center gap-2" data-testid="admin-release-download-package" title="Unduh WAV, cover, dan metadata+lirik dalam 1 file ZIP untuk Believe">{downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}{downloading ? "Menyiapkan…" : "Download Paket Rilisan"}</button>}
             <WhatsAppFollowUpButton release={release} />
-            <span data-testid="admin-release-detail-status"><StatusBadge status={release.status} /></span>
+            <span data-testid="admin-release-detail-status"><StatusBadge status={release.status} /></span><ReleaseModeTag release={release} />
             <AdminDeleteReleaseButton release={release} onDeleted={() => navigate("/admin/releases", { replace: true })} />
           </div>
         </header>

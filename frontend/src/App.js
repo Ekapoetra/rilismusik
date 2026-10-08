@@ -61,6 +61,7 @@ const RateChangeQueue = rolePage("admin", () => import("@/pages/admin/RateChange
 const WorkQueue = rolePage("admin", () => import("@/pages/admin/WorkQueue"));
 const BankVerifications = rolePage("admin", () => import("@/pages/admin/BankVerifications"));
 const FinanceMonitor = rolePage("admin", () => import("@/pages/admin/FinanceMonitor"));
+const TokenAdmin = rolePage("admin", () => import("@/pages/admin/TokenAdmin"));
 const StaffManagement = rolePage("admin", () => import("@/pages/admin/StaffManagement"));
 const Attendance = rolePage("admin", () => import("@/pages/admin/Attendance"));
 const StaffConfiguration = rolePage("admin", () => import("@/pages/admin/StaffConfiguration"));
@@ -136,7 +137,9 @@ function AppRoutes() {
             <Route path="/admin/compensation/adjustments" element={guard("compensation.adjustment.create", <CompensationAdmin />)} />
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/finance" element={<Navigate to="/admin/finance/funds" replace />} />
+            <Route path="/admin/finance/tokens" element={<ProtectedRoute roles={["super_admin"]}><TokenAdmin /></ProtectedRoute>} />
             <Route path="/admin/finance/:tab" element={<ProtectedRoute roles={["super_admin"]}><FinanceMonitor /></ProtectedRoute>} />
+            <Route path="/admin/settings/plans" element={<ProtectedRoute roles={["super_admin"]}><TokenAdmin /></ProtectedRoute>} />
             <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
             <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
             <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />

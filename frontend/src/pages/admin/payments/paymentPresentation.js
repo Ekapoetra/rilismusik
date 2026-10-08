@@ -9,6 +9,7 @@ export const PAYMENT_STATUS = {
 export const PAYMENT_TYPES = {
   pay_per_release: "Biaya Rilisan per Lagu",
   annual_subscription: "Paket Tahunan",
+  token_pack: "Pembelian Token",
   wami_addon: "Pendaftaran WAMI",
   custom_service: "Layanan Tambahan",
 };

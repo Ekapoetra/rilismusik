@@ -4,10 +4,11 @@ import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import { CreditCard, Crown, Music, ShoppingBag, RefreshCw } from "lucide-react";
 import { PlansDialog, useLabelPlan } from "@/components/v13/Plans";
+import { TOKEN_EVENT, TokenHistory } from "@/components/v13/Tokens";
 import { planName } from "@/lib/plans";
 
 const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-const TYPE_LABELS = { annual_subscription: "Paket Tahunan", pay_per_release: "Biaya Rilisan per Lagu", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
+const TYPE_LABELS = { token_pack: "Pembelian Token", annual_subscription: "Paket Tahunan", pay_per_release: "Biaya Rilisan per Lagu", release_shortfall: "Kekurangan Paket Album", wami_addon: "WAMI Registrasi", custom_service: "Layanan Tambahan" };
 
 export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,7 +40,7 @@ export default function Invoices() {
         if (result.status === "paid") setMsg("Pembayaran berhasil dikonfirmasi.");
         else if (result.status === "pending") setMsg("Pembayaran masih diproses. Status akan diperbarui otomatis.");
         else setErr(`Pembayaran berstatus ${result.status}.`);
-        setPollingId(null); setSearchParams({}); await load();
+        setPollingId(null); setSearchParams({}); await load(); window.dispatchEvent(new Event(TOKEN_EVENT));
       })
       .catch((e) => active && setErr(formatApiError(e.response?.data?.detail || e.message)))
       .finally(() => active && setPollingId(null));
@@ -79,6 +80,8 @@ export default function Invoices() {
         <div><div className="text-zinc-200 font-semibold">Ditagihkan oleh: PT. Jeeres Group Indonesia</div><div>Jl. Sintang Pontianak RT 12 / RW 5, Kec. Sintang 78614, Indonesia</div></div>
         <div className="text-zinc-500">NIB <span className="text-zinc-300 font-mono">2202260059749</span> • WA 085864137150</div>
       </div>
+
+      <TokenHistory />
 
       {products.length > 0 && (
         <section className="space-y-3" data-testid="label-payment-services-section">
