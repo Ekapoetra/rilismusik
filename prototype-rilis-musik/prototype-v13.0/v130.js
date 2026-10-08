@@ -1,6 +1,6 @@
 /* V13.0: one continuous masthead, direct artwork editing and a centred team selector. */
 const Header130={defaults:{size:100,x:0,y:0},bounds:{size:[50,220],x:[-50,50],y:[-50,50]},maxData:1200000};
-const editor130={owner:null,base:0,draft:null,drag:null,token:0,busy:false,error:'',status:''};
+const editor130={owner:null,base:0,draft:null,drag:null,token:0,busy:false,error:'',status:'',dirty:false};
 function geometryValue130(value){
  if(!value||Object.keys(value).length!==3||!Object.keys(Header130.bounds).every(k=>Number.isInteger(value[k])&&value[k]>=Header130.bounds[k][0]&&value[k]<=Header130.bounds[k][1]))throw Error(T('Ukuran atau posisi berada di luar jangkauan.','Size or position is outside the allowed range.'));
  return {size:value.size,x:value.x,y:value.y};
@@ -30,10 +30,10 @@ function save130(next,version){
 }
 events115['header-design']='Desain kartu header diperbarui';
 function draft130(){
- if(editor130.owner!==state.user||!editor130.draft){const current=config130();editor130.owner=state.user;editor130.base=current.version;editor130.draft={value:{...current.value},asset:{...current.asset}};editor130.error='';editor130.status='';}
+ if(editor130.owner!==state.user||!editor130.draft){const current=config130();editor130.owner=state.user;editor130.base=current.version;editor130.draft={value:{...current.value},asset:{...current.asset}};editor130.error='';editor130.status='';editor130.dirty=false;}
  return editor130.draft;
 }
-function active130(){return editor130.drag&&editor130.owner===state.user?editor130.draft:config130();}
+function active130(){return editor130.owner===state.user&&editor130.draft&&(editor130.drag||editor130.dirty)?editor130.draft:config130();}
 function art130(element,config){
  if(!element)return;
  geometry129(element,config.value);
@@ -57,18 +57,23 @@ function editorGeometry130(){
   handle.style.top=Math.max(4,Math.min(96,50+v.y+sy*v.size/2))+'%';
  });
  const status=document.querySelector('.design-status130');
- if(status){status.textContent=editor130.error||editor130.status||T('Tarik desain untuk memindahkan. Tarik sudut untuk mengubah ukuran.','Drag the design to move it. Drag a corner to resize.');status.classList.toggle('is-error130',!!editor130.error);}
+ if(status){status.textContent=editor130.error||editor130.status||(editor130.dirty?T('Belum tersimpan — pilih Simpan untuk menerapkan.','Unsaved — choose Save to apply.'):T('Tarik desain atau atur penggeser, lalu Simpan.','Drag the design or adjust the sliders, then Save.'));status.classList.toggle('is-error130',!!editor130.error);status.classList.toggle('is-dirty130',!editor130.error&&editor130.dirty);}
  document.querySelector('[data-upload130]')?.toggleAttribute('disabled',editor130.busy);
+ document.querySelectorAll('[data-edit130]').forEach(el=>{const k=el.dataset.edit130;el.value=k==='shade'?Math.round((draft.asset.shade??.3)*100):draft.value[k];});
+ document.querySelectorAll('[data-out130]').forEach(el=>{const k=el.dataset.out130;el.textContent=k==='shade'?Math.round((draft.asset.shade??.3)*100)+'%':(k==='size'?'':(draft.value[k]>0?'+':''))+draft.value[k]+'%';});
+ document.querySelector('.shade130')?.classList.toggle('is-hidden130',draft.asset.kind!=='image');
+ document.querySelector('[data-edit130-save]')?.toggleAttribute('disabled',!editor130.dirty);
+ document.querySelector('[data-edit130-reset]')?.toggleAttribute('disabled',!editor130.dirty);
 }
 appearancePage129=function(){
  const draft=draft130(),scene=hero122().replace('dashboard-hero122 hero124','design-content130').replace('<section ','<section inert ');
  const uploadIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>';
  const homeIcon=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${controlIcons127.home}</svg>`;
- return `<section class="appearance130"><header class="design-heading130"><h2>${T('Kartu header saat ini','Current header card')}</h2><button type="button" class="btn" data-upload130>${uploadIcon}${T('Unggah desain baru','Upload new design')}</button><input type="file" data-file130 accept="image/png,image/jpeg,image/webp" hidden></header><div class="design-stage130" aria-describedby="design-status130">${atmospheric127}<div class="design-nav130" inert><span class="design-brand130">RM <b>RILIS MUSIK</b></span><span>${homeIcon}${icon('people')}${icon('settings')}</span><i>JR</i></div>${scene}<div class="design-selection130" tabindex="0" role="group" aria-describedby="design-status130"></div>${[[-1,-1],[1,-1],[-1,1],[1,1]].map(([sx,sy])=>`<button type="button" class="design-handle130" data-corner="${sx},${sy}" aria-label="${T('Ubah ukuran dari sudut','Resize from corner')} ${sx<0?T('kiri','left'):T('kanan','right')} ${sy<0?T('atas','top'):T('bawah','bottom')}"></button>`).join('')}</div><p id="design-status130" class="design-status130" role="status" aria-live="polite">${T('Tarik desain untuk memindahkan. Tarik sudut untuk mengubah ukuran.','Drag the design to move it. Drag a corner to resize.')}</p></section>`;
+ return `<section class="appearance130"><header class="design-heading130"><h2>${T('Kartu header saat ini','Current header card')}</h2><button type="button" class="btn" data-upload130>${uploadIcon}${T('Unggah desain baru','Upload new design')}</button><input type="file" data-file130 accept="image/png,image/jpeg,image/webp" hidden></header><div class="design-stage130" aria-describedby="design-status130">${atmospheric127}<div class="design-nav130" inert><span class="design-brand130">RM <b>RILIS MUSIK</b></span><span>${homeIcon}${icon('people')}${icon('settings')}</span><i>JR</i></div>${scene}<div class="design-selection130" tabindex="0" role="group" aria-describedby="design-status130"></div>${[[-1,-1],[1,-1],[-1,1],[1,1]].map(([sx,sy])=>`<button type="button" class="design-handle130" data-corner="${sx},${sy}" aria-label="${T('Ubah ukuran dari sudut','Resize from corner')} ${sx<0?T('kiri','left'):T('kanan','right')} ${sy<0?T('atas','top'):T('bawah','bottom')}"></button>`).join('')}</div><div class="design-controls130"><div class="design-sliders130">${[['size',T('Ukuran','Size'),50,220],['x',T('Posisi horizontal','Horizontal position'),-50,50],['y',T('Posisi vertikal','Vertical position'),-50,50]].map(([k,l,min,max])=>'<label class="design-slider130"><span>'+l+'</span><input type="range" min="'+min+'" max="'+max+'" step="1" data-edit130="'+k+'"><output data-out130="'+k+'"></output></label>').join('')}<label class="design-slider130 shade130"><span>${T('Peredupan gambar','Image dimming')}</span><input type="range" min="14" max="66" step="1" data-edit130="shade"><output data-out130="shade"></output></label></div><div class="design-actions130"><button type="button" class="btn" data-edit130-reset>${T('Atur ulang','Reset')}</button><button type="button" class="btn primary" data-edit130-save>${T('Simpan tampilan','Save appearance')}</button></div></div><p id="design-status130" class="design-status130" role="status" aria-live="polite">${T('Tarik desain atau atur penggeser, lalu Simpan.','Drag the design or adjust the sliders, then Save.')}</p></section>`;
 };
 function finishEdit130(){
- try{save130(editor130.draft,editor130.base);const saved=config130();editor130.base=saved.version;editor130.draft={value:{...saved.value},asset:{...saved.asset}};editor130.error='';editor130.status=T('Perubahan tersimpan.','Changes saved.');}
- catch(error){const current=config130();editor130.draft={value:{...current.value},asset:{...current.asset}};editor130.base=current.version;editor130.error=error.message;editor130.status='';}
+ try{save130(editor130.draft,editor130.base);const saved=config130();editor130.base=saved.version;editor130.draft={value:{...saved.value},asset:{...saved.asset}};editor130.error='';editor130.status=T('Perubahan tersimpan.','Changes saved.');editor130.dirty=false;}
+ catch(error){const current=config130();editor130.draft={value:{...current.value},asset:{...current.asset}};editor130.base=current.version;editor130.error=error.message;editor130.status='';editor130.dirty=false;}
  editor130.drag=null;decorate129();editorGeometry130();
 }
 async function readDesign130(file){
@@ -83,7 +88,7 @@ async function readDesign130(file){
   const sample=document.createElement('canvas');sample.width=40;sample.height=20;const sampleContext=sample.getContext('2d');sampleContext.drawImage(canvas,0,0,40,20);const pixels=sampleContext.getImageData(0,0,40,20).data;
   const linear=n=>{const value=n/255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;};let luminance=0;
   for(let i=0;i<pixels.length;i+=4)luminance=Math.max(luminance,(.2126*linear(pixels[i])+.7152*linear(pixels[i+1])+.0722*linear(pixels[i+2]))*pixels[i+3]/255);
-  const shade=luminance>.4?.66:luminance>.15?.45:.18;
+  const shade=luminance>.45?.4:luminance>.2?.26:.14;
   let data=canvas.toDataURL('image/webp',.9);
   if(data.length>Header130.maxData)data=canvas.toDataURL('image/webp',.7);
   if(data.length>Header130.maxData){const smaller=document.createElement('canvas');smaller.width=Math.round(canvas.width*.67);smaller.height=Math.round(canvas.height*.67);smaller.getContext('2d').drawImage(canvas,0,0,smaller.width,smaller.height);data=smaller.toDataURL('image/webp',.7);canvas.width=smaller.width;canvas.height=smaller.height;}
@@ -100,10 +105,17 @@ window.addEventListener('change',async event=>{
  try{
   headerGuard129();const asset=await readDesign130(file);
   if(token!==editor130.token||owner!==state.user||!input.isConnected)return;
-  headerGuard129();save130({value:draft130().value,asset},version);
-  editor130.draft=null;editor130.busy=false;render();editor130.status=T('Desain baru tersimpan.','New design saved.');editorGeometry130();
+  headerGuard129();const draft=draft130();draft.asset=asset;editor130.dirty=true;editor130.status=T('Desain baru dimuat — atur lalu Simpan.','New design loaded — adjust, then Save.');art130(document.querySelector('.design-stage130 .masthead-atmosphere127'),draft);art130(document.querySelector('.masthead124 .masthead-atmosphere127'),draft);editorGeometry130();
  }catch(error){if(token===editor130.token&&owner===state.user){editor130.error=error.message;editor130.status='';}}
  finally{if(token===editor130.token){editor130.busy=false;if(owner===state.user)editorGeometry130();}}
+},true);
+window.addEventListener('input',event=>{
+ const input=event.target.closest?.('[data-edit130]');if(!input)return;
+ try{headerGuard129();const draft=draft130(),k=input.dataset.edit130,v=Number(input.value);
+  if(k==='shade'){if(draft.asset.kind==='image')draft.asset={...draft.asset,shade:Math.max(.14,Math.min(.66,v/100))};}
+  else{const b=Header130.bounds[k];draft.value[k]=Math.round(Math.max(b[0],Math.min(b[1],v)));}
+  editor130.dirty=true;editor130.error='';editor130.status='';editorGeometry130();art130(document.querySelector('.masthead124 .masthead-atmosphere127'),draft);
+ }catch(error){editor130.error=error.message;editorGeometry130();}
 },true);
 window.addEventListener('pointerdown',event=>{
  const stage=event.target.closest('.design-stage130');if(!stage||event.button>0||editor130.busy)return;
@@ -125,8 +137,8 @@ function endPointer130(event,cancel){
  const drag=editor130.drag;if(!drag||drag.pointer!==event.pointerId)return;
  if(drag.target.hasPointerCapture(event.pointerId))drag.target.releasePointerCapture(event.pointerId);
  document.querySelector('.design-stage130')?.classList.remove('is-editing130');
- if(cancel||drag.owner!==state.user){editor130.drag=null;editor130.draft=null;decorate129();editorGeometry130();return;}
- finishEdit130();
+ if(cancel||drag.owner!==state.user){editor130.drag=null;editor130.draft=null;editor130.dirty=false;decorate129();editorGeometry130();return;}
+ editor130.drag=null;editor130.dirty=true;editor130.status=T('Belum tersimpan — pilih Simpan untuk menerapkan.','Unsaved — choose Save to apply.');decorate129();editorGeometry130();
 }
 window.addEventListener('pointerup',event=>endPointer130(event,false),true);
 window.addEventListener('pointercancel',event=>endPointer130(event,true),true);
@@ -166,6 +178,8 @@ function cycleStaff130(direction){const users=staffList122(),current=selectedSta
 function interaction130(event){
  const upload=event.target.closest('[data-upload130]');
  if(upload){event.preventDefault();event.stopImmediatePropagation();try{headerGuard129();document.querySelector('[data-file130]')?.click();}catch(error){editor130.error=error.message;editorGeometry130();}return;}
+ if(event.target.closest('[data-edit130-save]')){event.preventDefault();event.stopImmediatePropagation();try{headerGuard129();finishEdit130();}catch(error){editor130.error=error.message;editorGeometry130();}return;}
+ if(event.target.closest('[data-edit130-reset]')){event.preventDefault();event.stopImmediatePropagation();const saved=config130();editor130.draft={value:{...saved.value},asset:{...saved.asset}};editor130.base=saved.version;editor130.dirty=false;editor130.error='';editor130.status=T('Perubahan dibatalkan.','Changes reverted.');decorate129();editorGeometry130();return;}
  const button=event.target.closest('[data-u122="staff-select"],[data-u122="staff-prev"],[data-u122="staff-next"]');if(!button)return;
  event.preventDefault();event.stopImmediatePropagation();
  if(button.dataset.u122==='staff-select')selectStaff130(button.dataset.id);else cycleStaff130(button.dataset.u122==='staff-next'?1:-1);
@@ -175,13 +189,13 @@ function key130(event){
  const selection=event.target.closest('.design-selection130,.design-handle130');
  if(selection&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape'].includes(event.key)){
   event.preventDefault();event.stopImmediatePropagation();
-  if(event.key==='Escape'){if(editor130.drag){editor130.drag=null;editor130.draft=null;decorate129();editorGeometry130();}return;}
+  if(event.key==='Escape'){if(editor130.drag){editor130.drag=null;editor130.draft=null;editor130.dirty=false;decorate129();editorGeometry130();}return;}
   if(editor130.busy)return;
   try{headerGuard129();const draft=draft130(),value={...draft.value};
    if(event.shiftKey||selection.matches('.design-handle130'))value.size=Math.max(50,Math.min(220,value.size+(['ArrowUp','ArrowRight'].includes(event.key)?2:-2)));
    else if(event.key==='ArrowLeft'||event.key==='ArrowRight')value.x=Math.max(-50,Math.min(50,value.x+(event.key==='ArrowRight'?1:-1)));
    else value.y=Math.max(-50,Math.min(50,value.y+(event.key==='ArrowDown'?1:-1)));
-   editor130.draft.value=value;finishEdit130();
+   editor130.draft.value=value;editor130.dirty=true;editor130.status=T('Belum tersimpan — pilih Simpan untuk menerapkan.','Unsaved — choose Save to apply.');decorate129();editorGeometry130();
   }catch(error){editor130.error=error.message;editorGeometry130();}
   return;
  }

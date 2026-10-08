@@ -33,6 +33,14 @@ const OUT='C:\\Users\\rotam\\AppData\\Local\\Temp\\sample-shots';
  await page.evaluate(()=>{document.querySelector('#dialog')?.close();document.documentElement.dataset.theme='light';state.user=people.find(p=>p.super).id;go('labels9','staff')});
  await page.waitForTimeout(900);
  await page.screenshot({path:OUT+'\\45-labels-verify.png'});
+ // pengaturan tampilan: editor desain header (super)
+ await page.evaluate(()=>{document.documentElement.dataset.theme='light';role102('super');route115('appearance')});
+ await page.waitForTimeout(800);
+ await page.screenshot({path:OUT+'\\46-appearance.png'});
+ // geser slider ukuran -> dirty, tombol simpan aktif
+ await page.locator('[data-edit130="size"]').fill('140');
+ await page.waitForTimeout(400);
+ await page.screenshot({path:OUT+'\\47-appearance-dirty.png'});
  console.log('shots done');
  await b.close();srv.kill();
 })().catch(e=>{console.error(e);process.exit(1)});

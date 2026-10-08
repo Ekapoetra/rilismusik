@@ -1,7 +1,7 @@
 {
   "version": "13.0",
-  "hash": "35EDD9AB59A194F14EB0A59F0ADE9EF19374A956CD99A10A5ABFFE057B7FDE70",
-  "checkedAt": "2026-10-08T06:12:25.466Z",
+  "hash": "884CEC115AC083A782B244AE43DB9428AC5486C11832276A3D355A183B1500D5",
+  "checkedAt": "2026-10-08T06:38:35.228Z",
   "checks": [
     {
       "name": "super/light/1440 uses one continuous readable masthead",
@@ -835,7 +835,7 @@
       "pass": true
     },
     {
-      "name": "Appearance shows the current card and upload, without sliders or an Apply form",
+      "name": "Appearance shows the current card, upload, precision sliders and a Save action",
       "pass": true
     },
     {
@@ -851,11 +851,15 @@
       "pass": true
     },
     {
-      "name": "Releasing a drag saves the new position directly",
+      "name": "Releasing a drag stages the change without saving",
       "pass": true
     },
     {
-      "name": "Corner resizing changes the actual artwork scale without a slider",
+      "name": "The Save action applies the staged position",
+      "pass": true
+    },
+    {
+      "name": "Corner resizing changes the actual artwork scale after Save",
       "pass": true
     },
     {
@@ -875,7 +879,11 @@
       "pass": true
     },
     {
-      "name": "Uploading valid artwork replaces the current design directly",
+      "name": "Uploading valid artwork stages it for review before saving",
+      "pass": true
+    },
+    {
+      "name": "Saving applies the uploaded design",
       "pass": true
     },
     {
@@ -940,22 +948,22 @@
         "overflow": -15,
         "stage": {
           "x": 52,
-          "y": 298.0462341308594,
+          "y": 297.7191162109375,
           "width": 1161,
-          "height": 290.2500305175781,
-          "top": 298.0462341308594,
+          "height": 290.25,
+          "top": 297.7191162109375,
           "right": 1213,
-          "bottom": 588.2962646484375,
+          "bottom": 587.9691162109375,
           "left": 52
         },
         "upload": {
           "x": 1045.484375,
-          "y": 240.04623413085938,
+          "y": 239.7191162109375,
           "width": 167.515625,
           "height": 38,
-          "top": 240.04623413085938,
+          "top": 239.7191162109375,
           "right": 1213,
-          "bottom": 278.0462341308594,
+          "bottom": 277.7191162109375,
           "left": 1045.484375
         }
       }
@@ -967,22 +975,22 @@
         "overflow": -15,
         "stage": {
           "x": 52,
-          "y": 297.72021484375,
+          "y": 297.7200622558594,
           "width": 981,
-          "height": 260,
-          "top": 297.72021484375,
+          "height": 260.0000305175781,
+          "top": 297.7200622558594,
           "right": 1033,
-          "bottom": 557.72021484375,
+          "bottom": 557.7200927734375,
           "left": 52
         },
         "upload": {
           "x": 865.484375,
-          "y": 239.72019958496094,
+          "y": 239.72006225585938,
           "width": 167.515625,
-          "height": 38.00001525878906,
-          "top": 239.72019958496094,
+          "height": 38,
+          "top": 239.72006225585938,
           "right": 1033,
-          "bottom": 277.72021484375,
+          "bottom": 277.7200622558594,
           "left": 865.484375
         }
       }
@@ -994,22 +1002,22 @@
         "overflow": -15,
         "stage": {
           "x": 46,
-          "y": 328.7205810546875,
+          "y": 328.44305419921875,
           "width": 713,
           "height": 260,
-          "top": 328.7205810546875,
+          "top": 328.44305419921875,
           "right": 759,
-          "bottom": 588.7205810546875,
+          "bottom": 588.4430541992188,
           "left": 46
         },
         "upload": {
           "x": 591.484375,
-          "y": 270.7205810546875,
+          "y": 270.44305419921875,
           "width": 167.515625,
           "height": 38,
-          "top": 270.7205810546875,
+          "top": 270.44305419921875,
           "right": 759,
-          "bottom": 308.7205810546875,
+          "bottom": 308.44305419921875,
           "left": 591.484375
         }
       }
@@ -1021,22 +1029,22 @@
         "overflow": -15,
         "stage": {
           "x": 24,
-          "y": 360.9696960449219,
+          "y": 360.970703125,
           "width": 557,
-          "height": 356.9375305175781,
-          "top": 360.9696960449219,
+          "height": 356.9375,
+          "top": 360.970703125,
           "right": 581,
-          "bottom": 717.9072265625,
+          "bottom": 717.908203125,
           "left": 24
         },
         "upload": {
           "x": 424.53125,
-          "y": 302.9696960449219,
+          "y": 302.970703125,
           "width": 156.46875,
           "height": 38,
-          "top": 302.9696960449219,
+          "top": 302.970703125,
           "right": 581,
-          "bottom": 340.9696960449219,
+          "bottom": 340.970703125,
           "left": 424.53125
         }
       }
@@ -1048,22 +1056,22 @@
         "overflow": -15,
         "stage": {
           "x": 24,
-          "y": 419.5638122558594,
+          "y": 419.5635986328125,
           "width": 327,
-          "height": 421.0937805175781,
-          "top": 419.5638122558594,
+          "height": 421.09375,
+          "top": 419.5635986328125,
           "right": 351,
-          "bottom": 840.6575927734375,
+          "bottom": 840.6573486328125,
           "left": 24
         },
         "upload": {
           "x": 194.53125,
-          "y": 344.9700622558594,
+          "y": 344.9698486328125,
           "width": 156.46875,
           "height": 38,
-          "top": 344.9700622558594,
+          "top": 344.9698486328125,
           "right": 351,
-          "bottom": 382.9700622558594,
+          "bottom": 382.9698486328125,
           "left": 194.53125
         }
       }
