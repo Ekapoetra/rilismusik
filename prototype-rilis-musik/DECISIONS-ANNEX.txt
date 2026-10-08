@@ -262,4 +262,72 @@ Kunci dasar: 1 token = 1 rilisan (lantai nilai Rp35.000).
    • saldo rupiah = ledger baru, menyerupai pola balance_* royalti.
    • order token = method 'token' di commerce113 → payment_method:
      'token_balance' di main.
+
+
+============================================================
+ANNEX-F  ·  D1 — PERBANDINGAN NILAI TOKEN vs HARGA RUPIAH
+============================================================
+
+Permintaan pemilik: ukur per layanan apakah token "terasa lebih murah",
+dan apakah harga rupiah perlu disetel ulang.
+Jenjang jual token (draft ANNEX-E): 1–9 → Rp33.000 · 10–49 → Rp31.000 ·
+≥50 → Rp29.000.
+
+1. TABEL — rumus ceil(P/35.000):
+   ┌──────────────┬───────────┬───┬─────────┬─────────┬─────────┬──────────┐
+   │ Layanan      │ Rp (P)    │ n │ @33rb   │ @31rb   │ @29rb   │ Vonis    │
+   ├──────────────┼───────────┼───┼─────────┼─────────┼─────────┼──────────┤
+   │ Smart Link   │    25.000 │ 1 │  33.000 │  31.000 │  29.000 │ KALAH +32%│
+   │ Rilisan      │    35.000 │ 1 │  33.000 │  31.000 │  29.000 │ −6..−17% │
+   │ Promo        │    70.000 │ 2 │  66.000 │  62.000 │  58.000 │ −6..−17% │
+   │ WAMI         │   100.000 │ 3 │  99.000 │  93.000 │  87.000 │ −1% tipis│
+   │ Visualizer   │   150.000 │ 5 │ 165.000 │ 155.000 │ 145.000 │ KALAH +10%│
+   │ Album        │   200.000 │ 6 │ 198.000 │ 186.000 │ 174.000 │ −1% tipis│
+   │ Studio       │   350.000 │10 │ 330.000 │ 310.000 │ 290.000 │ −6..−17% │
+   │ Pro          │   500.000 │15 │ 495.000 │ 465.000 │ 435.000 │ −1% tipis│
+   │ Business     │ 1.500.000 │43 │  jt 1,42│  jt 1,33│  jt 1,25│ −5..−17% │
+   └──────────────┴───────────┴───┴─────────┴─────────┴─────────┴──────────┘
+   (kolom = harga n token pada tiap jenjang beli)
+
+2. TEMUAN — dua layanan melanggar janji "selalu lebih murah":
+   • Smart Link (Rp25rb) — di bawah lantai 35rb; 1 token selalu lebih
+     mahal.
+   • Visualizer (Rp150rb) — berada di "zona mati": tepat di atas
+     kelipatan 140rb sehingga ceil() memaksa 5 token (nilai 175rb).
+   Zona mati pembeli satuan (@33rb): rentang (35n, 33n+33) per anak
+   tangga → (35–66rb) (70–99rb) (105–132rb) (140–165rb) (175–198rb).
+   WAMI (100rb) & Album (200rb) lolos hanya 1% — secara teknis benar,
+   secara rasa tidak terasa.
+
+3. PERBAIKAN RUMUS — ganti ceil() → round(), minimum 1:
+   Visualizer 150rb → 4 token (nilai 140rb): @33rb = 132rb → hemat −12% ✓
+   Pro 500rb → 14 token: @31rb = 434rb → hemat −13% ✓
+   Biaya: nilai pakai bisa 17,5rb di bawah harga rupiah, tapi harga
+   beli token (≤33rb) selalu menutupnya → member tetap hemat.
+   PLUS satu aturan elegan yang memenuhi janji secara harfiah:
+   → TOKEN HANYA DITAWARKAN BILA n × harga_jual < harga_rupiah.
+     Bila tidak, layanan tampil rupiah saja (Smart Link otomatis
+     tersembunyi dari rel token — tanpa keputusan manual).
+
+4. USULAN SETEL HARGA (agar tiap layanan duduk rapi di kelipatan 35rb):
+   ┌──────────────┬───────────┬───────────┬───┬──────────────────┐
+   │ Layanan      │ Sekarang  │ Usulan    │ n │ Hemat member     │
+   ├──────────────┼───────────┼───────────┼───┼──────────────────┤
+   │ Smart Link   │    25.000 │    25.000 │ — │ rupiah saja      │
+   │ Rilisan      │    35.000 │    35.000 │ 1 │ −6..−17%         │
+   │ Promo        │    70.000 │    70.000 │ 2 │ −6..−17%         │
+   │ WAMI         │   100.000 │   105.000 │ 3 │ −6..−17%         │
+   │ Visualizer   │   150.000 │   140.000 │ 4 │ −6..−17%         │
+   │ Album        │   200.000 │   210.000 │ 6 │ −6..−17%         │
+   │ Studio       │   350.000 │   350.000 │10 │ −6..−17%         │
+   │ Pro          │   500.000 │   490.000 │14 │ −6..−17% @31rb   │
+   │ Business     │ 1.500.000 │ 1.505.000 │43 │ −6..−17% @29rb   │
+   └──────────────┴───────────┴───────────┴───┴──────────────────┘
+   Pola: harga = kelipatan 35rb → hemat seragam ~6% (satuan) ~11%
+   (10–49) ~17% (≥50). WAMI & Pro naik sedikit, Visualizer turun —
+   atau pertahankan 150rb dan biarkan round() menyelesaikannya (n=4).
+
+5. KELEBIHAN KATALOG: simpan harga token sebagai kolom per layanan
+   (default = round(P/35k), dapat ditimpa Super Admin) — sama seperti
+   kuota D4 yang sudah jadi konfigurasi, bukan kode.
 ============================================================

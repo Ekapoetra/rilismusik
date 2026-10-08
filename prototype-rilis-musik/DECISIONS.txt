@@ -140,10 +140,13 @@ D9. TARIF ROYALTI PER LABEL                       DECIDED-SEBAGIAN
   Penjelasan: main memotong royalti — label menerima 60% (default),
   platform 40%. Persentase dapat dinegosiasi per label lewat alur
   rate-change dengan approval. Prototype saat ini mengasumsikan 100%.
-  → DIPUTUSKAN pemilik: tarif seragam 60% untuk semua label sekarang;
-    kolom per-label tetap tersedia bila diperlukan negosiasi khusus.
+  → DIPUTUSKAN pemilik: tarif 60% hanya berlaku untuk LABEL BARU.
+    Label lama (legacy) mempertahankan persentase masing-masing yang
+    sudah disesuaikan — tidak dipaksa seragam.
+  → Konsekuensi model: kolom tarif per-label WAJIB ada (bukan opsi
+    nanti); default 60% hanya diisi saat label baru dibuat.
 
-KEPUTUSAN: SAHKAN — seragam 60%, per-label bila perlu nanti.
+KEPUTUSAN: SAHKAN — 60% untuk label baru; legacy pakai tarifnya sendiri.
 
 
 ------------------------------------------------------------
