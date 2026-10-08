@@ -1,0 +1,11 @@
+/* V13.0 · D13/D14 — pemeliharaan & panduan pembaruan */
+.update-legend131{display:flex;gap:8px;margin-bottom:14px}
+.update-head131{display:inline-flex;align-items:center;gap:8px}
+.update-head131 svg{width:16px;height:16px}
+.update-item131{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--border,#e4e0da)}
+.update-item131:first-of-type{border-top:none}
+.update-item131>span{flex:none;padding-top:2px}
+.update-item131 p{margin:0;line-height:1.5}
+.maint-banner131{margin-bottom:14px}
+.maint-banner131 p small{color:inherit;opacity:.75}
+.maint-banner131.upcoming131 .status-dot9{background:#b58b2a}

@@ -215,31 +215,62 @@ KEPUTUSAN: PARKED.
 
 
 ------------------------------------------------------------
-D13. MENU MAINTENANCE SISTEM (SUPER)              PLANNED
+D13. MENU MAINTENANCE SISTEM (SUPER)              DIIMPLEMENTASIKAN
 ------------------------------------------------------------
   Permintaan pemilik: menu maintenance milik super —
   jadwal, durasi, pesan, dan kebutuhan sistem lainnya.
   Waktu implementasi: fleksibel.
 
-KEPUTUSAN: PLANNED — antrean fitur.
+  IMPLEMENTASI (preview, V13.0):
+  - Area 'maintenance' baru di System115 — mengikuti pola
+    draft → tinjau → terapkan, berversi, teraudit, redaksi aman.
+  - Tab "Pemeliharaan" di halaman Sistem (khusus Super Admin):
+    daftar jendela terurut (berjalan → terjadwal → riwayat),
+    penanda draf berubah, riwayat versi.
+  - Editor jendela: judul, jenis (terjadwal/darurat), mode
+    (pengumuman/baca-saja), rentang mulai–selesai WIB (durasi
+    dihitung otomatis), modul terdampak, pesan member, waktu
+    pengumuman (tanpa/saat mulai/1 jam/24 jam sebelum), status,
+    dan catatan internal.
+  - Pengumuman member: banner tampil sesuai konfigurasi yang
+    sudah DITERAPKAN (bukan draf), dari waktu pengingat hingga
+    akhir jendela; mode baca-saja diberi penanda jelas.
+  - Migrasi: sesi tersimpan tanpa area maintenance mendapat
+    seed default saat dimuat.
+  - Validasi model: rentang waktu valid, minimal satu modul,
+    pesan 3–1000 karakter, ID unik.
+
+KEPUTUSAN: DECIDED — diimplementasikan di preview.
 
 
 ------------------------------------------------------------
-D14. MENU "UPDATE" (CATATAN PERUBAHAN V1.1)       PLANNED
+D14. MENU "UPDATE" (CATATAN PERUBAHAN V1.1)       DIIMPLEMENTASIKAN
 ------------------------------------------------------------
   Permintaan pemilik: menu berisi daftar perubahan dari main
   branch (bahasa user: V1.0) ke prototype (V1.1). Selalu
   diperbarui selama development; hanya menulis fitur yang
   jadi — bukan log, melainkan catatan/guide update.
 
-KEPUTUSAN: PLANNED — antrean fitur.
+  IMPLEMENTASI (preview, V13.0):
+  - Menu "Pembaruan" di sidebar label (v131-updates.js).
+  - Isi terkurasi di updateGuide131: 6 bagian, tiap butir
+    diberi penanda Baru / Berubah / Dihapus, bilingual ID–EN.
+  - Hanya memuat fitur yang benar-benar tersedia; fitur yang
+    tidak jadi tidak ditulis (sesuai arahan pemilik).
+  - Wajib diperbarui pada setiap perubahan fitur berikutnya.
+  - Terdaftar juga sebagai item navigasi 'updates' di seed
+    navigasi Sistem (target label), sehingga dapat diatur
+    nama/visibilitasnya lewat menu Navigasi.
+
+KEPUTUSAN: DECIDED — diimplementasikan di preview.
 
 
 ====================================================
 RINGKASAN STATUS (diperbarui)
   DECIDED : D1 (ANNEX-E+E1), D2, D3, D4, D5, D7 (rute final),
-            D8+addendum, D9, D10 (fokus Cantika), D11
+            D8+addendum, D9, D10 (fokus Cantika), D11,
+            D13 (maintenance sistem), D14 (menu Pembaruan)
   DRAFT   : —
   PARKED  : D6 (artis - rancangan dasar diam-diam), D12
-  PLANNED : D13 (menu maintenance), D14 (menu update V1.1)
+  PLANNED : —
 ====================================================
