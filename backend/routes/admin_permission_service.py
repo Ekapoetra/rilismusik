@@ -202,6 +202,7 @@ DEFAULT_NAV_ITEMS = [
     ("wami", "/admin/wami", "Music", "wami.view", "Registrasi WAMI", "WAMI Registration", None),
     ("tickets", "/admin/tickets", "MessageSquare", "support.view", "Tiket Bantuan", "Support Tickets", None),
     ("cms", "/admin/cms", "LayoutTemplate", "cms.view", "Landing Page CMS", "Landing Page CMS", None),
+    ("maintenance", "/admin/maintenance", "Wrench", "system.maintenance", "Pemeliharaan", "Maintenance", None),
     ("contracts", "/admin/contracts", "FileSignature", "contracts.view", "Kontrak", "Contracts", None),
     ("admin_users", "/admin/admin-users", "Users2", "access.users.view", "Pengguna Admin", "Admin Users", None),
     ("roles", "/admin/access", "KeyRound", "access.roles.view", "Role & Permission", "Roles & Permissions", "admin_users"),
@@ -248,7 +249,7 @@ NAV_GROUP_MAP = {
     "my_performance": "personal", "compensation_me": "personal", "compensation_payroll": "personal",
     "compensation_staff": "personal", "compensation_bonus": "personal", "compensation_bonus_rules": "personal",
     "compensation_adjustments": "personal",
-    "cms": "system", "activity": "system", "ui_settings": "system",
+    "cms": "system", "activity": "system", "ui_settings": "system", "maintenance": "system",
 }
 
 

@@ -70,6 +70,7 @@ import storage_service
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
 from routes.direct_uploads import direct_upload_r
+from routes.maintenance_windows import maint_r, maint_admin_r
 app.include_router(direct_upload_r, prefix="/api")
 
 
@@ -171,6 +172,8 @@ api.include_router(notif_r)
 api.include_router(kyc_r)
 api.include_router(chat_r)
 api.include_router(cron_r)
+api.include_router(maint_r)
+api.include_router(maint_admin_r)
 
 
 @api.get("/")

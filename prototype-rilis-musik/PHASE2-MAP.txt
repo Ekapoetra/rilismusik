@@ -301,12 +301,25 @@ Peta prototype → main:
     landing+MDA tanpa versioning. Perlu koleksi area berversi
     (content/navigation/procedures/maintenance) + catatan
     implementasi wajib.
-  Jendela pemeliharaan     [+] koleksi baru maintenance_windows:
-    title/kind/mode/start/end/modules/message/notify/status —
-    status dihitung dari waktu, manual override menang.
-    Endpoint label: GET publik jendela aktif untuk banner.
+  Jendela pemeliharaan     [=] DIIMPLEMENTASIKAN di main
+    (branch preview): koleksi maintenance_windows +
+    routes/maintenance_windows.py —
+      GET  /api/maintenance/active        banner member (lead
+                                          waktu + status manual)
+      GET/POST   /api/admin/maintenance   super saja
+      PATCH      /api/admin/maintenance/{id}
+      POST       /api/admin/maintenance/{id}/status  override:
+                                          active/completed/
+                                          cancelled/scheduled
+    Status dihitung dari waktu; manual override menang — sama
+    seperti maintState131. UI: halaman admin /admin/maintenance
+    (grup nav Sistem) + MaintenanceBanner di LabelLayout.
+    Catatan: write tetap diblokir middleware preview Vercel —
+    konsisten, preview read-only.
   Mode baca-saja           [+] saat mode=readonly & modul
     terdampak → guard penulisan di modul itu (middleware).
+    (Saat ini readonly terekspos di /maintenance/active untuk
+    penanda UI; penegakan tulis = irisan berikutnya.)
   Menu Pembaruan (D14)     [~] konten statis UI; bisa tetap
     hardcode bilingual di frontend, atau CMS area baru
     'updates' bila ingin diedit super tanpa deploy.
