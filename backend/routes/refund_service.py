@@ -117,7 +117,21 @@ async def mark_refunded(payment_id: str, body: MarkRefundedIn, user: dict = Depe
         "updated_at": now_iso(),
     }
     await db.payments.update_one({"id": payment_id}, {"$set": patch})
+    # Cascade: add-on orders covered by this payment are refunded with it — the
+    # payment refund already includes their amounts, so marking them prevents
+    # a second refund being recorded per order.
+    cascaded = await db.addon_orders.update_many(
+        {"payment_id": payment_id, "status": {"$nin": ["completed", "cancelled", "refunded"]}},
+        {"$set": {
+            "status": "refunded", "refund_status": "refunded", "refund_via": "payment",
+            "refund_note": body.note.strip(), "refunded_at": patch["refunded_at"],
+            "refunded_by": user["id"], "updated_at": patch["updated_at"],
+        }},
+    )
     await log_activity(user["id"], "payment_mark_refunded", "payment", payment_id,
                        before={"refund_status": pay.get("refund_status")},
-                       after={"refund_status": "refunded", "amount": int(pay.get("amount") or 0), "note": body.note.strip()})
-    return {"ok": True, "payment_id": payment_id, **patch}
+                       after={"refund_status": "refunded", "amount": int(pay.get("amount") or 0),
+                              "note": body.note.strip(),
+                              "addon_orders_refunded": getattr(cascaded, "modified_count", 0)})
+    return {"ok": True, "payment_id": payment_id,
+            "addon_orders_refunded": getattr(cascaded, "modified_count", 0), **patch}

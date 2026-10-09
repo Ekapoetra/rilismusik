@@ -186,13 +186,13 @@ _PIPELINES = {
                         "title": "subject", "link": "/admin/tickets/{id}", "cat": "Tiket Bantuan"},
     "withdraw_requests": {"total_steps": 2, "map": {"requested": 0, "processing": 1, "approved": 1}, "extra_match": {"child_withdraw_ids": {"$exists": False}},
                           "title": "label_name", "link": "/admin/withdraw", "cat": "Penarikan Dana"},
-    "addon_orders": {"total_steps": 3, "map": {"pending": 0, "in_progress": 1, "delivered": 2},
+    "addon_orders": {"total_steps": 3, "map": {"pending": 0, "in_progress": 1, "revision": 1, "delivered": 2},
                      "title": "product_name", "link": "/admin/addon-orders", "cat": "Layanan Tambahan"},
 }
 _STATUS_LABEL = {"submitted": "Diajukan", "under_review": "Ditinjau", "awaiting_payment": "Menunggu Bayar",
                  "paid": "Dibayar", "approved": "Disetujui", "delivered": "Dikirim", "open": "Terbuka",
                  "in_progress": "Diproses", "submitted_to_believe": "Submit ke Believe", "requested": "Diminta",
-                 "processing": "Diproses", "pending": "Menunggu"}
+                 "processing": "Diproses", "pending": "Menunggu", "revision": "Revisi", "refunded": "Dikembalikan"}
 _MODULE_PERM = {"releases": "releases.view", "support_tickets": "support.view", "withdraw_requests": "payments.view", "addon_orders": "addons.view"}
 
 

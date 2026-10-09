@@ -87,7 +87,7 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         db.users.count_documents({"role": "label", "claim_status": "pending_link"}),
         db.wami_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
         db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
-        db.addon_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
+        db.addon_orders.count_documents({"status": {"$in": ["pending", "in_progress", "revision"]}}),
         db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}),
         db.bank_account_change_requests.count_documents({"status": "pending_admin_approval"}),
     )
@@ -97,7 +97,7 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         _oldest("withdraw_requests", {"status": "requested"}, "created_at"),
         _oldest("support_tickets", {"status": {"$nin": ["done", "rejected", "draft"]}}, "created_at"),
         _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
-        _oldest("addon_orders", {"status": {"$in": ["pending", "in_progress"]}}, "created_at"),
+        _oldest("addon_orders", {"status": {"$in": ["pending", "in_progress", "revision"]}}, "created_at"),
         _oldest("releases", {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}, "delivered_to_believe_at"),
         _oldest("bank_account_change_requests", {"status": "pending_admin_approval"}, "created_at"),
     )

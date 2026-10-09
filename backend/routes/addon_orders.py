@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from models import new_id, now_iso
 from .deps import (
     db, require_admin, require_label, get_label_by_user,
-    log_activity, notify_many, label_user_ids,
+    log_activity, notify_many, label_user_ids, admin_user_ids,
 )
 from .admin_permission_service import assert_admin_permission
 import asyncio
@@ -39,11 +39,12 @@ addon_admin_r = APIRouter(prefix="/admin/addon-orders", tags=["addon-orders"])
 addon_label_r = APIRouter(prefix="/label/addon-orders", tags=["addon-orders"])
 
 STATUS_FLOW = ["pending", "in_progress", "delivered", "completed"]
-OPEN_STATUSES = ["pending", "in_progress"]
-TERMINAL = {"completed", "cancelled"}
+OPEN_STATUSES = ["pending", "in_progress", "revision"]
+TERMINAL = {"completed", "cancelled", "refunded"}
 STATUS_LABELS = {
     "pending": "Menunggu", "in_progress": "Diproses",
     "delivered": "Terkirim", "completed": "Selesai", "cancelled": "Dibatalkan",
+    "revision": "Revisi Diminta", "refunded": "Dikembalikan",
 }
 
 
@@ -200,6 +201,8 @@ async def admin_update_status(order_id: str, body: AddonStatusIn, user: dict = D
     current = order.get("status")
     if current in TERMINAL:
         raise HTTPException(status_code=409, detail=f"Order sudah {STATUS_LABELS.get(current)}")
+    if current == "revision":
+        raise HTTPException(status_code=409, detail="Selesaikan permintaan revisi label terlebih dahulu")
     new_status = body.status
     if new_status != "cancelled":
         if new_status not in STATUS_FLOW:
@@ -229,8 +232,10 @@ async def admin_set_delivery(order_id: str, body: AddonDeliveryIn, user: dict = 
     order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
-    if order.get("status") == "cancelled":
-        raise HTTPException(status_code=409, detail="Order sudah dibatalkan")
+    if order.get("status") in TERMINAL:
+        raise HTTPException(status_code=409, detail=f"Order sudah {STATUS_LABELS.get(order.get('status'))}")
+    if order.get("status") == "revision":
+        raise HTTPException(status_code=409, detail="Selesaikan permintaan revisi label terlebih dahulu")
     url = _safe_url(body.delivery_url)
     note = (body.delivery_note or "").strip() or None
     now = now_iso()
@@ -259,8 +264,10 @@ async def admin_upload_delivery_file(order_id: str, file: UploadFile = File(...)
     order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
-    if order.get("status") == "cancelled":
-        raise HTTPException(status_code=409, detail="Order sudah dibatalkan")
+    if order.get("status") in TERMINAL:
+        raise HTTPException(status_code=409, detail=f"Order sudah {STATUS_LABELS.get(order.get('status'))}")
+    if order.get("status") == "revision":
+        raise HTTPException(status_code=409, detail="Selesaikan permintaan revisi label terlebih dahulu")
     filename = (file.filename or "").strip()
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     allowed = {"mp4", "mov", "webm", "zip", "rar", "png", "jpg", "jpeg", "pdf", "mp3", "wav", "gif"}
@@ -294,7 +301,160 @@ async def admin_backfill(user: dict = Depends(require_admin)):
     return result
 
 
+class RevisionDecisionIn(BaseModel):
+    decision: str  # "approve" | "decline"
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+
+@addon_admin_r.post("/{order_id}/revision-decision")
+async def admin_revision_decision(order_id: str, body: RevisionDecisionIn, user: dict = Depends(require_admin)):
+    """Resolve a label revision request: approve -> rework (in_progress), decline -> result stands (delivered)."""
+    assert_admin_permission(user, "addon.manage")
+    if body.decision not in ("approve", "decline"):
+        raise HTTPException(status_code=400, detail="Keputusan tidak valid")
+    note = (body.note or "").strip()
+    if body.decision == "decline" and len(note) < 3:
+        raise HTTPException(status_code=400, detail="Tuliskan alasan penolakan revisi")
+    order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
+    if order.get("status") != "revision":
+        raise HTTPException(status_code=409, detail="Order tidak sedang menunggu keputusan revisi")
+    now = now_iso()
+    new_status = "in_progress" if body.decision == "approve" else "delivered"
+    await db.addon_orders.update_one({"id": order_id}, {"$set": {
+        "status": new_status, "updated_at": now,
+        "revision_decision": body.decision,
+        "revision_decision_note": note or None,
+        "revision_resolved_at": now, "revision_resolved_by": user["id"],
+    }})
+    await log_activity(user["id"], "addon_revision_decision", "addon", order_id,
+                       before={"status": "revision"},
+                       after={"status": new_status, "decision": body.decision, "note": note or None})
+    if body.decision == "approve":
+        title, msg = "Revisi disetujui", f"Revisi {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" disetujui dan sedang dikerjakan ulang."
+    else:
+        title, msg = "Revisi ditolak", f"Permintaan revisi {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" ditolak. Alasan: {note}"
+    await notify_many(
+        await label_user_ids(order["label_id"]), "addon_order_update", title, msg,
+        link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
+    )
+    return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
+
+
+class AddonRefundIn(BaseModel):
+    note: str = Field(..., min_length=3, max_length=500)  # transfer reference / manual proof
+
+
+REFUNDABLE_STATUSES = {"pending", "in_progress", "revision"}
+
+
+@addon_admin_r.post("/{order_id}/refund")
+async def admin_refund_order(order_id: str, body: AddonRefundIn, user: dict = Depends(require_admin)):
+    """Refund an add-on order before any result is delivered.
+
+    Paid orders: manual money transfer (recorded here; payment row untouched —
+    the parent release payment may cover other items too). Benefit (Rp0) orders:
+    the benefit slot is restored so it can be re-selected on the same release.
+    """
+    assert_admin_permission(user, "addon.manage")
+    order = await db.addon_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
+    if order.get("status") not in REFUNDABLE_STATUSES:
+        raise HTTPException(status_code=409, detail=f"Order berstatus {STATUS_LABELS.get(order.get('status'))} tidak bisa direfund")
+    # Dual-refund protection: if the parent release payment was already refunded,
+    # this add-on's amount is already covered by it — never refund twice.
+    payment_id = order.get("payment_id")
+    if payment_id:
+        pay = await db.payments.find_one({"id": payment_id}, {"_id": 0, "refund_status": 1})
+        if pay and pay.get("refund_status") == "refunded":
+            raise HTTPException(status_code=409,
+                detail="Pembayaran rilisan ini sudah direfund — nilai add-on tercakup di dalamnya")
+    now = now_iso()
+    amount = int(order.get("amount") or 0)
+    is_benefit = amount <= 0 or order.get("benefit_source") or order.get("source") == "subscription_free"
+    patch: Dict[str, Any] = {
+        "status": "refunded", "refund_status": "refunded",
+        "refunded_at": now, "refunded_by": user["id"],
+        "refund_note": body.note.strip(), "updated_at": now,
+    }
+    if is_benefit:
+        patch["benefit_restored"] = True
+        # Free the dedupe slot so the benefit can be used again on this release.
+        if order.get("dedupe_key"):
+            patch["dedupe_key"] = f"{order['dedupe_key']}:refunded:{now}"
+    else:
+        patch["refund_amount"] = amount
+        patch["refund_method"] = "manual_transfer"
+    await db.addon_orders.update_one({"id": order_id}, {"$set": patch})
+    await log_activity(user["id"], "addon_order_refunded", "addon", order_id,
+                       before={"status": order.get("status")},
+                       after={"status": "refunded", "amount": amount, "benefit": bool(is_benefit), "note": body.note.strip()})
+    await notify_many(
+        await label_user_ids(order["label_id"]), "addon_order_update",
+        "Layanan tambahan: dikembalikan",
+        (f"Benefit {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" dikembalikan dan bisa dipakai lagi."
+         if is_benefit else
+         f"Order {order.get('product_name')} untuk rilisan \"{order.get('release_title')}\" direfund (Rp {amount:,}). Dana ditransfer manual oleh admin."),
+        link=f"/label/releases/{order.get('release_id')}" if order.get("release_id") else "/label/dashboard",
+    )
+    return _public(await db.addon_orders.find_one({"id": order_id}, {"_id": 0}))
+
+
 # ---------------- Label ----------------
+class AddonRevisionIn(BaseModel):
+    note: str = Field(..., min_length=3, max_length=2000)
+
+
+async def _label_order(order_id: str, user: dict) -> Dict[str, Any]:
+    label = await get_label_by_user(user)
+    order = await db.addon_orders.find_one({"id": order_id, "label_id": label["id"]}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order add-on tidak ditemukan")
+    return order
+
+
+@addon_label_r.post("/{order_id}/accept")
+async def label_accept_addon(order_id: str, user: dict = Depends(require_label)):
+    """Label accepts a delivered result -> completed."""
+    order = await _label_order(order_id, user)
+    if order.get("status") != "delivered":
+        raise HTTPException(status_code=409, detail="Hanya hasil berstatus Terkirim yang bisa diterima")
+    now = now_iso()
+    await db.addon_orders.update_one({"id": order["id"]}, {"$set": {
+        "status": "completed", "completed_at": now, "accepted_by_label_at": now, "updated_at": now,
+    }})
+    await log_activity(user["id"], "addon_order_accepted", "addon", order["id"],
+                       before={"status": "delivered"}, after={"status": "completed"})
+    return _public(await db.addon_orders.find_one({"id": order["id"]}, {"_id": 0}))
+
+
+@addon_label_r.post("/{order_id}/revision")
+async def label_request_revision(order_id: str, body: AddonRevisionIn, user: dict = Depends(require_label)):
+    """Label requests a revision on a delivered result. Admin decides approve/decline."""
+    order = await _label_order(order_id, user)
+    if order.get("status") != "delivered":
+        raise HTTPException(status_code=409, detail="Revisi hanya bisa diminta pada hasil berstatus Terkirim")
+    note = body.note.strip()
+    now = now_iso()
+    await db.addon_orders.update_one({"id": order["id"]}, {
+        "$set": {
+            "status": "revision", "revision_note": note,
+            "revision_requested_at": now, "revision_requested_by": user["id"],
+            "updated_at": now,
+        },
+        "$inc": {"revision_count": 1},
+    })
+    await log_activity(user["id"], "addon_revision_requested", "addon", order["id"],
+                       before={"status": "delivered"}, after={"status": "revision", "note": note})
+    await notify_many(
+        await admin_user_ids(), "addon_revision_requested",
+        "Revisi layanan tambahan diminta",
+        f"{order.get('label_name') or 'Label'} meminta revisi {order.get('product_name')} (rilisan \"{order.get('release_title') or '-'}\"): {note[:120]}",
+        link="/admin/addon-orders",
+    )
+    return _public(await db.addon_orders.find_one({"id": order["id"]}, {"_id": 0}))
 @addon_label_r.get("")
 async def label_list_addon_orders(release_id: Optional[str] = None, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)

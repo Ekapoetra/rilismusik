@@ -11,15 +11,20 @@ const STATUS_STYLE = {
   delivered: "bg-sky-500/15 text-sky-300",
   completed: "bg-emerald-500/15 text-emerald-300",
   cancelled: "bg-red-500/15 text-red-300",
+  revision: "bg-orange-500/15 text-orange-300",
+  refunded: "bg-violet-500/15 text-violet-300",
 };
 const NEXT_ACTIONS = {
   pending: [["in_progress", "Mulai Proses"], ["cancelled", "Batalkan"]],
   in_progress: [["delivered", "Tandai Terkirim"], ["cancelled", "Batalkan"]],
   delivered: [["completed", "Tandai Selesai"]],
+  revision: [],
   completed: [],
   cancelled: [],
+  refunded: [],
 };
-const FILTERS = [["all", "Semua"], ["pending", "Menunggu"], ["in_progress", "Diproses"], ["delivered", "Terkirim"], ["completed", "Selesai"], ["cancelled", "Dibatalkan"]];
+const REFUNDABLE = ["pending", "in_progress", "revision"];
+const FILTERS = [["all", "Semua"], ["pending", "Menunggu"], ["in_progress", "Diproses"], ["revision", "Revisi"], ["delivered", "Terkirim"], ["completed", "Selesai"], ["cancelled", "Dibatalkan"], ["refunded", "Dikembalikan"]];
 
 export default function AdminAddonOrders() {
   const { hasPermission } = useAuth();
@@ -33,6 +38,10 @@ export default function AdminAddonOrders() {
   const [deliveryUrl, setDeliveryUrl] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
   const [deliveryFile, setDeliveryFile] = useState(null);
+  const [revisionTarget, setRevisionTarget] = useState(null);
+  const [revisionNote, setRevisionNote] = useState("");
+  const [refundTarget, setRefundTarget] = useState(null);
+  const [refundNote, setRefundNote] = useState("");
   // Catalog state
   const [products, setProducts] = useState([]);
   const [pform, setPform] = useState({ name: "", description: "", amount: "", delivery_type: "link" });
@@ -105,6 +114,30 @@ export default function AdminAddonOrders() {
   const editProduct = (p) => { setEditingProduct(p.id); setPform({ name: p.name, description: p.description || "", amount: String(p.amount), delivery_type: p.delivery_type || "link" }); };
   const toggleProduct = async (p) => { try { await api.patch(`/payments/admin/products/${p.id}`, { active: !p.active }); await loadProducts(); } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); } };
   const removeProduct = async () => { try { await api.delete(`/payments/admin/products/${deleteTarget.id}`); setDeleteTarget(null); toast.success("Layanan dihapus/diarsipkan"); await loadProducts(); } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); } };
+
+  const decideRevision = async (decision) => {
+    if (decision === "decline" && revisionNote.trim().length < 3) { toast.error("Tuliskan alasan penolakan revisi"); return; }
+    setBusy(revisionTarget.id);
+    try {
+      await api.post(`/admin/addon-orders/${revisionTarget.id}/revision-decision`, { decision, note: revisionNote.trim() || undefined });
+      toast.success(decision === "approve" ? "Revisi disetujui — order kembali diproses" : "Revisi ditolak — hasil tetap berlaku");
+      setRevisionTarget(null); setRevisionNote("");
+      await load();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || "Gagal"); }
+    finally { setBusy(""); }
+  };
+
+  const submitRefund = async () => {
+    if (refundNote.trim().length < 3) { toast.error("Tuliskan catatan/bukti refund"); return; }
+    setBusy(refundTarget.id);
+    try {
+      await api.post(`/admin/addon-orders/${refundTarget.id}/refund`, { note: refundNote.trim() });
+      toast.success("Order ditandai dikembalikan");
+      setRefundTarget(null); setRefundNote("");
+      await load();
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail) || "Gagal"); }
+    finally { setBusy(""); }
+  };
 
   const backfill = async () => {
     setBackfilling(true);
@@ -199,15 +232,31 @@ export default function AdminAddonOrders() {
                     {o.label_name || "Label"} • {o.release_id ? <Link to={`/admin/releases/${o.release_id}`} className="rm-gradient-text font-semibold">{o.release_title || "Rilisan"}</Link> : "—"} • Rp {Number(o.amount || 0).toLocaleString("id-ID")}
                   </div>
                   {o.delivery_url && <a href={o.delivery_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold rm-gradient-text">Hasil <ExternalLink className="h-3 w-3" /></a>}
+                  {o.status === "revision" && o.revision_note && (
+                    <p className="mt-1 max-w-md rounded border border-orange-400/20 bg-orange-400/[0.05] px-2 py-1 text-[11px] text-orange-200" data-testid={`admin-addon-revision-note-${o.id}`}>
+                      Revisi: {o.revision_note}
+                    </p>
+                  )}
+                  {o.status === "refunded" && o.refund_note && (
+                    <p className="mt-1 max-w-md text-[11px] text-zinc-500" data-testid={`admin-addon-refund-note-${o.id}`}>
+                      {o.benefit_restored ? "Benefit dikembalikan" : "Refund manual"}: {o.refund_note}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={() => openDelivery(o)} disabled={o.status === "cancelled"} className="rm-btn-ghost py-1.5 text-xs" data-testid={`admin-addon-delivery-${o.id}`}>Lampirkan Hasil</button>
+                  <button onClick={() => openDelivery(o)} disabled={["cancelled", "refunded", "revision"].includes(o.status)} className="rm-btn-ghost py-1.5 text-xs" data-testid={`admin-addon-delivery-${o.id}`}>Lampirkan Hasil</button>
+                  {o.status === "revision" && (
+                    <button onClick={() => { setRevisionTarget(o); setRevisionNote(""); }} disabled={busy === o.id} className="rm-btn-primary py-1.5 text-xs" data-testid={`admin-addon-revision-decide-${o.id}`}>Keputusan Revisi</button>
+                  )}
                   {(NEXT_ACTIONS[o.status] || []).map(([status, label]) => (
                     <button key={status} onClick={() => changeStatus(o, status)} disabled={busy === o.id}
                       className={`py-1.5 text-xs ${status === "cancelled" ? "rm-btn-ghost text-red-300" : "rm-btn-primary"}`} data-testid={`admin-addon-action-${status}-${o.id}`}>
                       {busy === o.id ? "…" : label}
                     </button>
                   ))}
+                  {canManage && REFUNDABLE.includes(o.status) && (
+                    <button onClick={() => { setRefundTarget(o); setRefundNote(""); }} disabled={busy === o.id} className="rm-btn-ghost py-1.5 text-xs text-violet-300" data-testid={`admin-addon-refund-${o.id}`}>Refund</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -241,6 +290,42 @@ export default function AdminAddonOrders() {
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setEditing(null)} className="rm-btn-ghost">Batal</button>
               <button onClick={saveDelivery} disabled={busy === editing.id} className="rm-btn-primary" data-testid="admin-addon-delivery-save">{busy === editing.id ? "Menyimpan…" : (editing.delivery_type === "file" ? "Unggah Hasil" : "Simpan Hasil")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {revisionTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" data-testid="admin-addon-revision-modal" onClick={() => setRevisionTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display text-lg font-bold">Keputusan Revisi — {revisionTarget.product_name}</h3>
+            <p className="mt-2 rounded border border-orange-400/20 bg-orange-400/[0.05] px-3 py-2 text-xs text-orange-200">{revisionTarget.revision_note}</p>
+            <p className="mt-3 text-xs text-zinc-500"><b>Setujui</b>: order kembali diproses. <b>Tolak</b>: hasil tetap berlaku (alasan wajib).</p>
+            <label className="mt-3 block text-xs font-bold uppercase tracking-widest text-zinc-500">Catatan (wajib jika menolak)</label>
+            <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} className="rm-input mt-1 min-h-[80px]" data-testid="admin-addon-revision-note" />
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setRevisionTarget(null)} className="rm-btn-ghost">Batal</button>
+              <button onClick={() => decideRevision("decline")} disabled={busy === revisionTarget.id} className="rm-btn-ghost text-red-300" data-testid="admin-addon-revision-decline">Tolak Revisi</button>
+              <button onClick={() => decideRevision("approve")} disabled={busy === revisionTarget.id} className="rm-btn-primary" data-testid="admin-addon-revision-approve">Setujui &amp; Kerjakan Ulang</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {refundTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" data-testid="admin-addon-refund-modal" onClick={() => setRefundTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-zinc-950 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display text-lg font-bold">Refund — {refundTarget.product_name}</h3>
+            {Number(refundTarget.amount) > 0 ? (
+              <p className="mt-2 text-xs text-zinc-400">Order berbayar <b>Rp {Number(refundTarget.amount).toLocaleString("id-ID")}</b>. Dana dikirim manual ke label; catatkan bukti/referensi transfer di sini. Order akan berstatus <b>Dikembalikan</b>.</p>
+            ) : (
+              <p className="mt-2 text-xs text-zinc-400">Order benefit (Rp 0). Refund <b>mengembalikan slot benefit</b> sehingga bisa dipakai ulang pada rilisan ini.</p>
+            )}
+            <label className="mt-3 block text-xs font-bold uppercase tracking-widest text-zinc-500">Catatan / bukti transfer (wajib)</label>
+            <textarea value={refundNote} onChange={(e) => setRefundNote(e.target.value)} className="rm-input mt-1 min-h-[80px]" placeholder="Contoh: TF BCA 123-… tgl 12/06" data-testid="admin-addon-refund-note" />
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setRefundTarget(null)} className="rm-btn-ghost">Batal</button>
+              <button onClick={submitRefund} disabled={busy === refundTarget.id} className="rm-btn-primary" data-testid="admin-addon-refund-confirm">{busy === refundTarget.id ? "…" : "Tandai Direfund"}</button>
             </div>
           </div>
         </div>

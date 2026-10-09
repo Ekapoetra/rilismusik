@@ -128,7 +128,7 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
         async for d in db.users.find({"role": "label", "claim_status": "pending_link"}, {"_id": 0, "id": 1, "claim_requested_at": 1, "created_at": 1, "email": 1, "name": 1}):
             add("users", d, "claim_requested_at", d.get("email") or d.get("name") or "Klaim", None, d.get("name"))
     elif work_type == "addon_processing":
-        async for d in db.addon_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "product_name": 1}):
+        async for d in db.addon_orders.find({"status": {"$in": ["pending", "in_progress", "revision"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1, "product_name": 1}):
             add("addon_orders", d, "created_at", d.get("product_name") or "Add-on", d.get("label_id"), d.get("label_name"))
     elif work_type == "wami_registration":
         async for d in db.wami_orders.find({"status": {"$in": ["pending", "in_progress"]}}, {"_id": 0, "id": 1, "created_at": 1, "label_id": 1, "label_name": 1}):

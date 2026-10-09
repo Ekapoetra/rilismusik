@@ -189,9 +189,12 @@ Endpoint utama:
 ------------------------------------------------------------
 5. PEMBAYARAN, LAYANAN & ADD-ON (D11 sebagian)
 ------------------------------------------------------------
-Status main:
+Status main (SETELAH irisan 5 — add-on D11):
   payments.status: pending | paid | expired | cancelled
   addon_orders: pending → in_progress → delivered → completed
+      delivered → revision (label minta revisi) → in_progress | delivered
+      pending|in_progress|revision → refunded (admin, catatan wajib)
+      * → cancelled
   wami_orders: unpaid → paid → registered ...
 
 Endpoint main:
@@ -201,18 +204,29 @@ Endpoint main:
   xendit_reconciliation.py              rekonsiliasi otomatis
   PATCH /admin/addon-orders/{id}/status · /delivery · /delivery-file
   POST /admin/addon-orders/backfill
+  POST /admin/addon-orders/{id}/revision-decision  (approve|decline)
+  POST /admin/addon-orders/{id}/refund  (catatan wajib; guard
+      payment.refund_status=refunded → 409 — anti refund ganda)
+  POST /label/addon-orders/{id}/accept    (delivered → completed)
+  POST /label/addon-orders/{id}/revision  (delivered → revision, note wajib)
+  POST /admin/refunds/{payment}/mark-refunded → kaskade ke addon_orders
 
 Peta prototype → main:
   addon pending    [=] pending
   addon working    [=] in_progress
-  addon response   [~] delivered (hasil menunggu diterima label)
-  addon revision   [+] permintaan revisi label — status baru
-  addon resolution [+] sengketa/keputusan super — status baru
+  addon response   [=] delivered (label kini bisa accept/revisi)
+  addon revision   [+] TERPASANG: status + keputusan admin
+  addon resolution [~] sengketa diarahkan ke TIKET bantuan — bukan
+                   status baru, hindari mesin negosiasi paralel
   refund_pending /
-  benefit_pending  [+] jalur refund ganda (rupiah vs manfaat,
-                   D1 dompet ganda) — main: refund_service.py
+  benefit_pending  [+] TERPASANG sederhana: status 'refunded' +
+                   benefit_restored untuk order Rp0 (slot bebas via
+                   suffix dedupe_key); refund manual di luar sistem,
+                   konsisten dengan refund_service
   invoice pending  [=] pending · paid [=] paid · cancelled [=]
                    cancelled/expired
+  Ditunda: materials/handler/due/deliveries[]/kuota revisi/
+           offer-machine/child-order — bisa ditambah tanpa migrasi
 
 Celah:
   [+] Kredit/token internal prototype (D1) → lihat §3.
