@@ -11,7 +11,7 @@ import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { celebrateWork } from "@/lib/completionFeedback";
 
-const STATUSES = Object.keys(TICKET_STATUS_LABELS);
+const STATUSES = Object.keys(TICKET_STATUS_LABELS).filter((s) => s !== "draft");
 
 export default function AdminTicketDetail() {
   const { id } = useParams();

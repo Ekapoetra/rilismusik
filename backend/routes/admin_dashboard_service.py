@@ -17,7 +17,7 @@ async def build_admin_dashboard() -> dict:
         db.payments.count_documents({"status": "pending"}),
         db.payments.count_documents({"status": "paid"}),
         db.withdraw_requests.count_documents({"status": "requested"}),
-        db.support_tickets.count_documents({"status": {"$nin": ["done", "rejected"]}}),
+        db.support_tickets.count_documents({"status": {"$nin": ["done", "rejected", "draft"]}}),
         db.labels.count_documents({"subscription_status": "active"}),
         db.labels.count_documents({"account_status": "suspended"}),
         db.kyc_documents.count_documents({"status": "pending_review", "is_current": True}),

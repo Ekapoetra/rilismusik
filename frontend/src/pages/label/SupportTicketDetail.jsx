@@ -16,6 +16,7 @@ export default function LabelSupportTicketDetail() {
   const [data, setData] = useState(null);
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState([]);
+  const [draftForm, setDraftForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const scrollRef = useRef(null);
@@ -24,6 +25,7 @@ export default function LabelSupportTicketDetail() {
     try {
       const { data: r } = await api.get(`/tickets/${id}`);
       setData(r);
+      if (r.ticket?.status === "draft") setDraftForm({ subject: r.ticket.subject || "", description: r.ticket.description || "" });
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail));
     }
@@ -63,8 +65,29 @@ export default function LabelSupportTicketDetail() {
     } finally { setBusy(false); }
   };
 
+  const saveDraft = async () => {
+    setBusy(true); setErr("");
+    try {
+      await api.patch(`/tickets/label/${id}`, draftForm);
+      await load();
+    } catch (e2) {
+      setErr(formatApiError(e2.response?.data?.detail));
+    } finally { setBusy(false); }
+  };
+
+  const submitDraft = async () => {
+    setBusy(true); setErr("");
+    try {
+      await api.patch(`/tickets/label/${id}`, draftForm);
+      await api.post(`/tickets/label/${id}/submit`);
+      await load();
+    } catch (e2) {
+      setErr(formatApiError(e2.response?.data?.detail));
+    } finally { setBusy(false); }
+  };
+
   const cancelTicket = async () => {
-    if (!window.confirm("Yakin ingin membatalkan tiket ini?")) return;
+    if (!window.confirm(t?.status === "draft" ? "Yakin ingin menghapus draf ini?" : "Yakin ingin membatalkan tiket ini?")) return;
     setBusy(true); setErr("");
     try {
       await api.post(`/tickets/${id}/cancel`);
@@ -79,6 +102,7 @@ export default function LabelSupportTicketDetail() {
   }
 
   const t = data.ticket;
+  const isDraft = t.status === "draft";
   const canCancel = !NON_CANCELLABLE.includes(t.status);
   const isClosed = ["done", "rejected", "cancelled"].includes(t.status);
 
@@ -93,7 +117,7 @@ export default function LabelSupportTicketDetail() {
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="font-display font-extrabold text-2xl tracking-tighter">{t.ticket_no}</span>
-              <TicketStatusBadge status={t.status} />
+              <TicketStatusBadge status={t.status} simple />
             </div>
             <div className="text-sm text-zinc-400 mt-1">{TICKET_CATEGORY_LABELS[t.category] || t.category} • {new Date(t.created_at).toLocaleString("id-ID")}</div>
             <div className="break-words font-semibold text-lg mt-2" data-testid="label-ticket-subject">{t.subject}</div>
@@ -106,27 +130,29 @@ export default function LabelSupportTicketDetail() {
               className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200"
               data-testid={SUPPORT.cancelTicketButton}
             >
-              <Ban className="w-4 h-4" /> Batalkan
+              <Ban className="w-4 h-4" /> {isDraft ? "Hapus Draf" : "Batalkan"}
             </button>
           )}
         </div>
 
         <div className="mt-5 grid md:grid-cols-3 gap-4">
-          <div className="col-span-1 min-w-0"><Link
-            to={`/label/releases/${t.release_id}`}
-            data-testid="label-ticket-release-link"
-            className="col-span-1 rm-glass rounded-2xl p-4 flex items-center gap-3 hover:bg-white/[0.04]"
-          >
-            {t.release_cover_url && (
-              <img src={fileUrl(t.release_cover_url)} alt="" className="w-14 h-14 rounded-lg object-cover" />
-            )}
-            <div className="min-w-0">
-              <div className="text-xs text-zinc-500">Rilisan</div>
-              <div className="font-semibold truncate">{t.release_title}</div>
-              <div className="text-xs rm-gradient-text">Lihat detail →</div>
-            </div>
-          </Link>
-          <TicketReleaseIdentifiers upc={t.upc} tracks={t.release_tracks} isrcs={t.isrcs} prefix="label-ticket" /></div>
+          {t.release_id ? (
+            <div className="col-span-1 min-w-0"><Link
+              to={`/label/releases/${t.release_id}`}
+              data-testid="label-ticket-release-link"
+              className="col-span-1 rm-glass rounded-2xl p-4 flex items-center gap-3 hover:bg-white/[0.04]"
+            >
+              {t.release_cover_url && (
+                <img src={fileUrl(t.release_cover_url)} alt="" className="w-14 h-14 rounded-lg object-cover" />
+              )}
+              <div className="min-w-0">
+                <div className="text-xs text-zinc-500">Rilisan</div>
+                <div className="font-semibold truncate">{t.release_title}</div>
+                <div className="text-xs rm-gradient-text">Lihat detail →</div>
+              </div>
+            </Link>
+            <TicketReleaseIdentifiers upc={t.upc} tracks={t.release_tracks} isrcs={t.isrcs} prefix="label-ticket" /></div>
+          ) : null}
 
           {(t.reason || t.new_metadata || t.new_audio_url || t.new_cover_url || t.originality_declared || t.youtube_url || t.youtube_urls?.length) && (
             <div className="min-w-0 col-span-1 md:col-span-2 rm-glass rounded-2xl p-4 text-sm space-y-2">
@@ -140,7 +166,42 @@ export default function LabelSupportTicketDetail() {
       {t.linked_release_status === "taken_down" && <p className="border-l-2 border-amber-400 px-4 py-3 text-sm text-amber-300" data-testid="label-ticket-takedown-synced">Status rilisan telah berubah menjadi Takedown.</p>}
       {t.category === "content_id_claim" && <ContentIdDocuments ticket={t} prefix="label-ticket" />}
       <div className="rm-card overflow-hidden">
-        <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">Percakapan</div>
+        <div className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-white/5">{isDraft ? "Draf" : "Percakapan"}</div>
+        {isDraft && draftForm ? (
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-zinc-500" data-testid="label-ticket-draft-note">Draf belum dikirim — belum terlihat oleh admin.</p>
+            {err && (
+              <div className="rounded-xl bg-red-500/15 text-red-300 px-3 py-2 text-sm flex items-center gap-2" role="alert">
+                <AlertTriangle className="w-4 h-4" /> {err}
+              </div>
+            )}
+            <input
+              className="rm-input w-full"
+              value={draftForm.subject}
+              onChange={(e) => setDraftForm((f) => ({ ...f, subject: e.target.value }))}
+              placeholder="Subjek"
+              data-testid="label-ticket-draft-subject"
+              maxLength={200}
+            />
+            <textarea
+              className="rm-input min-h-28 w-full"
+              value={draftForm.description}
+              onChange={(e) => setDraftForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Jelaskan masalah atau permintaan Anda…"
+              data-testid="label-ticket-draft-description"
+              maxLength={4000}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={saveDraft} disabled={busy} className="rm-btn-ghost" data-testid="label-ticket-draft-save">
+                {busy ? "Menyimpan…" : "Simpan Perubahan"}
+              </button>
+              <button type="button" onClick={submitDraft} disabled={busy || draftForm.subject.trim().length < 3 || draftForm.description.trim().length < 3} className="rm-btn-primary flex items-center gap-2" data-testid="label-ticket-draft-submit">
+                <Send className="w-4 h-4" /> {busy ? "Mengirim…" : "Kirim Tiket"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
         <div ref={scrollRef} className="max-h-[55vh] overflow-y-auto p-5 space-y-4">
           {data.comments.map((c) => (
             <CommentBubble key={c.id} c={c} />
@@ -184,6 +245,8 @@ export default function LabelSupportTicketDetail() {
               </button>
             </div>
           </form>
+        )}
+          </>
         )}
       </div>
     </div>

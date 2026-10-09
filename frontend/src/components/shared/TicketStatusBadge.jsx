@@ -1,11 +1,25 @@
 import React from "react";
 
 export const TICKET_STATUS_LABELS = {
+  draft: "Draf",
   open: "Open",
   waiting_admin: "Menunggu Admin",
   waiting_label: "Menunggu Label",
   in_progress: "Sedang Diproses",
   submitted_to_believe: "Submitted ke Believe",
+  done: "Selesai",
+  rejected: "Ditolak",
+  cancelled: "Dibatalkan",
+};
+
+// Kosakata sederhana untuk label (prototype) — data tetap granular untuk admin.
+export const TICKET_STATUS_LABELS_SIMPLE = {
+  draft: "Draf",
+  open: "Terkirim",
+  waiting_admin: "Ditangani Admin",
+  in_progress: "Ditangani Admin",
+  waiting_label: "Perlu Balasan Anda",
+  submitted_to_believe: "Diteruskan ke Believe",
   done: "Selesai",
   rejected: "Ditolak",
   cancelled: "Dibatalkan",
@@ -23,6 +37,7 @@ export const TICKET_CATEGORY_LABELS = {
 };
 
 const STYLES = {
+  draft: { bg: "rgba(148,163,184,0.15)", color: "#CBD5E1", dot: "#94A3B8" },
   open: { bg: "rgba(99,102,241,0.15)", color: "#A5B4FC", dot: "#818CF8" },
   waiting_admin: { bg: "rgba(245,158,11,0.18)", color: "#FCD34D", dot: "#F59E0B" },
   waiting_label: { bg: "rgba(168,85,247,0.18)", color: "#D8B4FE", dot: "#A855F7" },
@@ -33,9 +48,9 @@ const STYLES = {
   cancelled: { bg: "rgba(255,255,255,0.06)", color: "#A1A1B5", dot: "#71717A" },
 };
 
-export default function TicketStatusBadge({ status }) {
+export default function TicketStatusBadge({ status, simple }) {
   const s = STYLES[status] || STYLES.open;
-  const label = TICKET_STATUS_LABELS[status] || status;
+  const label = (simple ? TICKET_STATUS_LABELS_SIMPLE[status] : TICKET_STATUS_LABELS[status]) || status;
   return (
     <span
       className="rm-badge"

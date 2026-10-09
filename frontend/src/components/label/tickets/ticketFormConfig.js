@@ -1,6 +1,7 @@
 import { TICKET_CATEGORY_LABELS } from "@/components/shared/TicketStatusBadge";
 
-export const ACTIVE_TICKET_CATEGORIES = Object.entries(TICKET_CATEGORY_LABELS).filter(([key]) => !["royalty_issue", "other"].includes(key));
+export const ACTIVE_TICKET_CATEGORIES = Object.entries(TICKET_CATEGORY_LABELS);
+export const FREE_TICKET_CATEGORIES = ["royalty_issue", "other"];
 export const AUTO_SUBJECT_CATEGORIES = ["takedown", "edit_metadata", "content_id_claim", "content_id_release"];
 export const CONTENT_ID_CATEGORIES = ["content_id_claim", "content_id_release"];
 export const TAKEDOWN_REASONS = ["Revisi Metadata", "Pindah Aggregator", "Konflik Hak Cipta", "Konflik Internal"];
