@@ -33,4 +33,22 @@ const updateGuide131=[
 ];
 
 function updateItem131([kind,idText,enText]){const [a,b,c]=updateKinds131[kind];return `<article class="update-item131"><span>${statusBadge111(T(a,b),c)}</span><p>${E(T(idText,enText))}</p></article>`}
-function updatesPage131(){return pageHead(T('Pembaruan · V1.0 → V1.1','Updates · V1.0 → V1.1'),T('Catatan perubahan versi — hanya fitur yang benar-benar tersedia saat ini.','Release notes — only what is actually available right now.'))+`<div class="update-legend131">${Object.values(updateKinds131).map(([a,b,c])=>statusBadge111(T(a,b),c)).join(' ')}</div>${updateGuide131.map(s=>card10(`<span class="update-head131">${icon(s.icon)} ${T(...s.title)}</span>`,s.items.map(updateItem131).join(''),'full')).join('')}<p class="policy-note115">${T('Daftar ini adalah panduan penggunaan, bukan riwayat pengembangan — isinya mengikuti penambahan, perubahan, dan penghapusan fitur yang berlaku.','This list is a usage guide, not a development log — it follows the additions, changes, and removals currently in effect.')}</p>`}
+function updatesPage131(){return `<div class="update-legend131">${Object.values(updateKinds131).map(([a,b,c])=>statusBadge111(T(a,b),c)).join(' ')}</div>${updateGuide131.map(s=>card10(`<span class="update-head131">${icon(s.icon)} ${T(...s.title)}</span>`,s.items.map(updateItem131).join(''),'full')).join('')}<p class="policy-note115">${T('Daftar ini adalah panduan penggunaan, bukan riwayat pengembangan — isinya mengikuti penambahan, perubahan, dan penghapusan fitur yang berlaku.','This list is a usage guide, not a development log — it follows the additions, changes, and removals currently in effect.')}</p>`}
+
+/* Pembaruan juga tampil untuk admin & Super Admin (mode platform).
+   Tombol disisipkan ke sidebar; urutan, nama, dan visibilitas tetap
+   mengikuti konfigurasi Navigasi di halaman Sistem. */
+const sidebarBefore131u=sidebar5;sidebar5=function(){
+ const html=sidebarBefore131u();
+ if(isLabel10()||state.mode!=='platform')return html;
+ const box=document.createElement('div');box.innerHTML=html;
+ const btn=`<button class="side-link ${state.page==='module'&&v4.module==='updates'?'active':''}" data-action="v4-module" data-id="updates" title="${T('Pembaruan','Updates')}">${icon('spark')}<span>${T('Pembaruan','Updates')}</span></button>`;
+ const anchor=box.querySelector('.side-scroll [data-action="v4-module"][data-id="cms"]');
+ if(anchor)anchor.insertAdjacentHTML('beforebegin',btn);else box.querySelector('.side-scroll')?.insertAdjacentHTML('beforeend',btn);
+ return box.innerHTML};
+const moduleBefore131u=modulePage;modulePage=function(){
+ if(!isLabel10()&&v4.module==='updates')return pageHead(T('Pembaruan','Updates'),T('Catatan perubahan versi — hanya fitur yang benar-benar tersedia saat ini.','Release notes — only what is actually available right now.'))+updatesPage131();
+ return moduleBefore131u()};
+const actionBefore131u=handleAction;handleAction=async function(b){
+ if(b.dataset.action==='v4-module'&&b.dataset.id==='updates'&&!isLabel10()){v4.module='updates';return go('module','platform')}
+ return actionBefore131u(b)};
