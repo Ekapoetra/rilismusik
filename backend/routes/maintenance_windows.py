@@ -142,6 +142,7 @@ async def create_window(body: MaintenanceIn, user: dict = Depends(require_super_
         "history": [{"at": now_iso(), "by": user["id"], "action": "created", "note": body.note}],
     }
     await db.maintenance_windows.insert_one(doc)
+    _READONLY_CACHE["at_ms"] = 0
     await log_activity(user["id"], "maintenance_create", "maintenance", doc["id"], after={"title": doc["title"]})
     doc.pop("_id", None)
     return doc
@@ -163,6 +164,7 @@ async def update_window(wid: str, body: MaintenancePatch, user: dict = Depends(r
         {"$set": {**changes, "updated_at": now_iso()},
          "$push": {"history": {"at": now_iso(), "by": user["id"], "action": "updated", "note": body.note}}},
     )
+    _READONLY_CACHE["at_ms"] = 0
     await log_activity(user["id"], "maintenance_update", "maintenance", wid, before={k: w.get(k) for k in changes}, after=changes)
     return await db.maintenance_windows.find_one({"id": wid}, {"_id": 0})
 
@@ -180,6 +182,74 @@ async def set_status(wid: str, body: MaintenanceStatusIn, user: dict = Depends(r
         {"$set": {"status": body.status, "updated_at": now_iso()},
          "$push": {"history": {"at": now_iso(), "by": user["id"], "action": f"status:{body.status}", "note": body.note}}},
     )
+    _READONLY_CACHE["at_ms"] = 0
     await log_activity(user["id"], f"maintenance_{body.status}", "maintenance", wid,
                        before={"status": w.get("status")}, after={"status": body.status})
     return await db.maintenance_windows.find_one({"id": wid}, {"_id": 0})
+
+
+# --- Read-only enforcement ---------------------------------------------------
+# While a window with mode="readonly" is effectively active, writes (non-GET)
+# to the declared module prefixes are rejected with 503 until the window ends.
+# Always-open paths: sign-in (people must be able to authenticate), the
+# maintenance admin itself (Super Admin ends windows), and the Xendit webhook
+# (provider callbacks must keep landing so money records stay accurate).
+
+READONLY_PREFIXES = {
+    "releases": ("/api/releases", "/api/uploads"),
+    "payments": ("/api/payments", "/api/admin/xendit"),
+    "royalty": ("/api/royalty", "/api/withdraw"),
+    "tickets": ("/api/tickets",),
+    "wami": ("/api/wami",),
+    "addons": ("/api/label/addon-orders", "/api/admin/addon-orders"),
+    "account": ("/api/label",),
+    "all": ("/api",),
+}
+ALWAYS_OPEN = (
+    "/api/auth", "/api/admin/maintenance", "/api/payments/webhook",
+    "/api/health", "/api/admin/deployment-check",
+)
+_READONLY_CACHE = {"at_ms": 0, "windows": []}
+_READONLY_TTL_MS = 15_000
+
+
+def _covers(path: str, prefixes) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in prefixes)
+
+
+def module_blocks_path(modules: List[str], path: str) -> bool:
+    if "all" in modules:
+        return path.startswith("/api")
+    prefixes = [p for m in modules for p in READONLY_PREFIXES.get(m, ())]
+    return _covers(path, prefixes)
+
+
+async def readonly_windows() -> List[Dict[str, Any]]:
+    """Effectively-active read-only windows; briefly cached to keep writes cheap."""
+    now_ms = _ms(datetime.now(timezone.utc))
+    if now_ms - _READONLY_CACHE["at_ms"] < _READONLY_TTL_MS:
+        return _READONLY_CACHE["windows"]
+    try:
+        rows = await db.maintenance_windows.find(
+            {"mode": "readonly", "status": {"$nin": ["completed", "cancelled"]}},
+            {"_id": 0, "id": 1, "title": 1, "message": 1, "modules": 1, "status": 1, "start_at": 1, "end_at": 1},
+        ).to_list(20)
+        windows = [w for w in rows if effective_status(w) == "active"]
+    except Exception:
+        _READONLY_CACHE["at_ms"] = now_ms  # hindari percobaan ulang tiap request
+        return _READONLY_CACHE["windows"]
+    _READONLY_CACHE.update(at_ms=now_ms, windows=windows)
+    return windows
+
+
+async def readonly_blocked(path: str, method: str) -> Optional[Dict[str, Any]]:
+    """Return the blocking window when this write falls under read-only maintenance."""
+    if method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    path = path.rstrip("/") or "/"
+    if not path.startswith("/api") or _covers(path, ALWAYS_OPEN):
+        return None
+    for w in await readonly_windows():
+        if module_blocks_path(w.get("modules") or [], path):
+            return w
+    return None

@@ -14,7 +14,7 @@ import os
 import logging
 from urllib.parse import urlsplit, urlunsplit
 from fastapi import FastAPI, APIRouter
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 
 # Configure root logger BEFORE importing the route modules so they
@@ -70,7 +70,7 @@ import storage_service
 
 app = FastAPI(title="RILIS MUSIK API", version="0.1.0")
 from routes.direct_uploads import direct_upload_r
-from routes.maintenance_windows import maint_r, maint_admin_r
+from routes.maintenance_windows import maint_r, maint_admin_r, readonly_blocked
 app.include_router(direct_upload_r, prefix="/api")
 
 
@@ -195,6 +195,25 @@ async def root_health():
 
 
 app.include_router(api)
+
+
+@app.middleware("http")
+async def maintenance_readonly_guard(request, call_next):
+    """Reject writes to modules under an active read-only maintenance window."""
+    try:
+        hit = await readonly_blocked(request.url.path, request.method)
+    except Exception:
+        hit = None
+    if hit:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": f"Pemeliharaan: {hit['title']} — {hit['message']}",
+                "maintenance": {"id": hit["id"], "mode": "readonly", "end_at": hit["end_at"]},
+            },
+        )
+    return await call_next(request)
+
 
 # ---- CORS ----
 # Credentialed auth cookies require an explicit origin. If a legacy environment

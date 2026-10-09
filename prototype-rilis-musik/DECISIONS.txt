@@ -298,6 +298,11 @@ FASE 2 — PETA KEBERANGKATAN (mulai)
   Peta ini referensi untuk implementasi di main; belum ada
   migrasi atau perubahan produksi yang diotorisasi.
 
+  IRISAN 1b (dikerjakan): penegakan mode baca-saja —
+  middleware menolak tulis ke modul terdampak saat jendela
+  readonly aktif (503); auth/webhook/admin maintenance selalu
+  terbuka; super mengakhiri lewat status override.
+
   IRISAN 1 (dikerjakan): D13 maintenance_windows —
   backend/routes/maintenance_windows.py (CRUD super +
   /maintenance/active untuk member), halaman admin

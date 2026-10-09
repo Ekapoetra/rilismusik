@@ -39,7 +39,14 @@ class _FakeCollection:
         self.docs = []
 
     def find(self, query=None, projection=None):
-        return _Cursor(self.docs)
+        rows = self.docs
+        if query:
+            for key, value in query.items():
+                if isinstance(value, dict) and "$nin" in value:
+                    rows = [r for r in rows if r.get(key) not in value["$nin"]]
+                else:
+                    rows = [r for r in rows if r.get(key) == value]
+        return _Cursor(rows)
 
     async def find_one(self, query, projection=None):
         return next((d for d in self.docs if all(d.get(k) == v for k, v in query.items())), None)
@@ -85,6 +92,7 @@ class MaintenanceWindowTests(unittest.TestCase):
         self.coll = _FakeCollection()
         self._db = patch.object(mw, "db", SimpleNamespace(maintenance_windows=self.coll))
         self._db.start()
+        mw._READONLY_CACHE.update(at_ms=0, windows=[])
         self._log = patch.object(mw, "log_activity", new_callable=AsyncMock)
         self._log.start()
         app.dependency_overrides[get_current_user] = lambda: SUPER
@@ -168,6 +176,62 @@ class MaintenanceWindowTests(unittest.TestCase):
         self.assertEqual(r.json()["message"], "Pesan baru.")
         self.assertTrue(any(h["action"] == "updated" for h in r.json()["history"]))
         self._log.mock.assert_called()
+
+    # ---- read-only enforcement ----
+    def test_module_blocks_path_mapping(self):
+        self.assertTrue(mw.module_blocks_path(["payments"], "/api/payments"))
+        self.assertTrue(mw.module_blocks_path(["payments"], "/api/payments/subscription"))
+        self.assertTrue(mw.module_blocks_path(["releases"], "/api/uploads/direct"))
+        self.assertFalse(mw.module_blocks_path(["payments"], "/api/releases"))
+        self.assertFalse(mw.module_blocks_path(["payments"], "/api/paymentsx"))  # bukan prefix ketat
+        self.assertTrue(mw.module_blocks_path(["all"], "/api/anything"))
+
+    def test_readonly_blocks_module_write_but_not_reads(self):
+        body = dict(WINDOW, mode="readonly", modules=["payments"])
+        r = self.client.post("/api/admin/maintenance", json=body)
+        wid = r.json()["id"]
+        self.client.post(f"/api/admin/maintenance/{wid}/status", json={"status": "active"})
+
+        # tulis ke modul terdampak -> 503 dengan konteks pemeliharaan
+        r = self.client.post("/api/payments/subscription", json={})
+        self.assertEqual(r.status_code, 503)
+        self.assertEqual(r.json()["maintenance"]["id"], wid)
+        self.assertEqual(r.json()["maintenance"]["mode"], "readonly")
+
+        # baca tetap jalan
+        r = self.client.get("/api/maintenance/active")
+        self.assertEqual(r.status_code, 200)
+
+        # jalur yang selalu terbuka: auth + pengelolaan pemeliharaan itu sendiri
+        r = self.client.post(f"/api/admin/maintenance/{wid}/status", json={"status": "completed"})
+        self.assertEqual(r.status_code, 200, r.text)
+
+    def test_readonly_other_module_and_inactive_window_pass(self):
+        body = dict(WINDOW, mode="readonly", modules=["payments"])
+        r = self.client.post("/api/admin/maintenance", json=body)
+        wid = r.json()["id"]
+        # masih 'scheduled' -> tidak memblokir; mode 'info' -> tidak memblokir
+        r = self.client.post("/api/payments/subscription", json={})
+        self.assertNotEqual(r.status_code, 503)
+
+        self.client.post(f"/api/admin/maintenance/{wid}/status", json={"status": "active"})
+        # modul lain tidak terdampak
+        r = self.client.post("/api/releases", json={})
+        self.assertNotEqual(r.status_code, 503)
+
+    def test_readonly_all_blocks_everything_except_open_paths(self):
+        body = dict(WINDOW, mode="readonly", modules=["all"])
+        r = self.client.post("/api/admin/maintenance", json=body)
+        wid = r.json()["id"]
+        self.client.post(f"/api/admin/maintenance/{wid}/status", json={"status": "active"})
+
+        r = self.client.post("/api/releases", json={})
+        self.assertEqual(r.status_code, 503)
+        r = self.client.post("/api/payments/subscription", json={})
+        self.assertEqual(r.status_code, 503)
+        # pengelolaan jendela tetap bisa diakses super agar bisa mengakhiri
+        r = self.client.post(f"/api/admin/maintenance/{wid}/status", json={"status": "completed"})
+        self.assertEqual(r.status_code, 200, r.text)
 
 
 if __name__ == "__main__":

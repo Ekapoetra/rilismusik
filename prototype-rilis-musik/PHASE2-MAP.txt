@@ -316,10 +316,16 @@ Peta prototype → main:
     (grup nav Sistem) + MaintenanceBanner di LabelLayout.
     Catatan: write tetap diblokir middleware preview Vercel —
     konsisten, preview read-only.
-  Mode baca-saja           [+] saat mode=readonly & modul
-    terdampak → guard penulisan di modul itu (middleware).
-    (Saat ini readonly terekspos di /maintenance/active untuk
-    penanda UI; penegakan tulis = irisan berikutnya.)
+  Mode baca-saja           [=] DIIMPLEMENTASIKAN di main
+    (branch preview): middleware maintenance_readonly_guard
+    di server.py menolak tulis (non-GET) ke prefix modul
+    terdampak saat jendela mode=readonly efektif aktif →
+    503 + {maintenance:{id,mode,end_at}}.
+    Peta modul→prefix di READONLY_PREFIXES; selalu terbuka:
+    /api/auth, /api/admin/maintenance (super mengakhiri),
+    /api/payments/webhook (callback provider), health.
+    'all' = semua /api. Cache 15 dtk, diinvalidasi tiap
+    perubahan; gagal DB → fail-open (cache terakhir).
   Menu Pembaruan (D14)     [~] konten statis UI; bisa tetap
     hardcode bilingual di frontend, atau CMS area baru
     'updates' bila ingin diedit super tanpa deploy.
