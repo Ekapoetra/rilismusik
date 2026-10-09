@@ -12,9 +12,7 @@ TICKET_CATEGORY_LABELS = {
     "not_live": "Rilisan Tidak Tersedia/Live",
     "royalty_issue": "Masalah Royalti", "other": "Lainnya",
 }
-# Kategori bebas — tiket tanpa rilisan terikat (D11). Draft hanya untuk kategori ini.
-FREE_CATEGORIES = {"royalty_issue", "other"}
-ACTIVE_CATEGORIES = tuple(TICKET_CATEGORY_LABELS)
+ACTIVE_CATEGORIES = tuple(key for key in TICKET_CATEGORY_LABELS if key not in {"royalty_issue", "other"})
 AUTO_SUBJECT_CATEGORIES = {"takedown", "edit_metadata", "content_id_claim", "content_id_release", "not_live"}
 CONTENT_ID_CATEGORIES = {"content_id_claim", "content_id_release"}
 TAKEDOWN_REASONS = {"Revisi Metadata", "Pindah Aggregator", "Konflik Hak Cipta", "Konflik Internal"}
@@ -25,7 +23,7 @@ class TicketCreatedOut(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str
     ticket_no: str
-    release_id: str | None = None
+    release_id: str
     label_id: str
     subject: str
     description: str
@@ -72,21 +70,6 @@ def validate_youtube_urls(values: list[str]) -> list[str]:
 
 
 async def prepare_ticket_submission(body, release: dict) -> dict:
-    if body.category in FREE_CATEGORIES:
-        # Tiket bebas (tanpa rilisan): subjek & deskripsi ditulis label sendiri.
-        subject = (body.subject or "").strip()
-        description = (body.description or "").strip()
-        if len(subject) < 3:
-            raise HTTPException(400, "Subjek wajib diisi minimal 3 karakter")
-        if len(description) < 3:
-            raise HTTPException(400, "Deskripsi wajib diisi minimal 3 karakter")
-        return {
-            "subject": subject, "description": description,
-            "reason": (body.reason or "").strip() or None,
-            "upc": None, "isrcs": [], "release_tracks": [],
-            "original_metadata": None, "new_metadata": None,
-            "youtube_urls": [], "youtube_url": None, "originality_declared": None,
-        }
     tracks = await db.tracks.find({"release_id": release["id"]}, {
         "_id": 0, "id": 1, "track_title": 1, "track_number": 1, "isrc": 1,
     }).sort("track_number", 1).to_list(None)

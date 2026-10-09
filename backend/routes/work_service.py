@@ -111,8 +111,7 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
     elif work_type == "support_ticket":
         # submitted_to_believe tickets are NOT active support work; they surface as a
         # dedicated "believe_followup" task once the working-day threshold passes.
-        # draft tickets are the label's private workspace until submitted.
-        async for d in db.support_tickets.find({"status": {"$nin": ["done", "rejected", "cancelled", "submitted_to_believe", "draft"]}}, {"_id": 0, "id": 1, "created_at": 1, "subject": 1, "category": 1, "label_id": 1}):
+        async for d in db.support_tickets.find({"status": {"$nin": ["done", "rejected", "cancelled", "submitted_to_believe"]}}, {"_id": 0, "id": 1, "created_at": 1, "subject": 1, "category": 1, "label_id": 1}):
             add("support_tickets", d, "created_at", d.get("subject") or d.get("category") or "Tiket", d.get("label_id"))
     elif work_type == "believe_followup":
         from .working_days import working_days_elapsed

@@ -7,7 +7,7 @@ import { ADMIN_TICKET } from "@/constants/testIds";
 import { Search, MessageSquare, CheckCircle2 } from "lucide-react";
 import { celebrateWork } from "@/lib/completionFeedback";
 
-const STATUSES = Object.keys(TICKET_STATUS_LABELS).filter((s) => s !== "draft");
+const STATUSES = Object.keys(TICKET_STATUS_LABELS);
 const CATEGORIES = Object.keys(TICKET_CATEGORY_LABELS);
 const CLOSED = ["done", "rejected", "cancelled"];
 

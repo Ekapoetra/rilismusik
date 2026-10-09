@@ -465,9 +465,8 @@ from contentid_models import ContentIdCreatorIn
 
 
 class TicketCreateIn(BaseModel):
-    release_id: Optional[str] = None
-    is_draft: bool = False
-    category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release", "not_live", "royalty_issue", "other"]
+    release_id: str = Field(min_length=1)
+    category: Literal["takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release", "not_live"]
     subject: str = Field(default="", max_length=200)
     description: str = Field(default="", max_length=4000)
     # Category-specific payload
@@ -485,12 +484,6 @@ class TicketCreateIn(BaseModel):
     content_id_track_ids: List[str] = Field(default_factory=list, max_length=200)
     content_id_creators: List[ContentIdCreatorIn] = Field(default_factory=list, max_length=20)
     content_id_consent: bool = False
-
-
-class TicketDraftUpdateIn(BaseModel):
-    subject: Optional[str] = Field(default=None, max_length=200)
-    description: Optional[str] = Field(default=None, max_length=4000)
-    attachments: Optional[List[str]] = None
 
 
 class TicketCommentIn(BaseModel):

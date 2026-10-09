@@ -208,7 +208,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
         release_statuses(),
         db.tracks.count_documents({"label_id": label["id"]}),
         db.artists.count_documents({"label_id": label["id"]}),
-        db.support_tickets.count_documents({"label_id": label["id"], "status": {"$nin": ["done", "rejected", "draft"]}}),
+        db.support_tickets.count_documents({"label_id": label["id"], "status": {"$nin": ["done", "rejected"]}}),
         db.payments.count_documents({"label_id": label["id"], "status": "pending"}),
     )
     total_releases = sum(row["count"] for row in release_counts)

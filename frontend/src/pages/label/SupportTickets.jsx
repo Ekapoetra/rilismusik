@@ -5,7 +5,7 @@ import TicketStatusBadge, { TICKET_CATEGORY_LABELS } from "@/components/shared/T
 import { SUPPORT } from "@/constants/testIds";
 import { LifeBuoy, Plus, CheckCircle2 } from "lucide-react";
 import { SupportTicketModal } from "@/components/label/SupportTicketModal";
-import { AUTO_SUBJECT_CATEGORIES, CONTENT_ID_CATEGORIES, FREE_TICKET_CATEGORIES, metadataFromRelease, ticketSubject } from "@/components/label/tickets/ticketFormConfig";
+import { AUTO_SUBJECT_CATEGORIES, CONTENT_ID_CATEGORIES, metadataFromRelease, ticketSubject } from "@/components/label/tickets/ticketFormConfig";
 import { newContentIdState, prepareContentIdPayload } from "@/components/label/tickets/contentIdForm";
 
 function initialForm() {
@@ -141,14 +141,12 @@ export default function LabelSupportTickets() {
     }
   };
 
-  const isFreeCategory = FREE_TICKET_CATEGORIES.includes(form.category);
-
   const submit = async (e) => {
     e.preventDefault();
     if (busy || releaseLoading) return;
     setErr("");
     setMsg("");
-    if (!isFreeCategory && (!form.release_id || releaseInfo?.id !== form.release_id)) {
+    if (!form.release_id || releaseInfo?.id !== form.release_id) {
       setErr("Pilih rilisan terlebih dahulu");
       return;
     }
@@ -156,7 +154,7 @@ export default function LabelSupportTickets() {
     let copyrightUpload;
     try {
       const payload = {
-        release_id: form.release_id || null,
+        release_id: form.release_id,
         category: form.category,
         subject: form.subject,
         description: form.description,
@@ -198,38 +196,13 @@ export default function LabelSupportTickets() {
     }
   };
 
-  const saveDraft = async () => {
-    if (busy) return;
-    setErr("");
-    setMsg("");
-    setBusy(true);
-    try {
-      await api.post("/tickets/label/create", {
-        release_id: form.release_id || null,
-        category: form.category,
-        subject: form.subject,
-        description: form.description,
-        attachments: form.attachments.map((a) => a.url),
-        is_draft: true,
-      });
-      setOpen(false);
-      reset();
-      setMsg("Draf tersimpan. Kirim dari halaman detail saat siap.");
-      load();
-    } catch (e2) {
-      setErr(e2.response?.data?.detail ? formatApiError(e2.response.data.detail) : (e2.message || "Draf gagal disimpan."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="space-y-5 max-w-6xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Support</div>
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">Tiket Support</h1>
-          <p className="text-sm text-zinc-400 mt-1">Takedown, edit metadata/audio/cover, Content ID, masalah royalti, dan lainnya.</p>
+          <p className="text-sm text-zinc-400 mt-1">Takedown, edit metadata/audio/cover, dan YouTube Content ID.</p>
         </div>
         <button
           className="rm-btn-primary flex items-center gap-2"
@@ -275,7 +248,7 @@ export default function LabelSupportTickets() {
               {t.release_cover_url && (
                 <img src={fileUrl(t.release_cover_url)} alt="" className="w-8 h-8 rounded object-cover" />
               )}
-              <span className="truncate">{t.release_title || "—"}</span>
+              <span className="truncate">{t.release_title}</span>
             </div>
             <div className="col-span-6 md:col-span-2"><TicketStatusBadge status={t.status} /></div>
             <div className="col-span-6 md:col-span-1 text-right text-sm font-semibold rm-gradient-text">Detail →</div>
@@ -284,7 +257,7 @@ export default function LabelSupportTickets() {
       </div>
 
       {!open && err && <p role="alert" data-testid="support-list-error" className="text-sm text-red-300">{err}</p>}
-      <SupportTicketModal open={open} close={() => setOpen(false)} submit={submit} saveDraft={saveDraft} form={form} setForm={setForm} releases={releases} releaseTracks={releaseTracks} releaseInfo={releaseInfo} releaseLoading={releaseLoading} busy={busy} err={err} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} handleAttachment={handleAttachment} />
+      <SupportTicketModal open={open} close={() => setOpen(false)} submit={submit} form={form} setForm={setForm} releases={releases} releaseTracks={releaseTracks} releaseInfo={releaseInfo} releaseLoading={releaseLoading} busy={busy} err={err} handleAudioUpload={handleAudioUpload} handleCoverUpload={handleCoverUpload} handleAttachment={handleAttachment} />
     </div>
   );
 }
