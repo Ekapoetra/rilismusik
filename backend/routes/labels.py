@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta, date
 import os
+import re
 import csv
 import io
 import shutil
@@ -144,27 +145,53 @@ async def label_update(body: LabelProfileUpdate, user: dict = Depends(require_la
 @label_r.post("/claim-request")
 async def label_claim_request(body: LabelClaimRequestIn, user: dict = Depends(require_label)):
     """Existing (non-claim) label account requests to claim a legacy label after registration."""
-    if user.get("claim_status") in ("pending_link", "linked"):
+    if user.get("claim_status") in ("pending_link", "conflict", "linked"):
         raise HTTPException(status_code=400, detail="Permintaan klaim label sudah pernah diajukan untuk akun ini.")
+    if not body.ownership_statement:
+        raise HTTPException(status_code=400, detail="Pernyataan kepemilikan wajib dicentang sebelum mengajukan klaim.")
     label = await get_label_by_user(user)
     legacy_name = body.legacy_label_name.strip()
     now = now_iso()
+
+    # Conflict detection: another account already claims the same legacy name.
+    # All matching claims move to 'conflict' — only Super Admin resolves them.
+    rivals = await db.users.find(
+        {"role": "label", "id": {"$ne": user["id"]},
+         "claim_status": {"$in": ["pending_link", "conflict"]},
+         "$or": [
+             {"claim_legacy_name_norm": legacy_name.lower()},
+             {"claim_legacy_name": {"$regex": "^" + re.escape(legacy_name) + "$", "$options": "i"}},
+         ]},
+        {"_id": 0, "id": 1},
+    ).to_list(50)
+    status = "conflict" if rivals else "pending_link"
+    if rivals:
+        await db.users.update_many(
+            {"id": {"$in": [r["id"] for r in rivals]}},
+            {"$set": {"claim_status": "conflict", "updated_at": now}},
+        )
+
     await db.users.update_one({"id": user["id"]}, {"$set": {
-        "claim_status": "pending_link",
+        "claim_status": status,
         "claim_legacy_name": legacy_name,
+        "claim_legacy_name_norm": legacy_name.lower(),
         "claim_requested_at": now,
         "claim_label_name_new": label.get("label_name"),
         "claim_whatsapp": label.get("whatsapp"),
+        "claim_statement_accepted_at": now,
+        "claim_evidence_note": (body.evidence_note or "").strip() or None,
         "updated_at": now,
     }})
     admin_ids = await admin_user_ids(("super_admin", "admin_release", "admin_support"))
+    conflict_note = " Ada klaim lain dengan nama yang sama — masuk daftar sengketa." if rivals else ""
     await notify_many(
         admin_ids, "claim_request", "Permintaan klaim akun lama",
-        f"User {user.get('name')} ({user.get('email')}) mengaku punya label lama: '{legacy_name}'. Tinjau di Admin → Migrasi → Claims.",
+        f"User {user.get('name')} ({user.get('email')}) mengaku punya label lama: '{legacy_name}'.{conflict_note} Tinjau di Admin → Migrasi → Claims.",
         "/admin/migrate?tab=claims", {"user_id": user["id"], "legacy_label_name": legacy_name},
     )
-    await log_activity(user["id"], "claim_request", "label", user["id"], after={"legacy_label_name": legacy_name})
-    return {"ok": True, "claim_pending": True, "claim_legacy_name": legacy_name}
+    await log_activity(user["id"], "claim_request", "label", user["id"],
+                       after={"legacy_label_name": legacy_name, "conflict": bool(rivals)})
+    return {"ok": True, "claim_pending": True, "claim_status": status, "claim_legacy_name": legacy_name}
 
 
 @label_r.get("/dashboard")

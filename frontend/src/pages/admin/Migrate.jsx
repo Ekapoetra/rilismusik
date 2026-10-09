@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { UserCheck, UserX, Sparkles } from "lucide-react";
+import { UserCheck, UserX, Sparkles, ShieldAlert, Lock } from "lucide-react";
 import { api } from "@/api/client";
+import { useAuth } from "@/api/AuthContext";
 
 export default function AdminMigrate() {
   return (
@@ -23,11 +24,14 @@ export default function AdminMigrate() {
       <div className="rm-card p-5">
         <ClaimsPanel />
       </div>
+      <QuarantinePanel />
     </div>
   );
 }
 
 function ClaimsPanel() {
+  const { user } = useAuth();
+  const isSuper = user?.role === "super_admin";
   const [claims, setClaims] = useState([]);
   const [search, setSearch] = useState("");
   const [unclaimed, setUnclaimed] = useState([]);
@@ -83,30 +87,48 @@ function ClaimsPanel() {
           {claims.map((c) => (
             <div key={c.id} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 flex flex-wrap items-start justify-between gap-3" data-testid={`admin-claim-${c.id}`}>
               <div className="text-sm space-y-1">
-                <div className="font-semibold">{c.name} <span className="text-zinc-500 text-xs">· {c.email}</span></div>
+                <div className="font-semibold flex items-center gap-2">
+                  {c.name} <span className="text-zinc-500 text-xs">· {c.email}</span>
+                  {c.claim_status === "conflict" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 text-[10px] font-medium" data-testid={`admin-claim-conflict-${c.id}`}>
+                      <ShieldAlert className="w-3 h-3" /> Sengketa
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-zinc-400">
                   Klaim sebagai: <b className="text-zinc-200">{c.claim_legacy_name}</b>
                 </div>
                 <div className="text-xs text-zinc-500">
                   Nama baru: {c.claim_label_name_new} · WA: {c.claim_whatsapp}
                 </div>
+                {c.claim_evidence_note && (
+                  <div className="text-xs text-zinc-500">Bukti: <span className="text-zinc-300">{c.claim_evidence_note}</span></div>
+                )}
                 <div className="text-[10px] text-zinc-600">Diajukan: {c.claim_requested_at?.slice(0, 16)?.replace("T", " ")}</div>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => openLink(c)}
-                  className="rm-btn-primary text-xs flex items-center gap-2"
-                  data-testid={`admin-claim-link-${c.id}`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" /> Link
-                </button>
-                <button
-                  onClick={() => doReject(c)}
-                  className="rm-btn-secondary text-xs flex items-center gap-2 text-red-300"
-                  data-testid={`admin-claim-reject-${c.id}`}
-                >
-                  <UserX className="w-3.5 h-3.5" /> Reject
-                </button>
+                {isSuper ? (
+                  <>
+                    <button
+                      onClick={() => openLink(c)}
+                      className="rm-btn-primary text-xs flex items-center gap-2"
+                      data-testid={`admin-claim-link-${c.id}`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5" /> Link
+                    </button>
+                    <button
+                      onClick={() => doReject(c)}
+                      className="rm-btn-secondary text-xs flex items-center gap-2 text-red-300"
+                      data-testid={`admin-claim-reject-${c.id}`}
+                    >
+                      <UserX className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[11px] text-zinc-500 flex items-center gap-1" data-testid={`admin-claim-super-only-${c.id}`}>
+                    <Lock className="w-3 h-3" /> Hanya Super Admin
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -158,6 +180,57 @@ function ClaimsPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function QuarantinePanel() {
+  const { user } = useAuth();
+  const isSuper = user?.role === "super_admin";
+  const [labels, setLabels] = useState([]);
+
+  const reload = async () => {
+    const { data } = await api.get("/admin/migrate/labels/quarantined");
+    setLabels(data);
+  };
+  useEffect(() => { reload().catch(() => {}); }, []);
+
+  const release = async (lab) => {
+    if (!window.confirm(`Sahkan saldo warisan label '${lab.label_name}'? Pencairan akan dibuka untuk pemiliknya.`)) return;
+    try {
+      await api.post(`/admin/migrate/labels/${lab.id}/release-quarantine`);
+      await reload();
+    } catch (e) {
+      alert(e.response?.data?.detail || "Gagal mengesahkan baseline");
+    }
+  };
+
+  if (labels.length === 0) return null;
+  return (
+    <div className="rm-card p-5 space-y-3" data-testid="admin-quarantine-panel">
+      <div className="flex items-center gap-2 font-semibold text-sm">
+        <Lock className="w-4 h-4 text-amber-300" /> Saldo Warisan Dikarantina
+      </div>
+      <p className="text-xs text-zinc-500">
+        Label hasil klaim yang baru dilink — pencairan diblokir sampai Super Admin mengesahkan baseline saldo warisan.
+      </p>
+      <div className="space-y-2">
+        {labels.map((lab) => (
+          <div key={lab.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-center justify-between gap-3" data-testid={`admin-quarantine-${lab.id}`}>
+            <div className="text-sm">
+              <div className="font-semibold">{lab.label_name}</div>
+              <div className="text-xs text-zinc-500">{lab.email || "—"} · dilink: {lab.claim_resolved_at?.slice(0, 10) || "—"}</div>
+            </div>
+            {isSuper ? (
+              <button onClick={() => release(lab)} className="rm-btn-primary text-xs" data-testid={`admin-quarantine-release-${lab.id}`}>
+                Sahkan Baseline
+              </button>
+            ) : (
+              <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Lock className="w-3 h-3" /> Hanya Super Admin</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

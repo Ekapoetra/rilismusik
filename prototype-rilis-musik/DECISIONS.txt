@@ -166,6 +166,29 @@ KEPUTUSAN: SAHKAN — implementasikan mekanisme klaim di prototype.
   bermasalah. Deteksi konflik + karantina saldo tetap berjalan sebagai
   pengaman otomatis.
 
+FASE 2 (main) — DITERAPKAN di branch prototype-node-api:
+  - POST /label/claim-request: ownership_statement wajib + evidence_note
+    opsional; claim_legacy_name_norm disimpan untuk pencocokan.
+  - Konflik: klaim baru atas nama yang sedang diklaim akun lain ->
+    SEMUA pihak berstatus 'conflict' (antrean admin tetap menampilkannya).
+  - Link/reject = require_super_admin (sebelumnya izin migration.claims +
+    role support/release — kini benar-benar super sesuai keputusan).
+  - Link mengesahkan: rival satu nama -> 'superseded' + dinotifikasi;
+    label dapat claim_quarantined=true -> withdraw request & batch
+    diblokir sampai super menekan "Sahkan Baseline"
+    (/admin/migrate/labels/{id}/release-quarantine — teraudit).
+  - Revoke-account = super-only; bila user linked -> claim_status
+    'revoked' + claim_revoked_at/by. Karantina menempel di LABEL, bukan
+    akun — tetap terkunci walau akun dicabut/dibuat ulang.
+  - Status akhir klaim: pending_link -> conflict -> linked|rejected ->
+    (linked -> revoked); rejected -> pending_link (ajukan ulang);
+    superseded & revoked = terminal.
+  - DITANGGUHKAN: alur register claim_existing belum meminta pernyataan
+    kepemilikan — selaraskan saat onboarding main dibangun.
+  - UI: ClaimLabelCard (checkbox pernyataan + bukti + banner status
+    conflict/superseded), Migrate.jsx (badge Sengketa, tombol hanya
+    untuk super, panel "Saldo Warisan Dikarantina").
+
 
 ------------------------------------------------------------
 D9. TARIF ROYALTI PER LABEL                       DECIDED-SEBAGIAN

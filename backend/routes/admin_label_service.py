@@ -243,7 +243,8 @@ async def _disable_users(user_ids: list[str], admin_id: str, reason: str) -> int
 async def revoke_label_account(
     *, label_id: str, cascade_artists: bool, reason: str, user: dict,
 ) -> dict:
-    _require_role(user, ACCOUNT_ADMIN_ROLES, "Hanya Super Admin / Support / Release")
+    # D7: mencabut akun dari label adalah keputusan kepemilikan — hanya Super Admin.
+    _require_role(user, ("super_admin",), "Hanya Super Admin")
     label = await _get_label(label_id)
     current_user_id = label.get("user_id")
     if not current_user_id:
@@ -255,6 +256,13 @@ async def revoke_label_account(
         }})
         return {"ok": True, "label_id": label_id, "warning": "User account stale-reference dibersihkan."}
     await _disable_users([current_user_id], user["id"], reason or "Akses dicabut oleh admin")
+    if target.get("claim_status") == "linked":
+        # D8: klaim yang dicabut tercatat 'revoked' — riwayat keputusan tetap utuh;
+        # saldo warisan tetap dikarantina sampai baseline disahkan ulang.
+        await db.users.update_one({"id": current_user_id}, {"$set": {
+            "claim_status": "revoked", "claim_revoked_at": now_iso(),
+            "claim_revoked_by": user["id"], "updated_at": now_iso(),
+        }})
     await db.labels.update_one({"id": label_id}, {"$set": {
         "user_id": None, "account_status": "no_account",
         "previous_account_email": target.get("email"),

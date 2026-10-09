@@ -53,6 +53,8 @@ class VerifyEmailIn(BaseModel):
 # ============ LABEL ============
 class LabelClaimRequestIn(BaseModel):
     legacy_label_name: str = Field(min_length=2, max_length=200, description="Nama label lama sebelum migrasi")
+    ownership_statement: bool = False
+    evidence_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class LabelProfileUpdate(BaseModel):

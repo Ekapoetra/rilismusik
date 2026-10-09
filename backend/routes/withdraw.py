@@ -112,6 +112,14 @@ async def label_computed_withdrawable(user: dict = Depends(require_label)):
     """
     label = await get_label_by_user(user)
     info = await _compute_withdrawable(label["id"])
+    if label.get("claim_quarantined"):
+        return {
+            **{key: value for key, value in info.items() if key != "adjustment_amount_idr"},
+            "min_withdraw_idr": MIN_WITHDRAW_IDR,
+            "can_withdraw": False,
+            "claim_quarantined": True,
+            "reason": "Saldo warisan label ini masih dikarantina menunggu pengesahan baseline oleh Super Admin.",
+        }
     can_withdraw = info["withdrawable_idr"] > MIN_WITHDRAW_IDR
     return {
         **{key: value for key, value in info.items() if key != "adjustment_amount_idr"},
@@ -142,6 +150,11 @@ async def _create_label_withdrawal(label: dict, user: dict):
     state = withdraw_window_state()
     if not state["request_open"]:
         raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
+    if label.get("claim_quarantined"):
+        raise HTTPException(
+            status_code=400,
+            detail="Saldo warisan label ini masih dikarantina menunggu pengesahan baseline oleh Super Admin.",
+        )
 
     info = await _compute_withdrawable(label["id"])
     amount_idr = info["withdrawable_idr"]
@@ -276,6 +289,11 @@ async def label_request_withdraw_batch(user: dict = Depends(require_label)):
     created_ids = []
     try:
         for lab, info, amt in eligible:
+            if lab.get("claim_quarantined"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Saldo warisan label {lab.get('label_name')} masih dikarantina menunggu pengesahan baseline.",
+                )
             async with label_financial_lock(lab["id"]):
                 recheck = await _compute_withdrawable(lab["id"])
                 if recheck["has_active_withdraw"] or recheck["withdrawable_idr"] <= 0:

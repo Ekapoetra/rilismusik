@@ -15,6 +15,7 @@ Each import:
   - Caps file size to MAX_BULK_BYTES to protect server memory
 """
 import io
+import re
 import csv as csv_module
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
@@ -628,20 +629,23 @@ async def bulk_import_withdraws(
 async def list_pending_claims(user: dict = Depends(require_admin)):
     """List label-claim requests awaiting admin link."""
     items = await db.users.find(
-        {"role": "label", "claim_status": "pending_link"},
+        {"role": "label", "claim_status": {"$in": ["pending_link", "conflict"]}},
         {"_id": 0, "password_hash": 0},
     ).sort("created_at", -1).limit(500).to_list(500)
     return items
 
 
 @migrate_r.post("/claims/{user_id}/link/{legacy_label_id}")
-async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: dict = Depends(require_admin)):
-    """Admin links a pending-claim user to an existing unclaimed legacy label."""
-    assert_admin_permission(user, "migration.claims")
+async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: dict = Depends(require_super_admin)):
+    """Super Admin links a pending/conflict claim to an unclaimed legacy label.
+
+    Resolving a conflict also marks rival claims on the same legacy name as
+    'superseded', and the inherited balance stays quarantined until the
+    baseline is released via /labels/{id}/release-quarantine."""
     u = await db.users.find_one({"id": user_id})
     if not u:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    if u.get("claim_status") != "pending_link":
+    if u.get("claim_status") not in ("pending_link", "conflict"):
         raise HTTPException(status_code=400, detail="User bukan pending claim")
 
     lab = await db.labels.find_one({"id": legacy_label_id})
@@ -686,9 +690,37 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
             "mda_accepted_at": accepted_at,
             "claim_resolved_at": accepted_at,
             "claim_resolved_by": user["id"],
+            # D8: saldo warisan dikarantina sampai Super Admin mengesahkan baseline.
+            "claim_quarantined": True,
             "updated_at": accepted_at,
         }},
     )
+
+    # D8: klaim rival pada nama warisan yang sama menjadi 'superseded' — bukan
+    # ditolak manual; keputusan mereka tergantikan oleh link yang disahkan.
+    norm = (u.get("claim_legacy_name") or "").strip().lower()
+    rivals = await db.users.find(
+        {"role": "label", "id": {"$ne": user_id},
+         "claim_status": {"$in": ["pending_link", "conflict"]},
+         "$or": [
+             {"claim_legacy_name_norm": norm},
+             {"claim_legacy_name": {"$regex": "^" + re.escape(u.get("claim_legacy_name") or "") + "$", "$options": "i"}},
+         ]},
+        {"_id": 0, "id": 1},
+    ).to_list(50)
+    if rivals:
+        await db.users.update_many(
+            {"id": {"$in": [r["id"] for r in rivals]}},
+            {"$set": {"claim_status": "superseded", "claim_resolved_at": accepted_at,
+                      "claim_resolved_by": user["id"], "updated_at": accepted_at}},
+        )
+        for r in rivals:
+            await notify(
+                r["id"], "claim_superseded",
+                "Klaim akun lama tidak berlanjut",
+                f"Label '{u.get('claim_legacy_name')}' telah dihubungkan ke pemilik yang terverifikasi. Jika Anda merasa ini keliru, hubungi support.",
+                "/label/tickets", {},
+            )
     await db.users.update_one(
         {"id": user_id},
         {"$set": {
@@ -753,12 +785,11 @@ async def link_claim_to_legacy_label(user_id: str, legacy_label_id: str, user: d
 
 
 @migrate_r.post("/claims/{user_id}/reject")
-async def reject_claim(user_id: str, reason: str = Form(""), user: dict = Depends(require_admin)):
-    assert_admin_permission(user, "migration.claims")
+async def reject_claim(user_id: str, reason: str = Form(""), user: dict = Depends(require_super_admin)):
     u = await db.users.find_one({"id": user_id})
     if not u:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
-    if u.get("claim_status") != "pending_link":
+    if u.get("claim_status") not in ("pending_link", "conflict"):
         raise HTTPException(status_code=400, detail="User bukan pending claim")
     await db.users.update_one(
         {"id": user_id},
@@ -790,6 +821,45 @@ async def list_unclaimed_legacy_labels(q: str = "", user: dict = Depends(require
         filt["label_name"] = {"$regex": q, "$options": "i"}
     items = await db.labels.find(filt, {"_id": 0}).sort("label_name", 1).limit(200).to_list(200)
     return items
+
+
+@migrate_r.get("/labels/quarantined")
+async def list_quarantined_labels(user: dict = Depends(require_admin)):
+    """Labels whose inherited balance is quarantined after a claim link (D8).
+    Withdrawal requests stay blocked until Super Admin releases the baseline."""
+    assert_admin_permission(user, "migration.claims")
+    items = await db.labels.find(
+        {"claim_quarantined": True},
+        {"_id": 0, "id": 1, "label_name": 1, "email": 1, "claim_resolved_at": 1, "claim_resolved_by": 1},
+    ).sort("claim_resolved_at", -1).limit(200).to_list(200)
+    return items
+
+
+@migrate_r.post("/labels/{label_id}/release-quarantine")
+async def release_claim_quarantine(label_id: str, user: dict = Depends(require_super_admin)):
+    """Super Admin certifies the inherited-balance baseline — withdrawals become
+    possible again for the label owner."""
+    lab = await db.labels.find_one({"id": label_id})
+    if not lab:
+        raise HTTPException(status_code=404, detail="Label tidak ditemukan")
+    if not lab.get("claim_quarantined"):
+        raise HTTPException(status_code=400, detail="Label tidak dalam karantina klaim")
+    now = now_iso()
+    await db.labels.update_one(
+        {"id": label_id},
+        {"$set": {"claim_quarantined": False, "claim_baseline_released_at": now,
+                  "claim_baseline_released_by": user["id"], "updated_at": now}},
+    )
+    if lab.get("user_id"):
+        await notify(
+            lab["user_id"], "claim_baseline_released",
+            "Saldo warisan disahkan",
+            f"Saldo warisan label '{lab.get('label_name')}' sudah disahkan. Pencairan kini mengikuti jadwal withdraw seperti biasa.",
+            "/label/withdraw", {},
+        )
+    await log_activity(user["id"], "release_claim_quarantine", "label", label_id,
+                       before={"claim_quarantined": True}, after={"claim_quarantined": False})
+    return {"ok": True, "label_id": label_id, "claim_quarantined": False}
 
 
 # ===================================================================

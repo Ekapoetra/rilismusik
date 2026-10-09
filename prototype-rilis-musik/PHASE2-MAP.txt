@@ -60,31 +60,47 @@ Celah:
 Status main: users.claim_status = pending_link (dari
   /admin/migrate/claims), claim_requested_at
 
-Endpoint main:
+Endpoint main (SETELAH irisan 2 — D8):
   POST /label/claim-request                       label mengajukan
-  GET  /admin/migrate/claims                      antrean (super)
-  POST /admin/migrate/claims/{uid}/link/{legacy}  tautkan (super)
-  POST /admin/migrate/claims/{uid}/reject         tolak (super)
-  GET  /admin/migrate/labels/unclaimed            label yatim
+    (wajib ownership_statement=true + evidence_note opsional;
+     nama yang diklaim akun lain -> status 'conflict' untuk semua)
+  GET  /admin/migrate/claims                      antrean (izin migration.claims;
+     kini menyertakan pending_link + conflict)
+  POST /admin/migrate/claims/{uid}/link/{legacy}  tautkan — KINI require_super_admin;
+     rival satu nama otomatis 'superseded' + label dapat claim_quarantined=true
+  POST /admin/migrate/claims/{uid}/reject         tolak — KINI require_super_admin
+  GET  /admin/migrate/labels/unclaimed            label yatim (izin migration.claims)
+  GET  /admin/migrate/labels/quarantined          [BARU] daftar karantina
+  POST /admin/migrate/labels/{id}/release-quarantine [BARU] sahkan baseline (super)
   PATCH /admin/labels/{label_id}                  profil + status
   POST /admin/labels/{label_id}/create-account    buatkan akun
-  POST /admin/labels/{label_id}/revoke-account    cabut akses
+  POST /admin/labels/{label_id}/revoke-account    cabut akses — KINI super-only;
+     user linked -> claim_status 'revoked', karantina tetap menempel
   POST /admin/labels/{label_id}/blacklist|unblacklist
   GET  /admin/labels/{label_id}/bank-change-requests
   POST /admin/bank-account-change-requests/{id}/action
 
-Peta prototype → main:
+Peta prototype → main (SETELAH irisan 2):
   claim pending     [=] claim_status pending_link
-  claim approved    [=] link/{legacy_label_id}
-  claim rejected    [=] claims/{uid}/reject
-  claim conflict    [+] BELUM ADA — deteksi ganda & status
-                    'conflict' perlu kolom/status baru di main
-  claim superseded  [+] status baru (otomatis saat klaim lain
-                    disetujui)
-  claim revoked     [~] revoke-account ada, tapi tidak mengisi
-                    claim_status — perlu penanda
-  karantina saldo   [+] kolom baru (mis. withdraw_hold_reason)
-                    yang dibaca /withdraw/label/request
+  claim approved    [=] link/{legacy_label_id} — super-only
+  claim rejected    [=] claims/{uid}/reject — super-only
+  claim conflict    [=] claim_status 'conflict' — BARU: klaim ganda atas nama
+                    yang sama -> semua pihak masuk sengketa (claim-request)
+  claim superseded  [=] otomatis saat link disahkan — rival dinotifikasi
+  claim revoked     [=] revoke-account mengisi claim_status 'revoked' +
+                    claim_revoked_at/by — riwayat keputusan utuh
+  karantina saldo   [=] labels.claim_quarantined — diset saat link; memblokir
+                    /withdraw/label/request + /withdraw/label/batch; dibuka
+                    lewat release-quarantine (super, teraudit + notifikasi)
+
+Keputusan diambil (lihat DECISIONS.txt D8):
+  - Aksi klaim (link/reject) & revoke kini benar-benar super-only — sebelumnya
+    pemegang izin migration.claims + role support/release bisa bertindak.
+  - Antrean tetap terlihat staf berizin (saringan awal), tapi hanya super
+    yang mengeksekusi — UI menyembunyikan tombol bagi non-super.
+  - Kejujuran = gerbang klaim: ownership_statement wajib; OTP tidak dipakai.
+    CATATAN: alur register claim_existing belum meminta pernyataan — ditangguhkan.
+  - Rejected boleh mengajukan ulang; superseded/revoked adalah status akhir.
 
 ------------------------------------------------------------
 3. PAKET, TARIF & TOKEN (D1, D2, D9)
