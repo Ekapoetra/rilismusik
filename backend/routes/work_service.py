@@ -354,6 +354,29 @@ async def _delegated_permissions() -> set:
     return delegated
 
 
+async def _staff_permission_sets() -> List[set]:
+    """One permission set per ACTIVE non-super admin user — the staffing capacity view.
+
+    Permissions are read from the user's assigned (active) role, mirroring
+    enrich_admin_user's default-deny rule: an inactive/missing role grants nothing."""
+    roles = await db.admin_roles.find(
+        {"active": {"$ne": False}}, {"_id": 0, "id": 1, "key": 1, "permissions": 1},
+    ).to_list(500)
+    role_perms: Dict[str, set] = {}
+    for role in roles:
+        if role.get("key") == SUPER_ADMIN_ROLE_ID:
+            continue
+        for ref in (role.get("id"), role.get("key")):
+            if ref:
+                role_perms[ref] = set(role.get("permissions") or [])
+    users = await db.users.find(
+        {"status": {"$nin": ["disabled", "suspended"]}, "role": {"$ne": SUPER_ADMIN_ROLE_ID},
+         "$or": [{"admin_role_id": {"$exists": True, "$ne": None}}, {"role": {"$in": list(role_perms)}}]},
+        {"_id": 0, "admin_role_id": 1, "role": 1},
+    ).to_list(None)
+    return [role_perms.get(u.get("admin_role_id") or u.get("role"), set()) for u in users]
+
+
 # ---------- endpoints ----------
 @work_r.get("/queue")
 async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
@@ -381,6 +404,8 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
     # holds it AND at least one ACTIVE admin user is assigned to that role. Super Admin's implicit
     # access is NEVER counted as delegation (see PRD "SUPER ADMIN PERMISSION BYPASS").
     delegated_perms = await _delegated_permissions()
+    # D10 staffing signal: how many active staff can work each permission.
+    staff_sets = await _staff_permission_sets()
 
     def is_delegated(wt: Dict[str, Any]) -> bool:
         return wt["scope"] == "permission" and wt["permission"] in delegated_perms
@@ -411,11 +436,16 @@ async def work_queue(scope: str = "my", user: dict = Depends(require_admin)):
             sla = int(settings["sla_days"].get(key, wt["sla_days_default"]))
             overdue = sum(1 for row in opens if _is_overdue(row.get("opened_at"), sla))
             oldest = min((row.get("opened_at") for row in opens if row.get("opened_at")), default=None)
+            staff_count = (sum(1 for perms in staff_sets if wt["permission"] in perms)
+                           if wt["scope"] == "permission" and wt["permission"] else None)
             items.append({"work_type": key, "label_id": wt["label_id"], "label_en": wt["label_en"], "icon": wt["icon"],
                 "link": wt["link"], "permission": wt["permission"], "priority": wt["priority"],
                 "scope": wt["scope"], "delegated": is_delegated(wt), "open_count": len(opens),
                 "overdue_count": overdue, "oldest_open_at": oldest,
                 "oldest_age_days": _age_days(oldest) if oldest else 0, "sla_days": sla,
+                "staff_count": staff_count,
+                "needs_staff": bool(wt["scope"] == "permission" and len(opens) and not staff_count),
+                "strained": bool(wt["scope"] == "permission" and overdue and staff_count == 1),
                 "can_act": True if is_super else (wt["scope"] == "permission" and wt["permission"] in real_perms)})
         items.sort(key=lambda item: (0 if item["overdue_count"] else 1, rank.get(item["priority"], 9), item.get("oldest_open_at") or "9999"))
         return items

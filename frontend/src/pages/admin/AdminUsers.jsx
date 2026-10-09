@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, UserCog, ShieldX, Ban } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Pencil, Plus, Trash2, UserCog, ShieldX, Ban, Eye } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { AdminUserDialog } from "@/components/admin/access/AdminUserDialog";
@@ -7,7 +8,9 @@ import { ADMIN_USER } from "@/constants/testIds";
 import { toast } from "@/components/ui/sonner";
 
 export default function AdminUsers() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, enterStaffPreview } = useAuth();
+  const navigate = useNavigate();
+  const isSuper = user?.role === "super_admin";
   const [items, setItems] = useState([]); const [roles, setRoles] = useState([]);
   const [dialog, setDialog] = useState(undefined); const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -28,6 +31,13 @@ export default function AdminUsers() {
   const purge = async (admin) => { if (!window.confirm(`HAPUS PERMANEN akun ${admin.name}? Tindakan ini tidak bisa dibatalkan dan menghapus seluruh data terkait.`)) return; try { await api.delete(`/admin/admin-users/${admin.id}?permanent=true`); await load(); toast.success("Akun dihapus permanen."); } catch (e) { setError(formatApiError(e.response?.data?.detail)); } };
   const bulkPurge = async () => { const ids = [...selected]; if (ids.length === 0) return; if (!window.confirm(`HAPUS PERMANEN ${ids.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`)) return; try { const { data } = await api.post("/admin/admin-users/bulk-delete", { user_ids: ids }); await load(); toast.success(`${data.purged.length} akun dihapus permanen${data.skipped.length ? `, ${data.skipped.length} dilewati` : ""}.`); } catch (e) { setError(formatApiError(e.response?.data?.detail)); } };
   const toggleSel = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const preview = async (admin) => {
+    try {
+      await enterStaffPreview(admin.id);
+      toast.success(`Pratinjau akses ${admin.name} aktif — semua tindakan dinonaktifkan.`);
+      navigate("/admin/dashboard");
+    } catch (e) { setError(formatApiError(e.response?.data?.detail)); }
+  };
 
   return <div className="space-y-7" data-testid="admin-users-page">
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-6">
@@ -49,6 +59,7 @@ export default function AdminUsers() {
         <div><div className="text-[10px] font-bold uppercase text-zinc-600">Role</div><div className="mt-1 text-sm text-zinc-300" data-testid={`admin-user-role-${admin.id}`} translate="no">{admin.role_name || admin.role}</div></div>
         <span className={`text-xs font-bold ${admin.status === "active" ? "text-emerald-300" : "text-amber-300"}`} data-testid={`admin-user-status-${admin.id}`}>{admin.status === "active" ? "Aktif" : disabled ? "Nonaktif" : "Ditangguhkan"}</span>
         {canManage && <div className="flex justify-end gap-1">
+          {isSuper && !disabled && admin.role !== "super_admin" && <button type="button" title="Pratinjau akses (baca-saja)" onClick={() => preview(admin)} className="rounded-md p-2 text-sky-300 hover:bg-sky-500/10" data-testid={`admin-user-preview-${admin.id}`}><Eye className="h-4 w-4" /></button>}
           {!disabled && <button type="button" title="Edit pengguna" onClick={() => setDialog(admin)} className="rounded-md p-2 text-zinc-400 hover:bg-white/5 hover:text-white" data-testid={`admin-user-edit-${admin.id}`}><Pencil className="h-4 w-4" /></button>}
           {!disabled && <button type="button" title="Nonaktifkan pengguna" onClick={() => remove(admin)} disabled={admin.id === user?.id} className="rounded-md p-2 text-amber-300 hover:bg-amber-500/10 disabled:opacity-25" data-testid={`admin-user-delete-${admin.id}`}><Ban className="h-4 w-4" /></button>}
           <button type="button" title="Hapus permanen" onClick={() => purge(admin)} disabled={admin.id === user?.id} className="rounded-md p-2 text-red-300 hover:bg-red-500/10 disabled:opacity-25" data-testid={`admin-user-purge-${admin.id}`}><Trash2 className="h-4 w-4" /></button>

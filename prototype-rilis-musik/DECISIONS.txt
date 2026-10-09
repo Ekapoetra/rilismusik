@@ -375,6 +375,14 @@ FASE 2 — PETA KEBERANGKATAN (mulai)
   Ditunda: materials/handler/due/kuota revisi/offer-machine/
   child-order — bisa ditambah tanpa migrasi.
 
+  IRISAN 6 (dikerjakan): D10 sinyal staff + pratinjau —
+  /admin/work/queue membawa staff_count/needs_staff/strained
+  per tipe kerja (kapasitas vs antrean); pratinjau staff =
+  frontend-driven (preview-context super-only + teraudit),
+  nav difilter izin staff, interceptor menolak semua mutasi.
+  Pratinjau BUKAN impersonasi token — token tetap super;
+  cakupan label per-staff ditunda (belum ada di model).
+
   IRISAN 1 (dikerjakan): D13 maintenance_windows —
   backend/routes/maintenance_windows.py (CRUD super +
   /maintenance/active untuk member), halaman admin

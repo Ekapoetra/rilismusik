@@ -1,4 +1,5 @@
 import axios from "axios";
+import { staffPreviewActive } from "./staffPreview";
 
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const IS_BROWSER = typeof window !== "undefined";
@@ -10,6 +11,18 @@ export const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
+});
+
+// D10 staff preview: while a Super Admin previews a staff member's access, all
+// mutations are blocked client-side — the preview is strictly read-only.
+api.interceptors.request.use((config) => {
+  const method = (config.method || "get").toLowerCase();
+  if (staffPreviewActive() && !["get", "head", "options"].includes(method)) {
+    const err = new Error("Pratinjau akses tidak dapat menjalankan tindakan operasional.");
+    err.isStaffPreviewBlocked = true;
+    return Promise.reject(err);
+  }
+  return config;
 });
 
 // Stage large files directly in the existing private R2 bucket. Finalization

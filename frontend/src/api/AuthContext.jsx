@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, formatApiError } from "@/api/client";
+import { getStaffPreview, startStaffPreview, exitStaffPreview, subscribeStaffPreview } from "./staffPreview";
 
 import { resetSharedReads } from "./sharedRead";
 
@@ -58,16 +59,36 @@ export function AuthProvider({ children }) {
     setProfile(null);
   };
 
+  // D10 staff preview: reactive mirror of the module-level preview store.
+  const [staffPreview, setStaffPreview] = useState(getStaffPreview());
+  useEffect(() => subscribeStaffPreview(setStaffPreview), []);
+
+  const enterStaffPreview = useCallback(async (userId) => {
+    const { data } = await api.get(`/admin/admin-users/${userId}/preview-context`);
+    startStaffPreview(data);
+    return data;
+  }, []);
+
+  const exitPreview = useCallback(() => exitStaffPreview(), []);
+
   const hasPermission = useCallback((permission) => {
+    const impliedBy = { "access.users.view": "access.users.manage", "access.roles.view": "access.roles.manage", "ui.settings.view": "ui.settings.manage", "labels.rate.request.view": "labels.rate.approve", "labels.package.request.view": "labels.package.approve", "labels.blacklist.request.view": "labels.blacklist.approve" };
+    if (staffPreview) {
+      // Preview strictly follows the staff member's resolved permissions —
+      // the Super Admin wildcard never applies while previewing.
+      if (!permission) return true;
+      if (staffPreview.admin_role_active === false) return false;
+      const previewPerms = new Set(staffPreview.permissions || []);
+      return previewPerms.has(permission) || previewPerms.has(impliedBy[permission]);
+    }
     if (user?.role === "super_admin") return true;
     const permissions = new Set(user?.permissions || []);
-    const impliedBy = { "access.users.view": "access.users.manage", "access.roles.view": "access.roles.manage", "ui.settings.view": "ui.settings.manage", "labels.rate.request.view": "labels.rate.approve", "labels.package.request.view": "labels.package.approve", "labels.blacklist.request.view": "labels.blacklist.approve" };
     return permissions.has(permission) || permissions.has(impliedBy[permission]);
-  }, [user]);
+  }, [user, staffPreview]);
   const isAdmin = Boolean(user?.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user?.role));
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, loginWithGoogle, logout, hasPermission, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, loginWithGoogle, logout, hasPermission, isAdmin, staffPreview, enterStaffPreview, exitStaffPreview: exitPreview }}>
       {children}
     </AuthContext.Provider>
   );

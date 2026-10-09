@@ -605,6 +605,33 @@ async def admin_list_admin_users(include_disabled: bool = False, user: dict = De
     return items
 
 
+@admin_r.get("/admin-users/{user_id}/preview-context")
+async def admin_user_preview_context(user_id: str, user: dict = Depends(require_super_admin)):
+    """D10: resolve a staff member's effective access for a read-only UI preview.
+
+    Returns the identity + resolved permission set; the frontend renders the admin
+    console AS this staff member (navigation/buttons follow their permissions and
+    all mutations are blocked client-side). Never impersonates Super Admin."""
+    from .admin_permission_service import enrich_admin_user, is_admin_identity
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not target or not is_admin_identity(target):
+        raise HTTPException(status_code=404, detail="Pengguna admin tidak ditemukan")
+    if target.get("role") == SUPER_ADMIN:
+        raise HTTPException(status_code=400, detail="Super Admin tidak dapat dipratinjau")
+    if target.get("status") in ("disabled", "suspended"):
+        raise HTTPException(status_code=400, detail="Hanya akun aktif yang bisa dipratinjau")
+    resolved = await enrich_admin_user(db, target)
+    await log_activity(user["id"], "staff_preview_start", "admin_user", user_id,
+                       after={"name": target.get("name"), "role_name": resolved.get("role_name")})
+    return {
+        "user_id": target["id"], "name": target.get("name") or target.get("email"),
+        "email": target.get("email"), "role": target.get("role"),
+        "admin_role_id": resolved.get("admin_role_id"), "role_name": resolved.get("role_name"),
+        "permissions": resolved.get("permissions") or [],
+        "admin_role_active": resolved.get("admin_role_active", True),
+    }
+
+
 async def _resolve_admin_role(role_ref: Optional[str], actor: dict) -> Dict[str, Any]:
     ref = (role_ref or "admin_release").strip()
     role = await db.admin_roles.find_one({"$or": [{"id": ref}, {"key": ref}], "active": {"$ne": False}}, {"_id": 0})

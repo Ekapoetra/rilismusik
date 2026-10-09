@@ -14,7 +14,7 @@ const FALLBACK_ITEMS = [
 ].map(([key, route, icon, permission, id, en], order) => ({ key, route, icon, permission, labels: { id, en }, order, visible: true, parent_key: null }));
 
 export const AdminNavigationProvider = ({ children }) => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, staffPreview } = useAuth();
   const [items, setItems] = useState([]);
   const [groups, setGroups] = useState([]);
   const { locale, setLocale } = useAppPreferences();
@@ -31,7 +31,10 @@ export const AdminNavigationProvider = ({ children }) => {
     } finally { setLoading(false); }
   }, [hasPermission, setLocale]);
   useEffect(() => { load(); }, [load]);
-  const value = useMemo(() => ({ items, groups, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [items, groups, locale, setLocale, loading, load]);
+  // D10 staff preview: navigation follows the previewed staff member's
+  // permissions — server items arrive for the super token, so filter here.
+  const visibleItems = staffPreview ? items.filter((item) => hasPermission(item.permission)) : items;
+  const value = useMemo(() => ({ items: visibleItems, groups, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [visibleItems, groups, locale, setLocale, loading, load]);
   return <AdminNavigationContext.Provider value={value}>{children}</AdminNavigationContext.Provider>;
 };
 

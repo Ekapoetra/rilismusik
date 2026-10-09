@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Icons from "lucide-react";
-import { ClipboardList, AlertTriangle, Clock, ArrowRight, Settings2, History as HistoryIcon, X, ShieldCheck } from "lucide-react";
+import { ClipboardList, AlertTriangle, Clock, ArrowRight, Settings2, History as HistoryIcon, X, ShieldCheck, Users, UserX } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
 import { toast } from "@/components/ui/sonner";
@@ -23,7 +23,10 @@ function WorkCard({ item, onOpen }) {
         {item.overdue_count > 0 && <span className="inline-flex items-center gap-1 rounded bg-red-500/15 px-1.5 py-0.5 font-bold text-red-300" data-testid={`work-overdue-${item.work_type}`}><AlertTriangle className="h-3 w-3" />{item.overdue_count} lewat tempo</span>}
         {item.oldest_age_days > 0 && <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />tertua {item.oldest_age_days} hari</span>}
         <span>SLA {item.sla_days}h</span>
+        {item.staff_count != null && <span className="inline-flex items-center gap-1" data-testid={`work-staff-${item.work_type}`}><Users className="h-3 w-3" />{item.staff_count} petugas</span>}
       </div>
+      {item.needs_staff && <div className="mt-3 inline-flex items-center gap-1 rounded bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300" data-testid={`work-needs-staff-${item.work_type}`}><UserX className="h-3 w-3" />Belum ada petugas</div>}
+      {item.strained && <div className="mt-3 inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300" data-testid={`work-strained-${item.work_type}`}><AlertTriangle className="h-3 w-3" />Beban menumpuk di 1 petugas</div>}
       {item.scope === "super_admin_only" && <div className="mt-3 inline-flex items-center gap-1 rounded bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-300">Khusus Super Admin</div>}
       <div className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-pink-300 opacity-0 transition-opacity group-hover:opacity-100">Buka modul <ArrowRight className="h-4 w-4" /></div>
     </button>

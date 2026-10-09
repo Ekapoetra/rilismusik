@@ -344,15 +344,30 @@ Main sudah punya matriks izin granular (ANNEX-H):
   permission keys: kyc.review, labels.package, payments.view,
   withdraw.*, migration.view, dst. + preset role.
 
-Peta prototype → main:
+Peta prototype → main (SETELAH irisan 6 — D10):
   user114 (super/scope/labels) [~] admin_users + permissions
   handoff tugas (Kartu Kerja)  [~] work_service.py + tasks
-  sinyal "butuh role"          [+] metrik antrean vs kapasitas —
-                               agregasi baru di atas task/work
-  preview staff (ui114)        [+] read-only impersonation — baru
+  sinyal "butuh role"          [+] TERPASANG: GET /admin/work/queue —
+                               tiap item membawa staff_count (staff aktif
+                               non-super pemegang izin tipe kerja),
+                               needs_staff (open>0 & 0 petugas), strained
+                               (overdue & tepat 1 petugas); badge di kartu
+                               WorkQueue: "Belum ada petugas" / "Beban
+                               menumpuk di 1 petugas" / "N petugas"
+  preview staff (ui114)        [+] TERPASANG frontend-driven:
+                               GET /admin/admin-users/{id}/preview-context
+                               (super-only, teraudit log_activity) →
+                               AuthContext menukar izin efektif, nav admin
+                               difilter via hasPermission, banner
+                               "Pratinjau akses" permanen, dan interceptor
+                               api menolak SEMUA mutasi saat pratinjau.
+                               Catatan: pratinjau = alat verifikasi izin,
+                               bukan batas keamanan (token tetap super).
+  Ditunda: cakupan label per-staff (belum ada di model main)
 
 Endpoint main:
   GET/POST /admin/admin-users · PATCH · DELETE · bulk-delete
+  GET  /admin/admin-users/{id}/preview-context  (super)
   GET /admin/activity-logs · /actors
 
 ------------------------------------------------------------

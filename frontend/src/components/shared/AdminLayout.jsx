@@ -62,7 +62,7 @@ export const AdminSidebarView = ({ instance, collapsed, onCollapse, onNavigate, 
 };
 
 const AdminLayoutInner = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, staffPreview, exitStaffPreview } = useAuth();
   const { items, groups } = useAdminNavigation();
   const { t } = useAppPreferences();
   const [collapsed, setCollapsed] = useState(localStorage.getItem("admin-sidebar-collapsed") === "true");
@@ -73,6 +73,16 @@ const AdminLayoutInner = () => {
     {mobileOpen && <div className="fixed inset-0 z-50 md:hidden" data-testid="admin-mobile-sidebar"><button type="button" aria-label={t("Tutup menu")} onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/70" data-testid="admin-mobile-sidebar-backdrop" /><aside className="dashboard-sidebar absolute inset-y-0 left-0 w-[min(86vw,320px)] border-r"><AdminSidebarView instance="mobile" collapsed={false} onNavigate={() => setMobileOpen(false)} items={items} groups={groups} user={user} logout={logout} /></aside></div>}
     <div style={{ "--rm-dock-left": collapsed ? "72px" : "256px" }} className={`min-w-0 flex-1 transition-[margin] duration-300 ${collapsed ? "md:ml-[72px]" : "md:ml-64"}`}>
       <header className="dashboard-header sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b px-3 sm:px-6 lg:px-8" data-testid="admin-topbar"><div className="flex min-w-0 items-center gap-2"><button type="button" onClick={() => setMobileOpen(true)} aria-label={t("Buka menu")} className="ui-icon-button md:hidden" data-testid="admin-mobile-sidebar-open"><Menu className="h-5 w-5" /></button><div className="md:hidden"><DashboardBrand compact testId="admin-header-brand" /></div><div className="hidden min-w-0 md:block"><div className="text-[10px] font-bold uppercase text-[var(--ui-muted)]" translate="no">RILIS MUSIK</div><div className="text-sm font-bold">{t("Admin Console")}</div></div></div><div className="flex shrink-0 items-center gap-1.5"><HeaderPreferences instance="admin" /><StatusMenu instance="admin" /><NotificationBell instance="admin-header" historyPath="/admin/notifications" /><QuickChatButton instance="admin" /><ProfileMenu user={user} logout={logout} instance="admin" /></div></header>
+      {staffPreview && (
+        <div className="sticky top-16 z-30 flex items-center justify-between gap-3 border-b border-amber-400/30 bg-amber-500/15 px-4 py-2 backdrop-blur sm:px-6 lg:px-8" data-testid="staff-preview-banner">
+          <div className="min-w-0 text-xs sm:text-sm">
+            <strong>Pratinjau akses — {staffPreview.name}</strong>
+            <span className="ml-2 text-[var(--ui-muted)]">({staffPreview.role_name || staffPreview.role})</span>
+            <p className="text-[11px] text-[var(--ui-muted)]">Tampilan dan menu mengikuti kewenangan staff. Semua tindakan operasional dinonaktifkan.</p>
+          </div>
+          <button type="button" onClick={exitStaffPreview} className="rm-btn-ghost shrink-0 py-1.5 text-xs" data-testid="staff-preview-exit">Keluar pratinjau</button>
+        </div>
+      )}
       <main className="min-h-[calc(100vh-4rem)] p-4 pb-[calc(var(--audio-player-height,0px)+2rem)] sm:p-6 lg:p-8"><Suspense fallback={<div role="status" className="p-8 text-center text-zinc-400">Memuat halaman…</div>}><Outlet /></Suspense></main>
     </div><AdminChatWidget />
   </div>;
