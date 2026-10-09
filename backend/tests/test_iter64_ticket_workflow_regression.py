@@ -242,22 +242,23 @@ def _create_ticket(token: str, payload: Dict) -> requests.Response:
     return requests.post(f"{API}/tickets/label/create", headers=_headers(token), json=payload, timeout=40)
 
 
-def test_categories_only_six_active(auth):
+def test_categories_active(auth):
     response = requests.get(f"{API}/tickets/categories", headers=_headers(auth["owner"]), timeout=40)
     assert response.status_code == 200, response.text
     values = {item["value"] for item in response.json()}
-    assert values == {"takedown", "edit_metadata", "edit_audio", "edit_cover", "content_id_claim", "content_id_release"}
+    assert values == {"takedown", "edit_metadata", "edit_audio", "edit_cover",
+                      "content_id_claim", "content_id_release", "not_live", "royalty_issue", "other"}
 
 
-def test_create_rejects_removed_categories_with_422(auth, seeded_env):
-    for removed in ("royalty_issue", "other"):
+def test_free_categories_accepted_without_release(auth, seeded_env):
+    for category in ("royalty_issue", "other"):
         response = _create_ticket(auth["owner"], {
-            "release_id": seeded_env["owner"]["release_a"],
-            "category": removed,
-            "subject": "will fail",
-            "description": "will fail",
+            "category": category,
+            "subject": "Pertanyaan kategori bebas",
+            "description": "Deskripsi kategori bebas yang valid.",
         })
-        assert response.status_code == 422, response.text
+        assert response.status_code == 200, response.text
+        assert response.json()["release_id"] is None
 
 
 def test_legacy_removed_type_still_listable_for_owner_and_admin(auth, seeded_env):

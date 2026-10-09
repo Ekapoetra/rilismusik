@@ -84,7 +84,7 @@ class TestCategories:
         items = r.json()
         values = {i["value"] for i in items}
         expected = {"takedown", "edit_metadata", "edit_audio", "edit_cover",
-                    "content_id_claim", "content_id_release", "royalty_issue", "other"}
+                    "content_id_claim", "content_id_release", "not_live", "royalty_issue", "other"}
         assert values == expected, values
         # Indonesian labels present
         labels_by_value = {i["value"]: i["label"] for i in items}

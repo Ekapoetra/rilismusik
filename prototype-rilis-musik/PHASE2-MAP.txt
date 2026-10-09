@@ -271,9 +271,10 @@ Endpoint main:
 ------------------------------------------------------------
 7. TIKET BANTUAN (D11)
 ------------------------------------------------------------
-Status main:
+Status main (DIPERTAHANKAN — irisan 4):
   open → waiting_admin → in_progress → waiting_label
     → submitted_to_believe → done   ↘ rejected · cancelled
+  draft — status baru sisi label (D11); hanya kategori bebas
 
 Status prototype (states112):
   submitted → handling → label → distributor → done (+draft)
@@ -285,14 +286,33 @@ Peta prototype → main:
   label        [=] waiting_label
   distributor  [=] submitted_to_believe
   done         [=] done
-  draft        [+] tiket draf sisi label — baru
-  (main) open/waiting_admin granularity [-] prototype
-               menyederhanakan — putuskan apakah dipertahankan
+  draft        [=] TERIMPLEMENTASI — status "draft" server-side,
+               hanya kategori bebas (royalty_issue / other)
+  granularity  [=] 7 status main DIPERTAHANKAN — kosakata 5
+               prototype cukup jadi label tampilan bila perlu
+
+Kategori bebas — TERIMPLEMENTASI:
+  royalty_issue + other aktif tanpa release_id (rilisan opsional,
+  tetap divalidasi kepemilikannya bila diisi). Subjek + deskripsi
+  manual (masing-masing min 3 karakter saat kirim).
+
+Aturan draf:
+  POST /tickets/label/create dengan is_draft:true → status draft
+  PATCH /tickets/label/{id}   — edit subjek/deskripsi/lampiran
+  POST /tickets/label/{id}/submit — validasi lalu → open,
+    seed comment + notifikasi admin + email konfirmasi di sini
+  · Draf tidak masuk GET /tickets/admin (status != draft dipaksa)
+  · Komentar, admin status, dan bulk-status menolak draf
+  · Detail draf 404 untuk non-pemilik (admin pun tak bisa baca)
+  · Cancel tetap berlaku → "Hapus Draf" di UI label
+  · Draf TIDAK tersedia untuk kategori terikat rilis (side-effect
+    Content ID/validasi rilis belum aman untuk ditunda)
 
 Endpoint main:
   POST /tickets/label/create · GET /tickets/label
+  PATCH /tickets/label/{id} · POST /tickets/label/{id}/submit
   POST /tickets/{id}/comment (ponggir status otomatis
-       waiting_admin↔waiting_label sesuai penjawab)
+       waiting_admin↔waiting_label sesuai penjawab; draft → 400)
   POST /tickets/{id}/cancel
   POST /tickets/admin/{id}/status · /believe-recheck · bulk-status
   contentid_assets.py — lampiran Content ID & surat DMCA

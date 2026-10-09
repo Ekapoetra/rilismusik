@@ -29,7 +29,7 @@ from models import (
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
     ExchangeRateIn, RoyaltyImportPublishIn, RoyaltyLineMatchIn,
     WithdrawRequestIn, WithdrawAdminAction,
-    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn, TicketBulkStatusIn,
+    TicketCreateIn, TicketCommentIn, TicketAdminUpdateIn, TicketBulkStatusIn, TicketDraftUpdateIn,
     ContractCreateIn, ContractExtendIn, ContractTerminateIn,
     BlacklistIn, NotificationMarkIn,
     CreateSubscriptionPaymentIn, CreateWamiOrderIn, AdminWamiUpdateIn,
@@ -46,7 +46,7 @@ from royalty_utils import (
     strip_sensitive,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
-from .ticket_workflow_service import TICKET_CATEGORY_LABELS, ACTIVE_CATEGORIES, TicketCreatedOut, prepare_ticket_submission
+from .ticket_workflow_service import TICKET_CATEGORY_LABELS, ACTIVE_CATEGORIES, FREE_CATEGORIES, TicketCreatedOut, prepare_ticket_submission
 from .admin_permission_service import is_admin_identity, has_permission, assert_admin_permission
 
 # =============================================================================
@@ -124,12 +124,26 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
     if label.get("account_status") in ("suspended", "blacklisted"):
         raise HTTPException(status_code=403, detail="Akun tidak dapat membuat tiket")
 
-    # Validate release ownership
-    release = await db.releases.find_one({"id": body.release_id}, {"_id": 0})
-    if not release:
-        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
-    if release["label_id"] != label["id"]:
-        raise HTTPException(status_code=403, detail="Rilisan ini bukan milik Anda")
+    # Validate release ownership — kategori bebas (D11) tidak terikat rilisan.
+    is_free = body.category in FREE_CATEGORIES
+    release = None
+    if is_free:
+        if body.release_id:
+            release = await db.releases.find_one({"id": body.release_id}, {"_id": 0})
+            if not release:
+                raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+            if release["label_id"] != label["id"]:
+                raise HTTPException(status_code=403, detail="Rilisan ini bukan milik Anda")
+    else:
+        if not body.release_id:
+            raise HTTPException(status_code=400, detail="Rilisan wajib dipilih untuk kategori ini")
+        release = await db.releases.find_one({"id": body.release_id}, {"_id": 0})
+        if not release:
+            raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+        if release["label_id"] != label["id"]:
+            raise HTTPException(status_code=403, detail="Rilisan ini bukan milik Anda")
+    if body.is_draft and not is_free:
+        raise HTTPException(status_code=400, detail="Draf hanya tersedia untuk Masalah Royalti / Permintaan Lainnya")
 
     if body.category == "content_id_claim":
         if not body.content_id_request_id:
@@ -145,7 +159,17 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
             raise HTTPException(409, "Pengajuan ini sedang diproses. Tunggu sebentar lalu periksa daftar tiket.")
     elif body.content_id_creators or body.content_id_track_ids:
         raise HTTPException(400, "Surat pencipta hanya untuk Pengajuan Content ID")
-    submission = await prepare_ticket_submission(body, release)
+    if body.is_draft:
+        # Draf: simpan apa adanya — validasi penuh baru berjalan saat submit.
+        submission = {
+            "subject": (body.subject or "").strip(), "description": (body.description or "").strip(),
+            "reason": (body.reason or "").strip() or None,
+            "upc": None, "isrcs": [], "release_tracks": [],
+            "original_metadata": None, "new_metadata": None,
+            "youtube_urls": [], "youtube_url": None, "originality_declared": None,
+        }
+    else:
+        submission = await prepare_ticket_submission(body, release)
     # Retain the existing audio/cover workflows.
     if body.category == "edit_audio":
         if not body.new_audio_url:
@@ -169,9 +193,9 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         "id": ticket_id,
         "ticket_no": short_no,
         "label_id": label["id"],
-        "release_id": body.release_id,
-        "release_title": release.get("release_title"),
-        "release_cover_url": release.get("cover_url"),
+        "release_id": release["id"] if release else None,
+        "release_title": release.get("release_title") if release else None,
+        "release_cover_url": release.get("cover_url") if release else None,
         "created_by_user_id": user["id"],
         "category": body.category,
         "category_label": TICKET_CATEGORY_LABELS[body.category],
@@ -185,7 +209,7 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         "originality_declared": body.originality_declared,
         "youtube_url": body.youtube_url,
         "attachments": body.attachments,
-        "status": "open",
+        "status": "draft" if body.is_draft else "open",
         "assigned_admin_id": None,
         "internal_note": None,
         "submitted_to_believe_at": None,
@@ -209,18 +233,22 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
         await db.contentid_assets.update_many({"ticket_id": ticket_id, "status": "reserved"}, {"$set": {"status": "bound"}})
         await db.contentid_requests.delete_one({"_id": ticket_id})
     # Seed first comment with the description so it's visible in chat
-    await db.ticket_comments.insert_one({
-        "id": new_id(),
-        "ticket_id": ticket_id,
-        "user_id": user["id"],
-        "user_name": user.get("name"),
-        "role": LABEL_ROLE,
-        "body": submission["description"] or submission["reason"] or submission["subject"],
-        "attachments": body.attachments,
-        "is_system": False,
-        "created_at": now_iso(),
-    })
-    await log_activity(user["id"], "ticket_create", "support", ticket_id, after={"category": body.category, "release_id": body.release_id})
+    if not body.is_draft and (submission["description"] or submission["reason"] or submission["subject"]):
+        await db.ticket_comments.insert_one({
+            "id": new_id(),
+            "ticket_id": ticket_id,
+            "user_id": user["id"],
+            "user_name": user.get("name"),
+            "role": LABEL_ROLE,
+            "body": submission["description"] or submission["reason"] or submission["subject"],
+            "attachments": body.attachments,
+            "is_system": False,
+            "created_at": now_iso(),
+        })
+    await log_activity(user["id"], "ticket_create" if not body.is_draft else "ticket_draft", "support", ticket_id, after={"category": body.category, "release_id": body.release_id})
+    if body.is_draft:
+        doc.pop("_id", None)
+        return TicketCreatedOut(**doc)
     # Notify admins
     admin_ids = await admin_user_ids(("super_admin", "admin_support", "admin_release"))
     await notify_many(
@@ -250,6 +278,65 @@ async def label_list_tickets(user: dict = Depends(require_label), status: Option
     return items
 
 
+async def _get_label_draft(ticket_id: str, user: dict) -> dict:
+    label = await get_label_by_user(user)
+    ticket = await db.support_tickets.find_one({"id": ticket_id})
+    if not ticket or ticket["label_id"] != label["id"]:
+        raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
+    if ticket["status"] != "draft":
+        raise HTTPException(status_code=400, detail="Hanya draf yang bisa diubah/dikirim lewat jalur ini")
+    return ticket
+
+
+@ticket_r.patch("/label/{ticket_id}")
+async def label_update_draft(ticket_id: str, body: TicketDraftUpdateIn, user: dict = Depends(require_label)):
+    ticket = await _get_label_draft(ticket_id, user)
+    update = {"updated_at": now_iso()}
+    if body.subject is not None:
+        update["subject"] = body.subject.strip()
+    if body.description is not None:
+        update["description"] = body.description.strip()
+    if body.attachments is not None:
+        update["attachments"] = body.attachments
+    await db.support_tickets.update_one({"id": ticket_id}, {"$set": update})
+    return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0, "internal_note": 0})
+
+
+@ticket_r.post("/label/{ticket_id}/submit")
+async def label_submit_draft(ticket_id: str, user: dict = Depends(require_label)):
+    ticket = await _get_label_draft(ticket_id, user)
+    label = await get_label_by_user(user)
+    subject = (ticket.get("subject") or "").strip()
+    description = (ticket.get("description") or "").strip()
+    if len(subject) < 3:
+        raise HTTPException(status_code=400, detail="Subjek wajib diisi minimal 3 karakter sebelum mengirim")
+    if len(description) < 3:
+        raise HTTPException(status_code=400, detail="Deskripsi wajib diisi minimal 3 karakter sebelum mengirim")
+    await db.support_tickets.update_one({"id": ticket_id}, {"$set": {
+        "status": "open", "submitted_at": now_iso(), "updated_at": now_iso(),
+    }})
+    await db.ticket_comments.insert_one({
+        "id": new_id(), "ticket_id": ticket_id, "user_id": user["id"], "user_name": user.get("name"),
+        "role": LABEL_ROLE, "body": description or subject,
+        "attachments": ticket.get("attachments") or [], "is_system": False, "created_at": now_iso(),
+    })
+    await log_activity(user["id"], "ticket_submit_draft", "support", ticket_id)
+    admin_ids = await admin_user_ids(("super_admin", "admin_support", "admin_release"))
+    await notify_many(
+        admin_ids, "ticket_new",
+        f"Tiket baru {ticket['ticket_no']}",
+        f"{label.get('label_name')} mengajukan {ticket.get('category_label')}.",
+        f"/admin/tickets/{ticket_id}", {"ticket_id": ticket_id},
+    )
+    if label.get("email"):
+        await run_background(send_ticket_created_email,
+            to=label["email"], label_name=label.get("label_name") or "Label",
+            ticket_no=ticket["ticket_no"], category_label=ticket.get("category_label"),
+            ticket_id=ticket_id, subject_line=subject,
+        )
+    return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0, "internal_note": 0})
+
+
 @ticket_r.get("/admin")
 async def admin_list_tickets(
     user: dict = Depends(require_admin),
@@ -258,8 +345,8 @@ async def admin_list_tickets(
     label_id: Optional[str] = None,
     q: Optional[str] = None,
 ):
-    filt: Dict[str, Any] = {}
-    if status:
+    filt: Dict[str, Any] = {"status": {"$nin": ["draft"]}}
+    if status and status != "draft":
         filt["status"] = status
     if category:
         filt["category"] = category
@@ -286,6 +373,8 @@ async def get_ticket(ticket_id: str, user: dict = Depends(require_kyc_for_label_
         raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
     if not await _ticket_visible_to(user, ticket):
         raise HTTPException(status_code=403, detail="Tidak diizinkan")
+    if ticket["status"] == "draft" and user["role"] != LABEL_ROLE:
+        raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
     comments = await db.ticket_comments.find({"ticket_id": ticket_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
     label = await db.labels.find_one({"id": ticket["label_id"]}, {"_id": 0, "id": 1, "label_name": 1, "pic_name": 1, "email": 1})
     ticket["label"] = label
@@ -301,6 +390,8 @@ async def post_ticket_comment(ticket_id: str, body: TicketCommentIn, user: dict 
         raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
     if not await _ticket_visible_to(user, ticket):
         raise HTTPException(status_code=403, detail="Tidak diizinkan")
+    if ticket["status"] == "draft":
+        raise HTTPException(status_code=400, detail="Draf belum dikirim — kirim dulu sebelum berkomentar")
     if ticket["status"] in ("done", "rejected", "cancelled"):
         raise HTTPException(status_code=400, detail="Tiket sudah ditutup")
     if is_admin_identity(user):
@@ -364,6 +455,8 @@ async def admin_update_ticket(ticket_id: str, body: TicketAdminUpdateIn, user: d
     ticket = await db.support_tickets.find_one({"id": ticket_id})
     if not ticket:
         raise HTTPException(status_code=404, detail="Tiket tidak ditemukan")
+    if ticket["status"] == "draft":
+        raise HTTPException(status_code=400, detail="Draf belum dikirim oleh label")
     upd: Dict[str, Any] = {"updated_at": now_iso()}
     if body.status:
         upd["status"] = body.status
@@ -436,7 +529,7 @@ async def admin_bulk_update_tickets(body: TicketBulkStatusIn, user: dict = Depen
     updated, skipped = [], []
     for ticket_id in body.ticket_ids:
         ticket = await db.support_tickets.find_one({"id": ticket_id})
-        if not ticket or ticket.get("status") == body.status:
+        if not ticket or ticket.get("status") == body.status or ticket.get("status") == "draft":
             skipped.append(ticket_id)
             continue
         upd: Dict[str, Any] = {"status": body.status, "updated_at": now_iso(), "assigned_admin_id": user["id"]}

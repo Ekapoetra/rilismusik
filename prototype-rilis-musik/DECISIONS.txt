@@ -340,6 +340,25 @@ FASE 2 — PETA KEBERANGKATAN (mulai)
   readonly aktif (503); auth/webhook/admin maintenance selalu
   terbuka; super mengakhiri lewat status override.
 
+  IRISAN 2 (dikerjakan): D8 klaim warisan + revoke —
+  pernyataan kepemilikan wajib, status conflict/superseded/
+  revoked, karantina saldo warisan di level label,
+  link/reject/revoke jadi super-only.
+
+  IRISAN 3 (dikerjakan): D5 status withdraw kaya —
+  delayed+alasan/resume, correction keep/reopen, flag
+  transfer meragukan, financial_settled mencegah mutasi
+  ganda; rejected tak lagi dipetakan ke paid di impor.
+
+  IRISAN 4 (dikerjakan): D11 tiket bebas + draf —
+  kategori royalty_issue/other aktif TANPA release_id
+  (rilisan tetap opsional-tervalidasi); draf server-side
+  hanya untuk kategori bebas; draf tak masuk antrean admin,
+  tak bisa dikomentari/diubah status admin, 404 bagi non-
+  pemilik; submit memvalidasi lalu notifikasi+email normal.
+  KEPUTUSAN turunan: 7 status main DIPERTAHANKAN —
+  kosakata 5 status prototype hanya label tampilan.
+
   IRISAN 1 (dikerjakan): D13 maintenance_windows —
   backend/routes/maintenance_windows.py (CRUD super +
   /maintenance/active untuk member), halaman admin

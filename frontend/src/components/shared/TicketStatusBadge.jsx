@@ -1,6 +1,7 @@
 import React from "react";
 
 export const TICKET_STATUS_LABELS = {
+  draft: "Draf",
   open: "Open",
   waiting_admin: "Menunggu Admin",
   waiting_label: "Menunggu Label",
@@ -23,6 +24,7 @@ export const TICKET_CATEGORY_LABELS = {
 };
 
 const STYLES = {
+  draft: { bg: "rgba(148,163,184,0.15)", color: "#CBD5E1", dot: "#94A3B8" },
   open: { bg: "rgba(99,102,241,0.15)", color: "#A5B4FC", dot: "#818CF8" },
   waiting_admin: { bg: "rgba(245,158,11,0.18)", color: "#FCD34D", dot: "#F59E0B" },
   waiting_label: { bg: "rgba(168,85,247,0.18)", color: "#D8B4FE", dot: "#A855F7" },
