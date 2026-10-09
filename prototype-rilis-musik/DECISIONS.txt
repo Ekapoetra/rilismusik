@@ -110,6 +110,20 @@ D5. JENDELA PENARIKAN                             DECIDED
 
 KEPUTUSAN: SAHKAN — tulis ke spesifikasi integrasi.
 
+FASE 2 (main) — STATUS KAYA DITERAPKAN di branch prototype-node-api:
+  - delayed: approved→delayed (alasan wajib), resume→approved; status
+    AKTIF (tetap memblokir request baru, masuk "Dana Tertunda").
+  - correction: paid→correction (alasan wajib) → keep (kembali paid)
+    atau reopen (kembali approved untuk diproses ulang).
+  - financial_settled: mark_paid pertama menandai; re-bayar pasca
+    reopen tidak menggandakan mutasi saldo/flip FIFO.
+  - transfer_uncertain: flag + alasan pada approved/delayed/paid,
+    tampil di admin & label ("Transfer sedang diverifikasi ulang").
+  - reject kini juga boleh dari delayed (tunda→batal dengan refund).
+  - Izin: approve/reject → withdraw.approve; semua aksi pasca-approve
+    → withdraw.pay. Label dinotifikasi di setiap transisi.
+  - Pemetaan impor 'rejected'→'paid' di v131-sample diperbaiki.
+
 
 ------------------------------------------------------------
 D6. AKUN ARTIS                                    PARKED

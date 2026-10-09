@@ -130,7 +130,7 @@
         seperti tanggal 1–14 tidak berlaku untuk riwayat historis). */
   if(typeof Withdraw108!=='undefined'){
    const s=Withdraw108.init(royalty);
-   const STATUS={requested:'requested',approved:'ready',processing:'processing',paid:'paid',rejected:'paid'};
+   const STATUS={requested:'requested',approved:'ready',processing:'processing',paid:'paid',rejected:'rejected'};
    for(const w of S.withdrawals.slice().sort((a,b)=>String(a.requested).localeCompare(String(b.requested)))){
     try{
      const m=RM10.getMember(ten,w.label);if(!m||w.status==='rejected'||!money(w.amount))continue;

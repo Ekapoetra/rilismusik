@@ -76,7 +76,7 @@ async def withdrawal_cashflow_summary(*, year: int, month: int) -> Dict[str, Any
     pending, outgoing = await asyncio.gather(
         _monthly_rollup(
             collection=db.withdraw_requests,
-            match={"status": {"$in": ["requested", "approved"]}},
+            match={"status": {"$in": ["requested", "approved", "delayed"]}},
             date_field="request_date", year=year,
         ),
         _monthly_rollup(

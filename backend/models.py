@@ -383,7 +383,12 @@ class WithdrawRequestIn(BaseModel):
 
 
 class WithdrawAdminAction(BaseModel):
-    action: Literal["approve", "reject", "mark_paid"]
+    action: Literal[
+        "approve", "reject", "mark_paid",
+        "delay", "resume",
+        "flag_uncertain", "clear_uncertain",
+        "mark_correction", "correction_keep", "correction_reopen",
+    ]
     payment_proof_url: Optional[str] = None
     payment_reference: Optional[str] = None
     note: Optional[str] = None

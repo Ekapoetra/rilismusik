@@ -222,32 +222,46 @@ Celah:
 ------------------------------------------------------------
 6. ROYALTI & PENARIKAN (D5, D8, D9)
 ------------------------------------------------------------
-Status main (withdraw):
-  requested → approved → processing → paid   ↘ rejected
-  + batch gabungan multi-label
-  + GET /withdraw/window (aturan jendela 1–14 / cair 15–20 — D5
-    sudah ada sebagai konfigurasi window di main!)
+Status main (withdraw) — SETELAH irisan 3 (D5):
+  requested → approved → paid
+      ↓ delay(alasan) ↗ resume   ↘ rejected (juga dari delayed)
+  paid → correction → correction_keep(paid) | correction_reopen(approved)
+  + flag transfer_uncertain pada approved/delayed/paid
+  + batch gabungan multi-label (child delayed/correction → batch processing)
+  + GET /withdraw/window (aturan jendela 1–14 / cair 15–20)
 
 Status prototype (v108):
   requested → ready → processing → paid
     ↘ delayed ↗ resume   ↘ correction → correction-keep|reopen
     + uncertain (flag transfer meragukan) + quarantined (D8)
 
-Peta prototype → main:
+Peta prototype → main (SETELAH irisan 3):
   requested   [=] requested
   ready       [~] approved (disetujui, siap bayar siklus 15–20)
-  processing  [=] processing
-  paid        [=] paid
-  delayed     [+] status baru — penundaan + alasan
-  correction  [+] status baru — koreksi pasca-bayar
-  uncertain   [+] flag baru — transfer meragukan
-  rejected    [-] ada di main; prototype memetakan 'rejected'
-              ke 'paid' saat impor (v131-sample) — harus dibenahi
-  quarantined [+] D8 — blokir request via withdraw_hold_reason
+  processing  [=] processing (hanya level batch)
+  paid        [=] paid + financial_settled
+  delayed     [=] action 'delay' — wajib alasan; 'resume' balik approved;
+              'delayed' dihitung status AKTIF (balance_utils, summary,
+              has_active_withdraw) — tetap memblokir request baru
+  correction  [=] action 'mark_correction' (dari paid) → 'correction_keep'
+              (kembali paid) | 'correction_reopen' (kembali approved)
+  uncertain   [=] transfer_uncertain + uncertain_reason — toggle via
+              flag_uncertain/clear_uncertain; tampil di admin & label
+  rejected    [=] — pemetaan impor 'rejected'→'paid' di v131-sample
+              DIPERBAIKI jadi 'rejected' (baris tsb memang diskip)
+  quarantined [=] D8 irisan 2 — labels.claim_quarantined memblokir
+              request & batch
+
+  CATATAN AMAN: financial_settled — mark_paid pertama menandai wd;
+  re-bayar setelah correction_reopen TIDAK mengulang $inc saldo &
+  flip FIFO (mencegah mutasi ganda).
 
 Endpoint main:
   POST /withdraw/label/request · /label/batch
-  POST /withdraw/admin/{wd_id}/action   approve/start/paid/reject
+  POST /withdraw/admin/{wd_id}/action
+    aksi: approve·reject·mark_paid·delay·resume·flag_uncertain·
+    clear_uncertain·mark_correction·correction_keep·correction_reopen
+    izin: approve/reject → withdraw.approve; lainnya → withdraw.pay
   POST /withdraw/admin/upload-proof
   POST /withdraw/admin/legacy-manual[/preview] · legacy-edit
   GET  /withdraw/admin · /summary · /batches

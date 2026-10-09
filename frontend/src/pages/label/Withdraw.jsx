@@ -14,8 +14,15 @@ function fmtPeriod(p) {
 const STATUS_PILL = {
   requested: "bg-amber-500/15 text-amber-300",
   approved: "bg-sky-500/15 text-sky-300",
+  delayed: "bg-orange-500/15 text-orange-300",
+  correction: "bg-fuchsia-500/15 text-fuchsia-300",
   rejected: "bg-red-500/15 text-red-300",
   paid: "bg-emerald-500/15 text-emerald-300",
+};
+
+const STATUS_LABEL = {
+  delayed: "Ditunda",
+  correction: "Koreksi",
 };
 
 export default function LabelWithdraw() {
@@ -170,9 +177,11 @@ export default function LabelWithdraw() {
                       </span>
                     )}
                   </div>
+                  {w.status === "delayed" && w.delay_reason && <div className="text-xs text-orange-300 mt-1" data-testid={`withdraw-delay-reason-${w.id}`}>Ditunda: {w.delay_reason}</div>}
+                  {w.transfer_uncertain && <div className="text-xs text-amber-300 mt-1" data-testid={`withdraw-uncertain-${w.id}`}>Transfer sedang diverifikasi ulang</div>}
                   {w.admin_note && <div className="text-xs text-amber-300 mt-1">Catatan: {w.admin_note}</div>}
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{STATUS_LABEL[w.status] || w.status}</span>
               </div>
             ))}
           </div>

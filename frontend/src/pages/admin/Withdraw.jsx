@@ -16,9 +16,20 @@ function fmtAmount(w) { return fmtIDR(w.amount_idr); }
 const STATUS_PILL = {
   requested: "bg-amber-500/15 text-amber-300",
   approved: "bg-sky-500/15 text-sky-300",
+  delayed: "bg-orange-500/15 text-orange-300",
+  correction: "bg-fuchsia-500/15 text-fuchsia-300",
   rejected: "bg-red-500/15 text-red-300",
   paid: "bg-emerald-500/15 text-emerald-300",
 };
+
+const ACTION_TITLE = {
+  approve: "Setujui", reject: "Tolak", mark_paid: "Tandai Dibayar",
+  delay: "Tunda Pencairan", resume: "Lanjutkan Pencairan",
+  flag_uncertain: "Tandai Transfer Meragukan", clear_uncertain: "Hapus Tanda Meragukan",
+  mark_correction: "Buka Koreksi", correction_keep: "Koreksi — Pertahankan", correction_reopen: "Koreksi — Buka Ulang",
+};
+
+const NOTE_REQUIRED = new Set(["reject", "delay", "flag_uncertain", "mark_correction"]);
 
 export default function AdminWithdraw() {
   const { hasPermission } = useAuth();
@@ -63,6 +74,7 @@ export default function AdminWithdraw() {
   useEffect(() => { load(); api.get("/withdraw/window").then(r => setWindow(r.data)); }, [load]);
 
   const submitAction = async () => {
+    if (NOTE_REQUIRED.has(action) && !form.note.trim()) { setErr("Alasan wajib diisi untuk aksi ini."); return; }
     setBusy(true); setErr(""); setMsg("");
     try {
       await api.post(`/withdraw/admin/${open.id}/action`, { action, ...form });
@@ -121,7 +133,9 @@ export default function AdminWithdraw() {
             <option value="">Semua</option>
             <option value="requested">Requested</option>
             <option value="approved">Approved</option>
+            <option value="delayed">Delayed</option>
             <option value="paid">Paid</option>
+            <option value="correction">Correction</option>
             <option value="rejected">Rejected</option>
           </select>
         </div>
@@ -188,7 +202,11 @@ export default function AdminWithdraw() {
             <div className="col-span-6 md:col-span-2 font-display font-extrabold tracking-tight" data-testid={`admin-withdraw-amount-${w.id}`}>{fmtAmount(w)}{w.legacy_import && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/15 text-violet-300 align-middle" data-testid={`admin-withdraw-legacy-badge-${w.id}`}>LEGACY</span>}</div>
             <div className="col-span-6 md:col-span-3 text-xs">{w.bank_snapshot?.bank_name || "—"}<br/><span className="text-zinc-500">{w.bank_snapshot?.account_number} • {w.bank_snapshot?.account_holder_name}</span></div>
             <div className="col-span-6 md:col-span-2 text-xs"><div>{w.request_date?.slice(0, 10) || "—"}</div>{w.paid_date && <div className="text-zinc-500">Cair {w.paid_date.slice(0, 10)}</div>}{w.legacy_import && (w.period_from || w.period_to) && <div className="text-violet-300 mt-1" data-testid={`admin-withdraw-period-${w.id}`}>{w.period_from || "…"} → {w.period_to || "…"}</div>}</div>
-            <div className="col-span-6 md:col-span-1"><span data-testid={`admin-withdraw-status-${w.id}`} className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span></div>
+            <div className="col-span-6 md:col-span-1">
+              <span data-testid={`admin-withdraw-status-${w.id}`} className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${STATUS_PILL[w.status] || "bg-white/[0.06] text-zinc-400"}`}>{w.status}</span>
+              {w.transfer_uncertain && <div className="mt-1 text-[10px] font-bold text-amber-300" title={w.uncertain_reason} data-testid={`admin-withdraw-uncertain-${w.id}`}>⚠ meragukan</div>}
+              {w.status === "delayed" && w.delay_reason && <div className="mt-1 text-[10px] text-orange-300/80" data-testid={`admin-withdraw-delayreason-${w.id}`}>{w.delay_reason}</div>}
+            </div>
             <div className="col-span-12 md:col-span-1 text-right">
               {canApprove && w.status === "requested" && (
                 <div className="flex gap-1 justify-end">
@@ -197,7 +215,32 @@ export default function AdminWithdraw() {
                 </div>
               )}
               {canPay && w.status === "approved" && (
-                <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
+                <div className="flex gap-1 justify-end items-center flex-wrap">
+                  <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("mark_paid"); }} data-testid={`admin-withdraw-pay-${w.id}`}>Mark Paid</button>
+                  <button className="rm-btn-ghost text-xs" onClick={() => { setOpen(w); setAction("delay"); }} data-testid={`admin-withdraw-delay-${w.id}`}>Tunda</button>
+                </div>
+              )}
+              {canPay && w.status === "delayed" && (
+                <div className="flex gap-1 justify-end items-center flex-wrap">
+                  <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("resume"); }} data-testid={`admin-withdraw-resume-${w.id}`}>Lanjutkan</button>
+                  <button title="Reject" className="text-red-600 hover:bg-red-50 rounded-lg p-1.5" onClick={() => { setOpen(w); setAction("reject"); }} data-testid={`admin-withdraw-reject-delayed-${w.id}`}><XCircle className="w-4 h-4" /></button>
+                </div>
+              )}
+              {canPay && w.status === "correction" && (
+                <div className="flex gap-1 justify-end items-center flex-wrap">
+                  <button className="rm-btn-primary text-xs" onClick={() => { setOpen(w); setAction("correction_keep"); }} data-testid={`admin-withdraw-keep-${w.id}`}>Pertahankan</button>
+                  <button className="rm-btn-ghost text-xs" onClick={() => { setOpen(w); setAction("correction_reopen"); }} data-testid={`admin-withdraw-reopen-${w.id}`}>Buka Ulang</button>
+                </div>
+              )}
+              {canPay && w.status === "paid" && (
+                <div className="flex gap-1 justify-end items-center flex-wrap">
+                  <button className="rm-btn-ghost text-xs" onClick={() => { setOpen(w); setAction("mark_correction"); }} data-testid={`admin-withdraw-correction-${w.id}`}>Koreksi</button>
+                </div>
+              )}
+              {canPay && (w.status === "approved" || w.status === "delayed" || w.status === "paid") && (
+                w.transfer_uncertain
+                  ? <button className="rm-btn-ghost text-[11px] text-amber-300" onClick={() => { setOpen(w); setAction("clear_uncertain"); }} data-testid={`admin-withdraw-unclear-${w.id}`}>Hapus Meragukan</button>
+                  : <button className="rm-btn-ghost text-[11px] text-amber-300" onClick={() => { setOpen(w); setAction("flag_uncertain"); }} data-testid={`admin-withdraw-flag-${w.id}`}>Meragukan?</button>
               )}
               {w.legacy_editable && canManage && <button type="button" title="Edit tanggal / bulan laporan legacy" className="rounded-md p-1.5 text-violet-300 transition-colors hover:bg-violet-500/15" onClick={() => setLegacyEdit(w)} data-testid={`admin-withdraw-legacy-edit-${w.id}`}><Pencil className="h-4 w-4" /></button>}
               {w.status === "paid" && w.payment_proof_url && <a href={fileUrl(w.payment_proof_url)} target="_blank" rel="noreferrer" className="text-xs rm-gradient-text font-semibold">Bukti →</a>}
@@ -210,7 +253,7 @@ export default function AdminWithdraw() {
       {open && action && (
         <div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4" onClick={() => setOpen(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rm-glass-strong rounded-[24px] p-6 space-y-4">
-            <h3 className="font-display font-extrabold text-xl tracking-tighter capitalize">{action.replace("_", " ")} Withdraw</h3>
+            <h3 className="font-display font-extrabold text-xl tracking-tighter capitalize">{ACTION_TITLE[action] || action.replace("_", " ")} Withdraw</h3>
             <div className="text-sm text-zinc-400">{open.label_name} • {fmtAmount(open)}</div>
             {action === "mark_paid" && (
               <>
@@ -229,7 +272,7 @@ export default function AdminWithdraw() {
               </>
             )}
             <div>
-              <label className="rm-label">Catatan {action === "reject" && "(alasan reject)"}</label>
+              <label className="rm-label">Catatan {NOTE_REQUIRED.has(action) && "(wajib — alasan)"}</label>
               <textarea className="rm-input min-h-[80px]" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} data-testid="admin-withdraw-note" />
             </div>
             <div className="flex justify-end gap-2">

@@ -537,8 +537,9 @@ async def admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dic
 
 
 async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, user: dict):
-    # Phase C: granular financial gates — approve/reject need withdraw.approve, mark_paid needs withdraw.pay.
-    _perm = {"approve": "withdraw.approve", "reject": "withdraw.approve", "mark_paid": "withdraw.pay"}.get(body.action)
+    # Phase C: granular financial gates — approve/reject need withdraw.approve,
+    # seluruh aksi pasca-approve (bayar, tunda, koreksi, keraguan) need withdraw.pay.
+    _perm = {"approve": "withdraw.approve", "reject": "withdraw.approve"}.get(body.action, "withdraw.pay")
     if _perm:
         assert_admin_permission(user, _perm)
     wd = await db.withdraw_requests.find_one({"id": wd_id})
@@ -552,7 +553,7 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
             "status": "approved", "approved_date": now_iso(), "approved_by": user["id"], "admin_note": body.note, "updated_at": now_iso(),
         }})
     elif body.action == "reject":
-        if wd["status"] not in ("requested", "approved"):
+        if wd["status"] not in ("requested", "approved", "delayed"):
             raise HTTPException(status_code=400, detail="Tidak bisa ditolak pada status saat ini")
         # refund balance
         await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
@@ -571,16 +572,20 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
     elif body.action == "mark_paid":
         if wd["status"] != "approved":
             raise HTTPException(status_code=400, detail="Hanya yang sudah approved bisa di-mark paid")
+        # Re-bayar setelah correction_reopen: mutasi keuangan & flip FIFO sudah
+        # terjadi di pembayaran pertama — jangan digandakan.
+        repaying = bool(wd.get("financial_settled"))
         # Finance dapat memproses kapan saja; window 15-20 hanya sebagai panduan operasional.
-        await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
-            "balance_withdraw_requested_idr": -wd["amount_idr"],
-        }, "$set": {"updated_at": now_iso()}})
-        await db.balance_transactions.insert_one({
-            "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_paid",
-            "amount_idr": -wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
-            "description": f"Withdraw dibayar. Ref: {body.payment_reference or '-'}",
-            "created_at": now_iso(),
-        })
+        if not repaying:
+            await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
+                "balance_withdraw_requested_idr": -wd["amount_idr"],
+            }, "$set": {"updated_at": now_iso()}})
+            await db.balance_transactions.insert_one({
+                "id": new_id(), "label_id": wd["label_id"], "type": "withdraw_paid",
+                "amount_idr": -wd["amount_idr"], "reference_type": "withdraw", "reference_id": wd_id,
+                "description": f"Withdraw dibayar. Ref: {body.payment_reference or '-'}",
+                "created_at": now_iso(),
+            })
 
         # Phase 20: lock the FIFO window. Flip royalty_lines status
         # `available → withdrawn` for the period range captured at request
@@ -588,7 +593,7 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
         # starts right after this period_to.
         period_from = wd.get("period_from")
         period_to = wd.get("period_to")
-        if period_from and period_to:
+        if period_from and period_to and not repaying:
             # Chunked update via db_bg (CSOT-safe). On a label with 100k+
             # lines per range a single update_many could exceed Atlas's
             # 50-second `maxTimeMS`, so we paginate by `_id`.
@@ -625,7 +630,68 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
         await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
             "status": "paid", "paid_date": now_iso(), "paid_by": user["id"],
             "payment_proof_url": body.payment_proof_url, "payment_reference": body.payment_reference,
-            "admin_note": body.note, "updated_at": now_iso(),
+            "admin_note": body.note, "financial_settled": True,
+            "repaid_at": now_iso() if repaying else None,
+            "repaid_by": user["id"] if repaying else None,
+            "updated_at": now_iso(),
+        }})
+    elif body.action == "delay":
+        if wd["status"] != "approved":
+            raise HTTPException(status_code=400, detail="Hanya withdraw approved yang bisa ditunda")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan penundaan wajib diisi")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "delayed", "delayed_at": now_iso(), "delayed_by": user["id"],
+            "delay_reason": body.note.strip(), "admin_note": body.note.strip(), "updated_at": now_iso(),
+        }})
+    elif body.action == "resume":
+        if wd["status"] != "delayed":
+            raise HTTPException(status_code=400, detail="Hanya withdraw delayed yang bisa dilanjutkan")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "approved", "resumed_at": now_iso(), "resumed_by": user["id"],
+            "admin_note": body.note or wd.get("admin_note"), "updated_at": now_iso(),
+        }})
+    elif body.action == "flag_uncertain":
+        if wd["status"] not in ("approved", "delayed", "paid"):
+            raise HTTPException(status_code=400, detail="Keraguan transfer hanya untuk withdraw approved/delayed/paid")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan keraguan wajib diisi")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "transfer_uncertain": True, "uncertain_reason": body.note.strip(),
+            "uncertain_at": now_iso(), "uncertain_by": user["id"], "updated_at": now_iso(),
+        }})
+    elif body.action == "clear_uncertain":
+        if not wd.get("transfer_uncertain"):
+            raise HTTPException(status_code=400, detail="Withdraw tidak dalam status meragukan")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "transfer_uncertain": False, "uncertain_cleared_at": now_iso(),
+            "uncertain_cleared_by": user["id"], "updated_at": now_iso(),
+        }})
+    elif body.action == "mark_correction":
+        if wd["status"] != "paid":
+            raise HTTPException(status_code=400, detail="Koreksi hanya untuk withdraw yang sudah dibayar")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan koreksi wajib diisi")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "correction", "correction_reason": body.note.strip(),
+            "correction_at": now_iso(), "correction_by": user["id"],
+            "admin_note": body.note.strip(), "updated_at": now_iso(),
+        }})
+    elif body.action == "correction_keep":
+        if wd["status"] != "correction":
+            raise HTTPException(status_code=400, detail="Withdraw tidak dalam status koreksi")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "paid", "correction_resolution": "keep",
+            "correction_resolved_at": now_iso(), "correction_resolved_by": user["id"],
+            "admin_note": body.note or wd.get("admin_note"), "updated_at": now_iso(),
+        }})
+    elif body.action == "correction_reopen":
+        if wd["status"] != "correction":
+            raise HTTPException(status_code=400, detail="Withdraw tidak dalam status koreksi")
+        await db.withdraw_requests.update_one({"id": wd_id}, {"$set": {
+            "status": "approved", "correction_resolution": "reopen",
+            "correction_resolved_at": now_iso(), "correction_resolved_by": user["id"],
+            "admin_note": body.note or wd.get("admin_note"), "updated_at": now_iso(),
         }})
     else:
         raise HTTPException(status_code=400, detail="Aksi tidak dikenal")
@@ -645,6 +711,13 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
         "approve": ("Withdraw disetujui", "Permintaan withdraw Anda telah disetujui. Menunggu pembayaran."),
         "reject": ("Withdraw ditolak", f"Permintaan withdraw ditolak. Alasan: {body.note or 'Lihat detail'}"),
         "mark_paid": ("Withdraw dibayar ✓", "Pembayaran telah dilakukan. Cek bukti transfer di dashboard."),
+        "delay": ("Pencairan ditunda", f"Pencairan withdraw Anda ditunda. Alasan: {body.note or '-'}"),
+        "resume": ("Pencairan dilanjutkan", "Pencairan withdraw Anda kembali diproses."),
+        "flag_uncertain": ("Transfer dalam verifikasi", f"Transfer untuk withdraw Anda sedang diverifikasi ulang. {body.note or ''}"),
+        "clear_uncertain": ("Transfer terverifikasi", "Verifikasi transfer untuk withdraw Anda selesai."),
+        "mark_correction": ("Withdraw dalam koreksi", f"Withdraw Anda sedang dikoreksi. Alasan: {body.note or '-'}"),
+        "correction_keep": ("Koreksi withdraw selesai", "Koreksi withdraw Anda diselesaikan — pembayaran tetap berlaku."),
+        "correction_reopen": ("Withdraw dibuka ulang", "Withdraw Anda dibuka ulang untuk diproses kembali."),
     }
     if body.action in titles:
         title, msg = titles[body.action]

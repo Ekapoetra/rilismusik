@@ -34,7 +34,7 @@ async def compute_labels_available_balances(labels: list[Dict[str, Any]]) -> Dic
     async for row in db_bg.withdraw_requests.aggregate([
         {"$match": {
             "label_id": {"$in": label_ids},
-            "status": {"$in": ["requested", "approved"]},
+            "status": {"$in": ["requested", "approved", "delayed"]},
             "legacy_import": {"$ne": True},
         }},
         {"$group": {"_id": "$label_id", "amount_idr": {"$sum": {"$ifNull": ["$amount_idr", 0]}}}},
@@ -109,7 +109,7 @@ async def compute_label_balance_snapshot(
 
     active_withdraws = await db_bg.withdraw_requests.find({
         "label_id": label_id,
-        "status": {"$in": ["requested", "approved"]},
+        "status": {"$in": ["requested", "approved", "delayed"]},
         "legacy_import": {"$ne": True},
     }, {"_id": 0, "id": 1, "amount_idr": 1}).to_list(100)
     active_amount = sum(int(item.get("amount_idr") or 0) for item in active_withdraws)

@@ -1,4 +1,4 @@
-"""D8 - Claim lifecycle: honesty statement, conflict, superseded, quarantine, revoke."""
+﻿"""D8 - Claim lifecycle: honesty statement, conflict, superseded, quarantine, revoke."""
 import asyncio
 import os
 import re
@@ -25,6 +25,7 @@ import routes.labels as labels_route
 import routes.migrate as migrate_route
 import routes.admin_label_service as label_service
 import routes.withdraw as withdraw_route
+from models import WithdrawAdminAction
 
 
 def _match(doc, key, cond):
@@ -97,6 +98,8 @@ class _FakeCollection:
         if not doc:
             return SimpleNamespace(modified_count=0)
         doc.update(update.get("$set", {}))
+        for key, value in (update.get("$inc") or {}).items():
+            doc[key] = (doc.get(key) or 0) + value
         return SimpleNamespace(modified_count=1)
 
     async def update_many(self, query, update):
@@ -329,6 +332,143 @@ class RevokeAndQuarantineTests(unittest.TestCase):
                     {"id": "leg-1", "claim_quarantined": True}, CLAIMER))
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("karantina", ctx.exception.detail)
+
+
+FINANCE = {"id": "fin-1", "role": "admin_finance", "name": "Fin", "email": "fin@test"}
+WD = {
+    "id": "wd-1", "label_id": "lab-1", "amount_idr": 500000,
+    "status": "approved", "request_date": "2026-01-05T00:00:00Z",
+    "period_from": "2026-01", "period_to": "2026-01",
+}
+
+
+class _WdFixture:
+    def __init__(self, wd=None, label=None):
+        self.withdraw_requests = _FakeCollection()
+        self.withdraw_requests.docs = [dict(wd or WD)]
+        self.labels = _FakeCollection()
+        self.labels.docs = [dict(label or {"id": "lab-1", "label_name": "Lab",
+                                           "balance_withdraw_requested_idr": 500000})]
+        self.balance_transactions = _FakeCollection()
+
+
+def _wd_deps(fx):
+    return (
+        patch.object(withdraw_route, "db", _db(
+            withdraw_requests=fx.withdraw_requests, labels=fx.labels,
+            balance_transactions=fx.balance_transactions,
+            royalty_lines=_FakeCollection(), users=_FakeCollection(),
+            bank_accounts=_FakeCollection())),
+        patch.object(withdraw_route, "label_user_ids", new_callable=AsyncMock, return_value=[]),
+        patch.object(withdraw_route, "notify_many", new_callable=AsyncMock),
+        patch.object(withdraw_route, "log_activity", new_callable=AsyncMock),
+        patch.object(withdraw_route, "refresh_balance_cache", new_callable=AsyncMock),
+    )
+
+
+def _run(wd_id, action, user=FINANCE, **fields):
+    body = WithdrawAdminAction(action=action, **fields)
+    return asyncio.run(withdraw_route._apply_admin_withdraw_action(wd_id, body, user))
+
+
+class WithdrawLifecycleTests(unittest.TestCase):
+    """Status kaya D5: delayed/resume, uncertain, correction."""
+
+    def test_delay_and_resume(self):
+        fx = _WdFixture()
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            # alasan wajib
+            with self.assertRaises(HTTPException) as ctx:
+                _run("wd-1", "delay", note="")
+            self.assertEqual(ctx.exception.status_code, 400)
+
+            _run("wd-1", "delay", note="Antrian bank lewat tgl 20")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "delayed")
+            self.assertEqual(wd["delay_reason"], "Antrian bank lewat tgl 20")
+
+            _run("wd-1", "resume")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "approved")
+            self.assertTrue(wd.get("resumed_at"))
+
+    def test_delayed_counts_as_active_withdraw(self):
+        # delayed tetap memblokir request baru — sama seperti approved
+        from routes import balance_utils
+        src = open(balance_utils.__file__, encoding="utf-8").read()
+        self.assertIn('"delayed"', src)
+
+    def test_reject_allowed_from_delayed(self):
+        fx = _WdFixture(wd=dict(WD, status="delayed", delay_reason="bank"))
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            _run("wd-1", "reject", note="Dibatalkan")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "rejected")
+            # refund ke saldo
+            self.assertEqual(fx.labels.docs[0]["balance_available_idr"], 500000)
+            self.assertEqual(fx.labels.docs[0]["balance_withdraw_requested_idr"], 0)
+
+    def test_uncertain_flag_cycle(self):
+        fx = _WdFixture(wd=dict(WD, status="paid", financial_settled=True))
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            _run("wd-1", "flag_uncertain", note="Mutasi belum masuk")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertTrue(wd["transfer_uncertain"])
+            self.assertEqual(wd["uncertain_reason"], "Mutasi belum masuk")
+            _run("wd-1", "clear_uncertain")
+            self.assertFalse(fx.withdraw_requests.docs[0]["transfer_uncertain"])
+
+    def test_correction_keep_and_reopen_flow(self):
+        fx = _WdFixture(wd=dict(WD, status="paid", financial_settled=True,
+                                balance_withdraw_requested_idr=0))
+        fx.labels.docs[0]["balance_withdraw_requested_idr"] = 0
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            _run("wd-1", "mark_correction", note="Nominal transfer salah")
+            self.assertEqual(fx.withdraw_requests.docs[0]["status"], "correction")
+
+            _run("wd-1", "correction_reopen")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "approved")
+            self.assertEqual(wd["correction_resolution"], "reopen")
+
+            # re-bayar: financial_settled -> tidak ada $inc / flip ulang
+            _run("wd-1", "mark_paid", payment_reference="RE-TRX-1")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "paid")
+            self.assertTrue(wd.get("repaid_at"))
+            self.assertEqual(fx.labels.docs[0]["balance_withdraw_requested_idr"], 0)
+            self.assertEqual(len(fx.balance_transactions.docs), 0)
+
+    def test_correction_keep_returns_paid(self):
+        fx = _WdFixture(wd=dict(WD, status="correction", financial_settled=True))
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            _run("wd-1", "correction_keep")
+            wd = fx.withdraw_requests.docs[0]
+            self.assertEqual(wd["status"], "paid")
+            self.assertEqual(wd["correction_resolution"], "keep")
+
+    def test_new_actions_require_withdraw_pay(self):
+        fx = _WdFixture()
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            for action in ("delay", "flag_uncertain", "mark_correction"):
+                with self.assertRaises(HTTPException) as ctx:
+                    _run("wd-1", action, user=CLAIMER, note="x")
+                self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_invalid_transitions(self):
+        fx = _WdFixture()  # status approved
+        deps = _wd_deps(fx)
+        with deps[0], deps[1], deps[2], deps[3], deps[4]:
+            for action in ("resume", "mark_correction", "correction_keep"):
+                with self.assertRaises(HTTPException) as ctx:
+                    _run("wd-1", action, note="x")
+                self.assertEqual(ctx.exception.status_code, 400)
 
 
 if __name__ == "__main__":
