@@ -1,8 +1,11 @@
 export const RELEASE_STATUS_LABELS = {
   draft: "Draf", submitted: "Diajukan", awaiting_payment: "Menunggu Pembayaran",
   paid: "Sudah Dibayar", under_review: "Sedang Ditinjau", need_revision: "Perlu Revisi",
-  approved: "Disetujui", delivered: "Dikirim ke Believe", live: "Tayang",
-  rejected: "Ditolak", takedown_requested: "Permintaan Penurunan", taken_down: "Sudah Diturunkan",
+  clarification: "Menunggu Jawaban Admin", approved: "Disetujui", delivered: "Dikirim ke Believe",
+  partial: "Tayang Sebagian", live: "Tayang",
+  rejected: "Ditolak", cancel_requested: "Pembatalan Diajukan",
+  partial_closed: "Ditutup (Tayang Sebagian)", closed: "Dibatalkan",
+  takedown_requested: "Permintaan Penurunan", taken_down: "Sudah Diturunkan",
 };
 
 export const releaseStatusLabel = (status) => RELEASE_STATUS_LABELS[status] || status;

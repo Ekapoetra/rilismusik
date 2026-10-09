@@ -3,7 +3,7 @@ import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom"
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { CreditCard, Music, Download, Trash2 } from "lucide-react";
+import { CreditCard, Music, Download, Trash2, MessageCircleQuestion, XOctagon } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
@@ -80,6 +80,28 @@ export default function ReleaseDetail() {
     finally { setDeleting(false); }
   };
 
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const lifecycle = async (path, confirmText, notePrompt, okMsg) => {
+    const note = notePrompt ? window.prompt(notePrompt) : null;
+    if (notePrompt && !(note || "").trim()) return;
+    if (!window.confirm(confirmText)) return;
+    setLifecycleBusy(true); setErr("");
+    try {
+      const { data: fresh } = await api.post(`/releases/${id}/${path}`, { note: (note || "").trim() || null });
+      setData(fresh); toast.success(okMsg);
+    } catch (error) { setErr(formatApiError(error.response?.data?.detail) || "Aksi gagal"); }
+    finally { setLifecycleBusy(false); }
+  };
+  const cancelRelease = () => lifecycle("cancel",
+    `Batalkan pengajuan “${data.release_title}”? Status menjadi Dibatalkan dan tidak dapat dikembalikan.`,
+    null, "Pengajuan dibatalkan.");
+  const requestCancel = () => lifecycle("cancel-request",
+    `Ajukan pembatalan “${data.release_title}”? Admin akan meninjau — proses distribusi yang sudah berjalan mungkin tidak bisa dihentikan.`,
+    "Alasan pembatalan (wajib):", "Permintaan pembatalan dikirim ke admin.");
+  const askClarification = () => lifecycle("clarification",
+    "Kirim pertanyaan ke admin? Status menjadi 'Menunggu Jawaban Admin' hingga dijawab.",
+    "Tulis pertanyaan Anda (wajib):", "Pertanyaan terkirim. Tunggu jawaban admin.");
+
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
 
   return (
@@ -102,7 +124,16 @@ export default function ReleaseDetail() {
         {["draft", "rejected"].includes(data.status) && (
           <button type="button" onClick={deleteRelease} disabled={deleting} className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200 disabled:opacity-40" data-testid="release-detail-delete-button"><Trash2 className="w-4 h-4" /> {deleting ? "Menghapus…" : "Hapus Rilisan"}</button>
         )}
-        {["approved", "delivered", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost flex items-center gap-2" onClick={downloadCopyright} data-testid="release-detail-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
+        {["approved", "delivered", "partial", "live"].includes(data.status) && <button type="button" className="rm-btn-ghost flex items-center gap-2" onClick={downloadCopyright} data-testid="release-detail-copyright-download"><Download className="w-4 h-4" /> Surat Hak Cipta</button>}
+        {["submitted", "under_review", "need_revision", "awaiting_payment", "clarification"].includes(data.status) && (
+          <button type="button" onClick={cancelRelease} disabled={lifecycleBusy} className="rm-btn-ghost flex items-center gap-2 text-red-300 hover:text-red-200 disabled:opacity-40" data-testid="release-detail-cancel-button"><XOctagon className="w-4 h-4" /> Batalkan Pengajuan</button>
+        )}
+        {["paid", "approved", "delivered", "partial"].includes(data.status) && (
+          <button type="button" onClick={requestCancel} disabled={lifecycleBusy} className="rm-btn-ghost flex items-center gap-2 text-amber-300 hover:text-amber-200 disabled:opacity-40" data-testid="release-detail-cancel-request-button"><XOctagon className="w-4 h-4" /> Ajukan Pembatalan</button>
+        )}
+        {data.status === "need_revision" && (
+          <button type="button" onClick={askClarification} disabled={lifecycleBusy || data.clarification_used} className="rm-btn-ghost flex items-center gap-2 disabled:opacity-40" data-testid="release-detail-clarification-button" title={data.clarification_used ? "Klarifikasi sudah dipakai pada siklus revisi ini" : undefined}><MessageCircleQuestion className="w-4 h-4" /> Tanya Admin</button>
+        )}
       </div>
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}
@@ -146,6 +177,24 @@ export default function ReleaseDetail() {
             {paying ? "Mengonfirmasi…" : "Bayar Kekurangan via Xendit"}
           </button>
           <div className="text-[11px] text-zinc-600 mt-2">Status pembayaran dikonfirmasi langsung ke Xendit setelah Anda kembali.</div>
+        </div>
+      )}
+
+      {data.status === "clarification" && data.clarification_question && (
+        <div className="rounded-2xl bg-sky-500/15 text-sky-200 px-4 py-3 text-sm border border-sky-500/30" data-testid="release-detail-clarification-card">
+          <b>Pertanyaan Anda:</b> {data.clarification_question}
+          <div className="mt-1 text-sky-300/70 text-xs">Menunggu jawaban admin — revisi dilanjutkan setelah dijawab.</div>
+        </div>
+      )}
+      {data.status === "cancel_requested" && (
+        <div className="rounded-2xl bg-amber-500/15 text-amber-200 px-4 py-3 text-sm border border-amber-500/30" data-testid="release-detail-cancel-requested-card">
+          <b>Permintaan pembatalan dikirim.</b> Alasan: {data.cancel_reason}
+          <div className="mt-1 text-amber-300/70 text-xs">Admin akan meninjau dan mengonfirmasi pembatalan.</div>
+        </div>
+      )}
+      {data.status === "partial" && data.tracks?.some((t) => t.live) && (
+        <div className="rounded-2xl bg-fuchsia-500/15 text-fuchsia-200 px-4 py-3 text-sm border border-fuchsia-500/30" data-testid="release-detail-partial-card">
+          <b>Tayang sebagian:</b> {(data.tracks || []).filter((t) => t.live).length} dari {(data.tracks || []).length} track sudah tayang; sisanya masih diproses.
         </div>
       )}
 

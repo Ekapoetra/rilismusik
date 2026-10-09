@@ -150,41 +150,71 @@ Status prototype (status10 + v105):
   delivered, followup, live, partial, partial_closed, closed,
   cancel_requested
 
-Peta prototype → main:
+Peta prototype → main (SETELAH irisan 7 — lifecycle rilisan):
   draft            [=] draft
   submitted        [=] submitted
   review           [=] under_review
   revision         [=] need_revision
-  clarification    [+] belum ada — jeda klarifikasi label↔staff
-                   perlu status baru atau sub-state
+  clarification    [+] DITERAPKAN — status pause dari
+                   need_revision (1x per siklus revisi,
+                   clarification_used); jawaban admin
+                   mengembalikan ke need_revision
   approved         [=] approved
   delivered        [=] delivered
-  followup         [~] tindak lanjut Believe — di main status
-                   tetap delivered + tiket/cron menandai;
-                   prototype menjadikannya status → putuskan
+  followup         [~] DITERAPKAN sebagai penanda — status
+                   tetap delivered/partial + followup_flag,
+                   followup_note, followup_at; admin action
+                   followup / clear_followup
   live             [=] live
-  partial          [+] per-lagu tayang — main menandai di level
-                   rilisan; partial perlu status/agregat baru
-  partial_closed   [+] idem (rilisan selesai sebagian tayang)
-  closed           [~] mendekati rejected/cancelled — bedakan:
-                   closed = arsip sukarela label
-  cancel_requested [+] permintaan batal — perlu status baru
-  (main) awaiting_payment [-] prototype meniadakan gerbang bayar
-                   (D7) — endpoint PPR tetap ada untuk PPR
-  (main) rejected   [~] prototype: penolakan masuk jalur revision
-  (main) taken_down [~] prototype memetakan ke live + penanda
-                   (v131-sample mengubah taken_down → live)
+  partial          [+] DITERAPKAN — tracks.live + live_at per
+                   lagu; mark_live menerima track_ids subset
+                   (delivered/partial → partial bila belum
+                   semua lagu tayang, live bila lengkap)
+  partial_closed   [+] DITERAPKAN — admin action close_partial
+                   (super only, catatan wajib, dari partial)
+  closed           [+] DITERAPKAN — arsip sukarela label;
+                   POST /releases/{id}/cancel dari submitted/
+                   under_review/need_revision/awaiting_payment/
+                   clarification (invoice pending dibatalkan);
+                   atau cancel_confirm admin (catatan wajib)
+  cancel_requested [+] DITERAPKAN — POST /releases/{id}/
+                   cancel-request dari paid/approved/delivered/
+                   partial (alasan wajib); admin cancel_confirm
+                   → closed atau cancel_deny → status semula
+  (main) awaiting_payment [=] dipertahankan (gerbang PPR)
+  (main) rejected   [=] dipertahankan — penolakan admin
+  (main) taken_down [=] dipertahankan — kini juga dari partial
 
 Endpoint utama:
   POST /releases/draft · PATCH /releases/{id}
   POST /releases/{id}/submit          label kirim
+  POST /releases/{id}/cancel          label batal sukarela
+  POST /releases/{id}/cancel-request  label minta pembatalan
+  POST /releases/{id}/clarification   label tanya (siklus revisi)
   POST /releases/{id}/upload-cover|upload-audio
   POST /releases/{id}/admin/action    approve/need_revision/
-        reject/deliver/mark_live/reschedule/override_status/takedown
+        reject/deliver/mark_live(track_ids?)/reschedule/
+        override_status/takedown/save_identifiers/
+        answer_clarification/cancel_confirm/cancel_deny/
+        followup/clear_followup/close_partial
   GET  /admin/releases/ready-to-live · POST bulk-go-live
   POST /admin/releases/takedown-import/preview|process
   GET  /releases/submission-quota
   POST /releases/{id}/admin/metadata-edit + review (super)
+
+Cakupan irisan 7:
+  [v] Label batal sukarela → closed (pra-bayar/pra-Believe)
+  [v] Label minta pembatalan → cancel_requested + keputusan admin
+  [v] Klarifikasi label↔admin (1x per siklus revisi)
+  [v] Flag follow-up pada delivered/partial (bukan status)
+  [v] mark_live parsial per-track + status partial
+  [v] close_partial (super) → partial_closed
+  [v] Antrean kerja: clarification+cancel_requested masuk
+      release_review; partial masuk release_go_live/dashboard
+  [~] deadline revisi/kuota — tidak ada jam revisi di main
+  [~] restore kuota/kredit saat cancel — kuota main berbasis
+      submit harian, bukan slot rilisan → tidak ada yang
+      perlu dikembalikan
 
 ------------------------------------------------------------
 5. PEMBAYARAN, LAYANAN & ADD-ON (D11 sebagian)

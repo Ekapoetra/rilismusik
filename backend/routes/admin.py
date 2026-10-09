@@ -79,7 +79,7 @@ async def admin_action_center(user: dict = Depends(require_admin)):
 
     today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
     counts = await asyncio.gather(
-        db.releases.count_documents({"status": "under_review"}),
+        db.releases.count_documents({"status": {"$in": ["under_review", "clarification", "cancel_requested"]}}),
         db.kyc_documents.count_documents({"status": "pending_review", "is_current": True}),
         db.withdraw_requests.count_documents({"status": "requested"}),
         count_actionable_payments(),
@@ -88,17 +88,17 @@ async def admin_action_center(user: dict = Depends(require_admin)):
         db.wami_orders.count_documents({"status": {"$in": ["pending", "in_progress"]}}),
         db.service_orders.count_documents({"status": {"$in": ["paid", "in_progress"]}}),
         db.addon_orders.count_documents({"status": {"$in": ["pending", "in_progress", "revision"]}}),
-        db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}),
+        db.releases.count_documents({"status": {"$in": ["delivered", "partial"]}, "release_date": {"$ne": None, "$lte": today_wib}}),
         db.bank_account_change_requests.count_documents({"status": "pending_admin_approval"}),
     )
     oldest = await asyncio.gather(
-        _oldest("releases", {"status": "under_review"}, "submitted_at"),
+        _oldest("releases", {"status": {"$in": ["under_review", "clarification", "cancel_requested"]}}, "submitted_at"),
         _oldest("kyc_documents", {"status": "pending_review", "is_current": True}, "uploaded_at"),
         _oldest("withdraw_requests", {"status": "requested"}, "created_at"),
         _oldest("support_tickets", {"status": {"$nin": ["done", "rejected", "draft"]}}, "created_at"),
         _oldest("users", {"role": "label", "claim_status": "pending_link"}, "claim_requested_at"),
         _oldest("addon_orders", {"status": {"$in": ["pending", "in_progress", "revision"]}}, "created_at"),
-        _oldest("releases", {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}}, "delivered_to_believe_at"),
+        _oldest("releases", {"status": {"$in": ["delivered", "partial"]}, "release_date": {"$ne": None, "$lte": today_wib}}, "delivered_to_believe_at"),
         _oldest("bank_account_change_requests", {"status": "pending_admin_approval"}, "created_at"),
     )
     c_rel, c_kyc, c_wd, c_pay, c_tk, c_claim, c_wami, c_service, c_addon_orders, c_golive, c_bank = counts
@@ -313,8 +313,9 @@ async def admin_list_releases(
     items = await db.releases.find(filt, {"_id": 0}).sort("created_at", -1).to_list(1000)
     await enrich_release_list(db, items)
     status_order = [
-        "submitted", "awaiting_payment", "paid", "under_review", "need_revision",
-        "approved", "delivered", "draft", "live",
+        "cancel_requested", "clarification", "submitted", "awaiting_payment", "paid",
+        "under_review", "need_revision", "approved", "delivered", "partial",
+        "draft", "live", "rejected", "partial_closed", "closed", "taken_down",
     ]
     status_rank = {value: index for index, value in enumerate(status_order)}
     items.sort(key=lambda item: item.get("submitted_at") or item.get("updated_at") or item.get("created_at") or "", reverse=True)
@@ -358,7 +359,7 @@ async def admin_releases_ready_to_live(user: dict = Depends(require_admin)):
     assert_admin_permission(user, "releases.view")
     today_wib = jakarta_now().date().isoformat()
     items = await db.releases.find(
-        {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}},
+        {"status": {"$in": ["delivered", "partial"]}, "release_date": {"$ne": None, "$lte": today_wib}},
         {"_id": 0},
     ).sort("release_date", 1).to_list(1000)
     await enrich_release_list(db, items)

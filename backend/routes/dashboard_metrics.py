@@ -180,7 +180,7 @@ async def dashboard_money(kind: str = Query("sales"), period: str = Query("today
 
 # ---------------- In Progress (step-based %, 0-based: open/submitted = 0%) ----------------
 _PIPELINES = {
-    "releases": {"total_steps": 4, "map": {"submitted": 0, "under_review": 1, "awaiting_payment": 1, "paid": 2, "approved": 2, "delivered": 3},
+    "releases": {"total_steps": 4, "map": {"submitted": 0, "under_review": 1, "awaiting_payment": 1, "need_revision": 1, "clarification": 1, "paid": 2, "approved": 2, "cancel_requested": 2, "delivered": 3, "partial": 3},
                  "title": "release_title", "link": "/admin/releases/{id}", "cat": "Manajemen Rilisan"},
     "support_tickets": {"total_steps": 3, "map": {"open": 0, "in_progress": 1, "submitted_to_believe": 2},
                         "title": "subject", "link": "/admin/tickets/{id}", "cat": "Tiket Bantuan"},
@@ -192,7 +192,9 @@ _PIPELINES = {
 _STATUS_LABEL = {"submitted": "Diajukan", "under_review": "Ditinjau", "awaiting_payment": "Menunggu Bayar",
                  "paid": "Dibayar", "approved": "Disetujui", "delivered": "Dikirim", "open": "Terbuka",
                  "in_progress": "Diproses", "submitted_to_believe": "Submit ke Believe", "requested": "Diminta",
-                 "processing": "Diproses", "pending": "Menunggu", "revision": "Revisi", "refunded": "Dikembalikan"}
+                 "processing": "Diproses", "pending": "Menunggu", "revision": "Revisi", "refunded": "Dikembalikan",
+                 "need_revision": "Perlu Revisi", "clarification": "Klarifikasi", "cancel_requested": "Pembatalan Diajukan",
+                 "partial": "Tayang Sebagian"}
 _MODULE_PERM = {"releases": "releases.view", "support_tickets": "support.view", "withdraw_requests": "payments.view", "addon_orders": "addons.view"}
 
 

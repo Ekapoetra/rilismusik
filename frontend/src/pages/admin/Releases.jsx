@@ -16,7 +16,7 @@ import { ReleaseCoverGrid } from "@/components/releases/ReleaseCoverGrid";
 import { ReleaseViewToggle, useReleaseView } from "@/components/releases/ReleaseViewToggle";
 
 const todayWIB = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
-const isReadyToLive = (r) => r.status === "delivered" && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
+const isReadyToLive = (r) => ["delivered", "partial"].includes(r.status) && r.release_date && String(r.release_date).slice(0, 10) <= todayWIB();
 
 const PLAN_META = {
   multi_label: { label: "Multi Label", cls: "border-violet-400/40 bg-violet-400/10 text-violet-200" },
@@ -68,7 +68,7 @@ export default function AdminReleases() {
       if (periodTo) params.period_to = periodTo;
       const { data } = await api.get("/admin/releases", { params });
       if (sortBy === "status") {
-        const order = ["submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "draft", "live"];
+        const order = ["cancel_requested", "clarification", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "partial", "draft", "live", "rejected", "partial_closed", "closed", "taken_down"];
         const rank = Object.fromEntries(order.map((value, index) => [value, index]));
         data.sort((a, b) => String(b.submitted_at || b.updated_at || b.created_at || "").localeCompare(String(a.submitted_at || a.updated_at || a.created_at || "")));
         data.sort((a, b) => (rank[a.status] ?? order.length) - (rank[b.status] ?? order.length));

@@ -414,7 +414,7 @@ async def detect_releases_due_live_job():
     refresh and sends a once-per-day summary notification to responsible admins."""
     try:
         today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
-        due = await db.releases.count_documents({"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}})
+        due = await db.releases.count_documents({"status": {"$in": ["delivered", "partial"]}, "release_date": {"$ne": None, "$lte": today_wib}})
         # Force a Work Queue reconciliation so the task surfaces immediately.
         try:
             from .work_service import reconcile_work

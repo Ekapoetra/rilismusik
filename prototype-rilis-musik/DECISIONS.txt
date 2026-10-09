@@ -390,4 +390,35 @@ FASE 2 — PETA KEBERANGKATAN (mulai)
   MaintenanceBanner di LabelLayout, test
   backend/tests/test_maintenance_windows.py.
   Semua di branch prototype-node-api; tidak dideploy.
+
+  IRISAN 7 (dikerjakan): lifecycle rilisan — clarification,
+  cancel_requested, closed, partial, partial_closed jadi
+  status nyata; followup jadi penanda (bukan status).
+  - POST /releases/{id}/cancel: label batal sukarela dari
+    submitted/under_review/need_revision/awaiting_payment/
+    clarification → closed; invoice pending dibatalkan,
+    admin dinotifikasi.
+  - POST /releases/{id}/cancel-request: dari paid/approved/
+    delivered/partial (alasan wajib) → cancel_requested;
+    admin cancel_confirm → closed ATAU cancel_deny →
+    cancel_from_status. Keduanya wajib catatan.
+  - POST /releases/{id}/clarification: dari need_revision,
+    1x per siklus (clarification_used, reset saat admin
+    menerbitkan need_revision baru); admin
+    answer_clarification (catatan wajib) → need_revision.
+  - followup/clear_followup: penanda pada delivered/partial
+    (followup_flag + note + actor), status tidak berubah —
+    konsisten dengan believe_followup work-item yang ada.
+  - mark_live: menerima track_ids subset; tiap track yang
+    ditandai wajib ISRC; tracks.live + live_at per lagu;
+    agregat → live bila semua, partial bila belum.
+    Tanpa track_ids = semua (perilaku lama dipertahankan).
+  - close_partial: super-only dari partial (catatan wajib)
+    → partial_closed; lagu yang belum tayang tetap.
+  - taken_down kini juga dari partial; override_status
+    mencakup semua status baru sebagai escape hatch.
+  - Antrean: release_review += clarification+cancel_requested;
+    release_go_live/ready-to-live/dashboard += partial.
+  Refund atas pembatalan berbayar TETap lewat refund_service
+  manual (tidak otomatis — keputusan finansial terpisah).
 ============================================================

@@ -184,13 +184,18 @@ class ReleaseSubmitConfirmation(BaseModel):
 
 
 class AdminReleaseAction(BaseModel):
-    action: Literal["start_review", "send_payment", "bill_ppr", "approve", "need_revision", "reject", "deliver", "mark_live", "save_identifiers", "takedown", "override_status", "reschedule"]
+    action: Literal["start_review", "send_payment", "bill_ppr", "approve", "need_revision", "reject", "deliver", "mark_live", "save_identifiers", "takedown", "override_status", "reschedule", "answer_clarification", "cancel_confirm", "cancel_deny", "followup", "clear_followup", "close_partial"]
     isrc: Optional[str] = None
     track_isrcs: Dict[str, str] = Field(default_factory=dict)
+    track_ids: Optional[List[str]] = None
     upc: Optional[str] = None
     note: Optional[str] = None
     target_status: Optional[str] = None
     release_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class LabelReleaseLifecycleIn(BaseModel):
+    note: Optional[str] = None
 
 
 class AdminMetadataEditIn(BaseModel):

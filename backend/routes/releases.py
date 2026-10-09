@@ -29,7 +29,7 @@ from models import (
     RegisterLabelIn, LoginIn, ForgotPasswordIn, ResetPasswordIn, VerifyEmailIn,
     LabelProfileUpdate, BankAccountIn,
     ReleaseDraftIn, ReleaseSubmitConfirmation, AdminReleaseAction,
-    AdminMetadataEditIn, MetadataEditReview,
+    AdminMetadataEditIn, MetadataEditReview, LabelReleaseLifecycleIn,
     ArtistIn, ArtistUpdateIn,
     CreateReleasePaymentIn,
     CMSUpdateIn, AdminUserCreateIn, LabelStatusUpdate,
@@ -644,6 +644,108 @@ async def delete_release(release_id: str, user: dict = Depends(require_label)):
     return await delete_release_record(release_id, user["id"], label_id=label["id"])
 
 
+# Statuses where the label may still withdraw on its own (no Believe/payment entanglement yet).
+LABEL_SELF_CANCEL_STATUSES = ("submitted", "under_review", "need_revision", "awaiting_payment", "clarification")
+# Statuses where cancellation is too late to self-serve: label requests, admin confirms.
+LABEL_CANCEL_REQUEST_STATUSES = ("paid", "approved", "delivered", "partial")
+
+
+@release_r.post("/{release_id}/cancel")
+async def label_cancel_release(release_id: str, body: LabelReleaseLifecycleIn = None, user: dict = Depends(require_label)):
+    """Label voluntarily withdraws a not-yet-paid/delivered release -> `closed`.
+    Pending PPR invoices are voided; admins are notified."""
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    label = await get_label_by_user(user)
+    if rel["label_id"] != label["id"]:
+        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
+    require_status(rel, LABEL_SELF_CANCEL_STATUSES, "Batalkan pengajuan")
+    note = ((body.note if body else None) or "").strip()
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "status": "closed", "closed_reason": "label_cancelled", "closed_at": now_iso(), "updated_at": now_iso(),
+    }, "$push": {"status_history": {
+        "from": rel.get("status"), "to": "closed", "changed_by": user["id"],
+        "changed_at": now_iso(), "note": note or "Dibatalkan oleh label",
+    }}})
+    await cancel_release_pending_payments(release_id, user["id"], "Rilisan dibatalkan label")
+    await log_activity(user["id"], "label_cancel_release", "release", release_id,
+                       before={"status": rel.get("status")}, after={"status": "closed"})
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_release")), "release_label_cancelled",
+        "Rilisan dibatalkan label",
+        f"'{rel.get('release_title')}' dibatalkan oleh label. {note}".strip(),
+        f"/admin/releases/{release_id}", {"release_id": release_id},
+    )
+    return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+
+@release_r.post("/{release_id}/cancel-request")
+async def label_request_cancellation(release_id: str, body: LabelReleaseLifecycleIn = None, user: dict = Depends(require_label)):
+    """Label asks staff to cancel a release that is already paid/approved/delivered ->
+    `cancel_requested`. Admin must confirm (after stopping Believe delivery if needed)."""
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    label = await get_label_by_user(user)
+    if rel["label_id"] != label["id"]:
+        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
+    require_status(rel, LABEL_CANCEL_REQUEST_STATUSES, "Ajukan pembatalan")
+    reason = ((body.note if body else None) or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Alasan pembatalan wajib diisi")
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "status": "cancel_requested", "cancel_from_status": rel.get("status"),
+        "cancel_reason": reason, "cancel_requested_at": now_iso(), "updated_at": now_iso(),
+    }, "$push": {"status_history": {
+        "from": rel.get("status"), "to": "cancel_requested", "changed_by": user["id"],
+        "changed_at": now_iso(), "note": reason,
+    }}})
+    await log_activity(user["id"], "label_cancel_request", "release", release_id,
+                       before={"status": rel.get("status")}, after={"status": "cancel_requested", "reason": reason})
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_release")), "release_cancel_requested",
+        "Permintaan pembatalan rilisan",
+        f"Label meminta pembatalan '{rel.get('release_title')}': {reason}",
+        f"/admin/releases/{release_id}", {"release_id": release_id},
+    )
+    return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+
+@release_r.post("/{release_id}/clarification")
+async def label_ask_clarification(release_id: str, body: LabelReleaseLifecycleIn = None, user: dict = Depends(require_label)):
+    """While in `need_revision`, the label may pause once per revision cycle to ask staff
+    a question -> `clarification`. Staff answer returns the release to `need_revision`."""
+    rel = await db.releases.find_one({"id": release_id})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
+    label = await get_label_by_user(user)
+    if rel["label_id"] != label["id"]:
+        raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
+    require_status(rel, ("need_revision",), "Ajukan pertanyaan klarifikasi")
+    if rel.get("clarification_used"):
+        raise HTTPException(status_code=409, detail="Klarifikasi sudah pernah dipakai pada siklus revisi ini")
+    question = ((body.note if body else None) or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Pertanyaan wajib diisi")
+    await db.releases.update_one({"id": release_id}, {"$set": {
+        "status": "clarification", "clarification_question": question,
+        "clarification_used": True, "clarification_at": now_iso(), "updated_at": now_iso(),
+    }, "$push": {"status_history": {
+        "from": rel.get("status"), "to": "clarification", "changed_by": user["id"],
+        "changed_at": now_iso(), "note": question,
+    }}})
+    await log_activity(user["id"], "label_clarification", "release", release_id,
+                       before={"status": rel.get("status")}, after={"status": "clarification"})
+    await notify_many(
+        await admin_user_ids(("super_admin", "admin_release")), "release_clarification",
+        "Pertanyaan klarifikasi dari label",
+        f"Label bertanya tentang '{rel.get('release_title')}': {question}",
+        f"/admin/releases/{release_id}", {"release_id": release_id},
+    )
+    return await db.releases.find_one({"id": release_id}, {"_id": 0})
+
+
 
 async def _bill_release_ppr(rel: dict, release_id: str, user: dict):
     """Generate the Pay Per Release invoice from the submission (base + add-ons) and move the
@@ -735,7 +837,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         return await _bill_release_ppr(rel, release_id, user)
     elif body.action == "save_identifiers":
         # Save UPC/ISRC without publishing (separate from "Tandai Tayang").
-        require_status(rel, ("delivered",), "Simpan UPC/ISRC")
+        require_status(rel, ("delivered", "partial"), "Simpan UPC/ISRC")
         ident_upd = {"updated_at": now_iso()}
         if body.upc is not None:
             ident_upd["upc"] = body.upc.strip()
@@ -757,41 +859,85 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         if not (body.note or "").strip():
             raise HTTPException(status_code=400, detail="Catatan revisi wajib diisi")
         new_status = "need_revision"
+    elif body.action == "answer_clarification":
+        require_status(rel, ("clarification",), "Jawab klarifikasi")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Jawaban klarifikasi wajib diisi")
+        new_status = "need_revision"
     elif body.action == "reject":
-        require_status(rel, ("submitted", "under_review", "need_revision"), "Tolak")
+        require_status(rel, ("submitted", "under_review", "need_revision", "clarification"), "Tolak")
         if not (body.note or "").strip():
             raise HTTPException(status_code=400, detail="Alasan penolakan wajib diisi")
         new_status = "rejected"
+    elif body.action == "cancel_confirm":
+        require_status(rel, ("cancel_requested",), "Konfirmasi pembatalan")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Catatan konfirmasi pembatalan wajib diisi")
+        new_status = "closed"
+    elif body.action == "cancel_deny":
+        require_status(rel, ("cancel_requested",), "Tolak pembatalan")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan penolakan pembatalan wajib diisi")
+        new_status = rel.get("cancel_from_status") or "approved"
+    elif body.action == "followup":
+        require_status(rel, ("delivered", "partial"), "Tandai follow-up")
+        new_status = rel.get("status")
+    elif body.action == "clear_followup":
+        require_status(rel, ("delivered", "partial"), "Hapus tanda follow-up")
+        new_status = rel.get("status")
+    elif body.action == "close_partial":
+        if user.get("role") != "super_admin":
+            raise HTTPException(status_code=403, detail="Hanya Super Admin yang dapat menutup rilisan parsial")
+        require_status(rel, ("partial",), "Tutup rilisan parsial")
+        if not (body.note or "").strip():
+            raise HTTPException(status_code=400, detail="Alasan penutupan wajib diisi")
+        new_status = "partial_closed"
     elif body.action == "deliver":
         require_status(rel, ("approved",), "Kirim ke Believe")
         if not covered_by_subscription and not already_paid:
             raise HTTPException(status_code=409, detail="Rilisan Pay Per Release belum dibayar. Selesaikan pembayaran sebelum mengirim ke Believe.")
         new_status = "delivered"
     elif body.action == "mark_live":
-        require_status(rel, ("delivered",), "Tandai tayang")
+        require_status(rel, ("delivered", "partial"), "Tandai tayang")
         if not (body.upc or rel.get("upc") or "").strip():
             raise HTTPException(status_code=400, detail="UPC wajib diisi sebelum status Tayang")
-        tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "id": 1, "isrc": 1}).to_list(500)
+        tracks = await db.tracks.find({"release_id": release_id}, {"_id": 0, "id": 1, "isrc": 1, "live": 1}).to_list(500)
+        track_by_id = {t["id"]: t for t in tracks}
+        if body.track_ids is not None:
+            if not body.track_ids:
+                raise HTTPException(status_code=400, detail="Pilih minimal satu track untuk ditandai tayang")
+            unknown = [tid for tid in body.track_ids if tid not in track_by_id]
+            if unknown:
+                raise HTTPException(status_code=400, detail="Track tidak dikenal pada rilisan ini")
+            selected_ids = set(body.track_ids)
+        else:
+            selected_ids = set(track_by_id)
+        # Tracks being marked live need an ISRC (existing or supplied in this call).
         missing_isrc = []
         resolved_isrcs = {}
         for track in tracks:
+            if track["id"] not in selected_ids or track.get("live"):
+                continue
             candidate = (body.track_isrcs.get(track["id"]) or track.get("isrc") or "").strip()
             if not candidate:
                 missing_isrc.append(track["id"])
             else:
                 resolved_isrcs[track["id"]] = candidate
         if missing_isrc:
-            raise HTTPException(status_code=400, detail="ISRC wajib diisi untuk setiap track sebelum status Tayang")
+            raise HTTPException(status_code=400, detail="ISRC wajib diisi untuk setiap track yang ditandai tayang")
         for track_id, candidate in resolved_isrcs.items():
-            await db.tracks.update_one({"id": track_id}, {"$set": {"isrc": candidate, "updated_at": now_iso()}})
-        new_status = "live"
+            await db.tracks.update_one({"id": track_id}, {"$set": {
+                "isrc": candidate, "live": True, "live_at": now_iso(), "updated_at": now_iso(),
+            }})
+        all_live = all(t.get("live") or t["id"] in resolved_isrcs for t in tracks)
+        new_status = "live" if all_live else "partial"
     elif body.action == "reschedule":
-        require_status(rel, ("delivered",), "Tunda tanggal rilis")
+        require_status(rel, ("delivered", "partial"), "Tunda tanggal rilis")
         if not (body.release_date or "").strip():
             raise HTTPException(status_code=400, detail="Tanggal rilis baru wajib diisi untuk menunda")
-        new_status = "delivered"
+        new_status = rel.get("status")
     elif body.action == "override_status":
-        override_allowed = ("draft", "submitted", "under_review", "approved", "delivered", "live", "need_revision", "rejected", "taken_down")
+        override_allowed = ("draft", "submitted", "under_review", "approved", "delivered", "live", "need_revision", "rejected", "taken_down", "clarification", "cancel_requested", "closed", "partial", "partial_closed")
         target = (body.target_status or "").strip()
         if target not in override_allowed:
             raise HTTPException(status_code=400, detail="Status tujuan tidak valid untuk koreksi status")
@@ -801,7 +947,7 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
             raise HTTPException(status_code=400, detail="Status tujuan sama dengan status saat ini")
         new_status = target
     else:
-        require_status(rel, ("live",), "Turunkan rilisan")
+        require_status(rel, ("live", "partial"), "Turunkan rilisan")
         if not (body.note or "").strip():
             raise HTTPException(status_code=400, detail="Alasan penurunan rilisan wajib diisi")
         new_status = "taken_down"
@@ -812,6 +958,32 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         assert_admin_permission(user, "releases.takedown")
     upd = {"status": new_status, "updated_at": now_iso()}
     if body.action in ("need_revision", "reject") and body.note:
+        upd["admin_note"] = body.note
+    if body.action == "need_revision":
+        # New revision cycle: the label may ask one clarification question again.
+        upd["clarification_used"] = False
+        upd["clarification_question"] = None
+        upd["clarification_answer"] = None
+    if body.action == "answer_clarification":
+        upd["clarification_answer"] = body.note
+        upd["clarification_answered_by"] = user["id"]
+        upd["admin_note"] = body.note
+    if body.action == "cancel_confirm":
+        upd["closed_reason"] = "cancel_confirmed"
+        upd["closed_at"] = now_iso()
+        upd["admin_note"] = body.note
+    if body.action == "cancel_deny":
+        upd["admin_note"] = body.note
+    if body.action == "followup":
+        upd["followup_flag"] = True
+        upd["followup_note"] = (body.note or "").strip() or None
+        upd["followup_at"] = now_iso()
+        upd["followup_by"] = user["id"]
+    if body.action == "clear_followup":
+        upd["followup_flag"] = False
+    if body.action == "close_partial":
+        upd["closed_reason"] = "partial_closed"
+        upd["closed_at"] = now_iso()
         upd["admin_note"] = body.note
     if body.action == "override_status" and body.note:
         upd["admin_note"] = body.note
@@ -833,8 +1005,11 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         upd["delivered_to_believe_at"] = now_iso()
     if body.action in ("deliver", "mark_live", "reschedule") and body.release_date:
         upd["release_date"] = body.release_date  # admin may set any date (no H+7)
-    if body.action == "mark_live":
+    if body.action == "mark_live" and new_status == "live":
         upd["live_at"] = now_iso()
+        upd["followup_flag"] = False
+    if body.action == "mark_live" and new_status == "partial":
+        upd["went_partial_at"] = now_iso()
     await db.releases.update_one({"id": release_id}, {"$set": upd, "$push": {"status_history": {
         "from": rel.get("status"), "to": new_status, "changed_by": user["id"],
         "changed_at": now_iso(), "note": body.note,
@@ -843,6 +1018,8 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
     # When a release is rejected, void any still-open Xendit payment link so the label can't pay for a dead release.
     if body.action == "reject" or (body.action == "override_status" and new_status == "rejected"):
         await cancel_release_pending_payments(release_id, user["id"], "Rilisan ditolak")
+    if new_status == "closed":
+        await cancel_release_pending_payments(release_id, user["id"], "Rilisan dibatalkan")
     # Notify label
     label_uids = await label_user_ids(rel["label_id"])
     titles = {
@@ -851,16 +1028,21 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         "need_revision": ("Rilisan perlu revisi", f"'{rel.get('release_title')}' perlu revisi. {body.note or ''}"),
         "reject": ("Rilisan ditolak", f"'{rel.get('release_title')}' ditolak. {body.note or ''}"),
         "deliver": ("Rilisan didistribusikan", f"'{rel.get('release_title')}' sedang didistribusikan ke DSP."),
-        "mark_live": ("Rilisan sudah tayang", f"'{rel.get('release_title')}' sudah tayang di platform."),
+        "mark_live": ("Rilisan sudah tayang", f"'{rel.get('release_title')}' sudah tayang di platform.") if new_status == "live"
+            else ("Sebagian track sudah tayang", f"Sebagian track '{rel.get('release_title')}' sudah tayang; sisanya masih diproses."),
         "takedown": ("Rilisan diturunkan", f"'{rel.get('release_title')}' telah diturunkan dari platform."),
         "reschedule": ("Tanggal rilis diperbarui", f"Tanggal rilis '{rel.get('release_title')}' diperbarui menjadi {body.release_date}."),
         "override_status": ("Status rilisan diperbarui", f"Status '{rel.get('release_title')}' diperbarui admin. {body.note or ''}"),
+        "answer_clarification": ("Klarifikasi dijawab", f"Pertanyaan Anda tentang '{rel.get('release_title')}' dijawab. Lanjutkan revisi. {body.note or ''}"),
+        "cancel_confirm": ("Pembatalan disetujui", f"'{rel.get('release_title')}' resmi dibatalkan. {body.note or ''}"),
+        "cancel_deny": ("Pembatalan ditolak", f"Permintaan pembatalan '{rel.get('release_title')}' ditolak; proses berlanjut. {body.note or ''}"),
+        "close_partial": ("Rilisan ditutup sebagian", f"'{rel.get('release_title')}' ditutup dengan sebagian track tayang. {body.note or ''}"),
     }
     if body.action in titles:
         t, msg = titles[body.action]
         await notify_many(label_uids, f"release_{body.action}", t, msg, f"/label/releases/{release_id}", {"release_id": release_id})
     # Celebratory 'your release is live' email to the label (best-effort).
-    if body.action == "mark_live":
+    if body.action == "mark_live" and new_status == "live":
         label_doc = await db.labels.find_one({"id": rel["label_id"]}, {"_id": 0, "email": 1})
         if label_doc and label_doc.get("email"):
             await run_background(send_release_live_email,

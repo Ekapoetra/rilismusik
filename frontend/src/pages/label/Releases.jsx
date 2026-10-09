@@ -11,7 +11,7 @@ import { WamiBadge } from "@/components/shared/WamiBadge";
 import { ReleaseCoverGrid } from "@/components/releases/ReleaseCoverGrid";
 import { ReleaseViewToggle, useReleaseView } from "@/components/releases/ReleaseViewToggle";
 
-const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "approved", "delivered", "live", "rejected", "taken_down"];
+const STATUSES = ["draft", "submitted", "awaiting_payment", "paid", "under_review", "need_revision", "clarification", "approved", "delivered", "partial", "live", "cancel_requested", "rejected", "partial_closed", "closed", "taken_down"];
 
 export default function LabelReleases() {
   const [items, setItems] = useState([]);

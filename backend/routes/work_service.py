@@ -91,14 +91,14 @@ async def _sources(work_type: str) -> List[Dict[str, Any]]:
 
     if work_type == "release_review":
         async for d in db.releases.find(
-            {"status": {"$in": ["submitted", "under_review", "paid", "approved"]}},
+            {"status": {"$in": ["submitted", "under_review", "paid", "approved", "clarification", "cancel_requested"]}},
             {"_id": 0, "id": 1, "submitted_at": 1, "created_at": 1, "release_title": 1, "title": 1, "label_id": 1, "label_name": 1},
         ):
             add("releases", d, "submitted_at", d.get("release_title") or d.get("title") or "Rilisan", d.get("label_id"), d.get("label_name"))
     elif work_type == "release_go_live":
         today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date().isoformat()
         async for d in db.releases.find(
-            {"status": "delivered", "release_date": {"$ne": None, "$lte": today_wib}},
+            {"status": {"$in": ["delivered", "partial"]}, "release_date": {"$ne": None, "$lte": today_wib}},
             {"_id": 0, "id": 1, "delivered_to_believe_at": 1, "created_at": 1, "release_title": 1, "release_date": 1, "label_id": 1, "label_name": 1},
         ):
             add("releases", d, "delivered_to_believe_at", d.get("release_title") or "Rilisan", d.get("label_id"), d.get("label_name"))
