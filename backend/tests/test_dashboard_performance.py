@@ -329,12 +329,19 @@ class PerformanceTests(unittest.IsolatedAsyncioTestCase):
                 baseline['assert_admin_permission'] = work.assert_admin_permission; baseline['has_permission'] = work.has_permission
                 combined = await work.work_queue('all', user)
                 self.assertTrue(set(row['work_type'] for row in combined['items']).isdisjoint(row['work_type'] for row in combined['team_items']))
+                # D10 staffing signals intentionally extend work_queue items; the frozen
+                # baseline predates them, so compare the shared contract only.
+                signal_keys = {'staff_count', 'needs_staff', 'strained'}
+                def contract(rows):
+                    return [{key: value for key, value in row.items() if key not in signal_keys} for row in rows]
                 for scope in ('my','team'):
                     if scope == 'team' and not combined['is_manager']: continue
                     old = await baseline['work_queue'](scope, user)
                     new = await work.work_queue(scope, user)
-                    self.assertEqual(new['items'], old['items'])
-                    self.assertEqual(combined['items'] if scope=='my' else combined['team_items'], old['items'])
+                    self.assertEqual(contract(new['items']), old['items'])
+                    for row in new['items']:
+                        self.assertTrue(signal_keys <= set(row))
+                    self.assertEqual(contract(combined['items'] if scope=='my' else combined['team_items']), old['items'])
         with patch.object(work, 'reconcile_work', AsyncMock(return_value={})), patch.object(work, 'assert_admin_permission'):
             with self.assertRaises(HTTPException): await work.work_queue('team', {'role':'admin_custom','permissions':[]})
 
