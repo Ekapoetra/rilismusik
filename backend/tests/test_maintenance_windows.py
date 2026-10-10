@@ -106,7 +106,7 @@ class MaintenanceWindowTests(unittest.TestCase):
         self._db.start()
         mw._READONLY_CACHE.update(at_ms=0, windows=[])
         self._log = patch.object(mw, "log_activity", new_callable=AsyncMock)
-        self._log.start()
+        self._log_mock = self._log.start()
         app.dependency_overrides[get_current_user] = lambda: SUPER
 
     def tearDown(self):
@@ -187,7 +187,7 @@ class MaintenanceWindowTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["message"], "Pesan baru.")
         self.assertTrue(any(h["action"] == "updated" for h in r.json()["history"]))
-        self._log.mock.assert_called()
+        self._log_mock.assert_called()
 
     # ---- read-only enforcement ----
     def test_module_blocks_path_mapping(self):
