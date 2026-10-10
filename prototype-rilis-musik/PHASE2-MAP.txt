@@ -411,10 +411,40 @@ Endpoint main yang ada:
   GET  /withdraw/window
 
 Peta prototype → main:
-  System115 draft→publish  [+] BELUM ADA — main CMS hanya
-    landing+MDA tanpa versioning. Perlu koleksi area berversi
-    (content/navigation/procedures/maintenance) + catatan
-    implementasi wajib.
+  System115 draft→publish  [=] DIIMPLEMENTASIKAN di main
+    (branch preview): koleksi system_settings (per-area
+    {version, draft, draft_version, base, history[]}) +
+    system_audit + routes/system_settings.py — super saja,
+    optimistic concurrency version+draft_version, publish
+    wajib catatan, diff + audit dengan redaksi aman
+    (port safe()/changed() prototype).
+      GET  /api/admin/system/areas          ringkasan area
+      GET  /api/admin/system/{area}         published+draft+history
+      GET  /api/admin/system/{area}/audit   jejak perubahan
+      POST /api/admin/system/{area}/draft   simpan draf
+      POST /api/admin/system/{area}/discard buang draf
+      POST /api/admin/system/{area}/restore draft := versi lampau
+      POST /api/admin/system/{area}/publish terbitkan (note wajib,
+                                            content bisa parsial blocks[])
+    Area live:
+      content    — membungkus landing_settings (store publik
+                   tak berubah; PATCH /cms/landing lama tetap
+                   jalan dan kini terekam sebagai 'direct-publish'
+                   bervesi + audit). Draf = map penuh; publish
+                   meng-upsert kunci berubah/baru & menghapus
+                   kunci yang hilang dari draf.
+      procedures — kenop operasional yang BENAR-BENAR dikonsumsi:
+                   subscription/contract reminder days (cron),
+                   payment_pending_reminder_hours (cron),
+                   withdraw_min_idr (withdraw), daily_release_limit
+                   (entitlements). procedures_config.py = aksesor
+                   sinkron + fallback default; refresh saat publish
+                   + bootstrap.
+    Tidak diangkat: navigation (nav main digerakkan izin, bukan
+    CMS) dan maintenance (sudah punya workflow sendiri).
+    UI: /admin/system (super, grup nav Sistem, permission
+    system.settings — di luar katalog = super saja) + kontrol
+    draf super di halaman CMS (/admin/cms).
   Jendela pemeliharaan     [=] DIIMPLEMENTASIKAN di main
     (branch preview): koleksi maintenance_windows +
     routes/maintenance_windows.py —

@@ -60,6 +60,9 @@ async def get_landing(user: Optional[dict] = None):
 @cms_r.patch("/landing")
 async def update_landing(body: CMSUpdateIn, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "cms.manage")
+    # System115: snapshot before applying so the direct edit stays versioned.
+    before_rows = await db.landing_settings.find({}, {"_id": 0}).to_list(500)
+    before_map = {s["key"]: s["value"] for s in before_rows}
     for k, v in body.settings.items():
         await db.landing_settings.update_one(
             {"key": k},
@@ -68,7 +71,11 @@ async def update_landing(body: CMSUpdateIn, user: dict = Depends(require_admin))
         )
     await log_activity(user["id"], "update_landing", "cms", None, after=body.settings)
     settings = await db.landing_settings.find({}, {"_id": 0}).to_list(500)
-    return {s["key"]: s["value"] for s in settings}
+    after_map = {s["key"]: s["value"] for s in settings}
+    from .system_settings import record_content_publish
+    await record_content_publish(user["id"], before_map, after_map,
+                                 "Pembaruan langsung dari CMS", kind="direct-publish")
+    return after_map
 
 
 @cms_r.post("/landing/upload-image")

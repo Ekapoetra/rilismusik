@@ -302,6 +302,36 @@ D14. MENU "UPDATE" (CATATAN PERUBAHAN V1.1)       DIIMPLEMENTASIKAN
 KEPUTUSAN: DECIDED — diimplementasikan di preview.
 
 
+------------------------------------------------------------
+SYSTEM115 → MAIN (pengaturan bervesi)         DIIMPLEMENTASIKAN
+------------------------------------------------------------
+  Mesin draft→tinjau→terbit dari prototype dipetakan ke main
+  dengan dua area yang benar-benar dikonsumsi:
+
+  - content    — membungkus landing_settings. Store publik
+                 tidak berubah (GET /cms/landing tetap membaca
+                 koleksi yang sama); draft/version/history hidup
+                 di system_settings. PATCH /cms/landing lama tetap
+                 berfungsi (hak cms.manage staff dipertahankan)
+                 tetapi kini terekam sebagai 'direct-publish'
+                 bervesi + audit. Publish mendukung subset
+                 blocks[] (publish parsial, seperti prototype).
+  - procedures — kenop operasional yang sebelumnya hardcode:
+                 subscription/contract reminder days,
+                 payment_pending_reminder_hours, withdraw_min_idr,
+                 daily_release_limit. Dibaca cron (async, segar)
+                 + procedures_config (cache sinkron untuk jalur
+                 sync — refresh saat publish + bootstrap).
+  - navigation tidak diangkat (nav main digerakkan izin, bukan
+    CMS); maintenance sudah punya workflow sendiri (D13).
+
+  Kontrak sama seperti prototype: super saja, optimistic
+  concurrency version+draft_version, publish wajib catatan,
+  draft dari versi lama ditolak, audit dengan redaksi aman.
+
+KEPUTUSAN: DECIDED — diimplementasikan di preview branch main.
+
+
 ====================================================
 RINGKASAN STATUS (diperbarui)
   DECIDED : D1 (ANNEX-E+E1), D2, D3, D4, D5, D7 (rute final),

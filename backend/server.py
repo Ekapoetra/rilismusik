@@ -137,6 +137,8 @@ api.include_router(artist_r)
 api.include_router(pay_r)
 api.include_router(wami_r)
 api.include_router(cms_r)
+from routes.system_settings import system_r
+api.include_router(system_r)
 api.include_router(admin_r)
 api.include_router(access_r)
 api.include_router(rate_change_r)
@@ -279,6 +281,13 @@ async def _bootstrap_async():
         logger.info("scheduler started")
     except Exception as e:  # noqa: BLE001
         logger.exception("start_scheduler failed: %s", e)
+
+    try:
+        from routes.system_settings import get_published_procedures
+        await get_published_procedures()
+        logger.info("System115 procedures cache loaded")
+    except Exception as e:  # noqa: BLE001
+        logger.exception("get_published_procedures failed (defaults apply): %s", e)
 
     try:
         await normalize_existing_bank_names(client[os.environ["DB_NAME"]])

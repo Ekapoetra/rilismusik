@@ -66,8 +66,10 @@ async def check_subscription_expiry_job():
                             days_left=0,
                         )
 
-        # 2) Send reminders for active subs expiring in T-30, T-7, T-3, T-1 days
-        for days in (30, 7, 3, 1):
+        # 2) Send reminders for active subs expiring in T-N days (System115
+        # procedures area — defaults [30, 7, 3, 1] until configured).
+        from .system_settings import get_published_procedures
+        for days in sorted((await get_published_procedures())["subscription_reminder_days"], reverse=True):
             target_low = now + timedelta(days=days - 1)
             target_high = now + timedelta(days=days)
             async for lab in db.labels.find(
@@ -113,6 +115,11 @@ async def send_payment_reminders_job():
     """
     try:
         now = datetime.now(timezone.utc)
+        # System115 procedures area — reminder hours, defaults [72, 24].
+        from .system_settings import get_published_procedures
+        reminder_hours = sorted(
+            (await get_published_procedures())["payment_pending_reminder_hours"], reverse=True
+        )
         cursor = db.payments.find(
             {
                 "status": {"$in": ["pending", "unpaid"]},
@@ -134,10 +141,10 @@ async def send_payment_reminders_job():
             age_hours = (now - created).total_seconds() / 3600.0
             sent = set(p.get("payment_reminders") or [])
             marker = None
-            if age_hours >= 72 and "72h" not in sent:
-                marker, days_pending = "72h", 3
-            elif age_hours >= 24 and "24h" not in sent:
-                marker, days_pending = "24h", 1
+            for hours in reminder_hours:
+                if age_hours >= hours and f"{hours}h" not in sent:
+                    marker, days_pending = f"{hours}h", max(1, round(hours / 24))
+                    break
             if not marker:
                 continue
             label = await db.labels.find_one({"id": p["label_id"]}, {"_id": 0, "email": 1, "label_name": 1})
@@ -161,7 +168,8 @@ async def check_contract_expiry_job():
     """Daily cron: notify labels whose contract is in T-30/T-7/T-1 days window."""
     try:
         today = datetime.now(timezone.utc).date()
-        for days in (30, 7, 1):
+        from .system_settings import get_published_procedures
+        for days in sorted((await get_published_procedures())["contract_reminder_days"], reverse=True):
             target = (today + timedelta(days=days)).isoformat()
             async for c in db.contracts.find(
                 {"status": {"$ne": "terminated"}, "end_date": target},

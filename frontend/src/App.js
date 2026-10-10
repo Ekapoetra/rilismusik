@@ -71,6 +71,7 @@ const XenditReconciliation = rolePage("admin", () => import("@/pages/admin/Xendi
 const Refunds = rolePage("admin", () => import("@/pages/admin/Refunds"));
 const AdminUiSettings = rolePage("admin", () => import("@/pages/admin/UiSettings"));
 const AdminMaintenance = rolePage("admin", () => import("@/pages/admin/Maintenance"));
+const AdminSystem = rolePage("admin", () => import("@/pages/admin/System"));
 const AdminNotifications = rolePage("admin", () => import("@/pages/admin/Notifications"));
 import { Toaster } from "@/components/ui/sonner";
 
@@ -137,6 +138,7 @@ function AppRoutes() {
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
             <Route path="/admin/maintenance" element={<ProtectedRoute roles={["super_admin"]}><AdminMaintenance /></ProtectedRoute>} />
+<Route path="/admin/system" element={<ProtectedRoute roles={["super_admin"]}><AdminSystem /></ProtectedRoute>} />
             <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
             <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />
             <Route path="/admin/attendance" element={guard("staff.attendance.view", <Attendance />)} />

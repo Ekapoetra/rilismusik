@@ -7,7 +7,9 @@ VIP-equivalent benefits consistently.
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-DAILY_RELEASE_LIMIT = 7
+from procedures_config import procedure
+
+DAILY_RELEASE_LIMIT = 7  # fallback default — System115 'procedures' overrides it
 
 # Tiers that carry an annual (unlimited-release) subscription entitlement.
 _ANNUAL_TIERS = {"annual_normal", "annual_vip", "multi_label"}
@@ -47,7 +49,7 @@ def resolve_label_entitlements(label: Dict[str, Any]) -> Dict[str, Any]:
         "free_wami": is_vip,
         "free_addons": is_vip,
         "multi_label": is_multi,
-        "daily_release_limit": DAILY_RELEASE_LIMIT,
+        "daily_release_limit": procedure("daily_release_limit") or DAILY_RELEASE_LIMIT,
         "subscription_expires_at": label.get("subscription_expires_at"),
     }
 

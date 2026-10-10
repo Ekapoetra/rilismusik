@@ -45,7 +45,8 @@ from royalty_utils import (
     parse_period_from_value, calculate_line, label_percentage_at,
     strip_sensitive,
 )
-from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
+from withdraw_utils import withdraw_window_state, jakarta_now
+from procedures_config import procedure
 from .financial_lock import label_financial_lock
 from .royalty_adjustment_balance import unspent_adjustment_ids, refresh_balance_cache
 
@@ -115,22 +116,22 @@ async def label_computed_withdrawable(user: dict = Depends(require_label)):
     if label.get("claim_quarantined"):
         return {
             **{key: value for key, value in info.items() if key != "adjustment_amount_idr"},
-            "min_withdraw_idr": MIN_WITHDRAW_IDR,
+            "min_withdraw_idr": procedure("withdraw_min_idr"),
             "can_withdraw": False,
             "claim_quarantined": True,
             "reason": "Saldo warisan label ini masih dikarantina menunggu pengesahan baseline oleh Super Admin.",
         }
-    can_withdraw = info["withdrawable_idr"] > MIN_WITHDRAW_IDR
+    can_withdraw = info["withdrawable_idr"] > procedure("withdraw_min_idr")
     return {
         **{key: value for key, value in info.items() if key != "adjustment_amount_idr"},
-        "min_withdraw_idr": MIN_WITHDRAW_IDR,
+        "min_withdraw_idr": procedure("withdraw_min_idr"),
         "can_withdraw": can_withdraw,
         "reason": None if can_withdraw else (
             "Masih ada withdraw yang sedang diproses"
             if info.get("has_active_withdraw") else
             "Belum ada royalti tersedia setelah penarikan terakhir"
             if info["withdrawable_idr"] == 0 else
-            f"Saldo harus lebih dari Rp {MIN_WITHDRAW_IDR:,}. Saldo saat ini Rp {info['withdrawable_idr']:,}."
+            f"Saldo harus lebih dari Rp {procedure('withdraw_min_idr'):,}. Saldo saat ini Rp {info['withdrawable_idr']:,}."
         ),
     }
 
@@ -160,12 +161,12 @@ async def _create_label_withdrawal(label: dict, user: dict):
     amount_idr = info["withdrawable_idr"]
     if info["has_active_withdraw"]:
         raise HTTPException(status_code=409, detail="Masih ada withdraw yang sedang diproses")
-    if amount_idr <= MIN_WITHDRAW_IDR:
+    if amount_idr <= procedure("withdraw_min_idr"):
         if amount_idr == 0:
             raise HTTPException(status_code=400, detail="Belum ada royalti tersedia untuk ditarik")
         raise HTTPException(
             status_code=400,
-            detail=f"Saldo harus lebih dari Rp {MIN_WITHDRAW_IDR:,.0f}. Saldo saat ini Rp {amount_idr:,.0f}.",
+            detail=f"Saldo harus lebih dari Rp {procedure('withdraw_min_idr'):,.0f}. Saldo saat ini Rp {amount_idr:,.0f}.",
         )
     if not label.get("bank_verified"):
         bank = await db.bank_accounts.find_one({"label_id": label["id"]})
@@ -275,8 +276,8 @@ async def label_request_withdraw_batch(user: dict = Depends(require_label)):
                 shared_period_to = info["period_to"]
     if not eligible:
         raise HTTPException(status_code=400, detail="Belum ada royalti tersedia untuk ditarik")
-    if total <= MIN_WITHDRAW_IDR:
-        raise HTTPException(status_code=400, detail=f"Total saldo harus lebih dari Rp {MIN_WITHDRAW_IDR:,.0f}. Total saat ini Rp {total:,.0f}.")
+    if total <= procedure("withdraw_min_idr"):
+        raise HTTPException(status_code=400, detail=f"Total saldo harus lebih dari Rp {procedure('withdraw_min_idr'):,.0f}. Total saat ini Rp {total:,.0f}.")
 
     batch_id = new_id()
     authority_id = user.get("primary_label_id") or (next((l["id"] for l in labels if l.get("subscription_tier") == "multi_label"), None)) or labels[0]["id"]
