@@ -25,11 +25,12 @@ from pydantic import BaseModel, Field
 
 from models import new_id, now_iso
 from procedures_config import DEFAULTS as PROCEDURES_DEFAULTS, set_published as _set_published_cache
+from token_service import TOKEN_DEFAULTS
 from .deps import db, require_super_admin
 
 system_r = APIRouter(prefix="/admin/system", tags=["system"])
 
-AREAS = ("content", "procedures")
+AREAS = ("content", "procedures", "token")
 _HISTORY_LIMIT = 50
 _AUDIT_LIMIT = 200
 
@@ -141,6 +142,30 @@ def _validate(area: str, value: Any) -> Dict[str, Any]:
                 continue
             if not isinstance(item, int) or isinstance(item, bool) or item < lo or item > hi:
                 raise HTTPException(status_code=400, detail=f"{key}: bilangan {lo}-{hi} wajib")
+    if area == "token":
+        unknown = set(value) - set(TOKEN_DEFAULTS)
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Kunci token tidak dikenal: {sorted(unknown)}")
+        price = value.get("price_idr")
+        if price is not None and (
+                not isinstance(price, int) or isinstance(price, bool)
+                or price < 25_000 or price > 1_000_000):
+            raise HTTPException(status_code=400, detail="price_idr: bilangan 25.000-1.000.000 wajib")
+        for map_key, (lo, hi) in (("daily_quota", (0, 100)), ("service_costs", (0, 500))):
+            m = value.get(map_key)
+            if m is None:
+                continue
+            if not isinstance(m, dict) or not m:
+                raise HTTPException(status_code=400, detail=f"{map_key}: objek tidak kosong wajib")
+            for k, v in m.items():
+                if not isinstance(k, str) or not k.strip() or len(k) > 80 or k.startswith("_"):
+                    raise HTTPException(status_code=400, detail=f"{map_key}: kunci tidak valid {k!r}")
+                if not isinstance(v, int) or isinstance(v, bool) or v < lo or v > hi:
+                    raise HTTPException(status_code=400, detail=f"{map_key}.{k}: bilangan {lo}-{hi} wajib")
+        quota_tiers = value.get("daily_quota") or {}
+        unknown_tiers = set(quota_tiers) - set(TOKEN_DEFAULTS["daily_quota"])
+        if unknown_tiers:
+            raise HTTPException(status_code=400, detail=f"Tier paket tidak dikenal: {sorted(unknown_tiers)}")
     return value
 
 
@@ -167,6 +192,13 @@ async def _landing_map() -> Dict[str, Any]:
 async def _published(area: str, doc: Dict[str, Any]) -> Dict[str, Any]:
     if area == "content":
         return await _landing_map()
+    if area == "token":
+        stored = doc.get("published") or {}
+        merged = dict(TOKEN_DEFAULTS)
+        merged["daily_quota"] = {**TOKEN_DEFAULTS["daily_quota"], **(stored.get("daily_quota") or {})}
+        merged["service_costs"] = {**TOKEN_DEFAULTS["service_costs"], **(stored.get("service_costs") or {})}
+        merged["price_idr"] = int(stored.get("price_idr") or TOKEN_DEFAULTS["price_idr"])
+        return merged
     merged = dict(PROCEDURES_DEFAULTS)
     merged.update(doc.get("published") or {})
     return merged
@@ -384,7 +416,8 @@ async def publish(area: str, body: PublishIn, user: dict = Depends(require_super
             }},
             upsert=True,
         )
-        _set_published_cache(target)
+        if area == "procedures":
+            _set_published_cache(target)
         await _audit(user["id"], "publish", area, published, target, body.note)
 
     # A published draft is consumed; version bump invalidates stale drafts.

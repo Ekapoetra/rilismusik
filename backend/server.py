@@ -138,7 +138,9 @@ api.include_router(pay_r)
 api.include_router(wami_r)
 api.include_router(cms_r)
 from routes.system_settings import system_r
+from routes.tokens import router as tokens_r
 api.include_router(system_r)
+api.include_router(tokens_r)
 api.include_router(admin_r)
 api.include_router(access_r)
 api.include_router(rate_change_r)

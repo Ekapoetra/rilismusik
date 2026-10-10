@@ -130,9 +130,25 @@ Peta prototype → main:
              + subscription_expires_at
 
 Celah:
-  [+] TOKEN D1 belum ada di main sama sekali: perlu koleksi
-      token_balance/token_ledger, pematokan layanan, hangus-vs-
-      kembali (ANNEX-E1), dan dua dompet refund.
+  [~] TOKEN D1 fondasi DITERAPKAN (irisan D1-a): labels.token_balance
+      (token beli, tak pernah hangus), penghitung kuota harian
+      token_daily_date/token_daily_used (WIB) per tier paket,
+      koleksi token_ledger (audit immutable, source purchased|daily),
+      konfigurasi = system_settings area "token" (draf→terbit,
+      super-only): price_idr + daily_quota per tier + service_costs
+      (release_single/ep/album + kunci layanan lain).
+      POST /payments/token-purchase → invoice Xendit → fulfill
+      kredit saldo (idempotent via fulfilled_payment_ids).
+      GET /token/wallet + /token/config + /token/offer/{key};
+      POST /admin/token/grant (koreksi manual, super-only).
+      UI: /label/wallet + tab Token di /admin/system.
+      Keputusan owner (menggantikan ANNEX-E1 lama): TANPA pool
+      ganti-rugi; spend = kuota harian dulu lalu token beli; ditolak
+      Believe → token beli kembali, kuota harian hangus; ditolak
+      internal/batal sebelum kirim → keduanya kembali.
+      SISA (irisan D1-b/c): jalur bayar pakai token di checkout
+      rilisan/layanan (reserve→settle), integrasi refund sesuai
+      matriks di atas, monitoring liabilitas token.
   [+] Kuota D4 (per tier) perlu dibaca dari entitlements atau
       tabel benefit baru.
 

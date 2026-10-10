@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/sonner";
 const AREAS = [
   ["content", "Konten Landing"],
   ["procedures", "Prosedur Operasional"],
+  ["token", "Token"],
 ];
 const KIND_LABEL = {
   "draft-save": "Simpan draf", "draft-discard": "Buang draf",
@@ -27,6 +28,11 @@ const fmt = (iso) => {
     : new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(".", ":") + " WIB";
 };
 const parseList = (raw) => raw.split(/[,\s]+/).filter(Boolean).map(Number);
+const QUOTA_LABELS = {
+  pay_per_release: "Pay Per Release", annual_normal: "Annual Normal",
+  annual_vip: "Annual VIP", multi_label: "Multi Label",
+};
+const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 
 export default function AdminSystem() {
   const [area, setArea] = useState("content");
@@ -37,6 +43,8 @@ export default function AdminSystem() {
   const [publishNote, setPublishNote] = useState("");
   const [showPublish, setShowPublish] = useState(false);
   const [procDraft, setProcDraft] = useState(null); // editable procedures value
+  const [tokDraft, setTokDraft] = useState(null); // editable token value
+  const [newCostKey, setNewCostKey] = useState("");
 
   const load = useCallback(async (a = area) => {
     setErr("");
@@ -47,6 +55,7 @@ export default function AdminSystem() {
       setState(detail);
       setAudit(log.entries || []);
       if (a === "procedures") setProcDraft(detail.draft || detail.published);
+      if (a === "token") setTokDraft(detail.draft || detail.published);
     } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
   }, [area]);
   useEffect(() => { load(area); }, [area, load]);
@@ -57,6 +66,7 @@ export default function AdminSystem() {
       const { data } = await api.post(`/admin/system/${area}/${kind}`, payload);
       setState(data);
       if (area === "procedures") setProcDraft(data.draft || data.published);
+      if (area === "token") setTokDraft(data.draft || data.published);
       const { data: log } = await api.get(`/admin/system/${area}/audit`);
       setAudit(log.entries || []);
       return true;
@@ -85,6 +95,17 @@ export default function AdminSystem() {
     return v;
   };
   const procDisplay = (v) => Array.isArray(v) ? v.join(", ") : String(v ?? "");
+
+  const tokValue = () => ({
+    price_idr: Number(tokDraft?.price_idr) || 0,
+    daily_quota: Object.fromEntries(
+      Object.entries(tokDraft?.daily_quota || {}).map(([k, v]) => [k, Number(v) || 0])),
+    service_costs: Object.fromEntries(
+      Object.entries(tokDraft?.service_costs || {}).map(([k, v]) => [k, Number(v) || 0])),
+  });
+  const setTok = (path, key, val) => setTokDraft((d) => ({
+    ...(d || {}), [path]: { ...((d || {})[path] || {}), [key]: val },
+  }));
 
   return (
     <div className="space-y-6" data-testid="admin-system-page">
@@ -128,7 +149,73 @@ export default function AdminSystem() {
             </div>
           </section>
 
-          {area === "content" ? (
+          {area === "token" ? (
+            <section className="rm-card space-y-4 p-5" data-testid="system-token-editor">
+              <h2 className="text-base font-bold">Rel pembayaran token</h2>
+              <p className="text-sm text-zinc-400">
+                Token adalah opsi pembayaran kedua — Rupiah tetap tawaran utama di semua checkout.
+                Kuota harian berasal dari paket berbayar dan reset tiap hari (WIB); token yang dibeli tidak pernah hangus.
+              </p>
+              <label className="block space-y-1 text-sm max-w-xs">
+                <span className="text-zinc-400">Harga jual per token (Rp)</span>
+                <input className="rm-input w-full" type="number" min="25000" max="1000000"
+                  value={tokDraft?.price_idr ?? ""}
+                  onChange={(e) => setTokDraft((d) => ({ ...(d || {}), price_idr: e.target.value }))}
+                  data-testid="token-price-input" />
+              </label>
+              <div>
+                <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold mb-2">Kuota harian per paket</div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {Object.keys(QUOTA_LABELS).map((tier) => (
+                    <label key={tier} className="space-y-1 text-sm">
+                      <span className="text-zinc-400">{QUOTA_LABELS[tier]}</span>
+                      <input className="rm-input w-full" type="number" min="0" max="100"
+                        value={tokDraft?.daily_quota?.[tier] ?? 0}
+                        onChange={(e) => setTok("daily_quota", tier, e.target.value)}
+                        data-testid={`quota-${tier}`} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold mb-2">Biaya layanan (token)</div>
+                <div className="space-y-2">
+                  {Object.entries(tokDraft?.service_costs || {}).map(([key, val]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <code className="text-xs text-zinc-400 w-44 truncate">{key}</code>
+                      <input className="rm-input w-24" type="number" min="0" max="500"
+                        value={val}
+                        onChange={(e) => setTok("service_costs", key, e.target.value)}
+                        data-testid={`cost-${key}`} />
+                      <span className="text-xs text-zinc-500">token • ≈ {fmtIDR((Number(val) || 0) * (Number(tokDraft?.price_idr) || 0))}</span>
+                      <button className="text-xs text-red-400 hover:text-red-300"
+                        onClick={() => setTokDraft((d) => {
+                          const costs = { ...(d?.service_costs || {}) };
+                          delete costs[key];
+                          return { ...(d || {}), service_costs: costs };
+                        })}>hapus</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input className="rm-input w-56" placeholder="kunci layanan, mis. cover"
+                    value={newCostKey} onChange={(e) => setNewCostKey(e.target.value)}
+                    data-testid="token-new-cost-key" />
+                  <button className="rm-btn-ghost text-xs" disabled={!newCostKey.trim()}
+                    onClick={() => { setTok("service_costs", newCostKey.trim(), 1); setNewCostKey(""); }}
+                    data-testid="token-add-cost">+ Tambah layanan</button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="rm-btn-primary" disabled={busy || !tokDraft}
+                  onClick={() => saveDraft(tokValue())}
+                  data-testid="token-save-draft">Simpan sebagai Draf</button>
+                {state.has_draft
+                  ? <span className="self-center text-xs text-amber-300">Menyimpan menimpa draf yang ada</span>
+                  : null}
+              </div>
+            </section>
+          ) : area === "content" ? (
             <section className="rm-card space-y-3 p-5 text-sm">
               <h2 className="flex items-center gap-2 text-base font-bold"><LayoutTemplate className="h-4 w-4 text-zinc-400" /> Konten landing page</h2>
               <p className="text-zinc-400">

@@ -61,6 +61,7 @@ ADMIN_PAYMENT_ROLES = {
     "annual_subscription": ("super_admin", "admin_finance"),
     "wami_addon": ("super_admin", "admin_finance", "admin_release"),
     "custom_service": ("super_admin", "admin_finance", "admin_support"),
+    "token_purchase": ("super_admin", "admin_finance"),
 }
 
 
@@ -71,6 +72,7 @@ def _admin_payment_instruction(payment_type: str) -> str:
         "custom_service": "Tandai layanan sedang dikerjakan, lalu selesai setelah pekerjaan tuntas.",
         "wami_addon": "Buka WAMI dan lanjutkan proses pendaftaran.",
         "annual_subscription": "Langganan sudah aktif otomatis; tidak ada tindakan manual.",
+        "token_purchase": "Token sudah dikreditkan ke dompet label otomatis; tidak ada tindakan manual.",
     }.get(payment_type, "Tinjau detail pembayaran di dashboard admin.")
 
 
@@ -145,6 +147,7 @@ class PaymentCreateData:
     addon_amount: Optional[int] = None
     addon_product_ids: Optional[List[str]] = None
     approval_required_before_payment: bool = False
+    token_quantity: Optional[int] = None
 
 
 def _required_env(name: str) -> str:
@@ -231,6 +234,7 @@ async def create_payment_document(data: PaymentCreateData) -> Dict[str, Any]:
         "addon_amount": data.addon_amount,
         "addon_product_ids": data.addon_product_ids or [],
         "approval_required_before_payment": data.approval_required_before_payment,
+        "token_quantity": data.token_quantity,
     }
     try:
         await db.payments.insert_one(document)
@@ -621,12 +625,21 @@ async def _fulfill_release_shortfall(payment: Dict[str, Any]) -> None:
     )
 
 
+async def _fulfill_token_purchase(payment: Dict[str, Any]) -> None:
+    """Credit purchased tokens to the label wallet (exactly once)."""
+    from token_service import fulfill_purchase
+    qty = int(payment.get("token_quantity") or 0)
+    if qty > 0:
+        await fulfill_purchase(payment["label_id"], qty, payment["id"])
+
+
 FULFILLMENT_HANDLERS = {
     "pay_per_release": _fulfill_release,
     "release_shortfall": _fulfill_release_shortfall,
     "annual_subscription": _fulfill_subscription,
     "wami_addon": _fulfill_wami,
     "custom_service": _fulfill_custom_service,
+    "token_purchase": _fulfill_token_purchase,
 }
 
 

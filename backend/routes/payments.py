@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from .deps import (
     ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
@@ -24,6 +25,10 @@ from payment_service import (
 
 
 pay_r = APIRouter(prefix="/payments", tags=["payments"])
+
+
+class TokenPurchaseIn(BaseModel):
+    quantity: int = Field(ge=1, le=500)
 
 
 async def _owned_payment(payment_id: str, user: dict) -> Dict[str, Any]:
@@ -58,6 +63,29 @@ async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: d
         label_id=label["id"], payment_type="annual_subscription", amount=amount,
         tier=tier, description=f"Paket {tier.replace('_', ' ').title()} 1 Tahun",
         return_path="/label/invoices",
+    ))
+
+
+@pay_r.post("/token-purchase")
+async def create_token_purchase_invoice(body: TokenPurchaseIn, user: dict = Depends(require_label)):
+    """D1: buy tokens with rupiah via the normal Xendit flow. Fulfillment
+    credits the purchased-token balance (see token_service.fulfill_purchase)."""
+    label = await get_label_by_user(user)
+    from token_service import get_token_config
+    cfg = await get_token_config()
+    unit = int(cfg["token_price_idr"])
+    amount = int(body.quantity) * unit
+    return await create_payment_document(PaymentCreateData(
+        label_id=label["id"], payment_type="token_purchase", amount=amount,
+        token_quantity=int(body.quantity),
+        description=f"Pembelian {body.quantity} Token Rilis Musik",
+        return_path="/label/wallet",
+        line_items=[{
+            "reference_id": "token-purchase", "name": "Token Rilis Musik",
+            "description": f"{body.quantity} token × Rp {unit:,.0f}",
+            "amount": amount, "quantity": int(body.quantity),
+        }],
+        base_amount=amount, addon_amount=0,
     ))
 
 
