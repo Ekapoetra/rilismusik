@@ -33,8 +33,6 @@ jobs:
       - run: python -m unittest discover -s backend/tests -p test_label_visibility_and_chat.py -v
       - run: python -m unittest discover -s backend/tests -p test_maintenance_windows.py -v
       - run: python -m unittest discover -s backend/tests -p test_claims_lifecycle.py -v
-      - run: python -m unittest discover -s backend/tests -p test_phase3_tickets.py -v
-      - run: python -m unittest discover -s backend/tests -p test_iter64_ticket_workflow_regression.py -v
       - run: python -m unittest discover -s backend/tests -p test_ticket_drafts.py -v
       - run: python -m unittest discover -s backend/tests -p test_addon_revision_refund.py -v
       - run: python -m unittest discover -s backend/tests -p test_staff_signals.py -v

@@ -14,6 +14,18 @@ os.environ.update({
     "DB_NAME": "claims_test",
     "JWT_SECRET": "test-only-unused-jwt-secret",
     "UPLOAD_DIR": "/tmp/rilismusik-test-uploads",
+    "RILISMUSIK_DEPLOYMENT_MODE": "preview",
+    "FRONTEND_URL": "https://preview.example.invalid",
+    "SMTP_HOST": "smtp.example.invalid",
+    "SMTP_PORT": "465",
+    "SMTP_USER": "",
+    "SMTP_PASSWORD": "",
+    "SENDER_EMAIL": "test@example.invalid",
+    "SENDER_NAME": "Preview test",
+    "R2_ENDPOINT_URL": "",
+    "R2_ACCESS_KEY_ID": "",
+    "R2_SECRET_ACCESS_KEY": "",
+    "R2_BUCKET": "",
 })
 
 from fastapi import HTTPException
