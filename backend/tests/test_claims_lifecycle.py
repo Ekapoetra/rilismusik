@@ -346,7 +346,10 @@ class RevokeAndQuarantineTests(unittest.TestCase):
         self.assertIn("karantina", ctx.exception.detail)
 
 
-FINANCE = {"id": "fin-1", "role": "admin_finance", "name": "Fin", "email": "fin@test"}
+# Resolved permission set for admin_finance (role grants withdraw.manage -> approve/pay
+# via GRANULAR_GRANTS in production); has_permission reads user["permissions"] directly.
+FINANCE = {"id": "fin-1", "role": "admin_finance", "name": "Fin", "email": "fin@test",
+           "permissions": ["withdraw.view", "withdraw.manage", "withdraw.approve", "withdraw.pay"]}
 WD = {
     "id": "wd-1", "label_id": "lab-1", "amount_idr": 500000,
     "status": "approved", "request_date": "2026-01-05T00:00:00Z",
