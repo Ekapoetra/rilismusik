@@ -34,6 +34,7 @@ from server import app
 from routes.deps import get_current_user
 import routes.kyc_service as kyc_service
 import routes.releases as rel_route
+import token_service
 
 
 def _match(doc, key, cond):
@@ -182,6 +183,12 @@ class ReleaseLifecycleExtTests(unittest.TestCase):
             activity_logs=_FakeCollection(), release_metadata_edits=_FakeCollection(),
         ))
         self._db.start()
+        # settle_release_tokens lives in token_service with its own db handle.
+        self._token_db = patch.object(token_service, "db", _db(
+            releases=self.releases, payments=self.payments, labels=self.labels,
+            token_ledger=_FakeCollection(), system_settings=_FakeCollection(),
+        ))
+        self._token_db.start()
         patch.object(rel_route, "notify_many", new_callable=AsyncMock).start()
         patch.object(rel_route, "admin_user_ids", new_callable=AsyncMock, return_value=["adm-1"]).start()
         patch.object(rel_route, "label_user_ids", new_callable=AsyncMock, return_value=["u-lab"]).start()
