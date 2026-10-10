@@ -11,6 +11,8 @@ export const PAYMENT_TYPES = {
   annual_subscription: "Langganan Tahunan",
   wami_addon: "Pendaftaran WAMI",
   custom_service: "Layanan Tambahan",
+  token_purchase: "Pembelian Token",
+  release_shortfall: "Kekurangan Paket Album",
 };
 
 export const SERVICE_STATUS = {

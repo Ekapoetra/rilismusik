@@ -500,6 +500,35 @@ class TokenFoundationTests(unittest.TestCase):
         self.assertTrue(any(e["kind"] == "refund" and e["source"] == "daily"
                             for e in self.ledger.docs))
 
+    # ---------- liability monitoring (D1-c) ----------
+    def test_liability_endpoint(self):
+        self._as(STAFF)  # payments.manage ≠ payments.view → denied
+        self.assertEqual(self.client.get("/api/admin/token/liability").status_code, 403)
+        self._as(SUPER)
+        r = self.client.get("/api/admin/token/liability")
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["outstanding_tokens"], 0)
+        # seed: 5 purchased outstanding, 1 sale, 1 unsettled token invoice
+        self._label()["token_balance"] = 5
+        self.payments.docs.append({
+            "id": "pay-buy", "label_id": "lab-1", "type": "token_purchase",
+            "amount": 175_000, "status": "paid", "token_quantity": 5,
+            "fulfillment_status": "fulfilled", "created_at": "x",
+        })
+        self.payments.docs.append({
+            "id": "pay-use", "label_id": "lab-1", "type": "pay_per_release",
+            "release_id": "rel-9", "amount": 100_000, "status": "paid",
+            "payment_method": "token_balance", "token_cost": 3,
+            "fulfillment_status": "fulfilled", "created_at": "x",
+        })
+        body = self.client.get("/api/admin/token/liability").json()
+        self.assertEqual(body["outstanding_tokens"], 5)
+        self.assertEqual(body["liability_idr"], 5 * 35_000)
+        self.assertEqual(body["sold_tokens"], 5)
+        self.assertEqual(body["redeemed_tokens"], 3)
+        self.assertEqual(body["in_flight_token_invoices"], 1)
+        self.assertEqual(body["top_wallets"][0]["label_id"], "lab-1")
+
     # ---------- admin grant ----------
     def test_admin_grant_super_only(self):
         self._as(STAFF)

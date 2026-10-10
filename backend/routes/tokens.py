@@ -2,12 +2,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from models import now_iso
 from .deps import (
-    db, get_label_by_user, log_activity, require_label, require_super_admin,
+    db, get_label_by_user, log_activity, require_admin, require_label,
+    require_super_admin,
 )
+from .admin_permission_service import assert_admin_permission
 from .entitlements import resolve_label_entitlements
 from token_service import (
-    credit_purchased, get_token_config, token_offer, wallet_state,
+    credit_purchased, get_token_config, jakarta_today, token_offer,
+    wallet_state,
 )
 
 router = APIRouter(tags=["tokens"])
@@ -78,3 +82,63 @@ async def admin_token_grant(payload: TokenGrantIn, admin=Depends(require_super_a
     )
     return {"granted": payload.quantity, "token_balance": result["token_balance"],
             "label": label.get("label_name")}
+
+
+# ---------------------------------------------------------------------------
+# Admin — token liability monitoring (D1-c)
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/token/liability")
+async def admin_token_liability(admin=Depends(require_admin)):
+    """Token outstanding is a LIABILITY (redeemable services), not revenue.
+    Purchased balances never expire; daily quota resets each WIB day."""
+    assert_admin_permission(admin, "payments.view")
+    cfg = await get_token_config()
+    price = cfg["token_price_idr"]
+    today = jakarta_today()
+    labels = await db.labels.find(
+        {"$or": [{"token_balance": {"$gt": 0}}, {"token_daily_used": {"$gt": 0}}]},
+        {"_id": 0, "id": 1, "label_name": 1, "token_balance": 1,
+         "token_daily_date": 1, "token_daily_used": 1},
+    ).to_list(5000)
+    outstanding = sum(int(l.get("token_balance") or 0) for l in labels)
+    daily_used_today = sum(
+        int(l.get("token_daily_used") or 0)
+        for l in labels if l.get("token_daily_date") == today
+    )
+    holders = sorted(
+        (l for l in labels if int(l.get("token_balance") or 0) > 0),
+        key=lambda l: -int(l.get("token_balance") or 0),
+    )
+    # Sales vs redemption from payments (authoritative money trail).
+    sold = redeemed_idr = redeemed_tokens = in_flight = 0
+    async_pay = await db.payments.find(
+        {"$or": [{"type": "token_purchase", "status": "paid"},
+                 {"payment_method": "token_balance", "status": "paid"}]},
+        {"_id": 0, "type": 1, "status": 1, "amount": 1, "token_quantity": 1,
+         "token_cost": 1, "token_settled": 1},
+    ).to_list(20000)
+    for p in async_pay:
+        if p.get("type") == "token_purchase":
+            sold += int(p.get("token_quantity") or 0)
+        else:
+            redeemed_tokens += int(p.get("token_cost") or 0)
+            redeemed_idr += int(p.get("amount") or 0)
+            if not p.get("token_settled"):
+                in_flight += 1
+    return {
+        "price_idr": price,
+        "outstanding_tokens": outstanding,
+        "liability_idr": outstanding * price,
+        "sold_tokens": sold,
+        "redeemed_tokens": redeemed_tokens,
+        "redeemed_invoice_idr": redeemed_idr,
+        "in_flight_token_invoices": in_flight,
+        "daily_quota_used_today": daily_used_today,
+        "top_wallets": [
+            {"label_id": l["id"], "label_name": l.get("label_name"),
+             "token_balance": int(l.get("token_balance") or 0)}
+            for l in holders[:10]
+        ],
+        "generated_at": now_iso(),
+    }

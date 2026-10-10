@@ -19,6 +19,7 @@ export default function AdminPayments() {
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [incomePeriod, setIncomePeriod] = useState(jakartaPeriod);
   const [incomeSummary, setIncomeSummary] = useState(null);
+  const [tokenLiability, setTokenLiability] = useState(null);
   const needsAction = searchParams.get("needs_action") === "true";
   const requestedPaymentId = searchParams.get("payment_id");
 
@@ -36,6 +37,11 @@ export default function AdminPayments() {
       .then(({ data }) => setIncomeSummary(data))
       .catch((error) => setErr(formatApiError(error.response?.data?.detail)));
   }, [incomePeriod]);
+  useEffect(() => {
+    api.get("/admin/token/liability")
+      .then(({ data }) => setTokenLiability(data))
+      .catch(() => {}); // monitoring card is best-effort
+  }, [items]);
 
   const sync = async (id) => {
     setSyncing(id); setErr(""); setMsg("");
@@ -70,6 +76,31 @@ export default function AdminPayments() {
       {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm" data-testid="admin-payment-message">{msg}</div>}
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm" data-testid="admin-payment-error">{err}</div>}
 
+      {tokenLiability && tokenLiability.outstanding_tokens + tokenLiability.sold_tokens > 0 && (
+        <section className="rm-card p-5" data-testid="admin-token-liability">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Liabilitas Token</div>
+              <p className="text-xs text-zinc-500 mt-1">Token beredar = kewajiban layanan, bukan pendapatan. Kuota harian paket reset tiap hari.</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div><div className="text-zinc-500 text-xs">Token beredar (beli)</div><div className="font-display text-xl font-extrabold text-amber-300" data-testid="liability-outstanding">{tokenLiability.outstanding_tokens}</div></div>
+              <div><div className="text-zinc-500 text-xs">Nilai liabilitas</div><div className="font-display text-xl font-extrabold text-amber-300" data-testid="liability-idr">{fmtIDR(tokenLiability.liability_idr)}</div></div>
+              <div><div className="text-zinc-500 text-xs">Terjual / terpakai</div><div className="font-display text-xl font-extrabold" data-testid="liability-sold">{tokenLiability.sold_tokens} / {tokenLiability.redeemed_tokens}</div></div>
+              <div><div className="text-zinc-500 text-xs">Kuota harian terpakai hari ini</div><div className="font-display text-xl font-extrabold" data-testid="liability-daily">{tokenLiability.daily_quota_used_today}</div></div>
+            </div>
+          </div>
+          {(tokenLiability.top_wallets?.length > 0 || tokenLiability.in_flight_token_invoices > 0) && (
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-zinc-400">
+              {tokenLiability.in_flight_token_invoices > 0 && <span data-testid="liability-inflight">{tokenLiability.in_flight_token_invoices} invoice token menunggu hasil rilisan</span>}
+              {tokenLiability.top_wallets.slice(0, 5).map((w) => (
+                <span key={w.label_id}>{w.label_name || w.label_id}: <strong className="text-zinc-200">{w.token_balance}</strong></span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {incomeSummary && <FinancialPeriodOverview
         title="Pemasukan Xendit"
         description={`Semua invoice berstatus Dibayar pada ${monthLabel(incomePeriod.month, incomePeriod.year)}.`}
@@ -88,7 +119,7 @@ export default function AdminPayments() {
       <section className="space-y-3">
         <div className="rm-card p-4 flex gap-3 flex-wrap items-end">
           <div className="min-w-[190px]"><label className="rm-label">Status</label><select className="rm-input" value={status} onChange={(e) => setStatus(e.target.value)} data-testid="admin-payments-status"><option value="">Semua</option><option value="pending">Menunggu Pembayaran</option><option value="paid">Dibayar</option><option value="expired">Kedaluwarsa</option><option value="failed">Gagal</option><option value="cancelled">Dibatalkan</option></select></div>
-          <div className="min-w-[190px]"><label className="rm-label">Tipe</label><select className="rm-input" value={ptype} onChange={(e) => setPtype(e.target.value)} data-testid="admin-payments-type"><option value="">Semua</option><option value="pay_per_release">Pay Per Release</option><option value="annual_subscription">Langganan Tahunan</option><option value="wami_addon">WAMI</option><option value="custom_service">Layanan Tambahan</option></select></div>
+          <div className="min-w-[190px]"><label className="rm-label">Tipe</label><select className="rm-input" value={ptype} onChange={(e) => setPtype(e.target.value)} data-testid="admin-payments-type"><option value="">Semua</option><option value="pay_per_release">Pay Per Release</option><option value="annual_subscription">Langganan Tahunan</option><option value="wami_addon">WAMI</option><option value="custom_service">Layanan Tambahan</option><option value="token_purchase">Pembelian Token</option></select></div>
           <button type="button" className={needsAction ? "rm-btn-primary" : "rm-btn-ghost"} onClick={toggleNeedsAction} data-testid="admin-payments-needs-action-filter">{needsAction ? "Menampilkan yang perlu ditindaklanjuti" : "Perlu Ditindaklanjuti"}</button>
         </div>
         <div className="rm-card overflow-hidden">

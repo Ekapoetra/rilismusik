@@ -154,8 +154,10 @@ Celah:
       keduanya kembali; override→rejected/closed dari delivered/partial
       → beli kembali + harian hangus; live/taken_down → settled.
       UI: tombol "Token (n)" per invoice pending yang lebih murah.
-      SISA (D1-c): monitoring liabilitas token di Pemantauan Keuangan,
-      notifikasi saldo token + kartu statistik admin.
+      D1-c DITERAPKAN: GET /admin/token/liability (izin payments.view)
+      — token beredar (saldo beli), nilai liabilitas IDR, terjual vs
+      terpakai, invoice token in-flight, kuota harian terpakai hari ini,
+      dompet teratas. Kartu "Liabilitas Token" di /admin/payments.
   [+] Kuota D4 (per tier) perlu dibaca dari entitlements atau
       tabel benefit baru.
 
