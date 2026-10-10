@@ -126,6 +126,8 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
 
     # Validate release ownership — kategori bebas (D11) tidak terikat rilisan.
     is_free = body.category in FREE_CATEGORIES
+    if body.is_draft and not is_free:
+        raise HTTPException(status_code=400, detail="Draf hanya tersedia untuk Masalah Royalti / Permintaan Lainnya")
     release = None
     if is_free:
         if body.release_id:
@@ -142,9 +144,6 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
             raise HTTPException(status_code=404, detail="Rilisan tidak ditemukan")
         if release["label_id"] != label["id"]:
             raise HTTPException(status_code=403, detail="Rilisan ini bukan milik Anda")
-    if body.is_draft and not is_free:
-        raise HTTPException(status_code=400, detail="Draf hanya tersedia untuk Masalah Royalti / Permintaan Lainnya")
-
     if body.category == "content_id_claim":
         if not body.content_id_request_id:
             raise HTTPException(400, "Identitas pengajuan Content ID wajib tersedia")
