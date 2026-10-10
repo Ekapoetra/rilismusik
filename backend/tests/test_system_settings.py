@@ -166,7 +166,7 @@ class SystemSettingsTests(unittest.TestCase):
         self._as(SUPER)
         r = self.client.get("/api/admin/system/areas")
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertEqual({a["area"] for a in r.json()["areas"]}, {"content", "procedures"})
+        self.assertEqual({a["area"] for a in r.json()["areas"]}, {"content", "procedures", "token"})
 
     def test_unknown_area_404(self):
         self._as(SUPER)
