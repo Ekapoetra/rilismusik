@@ -512,10 +512,12 @@ async def _dispatch_paid_notifications(payment: Dict[str, Any]) -> None:
         label_name = (label or {}).get("label_name") or "Label"
         description = payment.get("description") or payment["type"]
         if label and label.get("user_id"):
+            method_txt = "dengan Token" if payment.get("payment_method") == "token_balance" \
+                else "— dikonfirmasi Xendit"
             await _upsert_paid_notification(
                 event_key=f"payment-paid:{payment['id']}:inapp:label:{label['user_id']}",
                 user_id=label["user_id"], ntype="payment_paid", title="Pembayaran berhasil",
-                body=f"Pembayaran {description} telah dikonfirmasi Xendit.",
+                body=f"Pembayaran {description} telah {method_txt}.",
                 link=payment.get("return_path") or "/label/invoices", payment_id=payment["id"],
             )
         roles = ADMIN_PAYMENT_ROLES.get(payment.get("type"), ("super_admin", "admin_finance"))

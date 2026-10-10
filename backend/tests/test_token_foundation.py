@@ -203,12 +203,17 @@ class TokenFoundationTests(unittest.TestCase):
         self.deliveries = _FakeCollection()
         self.settings = _FakeCollection()
         self.audit = _FakeCollection()
+        self.releases = _FakeCollection()
+        self.service_orders = _FakeCollection()
+        self.payment_products = _FakeCollection()
         fake = _db(
             labels=self.labels, token_ledger=self.ledger, token_config=self.config,
             payments=self.payments, activity_logs=self.logs, users=self.users,
             notifications=self.notifications,
             payment_notification_deliveries=self.deliveries,
             system_settings=self.settings, system_audit=self.audit,
+            releases=self.releases, service_orders=self.service_orders,
+            payment_products=self.payment_products,
         )
         patch.object(tok, "db", fake).start()
         patch.object(sys_mod, "db", fake).start()
@@ -389,6 +394,111 @@ class TokenFoundationTests(unittest.TestCase):
         self._as(STAFF)
         self.assertEqual(self.client.post("/api/payments/token-purchase",
                                           json={"quantity": 1}).status_code, 403)
+
+    # ---------- pay an invoice with tokens (D1-b) ----------
+    def _custom_service_invoice(self, amount=200_000):
+        self.payment_products.docs.append({
+            "id": "prod-1", "name": "Cover Art", "description": "d",
+            "amount": amount, "active": True, "delivery_type": "file",
+        })
+        self._as(LABEL_USER)
+        r = self.client.post("/api/payments/service/prod-1", json={})
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
+
+    def test_token_quote_offered_when_cheaper(self):
+        pay = self._custom_service_invoice(200_000)
+        # default price 35k — 5 tokens = 175k < 200k → offered
+        self.settings.docs.append({"area": "token", "published": {
+            "service_costs": {"prod-1": 5}}})
+        r = self.client.get(f"/api/payments/{pay['id']}/token-quote")
+        self.assertEqual(r.status_code, 200, r.text)
+        q = r.json()
+        self.assertTrue(q["offered"])
+        self.assertEqual(q["tokens"], 5)
+        self.assertTrue(q["affordable"])  # VIP quota 10 ≥ 5
+
+    def test_pay_with_token_deducts_daily_first(self):
+        pay = self._custom_service_invoice(200_000)
+        self.settings.docs.append({"area": "token", "published": {
+            "service_costs": {"prod-1": 5}}})
+        self._label()["token_balance"] = 1
+        r = self.client.post(f"/api/payments/{pay['id']}/pay-with-token")
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        self.assertEqual(body["status"], "paid")
+        self.assertEqual(body["payment_method"], "token_balance")
+        # daily quota (10) covers all 5 → purchased untouched
+        self.assertEqual(body["token_parts"], {"daily": 5, "purchased": 0})
+        self.assertEqual(self._label()["token_daily_used"], 5)
+        self.assertEqual(self._label()["token_balance"], 1)
+        # service order fulfilled through the normal pipeline
+        order = self.service_orders.docs[0]
+        self.assertEqual(order["status"], "paid")
+        self.assertTrue(any(e["kind"] == "spend" for e in self.ledger.docs))
+
+    def test_pay_with_token_not_offered_when_not_cheaper(self):
+        # PPR single: 1 token = 35k = same as rupiah → auto-hide
+        self.releases.docs.append({"id": "rel-1", "label_id": "lab-1",
+                                   "release_type": "single"})
+        self.payments.docs.append({
+            "id": "pay-1", "label_id": "lab-1", "type": "pay_per_release",
+            "release_id": "rel-1", "amount": 35_000, "status": "pending",
+            "currency": "IDR", "fulfillment_status": "pending",
+            "created_at": "x", "updated_at": "x",
+        })
+        self._as(LABEL_USER)
+        r = self.client.get("/api/payments/pay-1/token-quote")
+        self.assertEqual(r.json()["offered"], False)
+        r = self.client.post("/api/payments/pay-1/pay-with-token")
+        self.assertEqual(r.status_code, 400)
+
+    def test_pay_with_token_rejects_non_pending_and_unpayable(self):
+        self._as(LABEL_USER)
+        self.payments.docs.append({
+            "id": "pay-p", "label_id": "lab-1", "type": "custom_service",
+            "product_id": "prod-1", "amount": 200_000, "status": "paid",
+            "fulfillment_status": "fulfilled", "created_at": "x",
+        })
+        self.assertEqual(self.client.post("/api/payments/pay-p/pay-with-token").status_code, 409)
+        # token_purchase invoices are never payable with tokens
+        self.payments.docs.append({
+            "id": "pay-t", "label_id": "lab-1", "type": "token_purchase",
+            "amount": 70_000, "status": "pending", "token_quantity": 2,
+            "fulfillment_status": "pending", "created_at": "x",
+        })
+        self.assertEqual(self.client.post("/api/payments/pay-t/pay-with-token").status_code, 400)
+
+    # ---------- release settlement matrix ----------
+    def test_settle_return_vs_believe(self):
+        self.payments.docs.append({
+            "id": "pay-r", "label_id": "lab-1", "type": "pay_per_release",
+            "release_id": "rel-1", "amount": 200_000, "status": "paid",
+            "payment_method": "token_balance", "token_parts": {"daily": 4, "purchased": 2},
+            "fulfillment_status": "fulfilled", "created_at": "x",
+        })
+        # Believe-side failure → purchased back, daily burned
+        n = run(tok.settle_release_tokens("rel-1", "believe", "Believe menolak"))
+        self.assertEqual(n, 1)
+        self.assertEqual(self._label()["token_balance"], 2)
+        self.assertTrue(any(e["kind"] == "burn" for e in self.ledger.docs))
+        self.assertEqual(self.payments.docs[0]["token_settled"], "believe")
+        # already settled — a second call is a no-op
+        self.assertEqual(run(tok.settle_release_tokens("rel-1", "return", "x")), 0)
+
+    def test_settle_return_pre_believe(self):
+        self._label().update({"token_daily_date": tok.jakarta_today(),
+                              "token_daily_used": 1})
+        self.payments.docs.append({
+            "id": "pay-r2", "label_id": "lab-1", "type": "pay_per_release",
+            "release_id": "rel-9", "amount": 35_000, "status": "paid",
+            "payment_method": "token_balance", "token_parts": {"daily": 1, "purchased": 0},
+            "fulfillment_status": "fulfilled", "created_at": "x",
+        })
+        run(tok.settle_release_tokens("rel-9", "return", "Ditolak internal"))
+        # same-day daily token returns to the counter
+        self.assertTrue(any(e["kind"] == "refund" and e["source"] == "daily"
+                            for e in self.ledger.docs))
 
     # ---------- admin grant ----------
     def test_admin_grant_super_only(self):

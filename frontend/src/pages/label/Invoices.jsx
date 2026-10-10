@@ -15,6 +15,7 @@ export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState([]);
+  const [quotes, setQuotes] = useState({});
   const [chooseOpen, setChooseOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pollingId, setPollingId] = useState(null);
@@ -28,6 +29,16 @@ export default function Invoices() {
     setItems(invoices); setProducts(services);
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Token is the optional second rail: fetch a quote per pending invoice,
+  // shown only when the token price is cheaper than the rupiah amount.
+  useEffect(() => {
+    items.filter((i) => i.status === "pending").forEach((i) => {
+      api.get(`/payments/${i.id}/token-quote`)
+        .then(({ data }) => setQuotes((q) => ({ ...q, [i.id]: data })))
+        .catch(() => {});
+    });
+  }, [items]);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
@@ -59,6 +70,16 @@ export default function Invoices() {
     setErr(""); setLoading(true);
     try { await openXenditCheckout(id); }
     catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); setLoading(false); }
+  };
+
+  const payWithToken = async (id) => {
+    setErr(""); setMsg(""); setLoading(true);
+    try {
+      await api.post(`/payments/${id}/pay-with-token`);
+      setMsg("Pembayaran token berhasil.");
+      await load();
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail || e.message)); }
+    setLoading(false);
   };
 
   return (
@@ -106,7 +127,7 @@ export default function Invoices() {
             return (
               <div key={invoice.id} className="px-5 py-4 border-b border-white/5 last:border-0 flex items-center justify-between gap-3 flex-wrap" data-testid={`invoice-row-${invoice.id}`}>
                 <div className="flex items-center gap-3 min-w-0"><div className="w-10 h-10 rounded-xl bg-white/[0.06] text-zinc-400 grid place-items-center"><Icon className="w-4 h-4" /></div><div className="min-w-0"><div className="font-semibold text-sm">{TYPE_LABELS[invoice.type] || invoice.description}{tier}</div><div className="text-xs text-zinc-500 truncate">{invoice.xendit_session_id || invoice.reference_id || invoice.id} • {invoice.created_at?.slice(0, 10)}</div></div></div>
-                <div className="flex items-center gap-3"><div className="font-display font-extrabold">{fmtIDR(invoice.amount)}</div><StatusPill status={invoice.status} />{["pending", "expired", "cancelled", "failed"].includes(invoice.status) && <button className="rm-btn-primary text-xs" onClick={() => payExisting(invoice.id)} disabled={loading} data-testid={`invoice-pay-${invoice.id}`}>{invoice.status === "pending" ? "Bayar via Xendit" : "Coba Bayar Lagi"}</button>}</div>
+                <div className="flex items-center gap-3"><div className="font-display font-extrabold">{fmtIDR(invoice.amount)}</div><StatusPill status={invoice.status} />{["pending", "expired", "cancelled", "failed"].includes(invoice.status) && <button className="rm-btn-primary text-xs" onClick={() => payExisting(invoice.id)} disabled={loading} data-testid={`invoice-pay-${invoice.id}`}>{invoice.status === "pending" ? "Bayar via Xendit" : "Coba Bayar Lagi"}</button>}{invoice.status === "pending" && quotes[invoice.id]?.offered && <button className="rm-btn-ghost text-xs" onClick={() => payWithToken(invoice.id)} disabled={loading || !quotes[invoice.id]?.affordable} title={quotes[invoice.id]?.affordable ? undefined : "Saldo token tidak cukup"} data-testid={`invoice-pay-token-${invoice.id}`}>Token ({quotes[invoice.id].tokens})</button>}</div>
               </div>
             );
           })}

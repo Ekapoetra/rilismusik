@@ -669,6 +669,9 @@ async def label_cancel_release(release_id: str, body: LabelReleaseLifecycleIn = 
         "changed_at": now_iso(), "note": note or "Dibatalkan oleh label",
     }}})
     await cancel_release_pending_payments(release_id, user["id"], "Rilisan dibatalkan label")
+    # Token matrix: label-initiated cancel is always pre-Believe → both sources return.
+    from token_service import settle_release_tokens
+    await settle_release_tokens(release_id, "return", "Rilisan dibatalkan label sebelum distribusi")
     await log_activity(user["id"], "label_cancel_release", "release", release_id,
                        before={"status": rel.get("status")}, after={"status": "closed"})
     await notify_many(
@@ -1020,6 +1023,21 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         await cancel_release_pending_payments(release_id, user["id"], "Rilisan ditolak")
     if new_status == "closed":
         await cancel_release_pending_payments(release_id, user["id"], "Rilisan dibatalkan")
+    # D1 token matrix: failure BEFORE Believe returns both sources; a
+    # Believe-side failure returns purchased tokens and burns the daily quota.
+    from token_service import settle_release_tokens
+    _believe_side = ("delivered", "partial")
+    if body.action == "reject":
+        await settle_release_tokens(release_id, "return", f"Ditolak review internal: {body.note or ''}")
+    elif body.action == "override_status" and new_status == "rejected":
+        outcome = "believe" if rel.get("status") in _believe_side else "return"
+        await settle_release_tokens(release_id, outcome, f"Ditolak ({rel.get('status')}→rejected): {body.note or ''}")
+    elif new_status == "closed":
+        src_status = rel.get("cancel_from_status") or rel.get("status")
+        outcome = "believe" if src_status in _believe_side else "return"
+        await settle_release_tokens(release_id, outcome, f"Rilisan dibatalkan: {body.note or ''}")
+    elif body.action == "mark_live" or new_status == "taken_down":
+        await settle_release_tokens(release_id, "settled", "Token terpakai (rilisan diproses)")
     # Notify label
     label_uids = await label_user_ids(rel["label_id"])
     titles = {

@@ -269,3 +269,74 @@ async def fulfill_purchase(label_id: str, count: int, payment_id: str) -> Option
                   int(marked.get("token_balance") or 0), None,
                   "payment", payment_id, "Pembelian token via Xendit")
     return int(marked.get("token_balance") or 0)
+
+
+# ---------------------------------------------------------------------------
+# Paying an invoice with tokens (D1-b)
+# ---------------------------------------------------------------------------
+
+def service_key_for_release_type(release_type: Optional[str]) -> str:
+    rt = (release_type or "single").lower()
+    if rt == "album":
+        return "release_album"
+    if rt == "ep":
+        return "release_ep"
+    return "release_single"
+
+
+async def service_key_for_payment(payment: Dict[str, Any]) -> Optional[str]:
+    """Map a pending invoice to its token service key, or None when the
+    payment type is not payable with tokens."""
+    ptype = payment.get("type")
+    if ptype == "pay_per_release":
+        release = await db.releases.find_one(
+            {"id": payment.get("release_id")}, {"_id": 0, "release_type": 1})
+        return service_key_for_release_type((release or {}).get("release_type"))
+    if ptype == "custom_service":
+        return payment.get("product_id")
+    if ptype in ("wami_addon", "release_shortfall"):
+        return ptype
+    return None  # token_purchase / annual_subscription / others
+
+
+async def token_quote_for_payment(payment: Dict[str, Any],
+                                  cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    cfg = cfg or await get_token_config()
+    key = await service_key_for_payment(payment)
+    if not key:
+        return {"offered": False, "tokens": 0, "service_key": None}
+    offer = token_offer(cfg, key, int(payment.get("amount") or 0))
+    return offer
+
+
+async def settle_release_tokens(release_id: str, outcome: str, note: str) -> int:
+    """Apply the owner-decided token matrix to every token-paid invoice of a
+    release. Returns the number of payments settled.
+
+    outcome:
+      "return"  — pre-Believe reject / label cancel: BOTH daily + purchased back
+      "believe" — Believe-side failure/cancel: purchased back, daily burned
+      "settled" — delivered/live/takedown: tokens stay consumed (audit only)
+    """
+    payments = await db.payments.find(
+        {"release_id": release_id, "payment_method": "token_balance",
+         "status": "paid", "token_settled": {"$exists": False}},
+        {"_id": 0},
+    ).to_list(50)
+    for pay in payments:
+        parts = pay.get("token_parts") or {}
+        if outcome == "return":
+            await refund_tokens(pay["label_id"], parts, "release", release_id, note)
+        elif outcome == "believe":
+            if parts.get("purchased"):
+                await refund_tokens(pay["label_id"], {"purchased": parts["purchased"]},
+                                    "release", release_id, note)
+            if parts.get("daily"):
+                await burn_tokens(pay["label_id"], parts["daily"],
+                                  "release", release_id, note)
+        await db.payments.update_one(
+            {"id": pay["id"]},
+            {"$set": {"token_settled": outcome, "token_settled_at": now_iso(),
+                      "updated_at": now_iso()}},
+        )
+    return len(payments)

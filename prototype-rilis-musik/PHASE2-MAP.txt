@@ -146,9 +146,16 @@ Celah:
       ganti-rugi; spend = kuota harian dulu lalu token beli; ditolak
       Believe → token beli kembali, kuota harian hangus; ditolak
       internal/batal sebelum kirim → keduanya kembali.
-      SISA (irisan D1-b/c): jalur bayar pakai token di checkout
-      rilisan/layanan (reserve→settle), integrasi refund sesuai
-      matriks di atas, monitoring liabilitas token.
+      D1-b DITERAPKAN: GET /payments/{id}/token-quote (auto-hide bila
+      token tidak lebih murah), POST /payments/{id}/pay-with-token
+      (spend harian→beli, fulfillment via pipeline normal, kompensasi
+      refund otomatis bila fulfillment gagal), settle_release_tokens
+      ter-wire di releases.py: reject internal/override pra-Believe →
+      keduanya kembali; override→rejected/closed dari delivered/partial
+      → beli kembali + harian hangus; live/taken_down → settled.
+      UI: tombol "Token (n)" per invoice pending yang lebih murah.
+      SISA (D1-c): monitoring liabilitas token di Pemantauan Keuangan,
+      notifikasi saldo token + kartu statistik admin.
   [+] Kuota D4 (per tier) perlu dibaca dari entitlements atau
       tabel benefit baru.
 

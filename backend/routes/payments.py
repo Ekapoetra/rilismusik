@@ -269,6 +269,67 @@ async def payment_status(payment_id: str, user: dict = Depends(require_kyc_for_l
     }
 
 
+@pay_r.get("/{payment_id}/token-quote")
+async def token_quote(payment_id: str, user: dict = Depends(require_label)):
+    """How many tokens this pending invoice costs — only when cheaper than
+    rupiah (auto-hide rule)."""
+    payment = await _owned_payment(payment_id, user)
+    if payment.get("status") != "pending":
+        return {"offered": False, "tokens": 0}
+    from token_service import get_token_config, token_quote_for_payment, wallet_state
+    cfg = await get_token_config()
+    offer = await token_quote_for_payment(payment, cfg)
+    label = await get_label_by_user(user)
+    state = wallet_state(label, cfg)
+    available = state["token_balance"] + state["daily"]["remaining"]
+    return {**offer, "available_tokens": available,
+            "affordable": bool(offer.get("offered") and available >= offer["tokens"])}
+
+
+@pay_r.post("/{payment_id}/pay-with-token")
+async def pay_with_token(payment_id: str, user: dict = Depends(require_label)):
+    """Settle a pending invoice with tokens instead of rupiah. Rupiah stays
+    the default rail — this is the optional cheaper path."""
+    payment = await _owned_payment(payment_id, user)
+    if payment.get("status") != "pending":
+        raise HTTPException(status_code=409, detail="Invoice tidak dalam status menunggu pembayaran")
+    from token_service import (
+        get_token_config, spend_tokens, refund_tokens, token_quote_for_payment,
+    )
+    cfg = await get_token_config()
+    offer = await token_quote_for_payment(payment, cfg)
+    if not offer.get("offered"):
+        raise HTTPException(status_code=400, detail="Pembayaran token tidak tersedia untuk layanan ini")
+    label = await get_label_by_user(user)
+    parts = await spend_tokens(
+        label["id"], offer["tokens"], "payment", payment_id,
+        f"Pembayaran {payment.get('description') or payment['type']}",
+        cfg=cfg,
+    )
+    await db.payments.update_one({"id": payment_id}, {"$set": {
+        "status": "paid", "provider": "token", "provider_status": "PAID",
+        "payment_method": "token_balance", "token_cost": offer["tokens"],
+        "token_parts": parts, "paid_at": now_iso(), "updated_at": now_iso(),
+    }})
+    fresh = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    try:
+        fresh = await fulfill_payment(fresh)
+    except Exception:
+        # Entitlement pipeline failed — compensate the token spend so the
+        # member is never charged for a payment that did not fulfill.
+        await refund_tokens(label["id"], parts, "payment", payment_id,
+                            "Fulfillment gagal — token dikembalikan")
+        await db.payments.update_one({"id": payment_id}, {"$set": {
+            "status": "pending", "provider": "xendit", "provider_status": None,
+            "payment_method": None, "token_cost": None, "token_parts": None,
+            "paid_at": None, "updated_at": now_iso(),
+        }})
+        raise HTTPException(status_code=502, detail="Pembayaran token gagal diproses — token dikembalikan")
+    await log_activity(user["id"], "pay_with_token", "payment", payment_id,
+                       after={"tokens": offer["tokens"], "parts": parts})
+    return fresh
+
+
 @pay_r.post("/{payment_id}/mock-pay")
 async def mock_pay(payment_id: str, user: dict = Depends(require_kyc_for_label_user)):
     if os.environ.get("XENDIT_ALLOW_MOCK_PAY", "false").lower() != "true":
