@@ -2,7 +2,7 @@ name: Vercel migration preview
 
 on:
   push:
-    branches: [codex/vercel-preview, codex/vercel-production]
+    branches: [codex/vercel-preview, codex/vercel-production, prototype-node-api]
   pull_request:
     paths:
       - "backend/**"
@@ -31,6 +31,16 @@ jobs:
       - run: python -m unittest discover -s backend/tests -p test_production_configuration.py -v
       - run: python -m unittest discover -s backend/tests -p test_vercel_production.py -v
       - run: python -m unittest discover -s backend/tests -p test_label_visibility_and_chat.py -v
+      - run: python -m unittest discover -s backend/tests -p test_maintenance_windows.py -v
+      - run: python -m unittest discover -s backend/tests -p test_claims_lifecycle.py -v
+      - run: python -m unittest discover -s backend/tests -p test_phase3_tickets.py -v
+      - run: python -m unittest discover -s backend/tests -p test_iter64_ticket_workflow_regression.py -v
+      - run: python -m unittest discover -s backend/tests -p test_ticket_drafts.py -v
+      - run: python -m unittest discover -s backend/tests -p test_addon_revision_refund.py -v
+      - run: python -m unittest discover -s backend/tests -p test_staff_signals.py -v
+      - run: python -m unittest discover -s backend/tests -p test_release_lifecycle_ext.py -v
+      - run: python -m unittest discover -s backend/tests -p test_system_settings.py -v
+      - run: python -m unittest discover -s backend/tests -p test_token_foundation.py -v
   frontend-build:
     runs-on: ubuntu-latest
     steps:
