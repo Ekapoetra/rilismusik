@@ -11,7 +11,7 @@ import { KycGate } from "./KycGate";
 import MaintenanceBanner from "./MaintenanceBanner";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import LabelChatWidget from "@/components/chat/LabelChatWidget";
-import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole, ChevronLeft, ChevronRight, Coins } from "lucide-react";
+import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole, ChevronLeft, ChevronRight, Coins, Sparkles } from "lucide-react";
 
 const NAV = [
   { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true, bottom: true },
@@ -25,9 +25,10 @@ const NAV = [
   { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true, bottom: true },
   { to: "/label/invoices", label: "Tagihan", icon: FileText, tid: LABEL_NAV.invoices },
   { to: "/label/wallet", label: "Token", icon: Coins, tid: "label-nav-wallet" },
+  { to: "/label/updates", label: "Pembaruan", icon: Sparkles, tid: "label-nav-updates", kycFree: true },
   { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
 ];
-const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
+const isKycFreePath = (path) => ["/label/dashboard", "/label/profile", "/label/contract", "/label/updates"].some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 
 export default function LabelLayout() {
   return <LabelKycProvider><LabelShell /></LabelKycProvider>;

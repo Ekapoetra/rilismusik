@@ -26,6 +26,7 @@ const LabelSupportTicketDetail = rolePage("label", () => import("@/pages/label/S
 const LabelContract = rolePage("label", () => import("@/pages/label/Contract"));
 const LabelWami = rolePage("label", () => import("@/pages/label/Wami"));
 const LabelWallet = rolePage("label", () => import("@/pages/label/Wallet"));
+const LabelUpdates = rolePage("label", () => import("@/pages/label/Updates"));
 
 const AdminDashboard = rolePage("admin", () => import("@/pages/admin/Dashboard"));
 const AdminAnalytics = rolePage("admin", () => import("@/pages/admin/Analytics"));
@@ -112,6 +113,7 @@ function AppRoutes() {
             <Route path="/label/contract" element={<LabelContract />} />
             <Route path="/label/wami" element={<LabelWami />} />
             <Route path="/label/wallet" element={<LabelWallet />} />
+            <Route path="/label/updates" element={<LabelUpdates />} />
           </Route>
 
           {/* Artist */}

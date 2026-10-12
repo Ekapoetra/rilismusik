@@ -507,9 +507,16 @@ Peta prototype → main:
     /api/payments/webhook (callback provider), health.
     'all' = semua /api. Cache 15 dtk, diinvalidasi tiap
     perubahan; gagal DB → fail-open (cache terakhir).
-  Menu Pembaruan (D14)     [~] konten statis UI; bisa tetap
-    hardcode bilingual di frontend, atau CMS area baru
-    'updates' bila ingin diedit super tanpa deploy.
+  Menu Pembaruan (D14)     [=] DITERAPKAN — halaman
+    /label/updates (pages/label/Updates.jsx): panduan
+    terkurasi bilingual (id/en inline, badge Baru/Berubah/
+    Dihapus) yang hanya memuat fitur yang benar-benar
+    tersedia di main — kontrak otomatis, KYC, klaim
+    super-only + masa paket 1 tahun dari verifikasi, kuota
+    benefit bulanan + bonus admin, dompet token, status
+    rilisan baru, jendela penarikan, banner maintenance.
+    KYC-free; item nav 'Pembaruan' (Sparkles) di sidebar
+    label. Tanpa endpoint — konten statis di frontend.
 
 ------------------------------------------------------------
 10. DOMAIN TAMBAHAN DI MAIN (dipertahankan, bukan target V1.1)
