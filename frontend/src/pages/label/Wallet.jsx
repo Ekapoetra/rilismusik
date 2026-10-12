@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
-import { fmtIDR } from "@/utils/format";
+import { fmtIDR, fmtDateTimeWib } from "@/utils/format";
 import Notice from "@/components/shared/Notice";
 import PageHeader from "@/components/shared/PageHeader";
-import { Coins, RefreshCw, ShoppingCart, CalendarClock } from "lucide-react";
+import { Coins, RefreshCw, ShoppingCart, CalendarClock, Gift } from "lucide-react";
 
 const KIND_LABELS = {
   purchase: "Pembelian", spend: "Pemakaian", refund: "Pengembalian",
@@ -20,6 +20,7 @@ const TIER_LABELS = {
 export default function Wallet() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [wallet, setWallet] = useState(null);
+  const [benefits, setBenefits] = useState(null);
   const [qty, setQty] = useState(5);
   const [loading, setLoading] = useState(false);
   const [pollingId, setPollingId] = useState(null);
@@ -29,6 +30,7 @@ export default function Wallet() {
   const load = useCallback(async () => {
     const { data } = await api.get("/token/wallet");
     setWallet(data);
+    api.get("/label/benefits").then((r) => setBenefits(r.data)).catch(() => {});
   }, []);
   useEffect(() => { load().catch((e) => setErr(formatApiError(e.response?.data?.detail || e.message))); }, [load]);
 
@@ -85,6 +87,30 @@ export default function Wallet() {
           </div>
         </div>
       </div>
+
+      {benefits && benefits.has_benefits && (
+        <section className="rm-card p-5 space-y-3" data-testid="wallet-benefits-card">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 font-bold"><Gift className="w-4 h-4 text-pink-300" /> Layanan Gratis Paket</div>
+          {benefits.quota > 0 && (
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold" data-testid="benefit-remaining">{benefits.remaining}/{benefits.quota}</span>
+              <span className="text-xs text-zinc-500">tersisa bulan ini • reset tanggal 1 (WIB) • berlaku untuk WAMI & layanan tambahan</span>
+            </div>
+          )}
+          {benefits.grants.length > 0 && (
+            <ul className="space-y-1.5 text-xs">
+              {benefits.grants.map((g) => (
+                <li key={g.id} className="rm-glass rounded-lg px-3 py-2 flex items-center gap-2" data-testid={`benefit-grant-${g.id}`}>
+                  <Gift className="w-3.5 h-3.5 text-amber-300" />
+                  <span className="font-semibold text-amber-200">Bonus {g.quantity - g.used}×</span>
+                  <span>{g.service === "wami" ? "Registrasi WAMI" : g.service === "any" ? "layanan gratis apa pun" : "layanan tambahan"}</span>
+                  <span className="text-zinc-500">• berlaku s/d {fmtDateTimeWib(g.expires_at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="rm-card p-5 space-y-4" data-testid="wallet-buy-section">
         <div>

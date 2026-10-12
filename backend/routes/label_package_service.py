@@ -1,5 +1,5 @@
 """Granular manual package changes; no payment/invoice or royalty mutations."""
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
@@ -45,9 +45,11 @@ async def change_label_package(label_id: str, body: LabelPackageUpdate, user: di
             raise HTTPException(422, "Pay Per Release tidak menggunakan masa berlaku.")
         update = dict(payment_type="pay_per_release", subscription_tier=None, subscription_status="inactive", subscription_expires_at=None)
     else:
-        if not body.expires_on:
-            raise HTTPException(422, "Isi tanggal masa berlaku untuk paket tahunan.")
-        expires = datetime.combine(body.expires_on, time(23, 59, 59), ZoneInfo("Asia/Jakarta")).astimezone(timezone.utc)
+        # D4 rule: when no expiry is supplied the annual package runs one year
+        # from the verification date — this is how migrating members receive
+        # their free first-year privilege.
+        effective = body.expires_on or (datetime.now(ZoneInfo("Asia/Jakarta")).date() + timedelta(days=365))
+        expires = datetime.combine(effective, time(23, 59, 59), ZoneInfo("Asia/Jakarta")).astimezone(timezone.utc)
         update = dict(payment_type="annual_subscription", subscription_tier=body.package,
                       subscription_status="active" if expires > datetime.now(timezone.utc) else "expired",
                       subscription_expires_at=expires.isoformat())

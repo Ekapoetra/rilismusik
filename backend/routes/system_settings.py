@@ -1,6 +1,6 @@
 """System115 — versioned system settings (draft → publish).
 
-Two areas are live on main:
+Four areas are live on main:
 
   content     Landing page key/value map. The published store stays the
               `landing_settings` collection (public GET /cms/landing and
@@ -10,6 +10,8 @@ Two areas are live on main:
               daily release cap). The published value lives in this
               collection; consumers read it through procedures_config with
               DEFAULTS as fallback — no migration needed.
+  token       Token price, daily quota per tier, service costs.
+  benefits    D4 monthly free-service quota per tier.
 
 Every write is Super Admin only and carries optimistic concurrency
 (version + draft_version), the same contract as prototype system115.
@@ -26,11 +28,12 @@ from pydantic import BaseModel, Field
 from models import new_id, now_iso
 from procedures_config import DEFAULTS as PROCEDURES_DEFAULTS, set_published as _set_published_cache
 from token_service import TOKEN_DEFAULTS
+from benefit_service import BENEFIT_DEFAULTS
 from .deps import db, require_super_admin
 
 system_r = APIRouter(prefix="/admin/system", tags=["system"])
 
-AREAS = ("content", "procedures", "token")
+AREAS = ("content", "procedures", "token", "benefits")
 _HISTORY_LIMIT = 50
 _AUDIT_LIMIT = 200
 
@@ -166,6 +169,19 @@ def _validate(area: str, value: Any) -> Dict[str, Any]:
         unknown_tiers = set(quota_tiers) - set(TOKEN_DEFAULTS["daily_quota"])
         if unknown_tiers:
             raise HTTPException(status_code=400, detail=f"Tier paket tidak dikenal: {sorted(unknown_tiers)}")
+    if area == "benefits":
+        unknown = set(value) - set(BENEFIT_DEFAULTS)
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Kunci benefit tidak dikenal: {sorted(unknown)}")
+        m = value.get("monthly_quota")
+        if m is not None:
+            if not isinstance(m, dict) or not m:
+                raise HTTPException(status_code=400, detail="monthly_quota: objek tidak kosong wajib")
+            for k, v in m.items():
+                if k not in BENEFIT_DEFAULTS["monthly_quota"]:
+                    raise HTTPException(status_code=400, detail=f"Tier paket tidak dikenal: {k!r}")
+                if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 30:
+                    raise HTTPException(status_code=400, detail=f"monthly_quota.{k}: bilangan 0-30 wajib")
     return value
 
 
@@ -198,6 +214,11 @@ async def _published(area: str, doc: Dict[str, Any]) -> Dict[str, Any]:
         merged["daily_quota"] = {**TOKEN_DEFAULTS["daily_quota"], **(stored.get("daily_quota") or {})}
         merged["service_costs"] = {**TOKEN_DEFAULTS["service_costs"], **(stored.get("service_costs") or {})}
         merged["price_idr"] = int(stored.get("price_idr") or TOKEN_DEFAULTS["price_idr"])
+        return merged
+    if area == "benefits":
+        stored = doc.get("published") or {}
+        merged = dict(BENEFIT_DEFAULTS)
+        merged["monthly_quota"] = {**BENEFIT_DEFAULTS["monthly_quota"], **(stored.get("monthly_quota") or {})}
         return merged
     merged = dict(PROCEDURES_DEFAULTS)
     merged.update(doc.get("published") or {})

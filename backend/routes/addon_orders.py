@@ -96,9 +96,12 @@ async def sync_release_addon_orders(release: Dict[str, Any], payment: Dict[str, 
     return created
 
 
-async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str) -> int:
+async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str,
+                                 funding: Optional[List[Dict[str, Any]]] = None) -> int:
     """Create one FREE (Rp0) addon_order per selected add-on for subscription/Multi Label
-    accounts. Idempotent per (release, product). Order still enters the processing queue."""
+    accounts. Idempotent per (release, product). Order still enters the processing queue.
+    `funding` (from benefit_service.consume_benefits) tags each order with how it was
+    paid for — "quota" draws the monthly package quota, "grant" a bonus grant."""
     addons = release.get("selected_addons") or []
     if not addons:
         return 0
@@ -109,15 +112,17 @@ async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str) -
             dtype_map[p["id"]] = p.get("delivery_type") or "link"
     created = 0
     now = now_iso()
-    for item in addons:
+    for idx, item in enumerate(addons):
         product_id = item.get("id")
         if not product_id:
             continue
+        fund = funding[idx] if funding and idx < len(funding) else None
         dedupe = f"{release['id']}:{product_id}"
+        order_id = new_id()
         result = await db.addon_orders.update_one(
             {"dedupe_key": dedupe},
             {"$setOnInsert": {
-                "id": new_id(), "dedupe_key": dedupe,
+                "id": order_id, "dedupe_key": dedupe,
                 "label_id": release.get("label_id"), "label_name": release.get("label_name"),
                 "release_id": release.get("id"), "release_title": release.get("release_title"),
                 "product_id": product_id,
@@ -125,6 +130,7 @@ async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str) -
                 "product_description": item.get("description") or "",
                 "delivery_type": dtype_map.get(product_id, "link"),
                 "amount": 0, "benefit_source": benefit_source,
+                "funded_by": (fund or {}).get("kind", "quota"),
                 "payment_id": None,
                 "source": "subscription_free",
                 "status": "pending",
@@ -134,6 +140,8 @@ async def sync_free_addon_orders(release: Dict[str, Any], benefit_source: str) -
             upsert=True,
         )
         if result.upserted_id is not None:
+            if fund and fund.get("grant_id"):
+                await db.addon_orders.update_one({"id": order_id}, {"$set": {"grant_id": fund["grant_id"]}})
             created += 1
     return created
 
@@ -384,6 +392,12 @@ async def admin_refund_order(order_id: str, body: AddonRefundIn, user: dict = De
         # Free the dedupe slot so the benefit can be used again on this release.
         if order.get("dedupe_key"):
             patch["dedupe_key"] = f"{order['dedupe_key']}:refunded:{now}"
+        # Grant-funded orders return the increment so the bonus is not lost.
+        if order.get("grant_id"):
+            await db.benefit_grants.update_one(
+                {"id": order["grant_id"], "used": {"$gt": 0}},
+                {"$inc": {"used": -1}, "$set": {"updated_at": now}},
+            )
     else:
         patch["refund_amount"] = amount
         patch["refund_method"] = "manual_transfer"

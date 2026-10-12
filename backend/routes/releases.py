@@ -561,48 +561,63 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         billing_flow = "pay_per_release"
         payment_id = None
 
-    async with submission_slot(db, label, release_id) as slot:
-        # Re-check after acquiring the per-release lease to avoid duplicate submissions.
-        current = await db.releases.find_one({"id": release_id}, {"_id": 0, "status": 1, "updated_at": 1})
-        if not current or current.get("status") != rel.get("status") or current.get("updated_at") != rel.get("updated_at"):
-            raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
-        resolved_credits = await resolve_release_artist_credits(db, label["id"], all_credits)
-        cursor = primary_count + featured_count
-        for track in tracks:
-            size = len(track.get("featured_artists") or [])
-            await db.tracks.update_one({"id": track["id"], "release_id": release_id}, {"$set": {"featured_artists": resolved_credits[cursor:cursor + size]}})
-            cursor += size
-        result = await db.releases.update_one(
-        {"id": release_id, "status": rel.get("status"), "updated_at": rel.get("updated_at"), "$expr": {"$eq": [{"$dateToString": {"date": "$$NOW", "format": "%Y-%m-%d", "timezone": "Asia/Jakarta"}}, slot["day"]]}},
-        {"$set": {
-            "primary_artists": resolved_credits[:primary_count],
-            "featured_artists": resolved_credits[primary_count:primary_count + featured_count],
-            "artist_name": ", ".join(item["name"] for item in resolved_credits[:primary_count]),
-            "label_whatsapp_snapshot": label.get("whatsapp"),
-            "status": new_status,
-            "payment_status": payment_status,
-            "payment_id": payment_id,
-            "ppr_base_amount": base_amount,
-            "selected_addons": selected_addons,
-            "selected_addon_product_ids": addon_ids,
-            "billing_flow": billing_flow,
-            "submitted_at": now_iso(),
-            "contract_declaration_checked": True,
-            "admin_note": None,
-            "updated_at": now_iso(),
-        }, "$push": {"status_history": {
-            "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
-            "quota_token": slot["token"], "submission_day": slot["day"],
-            "changed_at": now_iso(), "note": "Submit ulang setelah revisi/penolakan" if rel.get("status") in ("need_revision", "rejected") else "Submit pertama",
-        }}},
-    )
-        if result.modified_count != 1:
-            raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+    # D4: free add-ons draw from the monthly benefit budget (expiring grants
+    # first, then package quota). Consumed before the submit commit so the
+    # label gets a clear 400 instead of a half-written release; grant
+    # increments roll back if the submit itself fails.
+    import benefit_service as ben
+    benefit_scope = None
+    benefit_funding = []
+    if is_subscribed and free_addons and selected_addons:
+        benefit_scope = await ben.resolve_benefit_scope(user, label)
+        benefit_funding = await ben.consume_benefits(benefit_scope, [a["id"] for a in selected_addons])
+    try:
+        async with submission_slot(db, label, release_id) as slot:
+            # Re-check after acquiring the per-release lease to avoid duplicate submissions.
+            current = await db.releases.find_one({"id": release_id}, {"_id": 0, "status": 1, "updated_at": 1})
+            if not current or current.get("status") != rel.get("status") or current.get("updated_at") != rel.get("updated_at"):
+                raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+            resolved_credits = await resolve_release_artist_credits(db, label["id"], all_credits)
+            cursor = primary_count + featured_count
+            for track in tracks:
+                size = len(track.get("featured_artists") or [])
+                await db.tracks.update_one({"id": track["id"], "release_id": release_id}, {"$set": {"featured_artists": resolved_credits[cursor:cursor + size]}})
+                cursor += size
+            result = await db.releases.update_one(
+            {"id": release_id, "status": rel.get("status"), "updated_at": rel.get("updated_at"), "$expr": {"$eq": [{"$dateToString": {"date": "$$NOW", "format": "%Y-%m-%d", "timezone": "Asia/Jakarta"}}, slot["day"]]}},
+            {"$set": {
+                "primary_artists": resolved_credits[:primary_count],
+                "featured_artists": resolved_credits[primary_count:primary_count + featured_count],
+                "artist_name": ", ".join(item["name"] for item in resolved_credits[:primary_count]),
+                "label_whatsapp_snapshot": label.get("whatsapp"),
+                "status": new_status,
+                "payment_status": payment_status,
+                "payment_id": payment_id,
+                "ppr_base_amount": base_amount,
+                "selected_addons": selected_addons,
+                "selected_addon_product_ids": addon_ids,
+                "billing_flow": billing_flow,
+                "submitted_at": now_iso(),
+                "contract_declaration_checked": True,
+                "admin_note": None,
+                "updated_at": now_iso(),
+            }, "$push": {"status_history": {
+                "from": rel.get("status"), "to": "submitted", "changed_by": user["id"],
+                "quota_token": slot["token"], "submission_day": slot["day"],
+                "changed_at": now_iso(), "note": "Submit ulang setelah revisi/penolakan" if rel.get("status") in ("need_revision", "rejected") else "Submit pertama",
+            }}},
+        )
+            if result.modified_count != 1:
+                raise HTTPException(409, "Rilisan telah berubah. Muat ulang sebelum mengirim.")
+    except Exception:
+        if benefit_funding:
+            await ben.rollback_funding(benefit_funding)
+        raise
     if is_subscribed and free_addons and selected_addons:
         try:
             from .addon_orders import sync_free_addon_orders
             fresh = await db.releases.find_one({"id": release_id}, {"_id": 0})
-            await sync_free_addon_orders(fresh, account_ent.get("package") or "subscription")
+            await sync_free_addon_orders(fresh, account_ent.get("package") or "subscription", benefit_funding)
         except Exception:
             logger.exception("Free add-on order creation failed for release %s", release_id)
     try:

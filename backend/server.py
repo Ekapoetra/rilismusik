@@ -154,6 +154,9 @@ api.include_router(refund_r)
 from routes.addon_orders import addon_admin_r, addon_label_r
 api.include_router(addon_admin_r)
 api.include_router(addon_label_r)
+from routes.benefits import benefit_admin_r, benefit_label_r
+api.include_router(benefit_admin_r)
+api.include_router(benefit_label_r)
 api.include_router(rate_import_r)
 api.include_router(balance_audit_r)
 api.include_router(duplicate_audit_r)

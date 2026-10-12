@@ -144,6 +144,9 @@ class _FakeCollection:
     async def insert_one(self, doc):
         self.docs.append(dict(doc))
 
+    async def insert_many(self, docs):
+        self.docs.extend(dict(d) for d in docs)
+
     async def update_one(self, query, update, upsert=False, **kw):
         found = False
         for d in self.docs:

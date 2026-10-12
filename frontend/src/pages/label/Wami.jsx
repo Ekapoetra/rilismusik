@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import { useSearchParams } from "react-router-dom";
+import { fmtIDR } from "@/utils/format";
 import { Music, CheckCircle2, Clock, AlertTriangle, Star, Plus, X } from "lucide-react";
 
 const STATUS_LABELS = {
@@ -21,10 +22,6 @@ const STATUS_STYLES = {
   rejected: { bg: "rgba(239,68,68,0.18)", color: "#FCA5A5", dot: "#EF4444", Icon: AlertTriangle },
   cancelled: { bg: "rgba(255,255,255,0.06)", color: "#A1A1B5", dot: "#71717A", Icon: AlertTriangle },
 };
-
-function fmtIDR(n) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-}
 
 export default function LabelWami() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,12 +94,15 @@ export default function LabelWami() {
     try {
       const { data } = await api.post("/payments/wami", { track_id: selectedTrackId });
       if (data.free_vip) {
-        setMsg("Pendaftaran WAMI dibuat (GRATIS untuk VIP). Admin akan memproses.");
+        setMsg(data.funded_by === "grant" ? "Pendaftaran WAMI dibuat dengan BONUS — gratis. Admin akan memproses."
+                                          : "Pendaftaran WAMI dibuat (GRATIS dari kuota paket). Admin akan memproses.");
         setOpen(false);
         setSelectedTrackId("");
         load();
       } else {
-        setMsg(`Membuka checkout WAMI ${fmtIDR(data.invoice.amount)}…`);
+        setMsg(data.quota_exhausted
+          ? `Kuota gratis bulan ini habis — lanjut berbayar. Membuka checkout WAMI ${fmtIDR(data.invoice.amount)}…`
+          : `Membuka checkout WAMI ${fmtIDR(data.invoice.amount)}…`);
         await openXenditCheckout(data.invoice.id);
       }
     } catch (e2) { setErr(formatApiError(e2.response?.data?.detail)); }

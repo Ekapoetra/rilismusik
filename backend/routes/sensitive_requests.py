@@ -114,13 +114,14 @@ async def request_blacklist(label_id: str, body: BlacklistRequestIn, user: dict 
 async def request_package(label_id: str, body: PackageRequestIn, user: dict = Depends(require_admin)):
     assert_admin_permission(user, "labels.package.request")
     label = await _get_label(label_id)
-    if body.package != "pay_per_release" and not body.expires_on:
-        raise HTTPException(status_code=422, detail="Isi tanggal masa berlaku untuk paket tahunan.")
     if body.package == "pay_per_release" and body.expires_on:
         raise HTTPException(status_code=422, detail="Pay Per Release tidak menggunakan masa berlaku.")
     names = {"pay_per_release": "Pay Per Release", "annual_normal": "Annual", "annual_vip": "VIP"}
     current = label.get("subscription_tier") if label.get("payment_type") == "annual_subscription" else "pay_per_release"
-    summary = f"{names.get(current, current)} → {names[body.package]}" + (f" (s/d {body.expires_on})" if body.expires_on else "")
+    # D4: empty expires_on means "1 year from the approval date" (member
+    # migration privilege) — the exact date is fixed when the approver applies.
+    expiry_txt = f" (s/d {body.expires_on})" if body.expires_on else (" (1 tahun sejak disetujui)" if body.package != "pay_per_release" else "")
+    summary = f"{names.get(current, current)} → {names[body.package]}{expiry_txt}"
     payload = {"package": body.package, "expires_on": body.expires_on, "reason": body.reason.strip()}
     return await _create_request(action_type="package", label=label, summary=summary, payload=payload, user=user)
 

@@ -41,6 +41,7 @@ const AdminReleaseDetail = rolePage("admin", () => import("@/pages/admin/Release
 const AdminArtists = rolePage("admin", () => import("@/pages/admin/Artists"));
 const AdminPayments = rolePage("admin", () => import("@/pages/admin/Payments"));
 const AdminAddonOrders = rolePage("admin", () => import("@/pages/admin/AddonOrders"));
+const AdminBenefits = rolePage("admin", () => import("@/pages/admin/Benefits"));
 const AdminCMS = rolePage("admin", () => import("@/pages/admin/CMS"));
 const AdminUsers = rolePage("admin", () => import("@/pages/admin/AdminUsers"));
 const AdminActivityLogs = rolePage("admin", () => import("@/pages/admin/ActivityLogs"));
@@ -154,6 +155,7 @@ function AppRoutes() {
             <Route path="/admin/releases/:id" element={guard("releases.view", <AdminReleaseDetail />)} />
             <Route path="/admin/payments" element={guard("payments.view", <AdminPayments />)} />
             <Route path="/admin/addon-orders" element={guard("addon.view", <AdminAddonOrders />)} />
+<Route path="/admin/benefits" element={guard("benefits.view", <AdminBenefits />)} />
             <Route path="/admin/cms" element={guard("cms.view", <AdminCMS />)} />
             <Route path="/admin/admin-users" element={guard("access.users.view", <AdminUsers />)} />
             <Route path="/admin/access" element={guard("access.roles.view", <AdminAccessControl />)} />
