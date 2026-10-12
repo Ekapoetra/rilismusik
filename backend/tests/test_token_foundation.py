@@ -40,6 +40,7 @@ import routes.payments as pay_mod
 import routes.system_settings as sys_mod
 import payment_service as pay_svc
 import token_service as tok
+import benefit_service as ben
 
 WIB = timezone(timedelta(hours=7))
 
@@ -238,6 +239,11 @@ class TokenFoundationTests(unittest.TestCase):
         patch.object(deps, "db", fake).start()
         patch.object(pay_mod, "db", fake).start()
         patch.object(pay_svc, "db", fake).start()
+        # D4 benefit budget draws from monthly quota — token tests exercise the
+        # paid-invoice path, so benefit funding is pinned to "paid".
+        patch.object(ben, "consume_benefit", new=AsyncMock(
+            return_value={"kind": "paid", "grant_id": None, "exhausted": True},
+        )).start()
         # label endpoints are KYC-gated; bypass the check in tests
         import routes.kyc_service as kyc_mod
         patch.object(kyc_mod, "ensure_label_kyc", new_callable=AsyncMock).start()
