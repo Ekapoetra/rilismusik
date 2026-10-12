@@ -367,6 +367,23 @@ async def chat_upload(file: UploadFile = File(...), user: dict = Depends(get_cur
 
 @chat_r.post("/typing/{conversation_id}")
 async def set_typing(conversation_id: str, user: dict = Depends(get_current_user)):
+    # The indicator must only land in a conversation the caller belongs to —
+    # support threads: owning label account or support staff; internal: participant.
+    conv = await db.chat_conversations.find_one(
+        {"id": conversation_id},
+        {"_id": 0, "kind": 1, "label_id": 1, "label_user_id": 1, "participant_ids": 1},
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan")
+    if conv.get("kind") == "internal":
+        if user["id"] not in conv.get("participant_ids", []):
+            raise HTTPException(status_code=403, detail="Tidak diizinkan")
+    else:
+        own_label = conv.get("label_user_id") == user["id"]
+        if not own_label and not (is_admin_identity(user) and _is_support(user)):
+            owned = await db.labels.find_one({"id": conv.get("label_id"), "user_id": user["id"]}, {"_id": 0, "id": 1})
+            if not owned:
+                raise HTTPException(status_code=403, detail="Tidak diizinkan")
     await db.chat_typing.update_one(
         {"conversation_id": conversation_id, "user_id": user["id"]},
         {"$set": {"conversation_id": conversation_id, "user_id": user["id"], "name": user.get("name") or "Seseorang", "at": now_iso()}},

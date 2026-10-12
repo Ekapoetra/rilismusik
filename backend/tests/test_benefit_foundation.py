@@ -92,6 +92,7 @@ class BenefitFoundationTests(unittest.TestCase):
             payment_products=self.payment_products, releases=self.releases,
             activity_logs=self.logs,
         )
+        self.fake = fake
         patch.object(ben, "db", fake).start()
         patch.object(ben_mod, "db", fake).start()
         patch.object(sys_mod, "db", fake).start()
@@ -240,6 +241,61 @@ class BenefitFoundationTests(unittest.TestCase):
     def test_monitor_requires_view(self):
         self._as(STAFF)
         self.assertEqual(self.client.get("/api/admin/benefits/monitor").status_code, 403)
+
+    # ---------- batch quota reservation (audit B1) ----------
+    def test_batch_consume_reserves_quota(self):
+        self._as(LABEL_USER)
+        scope = {"key": "lab-1", "label_ids": ["lab-1"], "package": "annual_vip", "vip_benefits": True}
+        # quota 2 — three services in one batch must fail, not all pass
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as ctx:
+            run(ben.consume_benefits(scope, ["svc-a", "svc-b", "svc-c"]))
+        self.assertEqual(ctx.exception.status_code, 400)
+        # two services fit the quota
+        funded = run(ben.consume_benefits(scope, ["svc-a", "svc-b"]))
+        self.assertEqual([r["kind"] for r in funded], ["quota", "quota"])
+
+    # ---------- terminal status returns benefits (audit B2) ----------
+    def test_rejected_order_restores_quota(self):
+        self._as(LABEL_USER)
+        self._free_wami()
+        self._free_addon(status="rejected")
+        r = self.client.get("/api/label/benefits")
+        self.assertEqual(r.json()["used"], 1)
+
+    def test_wami_reject_restores_grant(self):
+        import routes.wami as wami_mod
+        from models import AdminWamiUpdateIn
+        patch.object(wami_mod, "db", self.fake).start()
+        self.benefit_grants.docs.append({
+            "id": "g-1", "scope_key": "lab-1", "service": "wami",
+            "quantity": 1, "used": 1, "expires_at": FUTURE,
+        })
+        self.wami_orders.docs.append({
+            "id": "wo-g", "label_id": "lab-1", "grant_id": "g-1",
+            "is_free_vip": True, "status": "pending", "track_title": "Lagu",
+            "created_at": NOW.isoformat(),
+        })
+        result = run(wami_mod.admin_update_wami("wo-g", AdminWamiUpdateIn(status="rejected"), SUPER))
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(self.benefit_grants.docs[0]["used"], 0)
+
+    def test_addon_cancel_restores_grant(self):
+        import routes.addon_orders as addon_mod
+        patch.object(addon_mod, "db", self.fake).start()
+        patch.object(addon_mod, "_email_addon", new_callable=AsyncMock).start()
+        self.benefit_grants.docs.append({
+            "id": "g-2", "scope_key": "lab-1", "service": "any",
+            "quantity": 1, "used": 1, "expires_at": FUTURE,
+        })
+        self.addon_orders.docs.append({
+            "id": "ao-g", "label_id": "lab-1", "grant_id": "g-2",
+            "source": "subscription_free", "status": "in_progress",
+            "product_name": "Visualizer", "created_at": NOW.isoformat(),
+        })
+        run(addon_mod.admin_update_status("ao-g", addon_mod.AddonStatusIn(status="cancelled"), SUPER))
+        self.assertEqual(self.addon_orders.docs[0]["status"], "cancelled")
+        self.assertEqual(self.benefit_grants.docs[0]["used"], 0)
 
     # ---------- settings area ----------
     def test_benefits_area_in_list(self):

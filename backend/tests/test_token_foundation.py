@@ -46,7 +46,9 @@ WIB = timezone(timedelta(hours=7))
 
 
 def _match(doc, key, cond):
-    value = doc.get(key)
+    value = doc
+    for part in key.split("."):
+        value = value.get(part) if isinstance(value, dict) else None
     if not isinstance(cond, dict):
         return value == cond
     if "$ne" in cond and value == cond["$ne"]:

@@ -53,16 +53,10 @@ def upload_route(request: Request, target: str):
 
 
 async def ensure_upload_origin(request: Request):
-    from server import cors_origins, expand_origin_variants
+    from server import trusted_request_origins
     from .auth import _trusted_request_origin
     origin = _trusted_request_origin(request)
-    allowed = set(cors_origins)
-    for name in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
-        host = os.environ.get(name, "").strip()
-        if host:
-            allowed.update(expand_origin_variants(["https://" + host]))
-    # These are the project's existing production domains, not arbitrary clients.
-    allowed.update({"https://rilismusik.com", "https://www.rilismusik.com", "https://rilismusik.vercel.app"})
+    allowed = trusted_request_origins()
     if not origin or origin not in allowed:
         raise HTTPException(403, "Buka unggahan dari halaman aplikasi yang resmi")
     await storage_service.ensure_cors(sorted(allowed))

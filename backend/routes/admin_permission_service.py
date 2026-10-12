@@ -625,6 +625,7 @@ def has_permission(user: Dict[str, Any], permission: Optional[str]) -> bool:
         "labels.rate.approve": {"labels.rate.request.view"},
         "labels.package.approve": {"labels.package.request.view"},
         "labels.blacklist.approve": {"labels.blacklist.request.view"},
+        "benefits.manage": {"benefits.view"},
     }
     for source, targets in implied.items():
         if source in permissions:
@@ -685,6 +686,8 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         if any(token in path for token in ("create-account", "revoke-account", "change-email")):
             return "labels.accounts"
         return "labels.manage" if mutate else "labels.view"
+    if "/admin/benefits" in path:
+        return "benefits.manage" if mutate else "benefits.view"
     if "/admin/kyc" in path:
         return "kyc.review" if mutate else "kyc.view"
     if "/admin/artists" in path:

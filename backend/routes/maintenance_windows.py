@@ -200,8 +200,13 @@ READONLY_PREFIXES = {
     "payments": ("/api/payments", "/api/admin/xendit"),
     "royalty": ("/api/royalty", "/api/withdraw"),
     "tickets": ("/api/tickets",),
-    "wami": ("/api/wami",),
-    "addons": ("/api/label/addon-orders", "/api/admin/addon-orders"),
+    # The /api/payments/* aliases below are order-creation paths: POST
+    # /api/payments/wami writes wami_orders and POST /api/payments/service/{id}
+    # writes addon_orders — without them a wami/addons read-only window would
+    # still let new orders in through the payment rail. (payment fulfilment of
+    # existing invoices intentionally stays under the "payments" module.)
+    "wami": ("/api/wami", "/api/payments/wami"),
+    "addons": ("/api/label/addon-orders", "/api/admin/addon-orders", "/api/payments/service"),
     "account": ("/api/label",),
     "all": ("/api",),
 }

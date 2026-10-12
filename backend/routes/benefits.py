@@ -127,9 +127,12 @@ async def revoke_grant(grant_id: str, user: dict = Depends(require_admin)):
 # ---------------- Admin: monitor ----------------
 
 async def _release_stats() -> Dict[str, Dict[str, Any]]:
+    """Real submitted releases only — drafts, rejected and cancelled submissions
+    should not inflate milestone/dormant/loyal signals."""
     stats: Dict[str, Dict[str, Any]] = {}
     rows = await db.releases.find(
-        {"imported_legacy": {"$ne": True}},
+        {"imported_legacy": {"$ne": True},
+         "status": {"$nin": ["draft", "rejected", "cancelled"]}},
         {"_id": 0, "label_id": 1, "created_at": 1},
     ).to_list(200000)
     for row in rows:
@@ -159,7 +162,8 @@ async def bonus_monitor(user: dict = Depends(require_admin)):
                              ("addon_orders", {"source": "subscription_free"})):
         rows = await getattr(db, coll_name).find(
             {"created_at": {"$gte": window["start"], "$lt": window["end"]},
-             "grant_id": {"$exists": False}, **extra},
+             "grant_id": {"$exists": False},
+             "status": {"$nin": list(ben.TERMINAL_EXCLUDED)}, **extra},
             {"_id": 0, "label_id": 1},
         ).to_list(200000)
         for row in rows:

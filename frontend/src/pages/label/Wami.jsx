@@ -27,7 +27,7 @@ export default function LabelWami() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [tracks, setTracks] = useState([]);
-  const [me, setMe] = useState(null);
+  const [benefits, setBenefits] = useState(null);
   const [open, setOpen] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,16 +61,18 @@ export default function LabelWami() {
     }
   }, []);
 
-  const loadMe = useCallback(async () => {
-    const { data } = await api.get("/auth/me");
-    setMe(data);
+  const loadBenefits = useCallback(async () => {
+    try {
+      const { data } = await api.get("/label/benefits");
+      setBenefits(data);
+    } catch { setBenefits(null); }
   }, []);
 
   useEffect(() => {
     load();
     loadTracks();
-    loadMe();
-  }, [load, loadTracks, loadMe]);
+    loadBenefits();
+  }, [load, loadTracks, loadBenefits]);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
@@ -99,6 +101,7 @@ export default function LabelWami() {
         setOpen(false);
         setSelectedTrackId("");
         load();
+        loadBenefits();
       } else {
         setMsg(data.quota_exhausted
           ? `Kuota gratis bulan ini habis — lanjut berbayar. Membuka checkout WAMI ${fmtIDR(data.invoice.amount)}…`
@@ -109,7 +112,13 @@ export default function LabelWami() {
     finally { setBusy(false); }
   };
 
-  const isVip = me?.label?.payment_type === "annual_subscription" && me?.label?.subscription_tier === "annual_vip";
+  // Free WAMI comes from the D4 benefit budget (expiring grants first, then the
+  // monthly package quota) — the server is the source of truth, not the tier name.
+  const grantRemaining = (benefits?.grants || [])
+    .filter((g) => ["any", "wami"].includes(g.service))
+    .reduce((sum, g) => sum + Math.max(0, (g.quantity || 0) - (g.used || 0)), 0);
+  const freeRemaining = grantRemaining + (benefits?.remaining || 0);
+  const hasFree = freeRemaining > 0;
   // Tracks without active WAMI order
   const activeTrackIds = new Set(orders.filter((o) => !["cancelled", "rejected"].includes(o.status)).map((o) => o.track_id));
   const availableTracks = tracks.filter((t) => !activeTrackIds.has(t.id));
@@ -122,8 +131,8 @@ export default function LabelWami() {
           <h1 className="font-display text-3xl font-extrabold tracking-tighter">WAMI / LMKN</h1>
           <p className="text-sm text-zinc-400 mt-1">
             Daftarkan lagu Anda ke LMKN — Wahana Musik Indonesia.
-            {isVip ? (
-              <span className="text-pink-300 font-semibold"> Anda VIP — pendaftaran GRATIS untuk semua lagu.</span>
+            {hasFree ? (
+              <span className="text-pink-300 font-semibold"> {freeRemaining} pendaftaran GRATIS tersedia bulan ini{grantRemaining > 0 ? " (termasuk bonus)" : ""}.</span>
             ) : (
               <> Biaya pendaftaran <b>{fmtIDR(100000)}</b> per lagu via Xendit.</>
             )}
@@ -139,12 +148,14 @@ export default function LabelWami() {
         </button>
       </div>
 
-      {isVip && (
+      {hasFree && (
         <div className="rm-card p-4 border border-pink-500/20 flex items-start gap-3">
           <Star className="w-5 h-5 text-pink-300 mt-0.5" />
           <div className="text-sm">
-            <div className="font-bold text-pink-200">Anda Member VIP</div>
-            <div className="text-zinc-400 text-xs">Semua pendaftaran WAMI gratis tanpa biaya tambahan. Anda juga akan menerima konten promosi setelah rilis disetujui.</div>
+            <div className="font-bold text-pink-200">Benefit Aktif</div>
+            <div className="text-zinc-400 text-xs">
+              {freeRemaining} pendaftaran gratis tersisa{grantRemaining > 0 ? ` (${grantRemaining} dari bonus)` : " dari kuota paket bulan ini"}. Setelah habis, pendaftaran lanjut sebagai invoice berbayar.
+            </div>
           </div>
         </div>
       )}
@@ -202,7 +213,7 @@ export default function LabelWami() {
             </div>
             <div className="text-sm text-zinc-400">
               Pilih lagu dari rilisan yang sudah LIVE.
-              {!isVip && <> Biaya <b>{fmtIDR(100000)}/lagu</b> dibayar via Xendit.</>}
+              {hasFree ? <> Pendaftaran ini memakai <b>benefit gratis</b> Anda.</> : <> Biaya <b>{fmtIDR(100000)}/lagu</b> dibayar via Xendit.</>}
             </div>
             <div>
               <label className="rm-label">Pilih Lagu</label>
@@ -231,7 +242,7 @@ export default function LabelWami() {
                 onClick={submit}
                 data-testid="label-wami-submit"
               >
-                {busy ? "Memproses…" : isVip ? "Daftarkan (GRATIS VIP)" : `Bayar ${fmtIDR(100000)}`}
+                {busy ? "Memproses…" : hasFree ? "Daftarkan (GRATIS)" : `Bayar ${fmtIDR(100000)}`}
               </button>
             </div>
           </div>

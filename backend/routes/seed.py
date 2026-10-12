@@ -109,6 +109,14 @@ async def seed_indexes_and_admins():
     await db_bg.wami_orders.create_index("label_id")
     await db_bg.wami_orders.create_index("track_id")
     await db_bg.wami_orders.create_index("status")
+    # D4 benefits + tokens + system settings: hot lookup paths.
+    await db_bg.addon_orders.create_index("dedupe_key", unique=True, sparse=True)
+    await db_bg.addon_orders.create_index("label_id")
+    await db_bg.benefit_grants.create_index("scope_key")
+    await db_bg.token_ledger.create_index([("label_id", 1), ("created_at", -1)])
+    await db_bg.maintenance_windows.create_index([("status", 1), ("start_at", 1)])
+    await db_bg.system_settings.create_index("area", unique=True)
+    await db_bg.system_audit.create_index([("area", 1), ("created_at", -1)])
     # Chat is polled every few seconds by every open dashboard.
     await db_bg.chat_messages.create_index([("conversation_id", 1), ("created_at", -1)])
     await db_bg.chat_messages.create_index([("conversation_id", 1), ("sender_id", 1)])

@@ -35,6 +35,9 @@ BENEFIT_DEFAULTS = {
 }
 BENEFIT_TIERS = set(BENEFIT_DEFAULTS["monthly_quota"])
 GRANTABLE_SERVICES = {"any", "wami"}
+# Orders in these states no longer consume the monthly quota — a rejected or
+# cancelled request returns the benefit to the member.
+TERMINAL_EXCLUDED = ("refunded", "cancelled", "rejected")
 
 
 def month_window(now: Optional[datetime] = None) -> Dict[str, str]:
@@ -88,7 +91,7 @@ async def monthly_usage(scope: Dict[str, Any], now: Optional[datetime] = None) -
     base = {"label_id": {"$in": scope["label_ids"]},
             "created_at": {"$gte": window["start"], "$lt": window["end"]},
             "grant_id": {"$exists": False},
-            "status": {"$nin": ["refunded", "cancelled"]}}
+            "status": {"$nin": TERMINAL_EXCLUDED}}
     wami = await db.wami_orders.count_documents({**base, "is_free_vip": True})
     addons = await db.addon_orders.count_documents({**base, "source": "subscription_free"})
     return wami + addons
@@ -108,9 +111,14 @@ async def active_grants(scope: Dict[str, Any], service: Optional[str] = None,
 
 
 async def consume_benefit(scope: Dict[str, Any], service: str,
-                          now: Optional[datetime] = None) -> Dict[str, Any]:
+                          now: Optional[datetime] = None,
+                          reserved: int = 0) -> Dict[str, Any]:
     """Decide funding for one benefit-eligible action. The caller records the
     returned funding on the order document (grant_id / benefit_source).
+
+    `reserved` counts in-flight quota consumptions within the same batch —
+    orders don't exist yet while consume_benefits loops, so without it every
+    iteration would see the same persisted usage and exceed the quota.
 
     Grants are honoured for ANY account (Super Admin may gift a Basic member);
     the monthly quota applies to whichever package the account holds."""
@@ -124,9 +132,9 @@ async def consume_benefit(scope: Dict[str, Any], service: str,
     cfg = await benefit_config()
     quota = int(cfg["monthly_quota"].get(scope["package"], 0))
     used = await monthly_usage(scope, now)
-    if used < quota:
-        return {"kind": "quota", "grant_id": None, "used": used, "quota": quota}
-    return {"kind": "paid", "grant_id": None, "used": used, "quota": quota, "exhausted": True}
+    if used + reserved < quota:
+        return {"kind": "quota", "grant_id": None, "used": used + reserved, "quota": quota}
+    return {"kind": "paid", "grant_id": None, "used": used + reserved, "quota": quota, "exhausted": True}
 
 
 async def consume_benefits(scope: Dict[str, Any], service_keys: List[str],
@@ -134,14 +142,17 @@ async def consume_benefits(scope: Dict[str, Any], service_keys: List[str],
     """Fund N benefit actions (e.g. add-ons selected at submit). All-or-nothing:
     any shortfall rolls back grant increments already taken."""
     results: List[Dict[str, Any]] = []
+    reserved = 0
     for sk in service_keys:
-        r = await consume_benefit(scope, sk, now)
+        r = await consume_benefit(scope, sk, now, reserved=reserved)
         if r["kind"] == "paid":
             await rollback_funding(results)
             raise HTTPException(
                 status_code=400,
                 detail="Kuota layanan gratis bulan ini habis — hapus layanan tambahan atau beli terpisah.",
             )
+        if r["kind"] == "quota":
+            reserved += 1
         results.append(r)
     return results
 

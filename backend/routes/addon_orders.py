@@ -221,6 +221,13 @@ async def admin_update_status(order_id: str, body: AddonStatusIn, user: dict = D
     await db.addon_orders.update_one({"id": order_id}, {"$set": {
         "status": new_status, "updated_at": now, f"{new_status}_at": now,
     }})
+    # Cancelling a grant-funded order returns the bonus slot to the member —
+    # the refund path already does this; admin cancel must behave the same.
+    if new_status == "cancelled" and order.get("grant_id"):
+        await db.benefit_grants.update_one(
+            {"id": order["grant_id"], "used": {"$gt": 0}},
+            {"$inc": {"used": -1}, "$set": {"updated_at": now}},
+        )
     await log_activity(user["id"], "addon_order_status", "addon", order_id,
                        before={"status": current}, after={"status": new_status})
     if new_status in ("delivered", "completed"):

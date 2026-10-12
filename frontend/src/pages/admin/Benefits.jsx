@@ -21,19 +21,20 @@ export default function AdminBenefits() {
   const [editor, setEditor] = useState(null); // {label_id, label_name, service, quantity, days, note}
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
     try {
       const [m, g, p] = await Promise.all([
         api.get("/admin/benefits/monitor"),
-        api.get("/admin/benefits/grants"),
+        api.get("/admin/benefits/grants", { params: { active: !showHistory } }),
         api.get("/payments/admin/products").catch(() => ({ data: [] })),
       ]);
       setMonitor(m.data); setGrants(g.data.items || []); setProducts(p.data.items || p.data || []);
     } catch (e) { setErr(formatApiError(e)); }
     finally { setLoading(false); }
-  }, []);
+  }, [showHistory]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -116,8 +117,14 @@ export default function AdminBenefits() {
       </section>
 
       <section className="rm-card p-5 space-y-3" data-testid="benefits-active">
-        <h2 className="font-display text-lg font-bold">Bonus Aktif</h2>
-        {grants.length === 0 ? <div className="text-sm text-zinc-500">Belum ada bonus aktif.</div> : (
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-display text-lg font-bold">{showHistory ? "Riwayat Bonus" : "Bonus Aktif"}</h2>
+          <button type="button" className="rm-btn-ghost text-xs" onClick={() => setShowHistory((v) => !v)}
+            data-testid="benefits-history-toggle">
+            {showHistory ? "Lihat yang aktif" : "Lihat riwayat"}
+          </button>
+        </div>
+        {grants.length === 0 ? <div className="text-sm text-zinc-500">{showHistory ? "Belum ada riwayat bonus." : "Belum ada bonus aktif."}</div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
@@ -125,16 +132,19 @@ export default function AdminBenefits() {
                 <th className="py-2 pr-4">Terpakai</th><th className="py-2 pr-4">Berlaku s/d</th>
                 <th className="py-2 pr-4">Catatan</th><th className="py-2" /></tr></thead>
               <tbody>
-                {grants.map((g) => (
-                  <tr key={g.id} className="border-t border-white/5" data-testid={`benefit-grant-row-${g.id}`}>
+                {grants.map((g) => {
+                  const inactive = g.revoked || new Date(g.expires_at) < new Date();
+                  return (
+                  <tr key={g.id} className={`border-t border-white/5 ${inactive ? "opacity-50" : ""}`} data-testid={`benefit-grant-row-${g.id}`}>
                     <td className="py-2.5 pr-4 font-semibold">{g.label_name}</td>
                     <td className="py-2.5 pr-4">{serviceLabel(g.service)}</td>
                     <td className="py-2.5 pr-4">{g.used}/{g.quantity}</td>
-                    <td className="py-2.5 pr-4">{fmtDateTimeWib(g.expires_at)}</td>
+                    <td className="py-2.5 pr-4">{fmtDateTimeWib(g.expires_at)}{inactive && <span className="ml-2 rm-badge">{g.revoked ? "Dicabut" : "Berakhir"}</span>}</td>
                     <td className="py-2.5 pr-4 text-zinc-400">{g.note}</td>
-                    <td className="py-2.5"><button className="rm-btn-ghost text-xs" onClick={() => revoke(g.id)} data-testid={`benefit-revoke-${g.id}`}>Cabut</button></td>
+                    <td className="py-2.5">{!inactive && <button className="rm-btn-ghost text-xs" onClick={() => revoke(g.id)} data-testid={`benefit-revoke-${g.id}`}>Cabut</button>}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

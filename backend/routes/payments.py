@@ -1,7 +1,7 @@
 """Production Xendit payments using Payment Sessions + backend polling."""
 import os
 import secrets
-from datetime import datetime, timezone
+
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -146,12 +146,6 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
                 return {"order": existing_order, "invoice": existing_invoice, "free_vip": False}
         raise HTTPException(status_code=400, detail="Track ini sudah memiliki pendaftaran WAMI aktif")
 
-    vip_expiry_ok = False
-    if label.get("subscription_expires_at"):
-        try:
-            vip_expiry_ok = datetime.fromisoformat(str(label["subscription_expires_at"]).replace("Z", "+00:00")) > datetime.now(timezone.utc)
-        except Exception:
-            vip_expiry_ok = False
     # Free WAMI draws from the D4 benefit budget: expiring grants first, then the
     # monthly package quota. When both are exhausted the member simply pays — the
     # benefit limits free usage, never the service itself.
