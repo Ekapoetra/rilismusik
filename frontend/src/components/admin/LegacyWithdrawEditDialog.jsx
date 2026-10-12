@@ -107,7 +107,7 @@ export const LegacyWithdrawEditDialog = ({ withdrawal, onClose, onComplete }) =>
       {preview && <div className="border-y border-white/10" data-testid="legacy-withdraw-edit-preview">
         <ChangeRow label="Cutoff laporan label" before={preview.old_cutoff || "—"} after={preview.new_cutoff || "—"} testId="legacy-withdraw-edit-cutoff-change" />
         <ChangeRow label="Saldo pending" before={fmtIDR(preview.balance_before.pending_idr)} after={fmtIDR(preview.balance_after.pending_idr)} testId="legacy-withdraw-edit-pending-change" />
-        <ChangeRow label="Saldo tersedia" before={fmtIDR(preview.balance_before.available_idr)} after={fmtIDR(preview.balance_after.available_idr)} testId="legacy-withdraw-edit-available-change" />
+        <ChangeRow label="Saldo Tersedia" before={fmtIDR(preview.balance_before.available_idr)} after={fmtIDR(preview.balance_after.available_idr)} testId="legacy-withdraw-edit-available-change" />
         <ChangeRow label="Baris royalti berubah" before="—" after={changedLines.toLocaleString("id-ID")} testId="legacy-withdraw-edit-lines-change" />
       </div>}
       {preview?.direction === "unchanged" && <p className="text-xs text-amber-300" data-testid="legacy-withdraw-edit-no-cutoff-impact">Riwayat lain memiliki cutoff lebih akhir, sehingga saldo tidak berubah.</p>}

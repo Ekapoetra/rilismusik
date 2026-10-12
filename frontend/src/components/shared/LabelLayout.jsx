@@ -14,15 +14,15 @@ import LabelChatWidget from "@/components/chat/LabelChatWidget";
 import { LayoutDashboard, Disc3, UploadCloud, Users, BarChart3, Wallet, LifeBuoy, FileText, FileSignature, Music, Settings, LogOut, Menu, X, LockKeyhole, ChevronLeft, ChevronRight, Coins } from "lucide-react";
 
 const NAV = [
-  { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true },
-  { to: "/label/releases/upload", label: "Ajukan Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease },
+  { to: "/label/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: LABEL_NAV.dashboard, kycFree: true, bottom: true },
+  { to: "/label/releases/upload", label: "Ajukan Rilisan", icon: UploadCloud, tid: LABEL_NAV.uploadRelease, bottom: true },
   { to: "/label/releases", label: "Rilisan", icon: Disc3, tid: LABEL_NAV.releases },
-  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists },
-  { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty },
+  { to: "/label/artists", label: "Artis", icon: Users, tid: LABEL_NAV.artists, bottom: true },
+  { to: "/label/royalty", label: "Royalti", icon: BarChart3, tid: LABEL_NAV.royalty, bottom: true },
   { to: "/label/withdraw", label: "Penarikan Dana", icon: Wallet, tid: LABEL_NAV.withdraw },
   { to: "/label/wami", label: "WAMI", icon: Music, tid: "label-nav-wami" },
   { to: "/label/support", label: "Bantuan", icon: LifeBuoy, tid: LABEL_NAV.support },
-  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true },
+  { to: "/label/contract", label: "Kontrak", icon: FileSignature, tid: "label-nav-contract", kycFree: true, bottom: true },
   { to: "/label/invoices", label: "Tagihan", icon: FileText, tid: LABEL_NAV.invoices },
   { to: "/label/wallet", label: "Token", icon: Coins, tid: "label-nav-wallet" },
   { to: "/label/profile", label: "Profil & Rekening", icon: Settings, tid: LABEL_NAV.profile, kycFree: true },
@@ -55,7 +55,7 @@ function LabelShell() {
       <main className="label-page-content relative min-w-0 p-4 pb-24 md:p-8"><MaintenanceBanner /><div className={locked ? "pointer-events-none select-none blur-md opacity-35" : ""} aria-hidden={locked || undefined} data-testid="label-route-content"><Suspense fallback={<div role="status" className="p-8 text-center text-zinc-400">Memuat halaman…</div>}><Outlet /></Suspense></div>{locked && <KycGate status={kyc?.status} loading={kycLoading} />}</main>
     </div>
     <LabelChatWidget />
-    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{[NAV[0], NAV[1], NAV[3], NAV[4], NAV[8]].map((item) => { const Icon = item.icon; const active = loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
+    <nav className="dashboard-header fixed inset-x-0 bottom-0 z-30 border-t md:hidden" data-testid="label-bottom-navigation"><div className="grid grid-cols-5 gap-1 p-2">{NAV.filter((item) => item.bottom).map((item) => { const Icon = item.icon; const active = loc.pathname.startsWith(item.to); return <Link key={item.to} to={item.to} data-testid={`${item.tid}-bottom`} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-semibold ${active ? "bg-[var(--ui-hover)] text-[var(--ui-text)]" : "text-[var(--ui-muted)]"}`}><Icon className="h-4 w-4" /><span className="max-w-full truncate">{t(item.label).split(" ")[0]}</span></Link>; })}</div></nav>
   </div>;
 }
 function NavList({ currentPath, onPick, kycVerified, collapsed = false, instance = "desktop" }) {

@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Wrench, RefreshCw, Plus, Pencil, X } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
+import { fmtDateTimeWib } from "@/utils/format";
+import Notice from "@/components/shared/Notice";
+import PageHeader from "@/components/shared/PageHeader";
 import { toast } from "@/components/ui/sonner";
 
 const MODULES = [
@@ -14,10 +17,7 @@ const NOTIFY = [["none", "Tanpa pengumuman"], ["start", "Saat mulai"], ["1h", "1
 const STATUS = { scheduled: "Terjadwal", active: "Berjalan", completed: "Selesai", cancelled: "Dibatalkan" };
 const TONE = { active: "text-red-300 border-red-400/40 bg-red-500/10", scheduled: "text-sky-300 border-sky-400/40 bg-sky-500/10", completed: "text-zinc-400 border-white/10 bg-white/[0.04]", cancelled: "text-zinc-400 border-white/10 bg-white/[0.04]" };
 
-const fmt = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(".", ":") + " WIB";
-};
+const fmt = (iso) => fmtDateTimeWib(iso, { withYear: false });
 const toLocal = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(" ", "T");
@@ -83,19 +83,15 @@ export default function Maintenance() {
 
   return (
     <div className="space-y-6" data-testid="admin-maintenance-page">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Sistem</div>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-3xl font-extrabold"><Wrench className="h-6 w-6 text-pink-400" /> Pemeliharaan</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">Jadwalkan jeda layanan: rentang waktu, modul terdampak, dan pesan untuk member. Banner tampil sesuai waktu pengumuman yang dipilih.</p>
-        </div>
+      <PageHeader bordered eyebrow="Sistem" title="Pemeliharaan" icon={Wrench}
+        sub="Jadwalkan jeda layanan: rentang waktu, modul terdampak, dan pesan untuk member. Banner tampil sesuai waktu pengumuman yang dipilih.">
         <div className="flex gap-2">
           <button type="button" onClick={load} className="rm-btn-ghost inline-flex items-center gap-2 text-sm" data-testid="maint-refresh"><RefreshCw className="h-4 w-4" /> Muat ulang</button>
           <button type="button" onClick={() => openEditor(null)} className="rm-btn-primary inline-flex items-center gap-2 text-sm" data-testid="maint-new"><Plus className="h-4 w-4" /> Jadwalkan</button>
         </div>
-      </header>
+      </PageHeader>
 
-      {err && <div className="rounded-md bg-red-500/15 px-4 py-3 text-sm text-red-300" data-testid="maint-error">{err}</div>}
+      {err && <Notice kind="error" testId="maint-error">{err}</Notice>}
       {loading && <p className="text-sm text-zinc-500">Memuat…</p>}
 
       {!loading && ordered.length === 0 && (

@@ -218,6 +218,7 @@ class TokenFoundationTests(unittest.TestCase):
         self.releases = _FakeCollection()
         self.service_orders = _FakeCollection()
         self.payment_products = _FakeCollection()
+        self.landing_settings = _FakeCollection()
         fake = _db(
             labels=self.labels, token_ledger=self.ledger, token_config=self.config,
             payments=self.payments, activity_logs=self.logs, users=self.users,
@@ -226,6 +227,7 @@ class TokenFoundationTests(unittest.TestCase):
             system_settings=self.settings, system_audit=self.audit,
             releases=self.releases, service_orders=self.service_orders,
             payment_products=self.payment_products,
+            landing_settings=self.landing_settings,
         )
         patch.object(tok, "db", fake).start()
         patch.object(sys_mod, "db", fake).start()
@@ -556,6 +558,51 @@ class TokenFoundationTests(unittest.TestCase):
         r = self.client.post("/api/admin/token/grant",
                              json={"label_id": "nope", "quantity": 2, "note": "koreksi"})
         self.assertEqual(r.status_code, 404)
+
+    # ---------- batch token quotes + tiers (UI audit fixes) ----------
+    def test_token_quotes_batch(self):
+        self._as(LABEL_USER)
+        self.settings.docs.append({"area": "token", "published": {
+            "service_costs": {"prod-1": 5}}})
+        self.payment_products.docs.append({
+            "id": "prod-1", "name": "Cover Art", "description": "d",
+            "amount": 200_000, "active": True, "delivery_type": "file"})
+        self.payments.docs.append({
+            "id": "pay-a", "label_id": "lab-1", "type": "custom_service",
+            "product_id": "prod-1", "amount": 200_000, "status": "pending",
+            "fulfillment_status": "pending", "created_at": "x"})
+        self.payments.docs.append({
+            "id": "pay-b", "label_id": "lab-1", "type": "token_purchase",
+            "amount": 70_000, "status": "pending", "token_quantity": 2,
+            "fulfillment_status": "pending", "created_at": "x"})
+        r = self.client.get("/api/payments/token-quotes")
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        # 5 tokens = 175k < 200k → offered + affordable (VIP quota 10)
+        self.assertTrue(body["quotes"]["pay-a"]["offered"])
+        self.assertTrue(body["quotes"]["pay-a"]["affordable"])
+        # token_purchase invoices are never payable with tokens
+        self.assertFalse(body["quotes"]["pay-b"]["offered"])
+        # id filter limits the result set
+        r = self.client.get("/api/payments/token-quotes", params={"ids": "pay-a"})
+        self.assertEqual(sorted(r.json()["quotes"].keys()), ["pay-a"])
+        # only the label's own pending invoices — other labels unseen
+        self.payments.docs.append({
+            "id": "pay-other", "label_id": "lab-x", "type": "custom_service",
+            "product_id": "prod-1", "amount": 200_000, "status": "pending",
+            "fulfillment_status": "pending", "created_at": "x"})
+        r = self.client.get("/api/payments/token-quotes")
+        self.assertNotIn("pay-other", r.json()["quotes"])
+
+    def test_payment_tiers_endpoint(self):
+        self._as(LABEL_USER)
+        r = self.client.get("/api/payments/tiers")
+        self.assertEqual(r.status_code, 200, r.text)
+        tiers = {t["key"]: t for t in r.json()["tiers"]}
+        self.assertEqual(set(tiers), {"annual_normal", "annual_vip"})
+        self.assertEqual(tiers["annual_normal"]["price"], 350_000)
+        self.assertEqual(tiers["annual_vip"]["price"], 500_000)
+        self.assertTrue(tiers["annual_vip"]["vip"])
 
 
 if __name__ == "__main__":

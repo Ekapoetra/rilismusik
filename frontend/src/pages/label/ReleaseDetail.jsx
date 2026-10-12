@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
+import { translateUi } from "@/i18n/languageStore";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { CreditCard, Music, Download, Trash2, MessageCircleQuestion, XOctagon } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
@@ -82,9 +83,9 @@ export default function ReleaseDetail() {
 
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const lifecycle = async (path, confirmText, notePrompt, okMsg) => {
-    const note = notePrompt ? window.prompt(notePrompt) : null;
+    const note = notePrompt ? window.prompt(translateUi(notePrompt)) : null;
     if (notePrompt && !(note || "").trim()) return;
-    if (!window.confirm(confirmText)) return;
+    if (!window.confirm(translateUi(confirmText))) return;
     setLifecycleBusy(true); setErr("");
     try {
       const { data: fresh } = await api.post(`/releases/${id}/${path}`, { note: (note || "").trim() || null });

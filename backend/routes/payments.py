@@ -49,6 +49,39 @@ async def payment_config(user: dict = Depends(get_current_user)):
     return {"provider": "xendit", "mode": "production_polling", "configured": xendit_configured(), "webhook_required": False}
 
 
+@pay_r.get("/tiers")
+async def payment_tiers(user: dict = Depends(get_current_user)):
+    """Annual subscription prices — single source of truth (CMS pricing)."""
+    tiers = []
+    for key, name, vip in [("annual_normal", "Annual Normal", False), ("annual_vip", "Annual VIP", True)]:
+        tiers.append({"key": key, "name": name, "price": await payment_price(key), "vip": vip})
+    return {"tiers": tiers}
+
+
+@pay_r.get("/token-quotes")
+async def token_quotes(ids: str = "", user: dict = Depends(require_label)):
+    """Batch token offers for the label's pending invoices — one request
+    instead of one token-quote call per invoice row."""
+    label = await get_label_by_user(user)
+    from token_service import get_token_config, token_quote_for_payment, wallet_state
+    cfg = await get_token_config()
+    state = wallet_state(label, cfg)
+    available = state["token_balance"] + state["daily"]["remaining"]
+    wanted = [i for i in (ids or "").split(",") if i][:50]
+    query = {"label_id": label["id"], "status": "pending"}
+    if wanted:
+        query["id"] = {"$in": wanted}
+    docs = await db.payments.find(query, {"_id": 0}).to_list(50)
+    quotes = {}
+    for payment in docs:
+        offer = await token_quote_for_payment(payment, cfg)
+        quotes[payment["id"]] = {
+            **offer, "available_tokens": available,
+            "affordable": bool(offer.get("offered") and available >= offer["tokens"]),
+        }
+    return {"quotes": quotes, "available_tokens": available}
+
+
 @pay_r.post("/subscription")
 async def create_subscription_invoice(body: CreateSubscriptionPaymentIn, user: dict = Depends(require_label)):
     label = await get_label_by_user(user)

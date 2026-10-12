@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
+import { fmtIDR } from "@/utils/format";
+import Notice from "@/components/shared/Notice";
+import PageHeader from "@/components/shared/PageHeader";
 import { Coins, RefreshCw, ShoppingCart, CalendarClock } from "lucide-react";
 
-const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 const KIND_LABELS = {
   purchase: "Pembelian", spend: "Pemakaian", refund: "Pengembalian",
   burn: "Hangus", admin_grant: "Penyesuaian Admin", "refund-skipped": "Kuota Kedaluwarsa",
@@ -62,15 +64,10 @@ export default function Wallet() {
   const daily = wallet?.daily || {};
   return (
     <div className="space-y-7 max-w-4xl">
-      <div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Dompet Token</div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tighter">Token</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Token adalah opsi pembayaran alternatif — harga Rupiah tetap tersedia di semua checkout.
-        </p>
-      </div>
-      {msg && <div className="rounded-2xl bg-emerald-500/15 text-emerald-300 px-4 py-3 text-sm">{pollingId && <RefreshCw className="inline w-4 h-4 mr-2 animate-spin" />}{msg}</div>}
-      {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm">{err}</div>}
+      <PageHeader eyebrow="Dompet Token" title="Token"
+        sub="Token adalah opsi pembayaran alternatif — harga Rupiah tetap tersedia di semua checkout." />
+      {msg && <Notice kind="success" testId="wallet-success">{pollingId && <RefreshCw className="inline w-4 h-4 mr-2 animate-spin" />}{msg}</Notice>}
+      {err && <Notice kind="error" testId="wallet-error">{err}</Notice>}
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="rm-card p-5" data-testid="wallet-balance-card">

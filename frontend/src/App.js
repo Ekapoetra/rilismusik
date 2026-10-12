@@ -139,8 +139,8 @@ function AppRoutes() {
             <Route path="/admin/compensation/adjustments" element={guard("compensation.adjustment.create", <CompensationAdmin />)} />
             <Route path="/admin/work" element={guard("work.view", <WorkQueue />)} />
             <Route path="/admin/bank-verifications" element={<ProtectedRoute roles={["super_admin"]}><BankVerifications /></ProtectedRoute>} />
-            <Route path="/admin/maintenance" element={<ProtectedRoute roles={["super_admin"]}><AdminMaintenance /></ProtectedRoute>} />
-<Route path="/admin/system" element={<ProtectedRoute roles={["super_admin"]}><AdminSystem /></ProtectedRoute>} />
+            <Route path="/admin/maintenance" element={guard("system.maintenance", <AdminMaintenance />)} />
+            <Route path="/admin/system" element={guard("system.settings", <AdminSystem />)} />
             <Route path="/admin/staff" element={guard("staff.view", <StaffManagement />)} />
             <Route path="/admin/staff/configuration" element={guard("staff.config.manage", <StaffConfiguration />)} />
             <Route path="/admin/attendance" element={guard("staff.attendance.view", <Attendance />)} />

@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Cog, RefreshCw, Send, Trash2, History, ScrollText, LayoutTemplate } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
+import { fmtIDR, fmtDateTimeWib } from "@/utils/format";
+import Notice from "@/components/shared/Notice";
+import PageHeader from "@/components/shared/PageHeader";
 import { toast } from "@/components/ui/sonner";
 
 const AREAS = [
@@ -21,18 +24,12 @@ const PROCEDURE_FIELDS = [
   ["daily_release_limit", "Batas rilisan per hari per label", "int", "7"],
 ];
 
-const fmt = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso
-    : new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(".", ":") + " WIB";
-};
+const fmt = fmtDateTimeWib;
 const parseList = (raw) => raw.split(/[,\s]+/).filter(Boolean).map(Number);
 const QUOTA_LABELS = {
   pay_per_release: "Pay Per Release", annual_normal: "Annual Normal",
   annual_vip: "Annual VIP", multi_label: "Multi Label",
 };
-const fmtIDR = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 
 export default function AdminSystem() {
   const [area, setArea] = useState("content");
@@ -109,14 +106,10 @@ export default function AdminSystem() {
 
   return (
     <div className="space-y-6" data-testid="admin-system-page">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Sistem</div>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-3xl font-extrabold"><Cog className="h-6 w-6 text-sky-400" /> Pengaturan Sistem</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">Konfigurasi bervesi: ubah sebagai draf, tinjau, lalu terbitkan. Setiap perubahan tercatat di audit dan dapat dipulihkan dari riwayat.</p>
-        </div>
+      <PageHeader bordered eyebrow="Sistem" title="Pengaturan Sistem" icon={Cog} iconClassName="text-sky-400"
+        sub="Konfigurasi bervesi: ubah sebagai draf, tinjau, lalu terbitkan. Setiap perubahan tercatat di audit dan dapat dipulihkan dari riwayat.">
         <button className="rm-btn-ghost" onClick={() => load()} disabled={busy}><RefreshCw className="h-4 w-4" /> Muat ulang</button>
-      </header>
+      </PageHeader>
 
       <div className="flex flex-wrap gap-2 border-b border-white/10">
         {AREAS.map(([id, labelText]) => (
@@ -126,7 +119,7 @@ export default function AdminSystem() {
         ))}
       </div>
 
-      {err && <div className="rounded-2xl bg-red-500/15 px-4 py-3 text-sm text-red-300">{err}</div>}
+      {err && <Notice kind="error" testId="system-error">{err}</Notice>}
       {!state ? <div className="text-zinc-500">Memuat…</div> : (
         <>
           <section className="rm-card flex flex-wrap items-center justify-between gap-4 p-5">
