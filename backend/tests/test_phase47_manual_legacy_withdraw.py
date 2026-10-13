@@ -8,7 +8,7 @@ import requests
 from dotenv import load_dotenv
 
 from auth_utils import hash_password
-from tests.support_config import FINANCE, temporary_password
+from tests.support_config import FINANCE, SUPERADMIN, temporary_password
 
 
 load_dotenv("/app/backend/.env", override=True)
@@ -91,7 +91,10 @@ def test_manual_history_auto_amount_settles_range_and_stays_hidden_from_label():
         queued = requests.post(f"{API}/withdraw/admin/legacy-manual", json=payload, headers=_headers(finance_token), timeout=30)
         assert queued.status_code == 200, queued.text
         job_id = queued.json()["job_id"]
-        job = _wait_job(finance_token, job_id)
+        # Migration-job polling needs migration.view — an admin-ops permission
+        # Finance does not hold; Super Admin observes the queued job.
+        super_token = _login(SUPERADMIN["email"], SUPERADMIN["password"])
+        job = _wait_job(super_token, job_id)
         assert job["status"] == "done", job.get("error_message")
         assert job["result"]["amount_idr"] == 6000
         assert job["result"]["royalty_lines_flipped"] == 3

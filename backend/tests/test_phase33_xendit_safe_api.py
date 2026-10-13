@@ -37,6 +37,42 @@ def _headers(token: str):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _verify_label_kyc(db, label_id: str, email: str, now: str) -> None:
+    """Bring a seeded label to full KYC-verified state (all prerequisites)."""
+    db.labels.update_one(
+        {"id": label_id},
+        {"$set": {
+            "pic_name": "X33 PIC", "email": email, "whatsapp": "081234567890",
+            "address": "Jl. X33", "city": "Jakarta", "country": "Indonesia",
+            "logo_storage_key": f"label-logo/{label_id}/logo.png",
+            "contract_status": "active", "kyc_status": "verified",
+            "kyc_document_id": f"x33-kyc-{label_id}",
+            "kyc_verified_at": now, "updated_at": now,
+        }},
+    )
+    db.kyc_documents.insert_one({
+        "id": f"x33-kyc-{label_id}", "label_id": label_id, "status": "verified",
+        "is_current": True, "storage_key": f"kyc-private/{label_id}/ktp.png",
+        "uploaded_at": now, "reviewed_at": now,
+    })
+    db.bank_accounts.insert_one({
+        "id": f"x33-bank-{label_id}", "label_id": label_id, "bank_name": "Bank QA",
+        "account_number": f"7700{label_id[-6:]}", "account_holder_name": "X33 PIC",
+        "verified_status": "verified", "created_at": now, "updated_at": now,
+    })
+    db.contracts.insert_one({
+        "id": f"x33-contract-{label_id}", "label_id": label_id, "status": "active",
+        "file_url": f"/api/files/contract/x33-{label_id}.pdf", "filename": "contract.pdf",
+        "start_date": "2026-01-01", "end_date": "2030-01-01",
+        "created_at": now, "updated_at": now,
+    })
+
+
+def _cleanup_label_docs(db, label_ids):
+    for name in ("bank_accounts", "contracts", "kyc_documents"):
+        db[name].delete_many({"label_id": {"$in": label_ids}})
+
+
 # payments config + disabled endpoints + ownership/poll access
 def test_config_disabled_endpoints_and_ownership_access_without_checkout():
     db = _db()
@@ -89,6 +125,8 @@ def test_config_disabled_endpoints_and_ownership_access_without_checkout():
                     "updated_at": now,
                 }
             )
+            # KYC-verified: payment status/poll endpoints are gated by it.
+            _verify_label_kyc(db, l["id"], next(u["email"] for u in users if u["id"] == l["user_id"]), now)
 
         db.payments.insert_one(
             {
@@ -152,6 +190,7 @@ def test_config_disabled_endpoints_and_ownership_access_without_checkout():
         assert webhook.status_code == 410
     finally:
         db.payments.delete_many({"id": payment_id})
+        _cleanup_label_docs(db, [labels[0]["id"], labels[1]["id"]])
         db.labels.delete_many({"id": {"$in": [labels[0]["id"], labels[1]["id"]]}})
         db.users.delete_many({"id": {"$in": [users[0]["id"], users[1]["id"]]}})
 
@@ -194,6 +233,7 @@ def test_custom_product_and_invoice_creation_are_local_and_objectid_hidden():
                 "updated_at": now,
             }
         )
+        _verify_label_kyc(db, label_id, email, now)
 
         token_finance = _token(FINANCE["email"], FINANCE["password"])
         token_label = _token(email, password)
@@ -263,5 +303,6 @@ def test_custom_product_and_invoice_creation_are_local_and_objectid_hidden():
             db.payment_products.delete_many({"id": product_id})
         db.service_orders.delete_many({"label_id": label_id})
         db.payments.delete_many({"label_id": label_id})
+        _cleanup_label_docs(db, [label_id])
         db.labels.delete_many({"id": label_id})
         db.users.delete_many({"id": user_id})

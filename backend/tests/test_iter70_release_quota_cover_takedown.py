@@ -142,7 +142,7 @@ def _cleanup_seed(db, seeded: dict, release_ids: list[str], artist_ids: list[str
         db.release_internal_covers.delete_many({"_id": {"$in": release_ids}})
         db.releases.delete_many({"id": {"$in": release_ids}})
         db.release_operation_locks.delete_many({"_id": {"$in": [f"submit:{rid}" for rid in release_ids] + [f"internal-cover:{rid}" for rid in release_ids] + [f"support-takedown:{rid}" for rid in release_ids]}})
-    db.label_daily_submissions.delete_many({"label_id": seeded["label_id"]})
+    db.label_daily_submissions.delete_many({"label_ids": seeded["label_id"]})
     db.labels.delete_one({"id": seeded["label_id"]})
     db.users.delete_one({"id": seeded["user_id"]})
     db.auth_sessions.delete_many({"user_id": seeded["user_id"]})
@@ -416,7 +416,9 @@ def test_duplicate_concurrent_same_release_only_one_success_and_one_history_entr
         submitted_events = [h for h in release.get("status_history") or [] if h.get("to") == "submitted"]
         assert len(submitted_events) == 1
 
-        ledger = db.label_daily_submissions.find_one({"label_id": seeded["label_id"], "entries.release_id": release_id}, {"_id": 0})
+        # Ledger docs are keyed by quota scope (label_ids array since the
+        # multi-label account scope was introduced).
+        ledger = db.label_daily_submissions.find_one({"label_ids": seeded["label_id"], "entries.release_id": release_id}, {"_id": 0})
         assert ledger
         entries = [entry for entry in ledger.get("entries", []) if entry.get("release_id") == release_id]
         assert len(entries) == 1

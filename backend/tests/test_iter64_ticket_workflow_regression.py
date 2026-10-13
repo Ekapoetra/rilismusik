@@ -218,6 +218,9 @@ def seeded_env():
     db.support_tickets.delete_many({"id": {"$in": ticket_ids}})
     db.notifications.delete_many({"$or": [{"meta.ticket_id": {"$in": ticket_ids}}, {"user_id": {"$in": user_ids}}]})
     db.activity_logs.delete_many({"reference_id": {"$in": ticket_ids + user_ids + state["role_ids"]}})
+    db.contentid_declarations.delete_many({"ticket_id": {"$in": ticket_ids}})
+    db.contentid_requests.delete_many({"_id": {"$in": ticket_ids}})
+    db.contentid_assets.delete_many({"label_id": {"$in": label_ids}})
     db.tracks.delete_many({"release_id": {"$in": release_ids}})
     db.releases.delete_many({"id": {"$in": release_ids}})
     for name in ("bank_accounts", "contracts", "kyc_documents"):
@@ -248,7 +251,24 @@ def auth(seeded_env):
 
 
 def _create_ticket(token: str, payload: Dict) -> requests.Response:
-    return requests.post(f"{API}/tickets/label/create", headers=_headers(token), json=payload, timeout=40)
+    return requests.post(f"{API}/tickets/label/create", headers=_headers(token), json=payload, timeout=120)
+
+
+def _cid_image_bytes(kind: str = "signature") -> bytes:
+    """Minimal valid PNG fixture for Content ID staged assets."""
+    from io import BytesIO
+    from PIL import Image, ImageDraw
+    size = (640, 280) if kind == "signature" else (1100, 700)
+    image = Image.new("RGB", size, "white")
+    draw = ImageDraw.Draw(image)
+    if kind == "signature":
+        draw.line((40, 180, 220, 80, 420, 210, 600, 110), fill="black", width=8)
+    else:
+        draw.rectangle((40, 40, 1060, 660), outline="black", width=6)
+        draw.text((70, 90), "KTP QA FAKE", fill="black")
+    stream = BytesIO()
+    image.save(stream, format="PNG")
+    return stream.getvalue()
 
 
 def test_categories_active(auth):
@@ -409,6 +429,30 @@ def test_content_id_claim_and_release_urls_validation_and_compatibility(auth, se
     })
     assert duplicate_video.status_code == 400
 
+    # A valid claim needs the full consent packet (request id, staged KTP +
+    # signature assets, creators, consent) — same flow as iter68.
+    db = seeded_env["db"]
+    track_ids = [row["id"] for row in db.tracks.find(
+        {"release_id": seeded_env["owner"]["release_a"]}, {"_id": 0, "id": 1}
+    ).sort("track_number", 1)]
+    assert len(track_ids) >= 1
+
+    asset_ids = {}
+    for kind in ("signature", "ktp"):
+        uploaded = requests.post(
+            f"{API}/tickets/content-id/assets",
+            headers=_headers(auth["owner"]),
+            data={"release_id": seeded_env["owner"]["release_a"], "kind": kind, "signature_mode": "upload"},
+            files={"file": (f"iter64-{kind}.png", _cid_image_bytes(kind), "image/png")},
+            timeout=60,
+        )
+        assert uploaded.status_code == 200, uploaded.text
+        asset_ids[kind] = uploaded.json()["id"]
+        asset = db.contentid_assets.find_one({"id": asset_ids[kind]}, {"_id": 0, "storage_key": 1}) or {}
+        if asset.get("storage_key"):
+            seeded_env["uploaded_keys"].append(asset["storage_key"])
+        seeded_env.setdefault("cid_asset_ids", []).append(asset_ids[kind])
+
     valid_claim = _create_ticket(auth["owner"], {
         "release_id": seeded_env["owner"]["release_a"],
         "category": "content_id_claim",
@@ -418,6 +462,19 @@ def test_content_id_claim_and_release_urls_validation_and_compatibility(auth, se
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             "https://youtu.be/jfKfPfyJRdk",
         ],
+        "content_id_request_id": str(uuid.uuid4()),
+        "content_id_track_ids": track_ids,
+        "content_id_creators": [{
+            "full_name": "Iter64 QA Creator",
+            "nik": "0000000000000064",
+            "domicile": "Jakarta",
+            "signing_city": "Jakarta",
+            "authorship": "sole",
+            "track_ids": track_ids,
+            "signature_asset_id": asset_ids["signature"],
+            "ktp_asset_id": asset_ids["ktp"],
+        }],
+        "content_id_consent": True,
     })
     assert valid_claim.status_code == 200, valid_claim.text
     claim_ticket = valid_claim.json()

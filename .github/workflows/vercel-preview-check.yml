@@ -82,7 +82,9 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       REACT_APP_BACKEND_URL: http://127.0.0.1:8010
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:8010
-      XENDIT_ALLOW_MOCK_PAY: "true"
+      # Dummy key only flips payments/config "configured" to true — the suite
+      # never calls checkout, and mock-pay/webhook stay disabled on purpose.
+      XENDIT_SECRET_KEY: ci-suite-dummy-key
       XENDIT_RETURN_URL_BASE: http://localhost:3000
       UPLOAD_DIR: /tmp/rilismusik-live-uploads
       # Plain-http testability hooks — production keeps Secure cookies and R2.
@@ -96,7 +98,7 @@ jobs:
       SMTP_PORT: "1"
       SMTP_USER: ci
       SMTP_PASSWORD: ci
-      SENDER_EMAIL: ci@example.invalid
+      SENDER_EMAIL: ci@rilismusik-ci.io
       SENDER_NAME: Live Suite
       EMERGENT_AUTH_SESSION_URL: http://127.0.0.1:9/unused
       TZ: Asia/Jakarta

@@ -201,12 +201,23 @@ def test_content_id_claim_requires_valid_youtube_link():
         "content_id_request_id": f"cid-req-{suffix}",
     }
     try:
+        # Schema now rejects non-YouTube hosts before the handler runs (422).
         invalid = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://example.com/video"}, headers=_headers(label_token), timeout=30)
-        assert invalid.status_code == 400
-        valid = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://youtu.be/abcdefghijk"}, headers=_headers(label_token), timeout=30)
+        assert invalid.status_code == 422
+        # A claim without the creator packet (tracks + creators + consent) is rejected.
+        missing_packet = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://youtu.be/abcdefghijk"}, headers=_headers(label_token), timeout=30)
+        assert missing_packet.status_code == 400, missing_packet.text
+        # content_id_release keeps the single-URL happy path (no creator packet needed).
+        valid = requests.post(f"{API}/tickets/label/create", json={
+            "release_id": release_id, "category": "content_id_release", "subject": "Laporkan rilis",
+            "description": "Video rilis", "originality_declared": True, "attachments": [],
+            "youtube_url": "https://youtu.be/abcdefghijk",
+        }, headers=_headers(label_token), timeout=30)
         assert valid.status_code == 200, valid.text
         assert valid.json()["youtube_url"] == "https://youtu.be/abcdefghijk"
     finally:
-        db.ticket_comments.delete_many({"ticket_id": {"$regex": "^phase43"}})
+        ticket_ids = [row["id"] for row in db.support_tickets.find({"label_id": seeded["label_id"]}, {"_id": 0, "id": 1})]
+        db.ticket_comments.delete_many({"$or": [{"ticket_id": {"$in": ticket_ids}}, {"ticket_id": {"$regex": "^phase43"}}]})
         db.tickets.delete_many({"label_id": seeded["label_id"]})
+        db.support_tickets.delete_many({"label_id": seeded["label_id"]})
         _cleanup(db, seeded, release_id, product_id)

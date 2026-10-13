@@ -61,7 +61,9 @@ def fresh_label_session():
 
 def _csv(rows):
     """Build a Believe-style CSV bytes from list-of-dict rows."""
-    header = "ISRC,UPC,Track Title,Artist,Album,Platform,Country,Period,Quantity,Net Revenue EUR"
+    # Believe export uses "Bulan laporan" as the reporting-period column;
+    # a generic "Period" header is rejected by the parser alias table.
+    header = "ISRC,UPC,Track Title,Artist,Album,Platform,Country,Bulan laporan,Quantity,Net Revenue EUR"
     body = [header]
     for r in rows:
         body.append(",".join([

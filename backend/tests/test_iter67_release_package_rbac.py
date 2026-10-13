@@ -643,9 +643,21 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         )
         assert support_forbidden.status_code == 403
 
-        bad_pkg = requests.patch(
+        # v8 model: Finance may only file package-change REQUESTS; the direct
+        # package endpoint is denied before body validation runs.
+        finance_forbidden = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
             headers=_headers(finance_token),
+            json={"package": "pay_per_release", "reason": "finance requests only", "expected_revision": 0, "confirm": True},
+            timeout=30,
+        )
+        assert finance_forbidden.status_code == 403
+
+        # Body-validation probes need a role that passes the path gate
+        # (labels.package) — the dedicated package manager.
+        bad_pkg = requests.patch(
+            f"{API}/admin/labels/{label_id}/package",
+            headers=_headers(pm_token),
             json={"package": "gold", "reason": "invalid", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
@@ -653,7 +665,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         short_reason = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "reason": "aa", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
@@ -661,7 +673,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         missing_confirm = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "reason": "missing confirm", "expected_revision": 0},
             timeout=30,
         )
@@ -669,7 +681,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         false_confirm = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "reason": "false confirm", "expected_revision": 0, "confirm": False},
             timeout=30,
         )
@@ -677,7 +689,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         extra_fields = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "reason": "extra payload", "expected_revision": 0, "confirm": True, "unexpected": "x"},
             timeout=30,
         )
@@ -685,7 +697,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         ppr_with_date = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "expires_on": "2030-01-01", "reason": "ppr date invalid", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
@@ -695,7 +707,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         # from the verification date (member migration privilege).
         missing_annual_date = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "annual_normal", "reason": "annual defaults one year", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
@@ -709,7 +721,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         invalid_date = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "annual_normal", "expires_on": "2026-02-30", "reason": "invalid date", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
@@ -717,37 +729,37 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
 
         missing_label = requests.patch(
             f"{API}/admin/labels/iter67-missing/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "pay_per_release", "reason": "missing label", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
         assert missing_label.status_code == 404
 
-        # Finance success
+        # Package manager success
         before_payment_count = db.payments.count_documents({"label_id": label_id})
         before_withdraw_count = db.withdraw_requests.count_documents({"label_id": label_id})
         before_royalty_count = db.royalty_lines.count_documents({"label_id": label_id})
         before_revision = int((db.labels.find_one({"id": label_id}, {"_id": 0, "package_revision": 1}) or {}).get("package_revision") or 0)
 
         future_date = (date.today() + timedelta(days=30)).isoformat()
-        finance_ok = requests.patch(
+        annual_ok = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
-            json={"package": "annual_normal", "expires_on": future_date, "reason": "finance update annual", "expected_revision": before_revision, "confirm": True},
+            headers=_headers(pm_token),
+            json={"package": "annual_normal", "expires_on": future_date, "reason": "package manager update annual", "expected_revision": before_revision, "confirm": True},
             timeout=30,
         )
-        assert finance_ok.status_code == 200, finance_ok.text
-        finance_body = finance_ok.json()
-        assert finance_body["payment_type"] == "annual_subscription"
-        assert finance_body["subscription_tier"] == "annual_normal"
-        assert finance_body["subscription_status"] == "active"
-        expires = datetime.fromisoformat(finance_body["subscription_expires_at"])
+        assert annual_ok.status_code == 200, annual_ok.text
+        annual_body = annual_ok.json()
+        assert annual_body["payment_type"] == "annual_subscription"
+        assert annual_body["subscription_tier"] == "annual_normal"
+        assert annual_body["subscription_status"] == "active"
+        expires = datetime.fromisoformat(annual_body["subscription_expires_at"])
         assert expires.hour == 16 and expires.minute == 59 and expires.second == 59  # 23:59:59 Asia/Jakarta in UTC
 
         # stale expected_revision should reject and must not append audit
         stale = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
-            headers=_headers(finance_token),
+            headers=_headers(pm_token),
             json={"package": "annual_normal", "expires_on": future_date, "reason": "stale duplicate", "expected_revision": before_revision, "confirm": True},
             timeout=30,
         )
@@ -793,7 +805,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         assert int(label_after.get("package_revision") or 0) == before_revision + 3
         history = label_after.get("package_change_history") or []
         assert len(history) == 4
-        assert history[1]["reason"] == "finance update annual"
+        assert history[1]["reason"] == "package manager update annual"
         assert history[-1]["after"]["payment_type"] == "pay_per_release"
 
         logs = list(db.activity_logs.find({"reference_id": label_id, "action": "change_label_package"}, {"_id": 0}).sort("created_at", 1))
