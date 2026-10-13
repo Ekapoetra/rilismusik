@@ -55,3 +55,100 @@ jobs:
         working-directory: frontend
       - run: CI=false yarn build
         working-directory: frontend
+
+  # Live-server suite: real uvicorn + real MongoDB (disposable service
+  # container). Exercises HTTP paths the TestClient smoke suite cannot reach.
+  # Only self-seeding tests run here — tests that depend on demo/production
+  # fixtures are intentionally excluded.
+  live-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      DB_NAME: rilismusik_live_suite
+      JWT_SECRET: live-suite-ci-secret
+      ADMIN_EMAIL: ci-superadmin@rilismusik.test
+      ADMIN_PASSWORD: CiSuite#Admin2026
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000
+      REACT_APP_BACKEND_URL: http://127.0.0.1:8010
+      XENDIT_ALLOW_MOCK_PAY: "true"
+      TZ: Asia/Jakarta
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/tests/requirements.txt
+      - run: python -m pip install -r backend/requirements.txt -r backend/tests/requirements.txt pytest
+      - name: Write test credentials (.env.test)
+        working-directory: backend
+        run: |
+          cat > .env.test <<'EOF'
+          TEST_SUPERADMIN_EMAIL=ci-superadmin@rilismusik.test
+          TEST_SUPERADMIN_PASSWORD=CiSuite#Admin2026
+          TEST_FINANCE_EMAIL=finance1@rilismusik.com
+          TEST_FINANCE_PASSWORD=Finance#2026
+          TEST_SUPPORT_EMAIL=support1@rilismusik.com
+          TEST_SUPPORT_PASSWORD=Support#2026
+          TEST_RELEASE_EMAIL=release1@rilismusik.com
+          TEST_RELEASE_PASSWORD=Release#2026
+          TEST_MARKETING_EMAIL=marketing1@rilismusik.com
+          TEST_MARKETING_PASSWORD=Marketing#2026
+          TEST_CONTENT_EMAIL=content1@rilismusik.com
+          TEST_CONTENT_PASSWORD=Content#2026
+          TEST_DEMO_PASSWORD=unused
+          TEST_DEMO_VIP_EMAIL=unused-vip@example.invalid
+          TEST_DEMO_VIP_PASSWORD=unused
+          TEST_DEMO_PPR_EMAIL=unused-ppr@example.invalid
+          TEST_DEMO_PPR_PASSWORD=unused
+          EOF
+      - name: Start backend (uvicorn)
+        working-directory: backend
+        run: |
+          nohup python -m uvicorn server:app --host 127.0.0.1 --port 8010 > server.log 2>&1 &
+          echo $! > server.pid
+      - name: Wait for backend + admin seeding
+        run: |
+          for i in $(seq 1 120); do
+            health=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8010/api/health || true)
+            if [ "$health" = "200" ]; then
+              login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8010/api/auth/login \
+                -H 'Content-Type: application/json' \
+                -d '{"email":"ci-superadmin@rilismusik.test","password":"CiSuite#Admin2026"}' || true)
+              if [ "$login" = "200" ]; then echo "backend ready"; exit 0; fi
+            fi
+            sleep 2
+          done
+          echo "backend failed to become ready"; tail -n 200 backend/server.log || true; exit 1
+      - name: Run self-seeding live tests
+        working-directory: backend
+        run: |
+          python -m pytest -v \
+            tests/test_phase17_security.py \
+            tests/test_phase2_royalty_withdraw.py \
+            tests/test_phase33_xendit_safe_api.py \
+            tests/test_phase43_release_approval_invoice.py \
+            tests/test_phase47_manual_legacy_withdraw.py \
+            tests/test_phase65_release_submission_workflow.py \
+            tests/test_phase68_artist_social_whatsapp.py \
+            tests/test_iter55_release_rbac_revision.py \
+            tests/test_iter64_ticket_workflow_regression.py \
+            tests/test_iter67_release_package_rbac.py \
+            tests/test_iter70_release_quota_cover_takedown.py
+      - name: Dump server log on failure
+        if: failure()
+        run: tail -n 300 backend/server.log || true

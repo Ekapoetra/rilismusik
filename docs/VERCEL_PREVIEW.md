@@ -122,3 +122,37 @@ Untuk menjalankan smoke test lokal:
 python -m pip install -r backend/requirements.txt
 python -m unittest discover -s backend/tests -p test_vercel_preview.py -v
 ```
+
+## Live-server suite di CI
+
+Job `live-suite` di `.github/workflows/vercel-preview-check.yml` menjalankan
+backend FastAPI sungguhan (uvicorn) di GitHub Actions dengan MongoDB
+sekali-pakai (service container `mongo:7`, database `rilismusik_live_suite`).
+Inilah "staging tiruan": server nyata + DB nyata, tanpa menyentuh produksi
+atau data member.
+
+Prinsip:
+- Kredensial CI adalah nilai uji yang di-seed deterministik oleh
+  `seed_indexes_and_admins()` (ADMIN_EMAIL/ADMIN_PASSWORD env + sub-admin
+  `support1/finance1/release1/marketing1/content1`). Tidak ada rahasia asli
+  di workflow — `.env.test` ditulis dari nilai seed yang sama.
+- Hanya test yang self-seed (membuat user/label fixture sendiri) yang
+  dijalankan. Test yang bergantung fixture demo produksi (mis. label
+  `mustafa`/`wanwe`/`khizanah`, kredensial `TEST_DEMO_*`) sengaja
+  dikeluarkan — variabel demo diisi dummy agar `support_config` tetap
+  bisa diimpor, tetapi test yang memakainya tidak masuk daftar.
+- `RILISMUSIK_DEPLOYMENT_MODE` sengaja tidak di-set agar endpoint mutasi
+  benar-benar berfungsi (mode preview justru memblokirnya).
+- Job menunggu `/api/health` lalu login super-admin berhasil sebelum
+  menjalankan test, karena seeding admin berjalan di background bootstrap.
+
+Untuk menjalankan subset yang sama secara lokal: sediakan MongoDB lokal,
+isi env seperti di job (`MONGO_URL`, `DB_NAME`, `ADMIN_EMAIL`,
+`ADMIN_PASSWORD`, `REACT_APP_BACKEND_URL=http://127.0.0.1:8010`), tulis
+`backend/.env.test` dengan kredensial yang sama, jalankan
+`uvicorn server:app --port 8010` dari `backend/`, tunggu login admin
+berhasil, lalu `python -m pytest tests/<file>.py -v`.
+
+Menambah test ke suite: pastikan file test self-seed dan hanya memakai
+kredensial ter-seed (SUPERADMIN/FINANCE/SUPPORT/RELEASE_ADMIN/MARKETING/
+CONTENT), lalu tambahkan path-nya ke step pytest di workflow.

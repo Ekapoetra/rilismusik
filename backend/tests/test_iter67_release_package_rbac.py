@@ -678,13 +678,21 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         )
         assert ppr_with_date.status_code == 422
 
+        # D4 spec: annual package without expires_on defaults to +365 days
+        # from the verification date (member migration privilege).
         missing_annual_date = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
             headers=_headers(finance_token),
-            json={"package": "annual_normal", "reason": "annual needs date", "expected_revision": 0, "confirm": True},
+            json={"package": "annual_normal", "reason": "annual defaults one year", "expected_revision": 0, "confirm": True},
             timeout=30,
         )
-        assert missing_annual_date.status_code == 422
+        assert missing_annual_date.status_code == 200, missing_annual_date.text
+        default_body = missing_annual_date.json()
+        assert default_body["subscription_tier"] == "annual_normal"
+        assert default_body["subscription_status"] == "active"
+        default_expires = datetime.fromisoformat(default_body["subscription_expires_at"])
+        assert default_expires.hour == 16 and default_expires.minute == 59 and default_expires.second == 59
+        assert abs(((default_expires - datetime.now(timezone.utc)).days) - 365) <= 1
 
         invalid_date = requests.patch(
             f"{API}/admin/labels/{label_id}/package",
@@ -733,7 +741,7 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         assert stale.status_code == 409
         label_after_stale = db.labels.find_one({"id": label_id}, {"_id": 0, "package_change_history": 1, "package_revision": 1}) or {}
         assert int(label_after_stale.get("package_revision") or 0) == before_revision + 1
-        assert len(label_after_stale.get("package_change_history") or []) == 1
+        assert len(label_after_stale.get("package_change_history") or []) == 2
 
         # Super admin success (set expired annual)
         second_revision = int(label_after_stale.get("package_revision") or 0)
@@ -771,12 +779,12 @@ def test_package_endpoint_validation_auth_and_revision_conflict_without_duplicat
         label_after = db.labels.find_one({"id": label_id}, {"_id": 0})
         assert int(label_after.get("package_revision") or 0) == before_revision + 3
         history = label_after.get("package_change_history") or []
-        assert len(history) == 3
-        assert history[0]["reason"] == "finance update annual"
+        assert len(history) == 4
+        assert history[1]["reason"] == "finance update annual"
         assert history[-1]["after"]["payment_type"] == "pay_per_release"
 
         logs = list(db.activity_logs.find({"reference_id": label_id, "action": "change_label_package"}, {"_id": 0}).sort("created_at", 1))
-        assert len(logs) == 3
+        assert len(logs) == 4
         assert all((entry.get("after_data") or {}).get("audit_id") for entry in logs)
 
         # label self profile must hide package_change_history
