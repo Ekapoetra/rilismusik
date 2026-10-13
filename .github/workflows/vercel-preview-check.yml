@@ -136,10 +136,11 @@ jobs:
           for i in $(seq 1 120); do
             health=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8010/api/health || true)
             if [ "$health" = "200" ]; then
-              login=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8010/api/auth/login \
+              login_body=$(curl -s -X POST http://127.0.0.1:8010/api/auth/login \
                 -H 'Content-Type: application/json' \
                 -d '{"email":"ci-superadmin@rilismusik.test","password":"CiSuite#Admin2026"}' || true)
-              if [ "$login" = "200" ]; then echo "backend ready"; exit 0; fi
+              if echo "$login_body" | grep -q access_token; then echo "backend ready"; exit 0; fi
+              if [ $((i % 15)) -eq 0 ]; then echo "attempt $i login response: $login_body"; fi
             fi
             sleep 2
           done
