@@ -83,6 +83,7 @@ jobs:
       CORS_ORIGINS: http://localhost:3000
       REACT_APP_BACKEND_URL: http://127.0.0.1:8010
       XENDIT_ALLOW_MOCK_PAY: "true"
+      UPLOAD_DIR: /tmp/rilismusik-live-uploads
       TZ: Asia/Jakarta
     steps:
       - uses: actions/checkout@v4
