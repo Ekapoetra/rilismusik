@@ -103,7 +103,7 @@ jobs:
           cache-dependency-path: |
             backend/requirements.txt
             backend/tests/requirements.txt
-      - run: python -m pip install -r backend/requirements.txt -r backend/tests/requirements.txt pytest
+      - run: python -m pip install -r backend/requirements.txt -r backend/tests/requirements.txt pytest requests pymongo python-dotenv
       - name: Write test credentials (.env.test)
         working-directory: backend
         run: |
