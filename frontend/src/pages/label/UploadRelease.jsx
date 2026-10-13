@@ -22,12 +22,20 @@ export default function UploadRelease() {
   const [pricing, setPricing] = useState({ per_track: 35000, album: 200000 });
   const [savedArtists, setSavedArtists] = useState([]);
   const [selectedAddons, setSelectedAddons] = useState([]);
+  const [benefits, setBenefits] = useState(null);
   const [declaration, setDeclaration] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const quotaState = useSubmissionQuota(release?.id || id);
 
   const isPpr = profile?.payment_type !== "annual_subscription" || profile?.subscription_status !== "active";
+  // Free add-on budget for annual members: monthly quota remainder + grant
+  // remainders. The backend is authoritative — this only drives the UI hint.
+  const freeAddonsLeft = useMemo(() => {
+    if (!benefits) return 0;
+    const grantLeft = (benefits.grants || []).reduce((sum, g) => sum + Math.max(0, Number(g.quantity || 0) - Number(g.used || 0)), 0);
+    return Number(benefits.remaining || 0) + grantLeft;
+  }, [benefits]);
   const addonTotal = useMemo(() => products.filter((item) => selectedAddons.includes(item.id)).reduce((sum, item) => sum + Number(item.amount || 0), 0), [products, selectedAddons]);
 
   const trackCount = release?.tracks?.length || form.tracks?.length || 1;
@@ -44,6 +52,7 @@ export default function UploadRelease() {
 
   useEffect(() => {
     api.get("/payments/products").then(({ data }) => setProducts(data || [])).catch(() => {});
+    api.get("/label/benefits").then(({ data }) => setBenefits(data)).catch(() => {});
     api.get("/artists/").then(({ data }) => setSavedArtists(data || [])).catch(() => {});
     api.get("/cms/landing").then(({ data }) => setPricing({
       per_track: Number(data?.pricing?.pay_per_release_price) || 35000,
@@ -87,7 +96,7 @@ export default function UploadRelease() {
     try {
       const { data } = await api.post(`/releases/${release.id}/submit`, {
         contract_declaration_checked: true,
-        addon_product_ids: isPpr ? selectedAddons : [],
+        addon_product_ids: selectedAddons,
       });
       navigate(`/label/releases/${data.id}`);
     } catch (requestError) {
@@ -105,6 +114,6 @@ export default function UploadRelease() {
     {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
     {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} savedArtists={savedArtists} onBack={() => setStep(1)} onNext={goNext} />}
     {step === 3 && <TracksStep form={form} updateForm={updateForm} savedArtists={savedArtists} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
-    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
+    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} freeAddonsLeft={freeAddonsLeft} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
   </div>;
 }

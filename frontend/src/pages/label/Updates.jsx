@@ -5,8 +5,21 @@ import { Sparkles, Rocket, FileSearch, Gift, Disc3, Wallet, Settings } from "luc
 
 /* D14 — panduan pembaruan, bukan log pengembangan: hanya memuat fitur yang
    benar-benar tersedia saat ini. Entri diperbarui setiap fitur ditambah,
-   diubah, atau dihapus. Bilingual inline (id/en) — konten terkurasi, bukan
-   string UI yang diterjemahkan mesin. */
+   diubah, atau dihapus — ganti isi SECTIONS lalu naikkan PUBLISHED_AT.
+   Bilingual inline (id/en) — konten terkurasi, bukan string UI yang
+   diterjemahkan mesin.
+
+   Siklus hidup: titik masuk (kartu di Dashboard label) hanya tampil selama
+   WINDOW_DAYS sejak PUBLISHED_AT, lalu hilang sampai batch pembaruan
+   berikutnya. Halaman /label/updates sendiri tetap bisa diakses langsung
+   sebagai arsip. */
+export const UPDATES_PUBLISHED_AT = "2026-10-13";
+export const UPDATES_WINDOW_DAYS = 30;
+
+export function updatesActive(now = new Date()) {
+  const published = new Date(`${UPDATES_PUBLISHED_AT}T00:00:00+07:00`);
+  return now.getTime() <= published.getTime() + UPDATES_WINDOW_DAYS * 86400e3;
+}
 const KINDS = {
   baru: { id: "Baru", en: "New", bg: "rgba(16,185,129,0.15)", color: "#6EE7B7", dot: "#34D399" },
   berubah: { id: "Berubah", en: "Changed", bg: "rgba(245,158,11,0.15)", color: "#FCD34D", dot: "#F59E0B" },
@@ -151,8 +164,8 @@ export default function LabelUpdates() {
       })}
       <p className="text-xs text-zinc-500" data-testid="updates-policy-note">
         {lang === "en"
-          ? "This list is a usage guide, not a development log — it follows the features currently in effect."
-          : "Daftar ini adalah panduan penggunaan, bukan riwayat pengembangan — isinya mengikuti fitur yang sedang berlaku."}
+          ? `Published ${UPDATES_PUBLISHED_AT} — this list is a usage guide, not a development log. The updates shortcut on your dashboard shows for ${UPDATES_WINDOW_DAYS} days after each release.`
+          : `Terbit ${UPDATES_PUBLISHED_AT} — daftar ini panduan penggunaan, bukan riwayat pengembangan. Pintasan pembaruan di dashboard tampil ${UPDATES_WINDOW_DAYS} hari setelah setiap rilis.`}
       </p>
     </div>
   );

@@ -535,7 +535,6 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     from .deps import account_entitlements
     account_ent = await account_entitlements(user)
     is_subscribed = bool(account_ent.get("unlimited_release"))
-    free_addons = bool(account_ent.get("free_addons"))
 
     selected_addons = []
     addon_ids = list(dict.fromkeys(body.addon_product_ids))
@@ -547,8 +546,6 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             raise HTTPException(status_code=400, detail="Salah satu layanan tambahan tidak tersedia")
 
     if is_subscribed:
-        if selected_addons and not free_addons:
-            raise HTTPException(status_code=400, detail="Layanan tambahan gabungan saat submit hanya tersedia untuk Pay Per Release")
         new_status = "submitted"
         payment_status = "free_subscription"
         billing_flow = "subscription"
@@ -561,14 +558,15 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         billing_flow = "pay_per_release"
         payment_id = None
 
-    # D4: free add-ons draw from the monthly benefit budget (expiring grants
-    # first, then package quota). Consumed before the submit commit so the
-    # label gets a clear 400 instead of a half-written release; grant
+    # D4: bundled add-ons are always funded from the monthly benefit budget
+    # (expiring grants first, then package quota) for every annual member —
+    # Studio through Business. A member whose budget can't cover the whole
+    # selection gets a clear 400 and can buy the service separately; grant
     # increments roll back if the submit itself fails.
     import benefit_service as ben
     benefit_scope = None
     benefit_funding = []
-    if is_subscribed and free_addons and selected_addons:
+    if is_subscribed and selected_addons:
         benefit_scope = await ben.resolve_benefit_scope(user, label)
         benefit_funding = await ben.consume_benefits(benefit_scope, [a["id"] for a in selected_addons])
     try:
@@ -613,7 +611,7 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
         if benefit_funding:
             await ben.rollback_funding(benefit_funding)
         raise
-    if is_subscribed and free_addons and selected_addons:
+    if is_subscribed and selected_addons:
         try:
             from .addon_orders import sync_free_addon_orders
             fresh = await db.releases.find_one({"id": release_id}, {"_id": 0})

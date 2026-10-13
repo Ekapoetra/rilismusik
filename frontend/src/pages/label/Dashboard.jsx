@@ -14,6 +14,7 @@ import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
 import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle, Layers, ChevronDown } from "lucide-react";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
+import { updatesActive, UPDATES_PUBLISHED_AT } from "@/pages/label/Updates";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -136,6 +137,14 @@ export default function LabelDashboardHome() {
       <LabelHero hero={hero} label={label} verified={kyc?.is_verified} subline={identitySub} />
 
       <LiveTodayBanner releases={data.live_today || []} />
+
+      {updatesActive() && (
+        <Link to="/label/updates" className="rm-card flex items-center gap-3 p-4 transition-colors hover:bg-white/[0.03]" data-testid="label-dashboard-updates-card">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#FF1F8E]/15 text-pink-300"><Sparkles className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-bold">Ada pembaruan fitur</span><span className="block truncate text-xs text-zinc-400">Diterbitkan {UPDATES_PUBLISHED_AT} — lihat apa yang baru, berubah, atau dihapus.</span></span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-zinc-500" />
+        </Link>
+      )}
 
       {!locked && <SubmissionQuota prefix="label-dashboard" />}
 

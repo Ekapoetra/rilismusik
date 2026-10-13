@@ -172,6 +172,9 @@ Celah:
       kuota habis). Area 'benefits' ke-4 di system_settings. Periode
       paket verifikasi = tanggal approve + 1 tahun (expires_on
       opsional di change_label_package + sensitive_requests).
+      Picker add-on saat submit kini tampil untuk SEMUA member
+      annual (Studio s/d Business, didanai benefit — gate VIP
+      free_addons dihapus); PPR tetap ditagih ke invoice rilisan.
 
 ------------------------------------------------------------
 4. RILISAN
@@ -515,8 +518,11 @@ Peta prototype → main:
     super-only + masa paket 1 tahun dari verifikasi, kuota
     benefit bulanan + bonus admin, dompet token, status
     rilisan baru, jendela penarikan, banner maintenance.
-    KYC-free; item nav 'Pembaruan' (Sparkles) di sidebar
-    label. Tanpa endpoint — konten statis di frontend.
+    KYC-free. BUKAN item sidebar permanen — titik masuk
+    kartu di Dashboard label tampil hanya selama 30 hari
+    sejak UPDATES_PUBLISHED_AT (per batch), lalu hilang
+    sampai batch baru; halaman tetap bisa diakses langsung
+    sebagai arsip. Tanpa endpoint — konten statis.
 
 ------------------------------------------------------------
 10. DOMAIN TAMBAHAN DI MAIN (dipertahankan, bukan target V1.1)
