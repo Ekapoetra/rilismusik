@@ -75,12 +75,14 @@ def _wait_import_status(session, import_id, target, timeout=120):
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
+        # Detail endpoint wraps the doc: {"import": {...}, "lines": [...]}.
         doc = session.get(f"{API}/royalty/admin/imports/{import_id}", timeout=30).json()
-        last = doc.get("status")
+        imp = doc.get("import") or doc
+        last = imp.get("status")
         if last == target:
-            return doc
+            return imp
         if last in ("publish_error", "receive_error", "error"):
-            raise AssertionError(f"import {import_id} ended at {last}: {doc.get('error_message')}")
+            raise AssertionError(f"import {import_id} ended at {last}: {imp.get('error_message')}")
         time.sleep(1)
     raise AssertionError(f"import {import_id} stuck at {last}, expected {target}")
 
