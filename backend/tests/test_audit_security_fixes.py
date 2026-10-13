@@ -74,6 +74,8 @@ class AuditSecurityTests(unittest.TestCase):
         self.chat_messages = _FakeCollection()
         self.chat_conversations = _FakeCollection()
         self.chat_typing = _FakeCollection()
+        self.support_tickets = _FakeCollection()
+        self.ticket_comments = _FakeCollection()
         self.users = _FakeCollection()
         fake = _db(
             labels=self.labels, contracts=self.contracts,
@@ -81,6 +83,7 @@ class AuditSecurityTests(unittest.TestCase):
             tracks=self.tracks, addon_orders=self.addon_orders,
             chat_messages=self.chat_messages, chat_conversations=self.chat_conversations,
             chat_typing=self.chat_typing, users=self.users,
+            support_tickets=self.support_tickets, ticket_comments=self.ticket_comments,
         )
         self.fake = fake
         patch.object(deps, "db", fake).start()
@@ -170,6 +173,25 @@ class AuditSecurityTests(unittest.TestCase):
         self.tracks.docs.append({"id": "trk-1", "release_id": "rel-1"})
         self.assertTrue(run(file_access.authorize_file_path("audio/trk-1.wav", LABEL_USER)))
         self.assertFalse(run(file_access.authorize_file_path("audio/trk-1.wav", OTHER_LABEL)))
+
+    def test_ticket_audio_attachment_owner(self):
+        # purpose=audio ticket uploads land under audio/ticket_* — they must
+        # resolve via the owning ticket, not the tracks collection.
+        self.support_tickets.docs.append({
+            "id": "t-1", "label_id": "lab-1",
+            "attachments": ["/api/files/audio/ticket_att1.wav"],
+        })
+        self.assertTrue(run(file_access.authorize_file_path("audio/ticket_att1.wav", LABEL_USER)))
+        self.assertFalse(run(file_access.authorize_file_path("audio/ticket_att1.wav", OTHER_LABEL)))
+
+    def test_ticket_file_attachment_via_comment(self):
+        self.support_tickets.docs.append({"id": "t-1", "label_id": "lab-1"})
+        self.ticket_comments.docs.append({
+            "id": "cm-1", "ticket_id": "t-1",
+            "attachments": ["/api/files/ticket/ticket_doc1.pdf"],
+        })
+        self.assertTrue(run(file_access.authorize_file_path("ticket/ticket_doc1.pdf", LABEL_USER)))
+        self.assertFalse(run(file_access.authorize_file_path("ticket/ticket_doc1.pdf", OTHER_LABEL)))
 
     # ---------- L3: typing requires membership ----------
     def test_typing_own_support_thread(self):

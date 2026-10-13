@@ -15,7 +15,7 @@ from .deps import db, is_admin_identity, get_labels_for_user, LABEL_ROLE
 AUTHENTICATED_PREFIXES = (
     "contract/", "copyright/", "csv/", "csv-repair/", "csv-replacements/",
     "background-inputs/", "direct-uploads/", "remix-permission/",
-    "addon-delivery/", "chat/", "audio/",
+    "addon-delivery/", "chat/", "audio/", "ticket/",
 )
 
 # Admin-only prefixes — no member-side ownership rule exists for these.
@@ -72,6 +72,23 @@ async def authorize_file_path(path: str, user: Dict[str, Any]) -> bool:
         doc = await db.addon_orders.find_one({"id": order_id, "label_id": {"$in": list(label_ids)}},
                                              {"_id": 0, "id": 1})
         return bool(doc)
+    # Ticket attachments land in two places: generic files under ticket/ and
+    # ticket audio under audio/ticket_*.wav (upload_ticket_attachment). Both
+    # resolve through the owning support ticket — checked before audio/ so a
+    # label can fetch their own ticket WAV.
+    if path.startswith("ticket/") or path.startswith("audio/ticket_"):
+        ref = _file_ref(path)
+        if await db.support_tickets.find_one(
+                {"label_id": {"$in": list(label_ids)}, "attachments": ref},
+                {"_id": 0, "id": 1}):
+            return True
+        comment = await db.ticket_comments.find_one(
+            {"attachments": ref}, {"_id": 0, "ticket_id": 1})
+        if not comment:
+            return False
+        return bool(await db.support_tickets.find_one(
+            {"id": comment["ticket_id"], "label_id": {"$in": list(label_ids)}},
+            {"_id": 0, "id": 1}))
     if path.startswith("audio/"):
         track_id = path[len("audio/"):].rsplit(".", 1)[0]
         track = await db.tracks.find_one({"id": track_id}, {"_id": 0, "release_id": 1})

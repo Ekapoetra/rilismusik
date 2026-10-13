@@ -72,6 +72,14 @@ const SECTIONS = [
         en: "A monthly free-service quota per plan — covers WAMI registration and add-on services, resetting on the 1st (GMT+7).",
       }],
       ["baru", {
+        id: "Member annual kini bisa memilih layanan tambahan langsung saat mengirim rilisan — otomatis gratis dari kuota & bonus, tak perlu lewat halaman lain.",
+        en: "Annual members can now pick add-on services right when submitting a release — automatically free from your quota & bonuses, no detour needed.",
+      }],
+      ["baru", {
+        id: "Sebagian layanan premium ditandai 'Bonus saja' — tidak masuk kuota bulanan, hanya bisa diberikan admin sebagai bonus khusus.",
+        en: "Some premium services are marked 'Bonus only' — outside the monthly quota, grantable only as an admin bonus.",
+      }],
+      ["baru", {
         id: "Bonus dari admin — layanan gratis tambahan dengan batas waktu, tampil di halaman Token dan dipakai lebih dulu sebelum kuota bulanan.",
         en: "Admin-granted bonuses — extra free services with an expiry, shown on the Token page and used before the monthly quota.",
       }],
@@ -113,9 +121,13 @@ const SECTIONS = [
         id: "Banner pemeliharaan tampil otomatis saat sistem dijadwalkan maintenance.",
         en: "A maintenance banner appears automatically whenever maintenance is scheduled.",
       }],
-      ["baru", {
-        id: "Menu Pembaruan ini — panduan perubahan yang selalu mengikuti fitur yang tersedia.",
-        en: "This Updates menu — a guide to changes that always follows the features actually available.",
+      ["berubah", {
+        id: "Berkas privat kini butuh login — kontrak, bukti pencairan, lampiran tiket & chat hanya bisa dibuka pemiliknya atau admin.",
+        en: "Private files now require sign-in — contracts, payout proofs, ticket & chat attachments open only for their owner or an admin.",
+      }],
+      ["berubah", {
+        id: "Menu Pembaruan kini tampil sebagai kartu di Dashboard selama 30 hari setelah setiap pembaruan, lalu hilang sampai ada pembaruan baru.",
+        en: "Updates now appears as a Dashboard card for 30 days after each release, then disappears until the next one.",
       }],
     ],
   },
