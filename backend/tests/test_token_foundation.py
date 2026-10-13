@@ -50,6 +50,10 @@ def _match(doc, key, cond):
     for part in key.split("."):
         value = value.get(part) if isinstance(value, dict) else None
     if not isinstance(cond, dict):
+        # Mongo semantics: scalar equality against an array field matches any
+        # element (e.g. {"attachments": url} on a list of strings).
+        if isinstance(value, list):
+            return cond in value
         return value == cond
     if "$ne" in cond and value == cond["$ne"]:
         return False
