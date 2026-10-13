@@ -83,7 +83,16 @@ jobs:
       CORS_ORIGINS: http://localhost:3000
       REACT_APP_BACKEND_URL: http://127.0.0.1:8010
       XENDIT_ALLOW_MOCK_PAY: "true"
+      XENDIT_RETURN_URL_BASE: http://localhost:3000
       UPLOAD_DIR: /tmp/rilismusik-live-uploads
+      # email_service.py requires these at import; send attempts fail harmlessly
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "1"
+      SMTP_USER: ci
+      SMTP_PASSWORD: ci
+      SENDER_EMAIL: ci@example.invalid
+      SENDER_NAME: Live Suite
+      EMERGENT_AUTH_SESSION_URL: http://127.0.0.1:9/unused
       TZ: Asia/Jakarta
     steps:
       - uses: actions/checkout@v4
