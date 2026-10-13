@@ -35,3 +35,11 @@ it('does not finalize after a storage upload fails',async()=>{
   await expect(api.post('/releases/cover',form(4*1024*1024))).rejects.toThrow('upload interrupted');
   expect(routes).toEqual(['/uploads/initiate']);
 });
+it('sends form fields as multipart even without an explicit Content-Type',async()=>{
+  api.defaults.adapter=jest.fn(async config=>response(config,{ok:true}));
+  const body=new FormData();body.append('new_email','label@gmail.com');body.append('notify','true');
+  await api.post('/admin/labels/label/change-email',body);
+  const sent=api.defaults.adapter.mock.calls[0][0];
+  expect(sent.data).toBeInstanceOf(FormData);
+  expect(sent.headers.get('Content-Type')).not.toMatch(/application\/json/);
+});

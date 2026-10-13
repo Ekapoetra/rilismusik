@@ -14,7 +14,7 @@ PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "work", "label_id": "Pekerjaan", "label_en": "Work", "actions": [("work.view", "Lihat Pekerjaan", "View Work queue"), ("work.manage", "Kelola Tanggung Jawab & SLA", "Manage Responsibility & SLA")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
-    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.bank", "Kelola rekening", "Manage bank accounts"), ("labels.bank.verify", "Verifikasi Rekening", "Verify Bank Accounts"), ("labels.multi_label.view", "Lihat Multi Label", "View Multi Label"), ("labels.multi_label.manage", "Kelola Multi Label", "Manage Multi Label")]},
+    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.email", "Ganti Email Langsung", "Direct Email Change"), ("labels.email.approve", "Setujui/Tolak Ganti Email", "Approve/Reject Email Change"), ("labels.bank", "Kelola rekening", "Manage bank accounts"), ("labels.bank.verify", "Verifikasi Rekening", "Verify Bank Accounts"), ("labels.multi_label.view", "Lihat Multi Label", "View Multi Label"), ("labels.multi_label.manage", "Kelola Multi Label", "Manage Multi Label")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status"), ("releases.go_live", "Finalisasi Tayang (UPC/ISRC)", "Finalize Go-Live (UPC/ISRC)"), ("releases.takedown", "Turunkan Rilisan", "Take Down Release"), ("releases.delete", "Hapus Rilisan", "Delete Release")]},
@@ -92,6 +92,14 @@ PERMISSION_META = {
     "labels.blacklist.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.blacklist.request.view"],
         "desc_id": "Menyetujui atau menolak permintaan blacklist (efektif hanya Super Admin).",
         "desc_en": "Approve or reject blacklist requests (effectively Super Admin only)."},
+    "labels.email": {"type": "direct", "sensitive": True, "depends_on": ["labels.accounts"],
+        "desc_id": "Mengganti email login akun label secara LANGSUNG tanpa persetujuan.",
+        "desc_en": "Change a label account login email DIRECTLY without approval.",
+        "boundary_id": "Pemegang “Kelola akun label” tanpa izin ini mengajukan permintaan yang perlu disetujui.",
+        "boundary_en": "“Manage label accounts” holders without this permission submit a request that needs approval."},
+    "labels.email.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.view"],
+        "desc_id": "Menyetujui atau menolak permintaan ganti email akun label (tidak bisa menyetujui permintaan sendiri).",
+        "desc_en": "Approve or reject label account email change requests (cannot approve own request)."},
     # --- Granular high-risk actions (Phase C) ---
     "releases.go_live": {"type": "sensitive", "sensitive": True, "depends_on": ["releases.review"],
         "desc_id": "Menandai rilisan TAYANG (mengunci UPC/ISRC). Aksi final yang tampil di DSP.",
@@ -668,6 +676,10 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "labels.blacklist.request"
     if "/admin/labels/" in path and path.endswith("/package-request"):
         return "labels.package.request"
+    if "/admin/labels/" in path and path.endswith("/email-change-request"):
+        return "labels.accounts"
+    if "/admin/labels/" in path and path.endswith("/change-email"):
+        return "labels.email"
     if "/admin/labels/" in path and (path.endswith("/blacklist") or path.endswith("/unblacklist")):
         return "labels.blacklist"
     if "/admin/labels" in path:
@@ -675,7 +687,7 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
             return "labels.package"
         if any(token in path for token in ("bank-change", "bank-account")):
             return "labels.bank"
-        if any(token in path for token in ("create-account", "revoke-account", "change-email")):
+        if any(token in path for token in ("create-account", "revoke-account")):
             return "labels.accounts"
         return "labels.manage" if mutate else "labels.view"
     if "/admin/kyc" in path:

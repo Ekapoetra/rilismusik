@@ -1,6 +1,7 @@
 from background_runtime import run_background
 """Label administration business logic, independent from FastAPI routes."""
 import asyncio
+import re
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
@@ -11,17 +12,12 @@ from auth_utils import hash_password
 from email_service import h, send_email
 from models import LabelStatusUpdate, new_id, now_iso
 from .deps import db, logger, log_activity
-from .admin_permission_service import has_permission
+from .admin_permission_service import assert_admin_permission, has_permission
 from .royalty_recalculation import run_label_recalculation_job
 
 
 FINANCE_ROLES = ("super_admin", "admin_finance")
-ACCOUNT_ADMIN_ROLES = ("super_admin", "admin_support", "admin_release")
-
-
-def _require_role(user: dict, allowed: tuple[str, ...], detail: str) -> None:
-    if user.get("role") not in allowed:
-        raise HTTPException(status_code=403, detail=detail)
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 async def _get_label(label_id: str) -> dict:
@@ -147,7 +143,7 @@ async def update_label(label_id: str, body: LabelStatusUpdate, user: dict) -> di
 
 def _normalize_email(value: str, *, field_name: str = "Email") -> str:
     normalized = (value or "").lower().strip()
-    if not normalized or "@" not in normalized:
+    if not _EMAIL_PATTERN.match(normalized):
         raise HTTPException(status_code=400, detail=f"{field_name} tidak valid")
     return normalized
 
@@ -190,7 +186,7 @@ async def create_label_account(
     *, label_id: str, email: str, pic_name: Optional[str], whatsapp: Optional[str],
     password: Optional[str], user: dict,
 ) -> dict:
-    _require_role(user, ACCOUNT_ADMIN_ROLES, "Hanya Super Admin / Release / Support")
+    assert_admin_permission(user, "labels.accounts")
     label = await _get_label(label_id)
     if label.get("user_id"):
         raise HTTPException(status_code=400, detail="Label ini sudah punya akun user")
@@ -243,7 +239,7 @@ async def _disable_users(user_ids: list[str], admin_id: str, reason: str) -> int
 async def revoke_label_account(
     *, label_id: str, cascade_artists: bool, reason: str, user: dict,
 ) -> dict:
-    _require_role(user, ACCOUNT_ADMIN_ROLES, "Hanya Super Admin / Support / Release")
+    assert_admin_permission(user, "labels.accounts")
     label = await _get_label(label_id)
     current_user_id = label.get("user_id")
     if not current_user_id:
@@ -308,10 +304,8 @@ async def _send_email_change_notifications(
     return sent
 
 
-async def change_label_email(
-    *, label_id: str, new_email: str, send_notification: bool, user: dict,
-) -> dict:
-    _require_role(user, ACCOUNT_ADMIN_ROLES, "Hanya Super Admin / Support / Release")
+async def prepare_label_email_change(label_id: str, new_email: str) -> dict:
+    """Validate an email change against the live account; shared by direct and approval flows."""
     label = await _get_label(label_id)
     current_user_id = label.get("user_id")
     if not current_user_id:
@@ -320,29 +314,55 @@ async def change_label_email(
     existing = await db.users.find_one({"email": normalized}, {"_id": 0, "id": 1})
     if existing and existing.get("id") != current_user_id:
         raise HTTPException(status_code=409, detail="Email ini sudah dipakai akun lain")
-    target = await db.users.find_one({"id": current_user_id}, {"_id": 0})
+    target = await db.users.find_one({"id": current_user_id}, {"_id": 0, "id": 1, "email": 1})
     if not target:
         raise HTTPException(status_code=404, detail="User account tidak ditemukan (stale ref)")
     old_email = target.get("email")
     if old_email == normalized:
         raise HTTPException(status_code=400, detail="Email baru sama dengan email lama")
-    await db.users.update_one({"id": current_user_id}, {
-        "$set": {"email": normalized, "email_changed_at": now_iso(), "email_changed_by": user["id"], "updated_at": now_iso()},
+    return {"label": label, "user_id": current_user_id, "old_email": old_email, "new_email": normalized}
+
+
+async def apply_label_email_change(
+    change: dict, *, send_notification: bool, actor: dict,
+    reason: str = "", request_id: Optional[str] = None,
+) -> dict:
+    label = change["label"]
+    user_id, old_email, new_email = change["user_id"], change["old_email"], change["new_email"]
+    now = now_iso()
+    await db.users.update_one({"id": user_id}, {
+        "$set": {"email": new_email, "email_changed_at": now, "email_changed_by": actor["id"], "updated_at": now},
         "$inc": {"token_version": 1},
     })
-    await db.labels.update_one({"id": label_id}, {"$set": {"email": normalized, "updated_at": now_iso()}})
+    # Multi Label accounts own several labels; only those mirroring the login email follow it.
+    await db.labels.update_many(
+        {"user_id": user_id, "$or": [{"id": label["id"]}, {"email": old_email}]},
+        {"$set": {"email": new_email, "updated_at": now}},
+    )
     notifications = {"old": False, "new": False}
     if send_notification:
         notifications = await _send_email_change_notifications(
-            old_email=old_email, new_email=normalized,
+            old_email=old_email, new_email=new_email,
             label_name=label.get("label_name", "label Anda"),
         )
     await log_activity(
-        user["id"], "change_label_email", "label", label_id,
-        before={"email": old_email}, after={"email": normalized, "notify_sent": notifications},
+        actor["id"], "change_label_email", "label", label["id"],
+        before={"email": old_email},
+        after={"email": new_email, "notify_sent": notifications, "reason": reason, "request_id": request_id},
     )
     return {
-        "ok": True, "label_id": label_id, "old_email": old_email,
-        "new_email": normalized, "notify_sent": notifications,
+        "ok": True, "label_id": label["id"], "old_email": old_email,
+        "new_email": new_email, "notify_sent": notifications,
         "warning": "Semua sesi login lama akan terputus. Label harus login ulang.",
     }
+
+
+async def change_label_email(
+    *, label_id: str, new_email: str, send_notification: bool, user: dict, reason: str = "",
+) -> dict:
+    if not has_permission(user, "labels.email"):
+        raise HTTPException(status_code=403, detail="Ganti email langsung hanya untuk Super Admin. Ajukan permintaan ganti email untuk disetujui.")
+    change = await prepare_label_email_change(label_id, new_email)
+    return await apply_label_email_change(
+        change, send_notification=send_notification, actor=user, reason=(reason or "").strip(),
+    )

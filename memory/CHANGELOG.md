@@ -1,5 +1,12 @@
 # RILIS MUSIK — Changelog
 
+## 2026-10 — Perbaikan Ganti Email Akun Label + Persetujuan
+- **Akar masalah**: (1) `api` axios default `Content-Type: application/json` mengubah `FormData` menjadi JSON, sehingga endpoint `Form(...)` `change-email` & `revoke-account` selalu 422 — kena semua role termasuk Super Admin. (2) `admin_label_service` memakai cek role statis (`super_admin/admin_support/admin_release`), padahal admin dari role dinamis tersimpan `role="admin_custom"` → 403 walau punya izin `labels.accounts`.
+- **Perbaikan**: interceptor `client.js` mengirim FormData sebagai multipart; Buat Akun/Cabut Akses/Ganti Email memakai cek izin, bukan nama role.
+- **Persetujuan**: izin baru `labels.email` (ganti langsung, default hanya Super Admin) & `labels.email.approve`. Pemegang `labels.accounts` mengajukan `POST /api/admin/labels/{id}/email-change-request` (tipe `email` di Persetujuan Aksi Sensitif); email baru berlaku setelah disetujui, divalidasi ulang saat approve, dan tidak bisa disetujui oleh pengaju sendiri. Label Multi Label yang email-nya sama dengan email login ikut diperbarui.
+- Diuji: `backend/tests/test_label_email_change.py` (offline, mongomock) + test axios FormData di `client.upload.test.js`.
+
+
 ## 2026-06 — PRD 06 Compensation FASE B+C+D (Bonus Engine + Payroll + UI)
 - **Bonus Engine**: dari payments paid (bukan royalti), atribusi eksplisit, Bonus Rules effective-dated, Bonus Ledger idempotent per payment (anti double-count: 1 rule paling spesifik). Antrean Unattributed. `routes/compensation_admin.py`.
 - **Payroll**: Period draft→review→approved→paid→finalized + Item snapshot (gaji resolver tanpa proration + tunjangan + bonus + penyesuaian), finalisasi immutable & bonus → paid_out. Allowances & Adjustments effective/approve. Salary manage via staff_salary_history.
