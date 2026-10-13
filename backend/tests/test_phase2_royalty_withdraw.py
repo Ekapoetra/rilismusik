@@ -1,6 +1,7 @@
 """RILIS MUSIK Phase 2 - Royalty Import + Withdraw regression tests."""
 import os
 import io
+import time
 import uuid
 
 import pymongo
@@ -66,6 +67,22 @@ def _session():
 
 def _rand_email(prefix="t2"):
     return f"TEST_{prefix}_{uuid.uuid4().hex[:8]}@example.com"
+
+
+def _wait_import_status(session, import_id, target, timeout=120):
+    """Publish/mark-dana run as background jobs — poll the import doc until it
+    reaches `target` (or lands on an explicit error state)."""
+    deadline = time.time() + timeout
+    last = None
+    while time.time() < deadline:
+        doc = session.get(f"{API}/royalty/admin/imports/{import_id}", timeout=30).json()
+        last = doc.get("status")
+        if last == target:
+            return doc
+        if last in ("publish_error", "receive_error", "error"):
+            raise AssertionError(f"import {import_id} ended at {last}: {doc.get('error_message')}")
+        time.sleep(1)
+    raise AssertionError(f"import {import_id} stuck at {last}, expected {target}")
 
 
 # -------- fixtures --------
@@ -188,7 +205,8 @@ class TestRoyaltyImport:
         import_id = pytest.import_id
         r = s.post(f"{API}/royalty/admin/imports/{import_id}/publish", json={})
         assert r.status_code == 200, r.text
-        body = r.json()
+        # Publish is a background job — poll until the import settles.
+        body = _wait_import_status(s, import_id, "published")
         assert body["status"] == "published"
         assert body.get("published_at")
 
@@ -201,13 +219,16 @@ class TestRoyaltyImport:
         s = super_session
         r = s.post(f"{API}/royalty/admin/imports/{pytest.import_id}/mark-dana-received")
         assert r.status_code == 200, r.text
-        body = r.json()
+        body = _wait_import_status(s, pytest.import_id, "dana_received")
         assert body["status"] == "dana_received"
         assert body.get("dana_received_at")
 
     def test_mark_dana_received_idempotent_block(self, super_session):
+        # Spec: a second mark-dana on a completed import is an idempotent
+        # no-op — it returns the import doc (200), not an error.
         r = super_session.post(f"{API}/royalty/admin/imports/{pytest.import_id}/mark-dana-received")
-        assert r.status_code == 400
+        assert r.status_code == 200
+        assert r.json()["status"] == "dana_received"
 
     def test_list_imports_no_objectid(self, super_session):
         r = super_session.get(f"{API}/royalty/admin/imports")

@@ -201,9 +201,9 @@ def test_content_id_claim_requires_valid_youtube_link():
         "content_id_request_id": str(uuid.uuid4()),
     }
     try:
-        # Schema now rejects non-YouTube hosts before the handler runs (422).
+        # Non-YouTube hosts are rejected when the submission is prepared (400).
         invalid = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://example.com/video"}, headers=_headers(label_token), timeout=30)
-        assert invalid.status_code == 422
+        assert invalid.status_code == 400, invalid.text
         # A claim without the creator packet (tracks + creators + consent) is rejected.
         missing_packet = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://youtu.be/abcdefghijk"}, headers=_headers(label_token), timeout=30)
         assert missing_packet.status_code == 400, missing_packet.text
