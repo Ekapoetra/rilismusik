@@ -1,4 +1,4 @@
-"""Generic Sensitive Action request→approval workflow for Blacklist and Package changes.
+"""Generic Sensitive Action request→approval workflow for Blacklist, Package and account email changes.
 
 Mirrors the Rate/Fee pattern: a non-super admin submits a request, the live value
 never changes until a Super Admin (or an authorized approver) approves. Direct-permission
@@ -15,6 +15,7 @@ from models import new_id, now_iso
 from .deps import db, log_activity, notify, notify_many, require_admin
 from .admin_permission_service import assert_admin_permission, has_permission
 from .label_package_service import LabelPackageUpdate, change_label_package
+from .admin_label_service import apply_label_email_change, prepare_label_email_change
 
 
 sensitive_r = APIRouter(prefix="/admin", tags=["sensitive-requests"])
@@ -23,7 +24,15 @@ sensitive_r = APIRouter(prefix="/admin", tags=["sensitive-requests"])
 _PERMS = {
     "blacklist": {"request": "labels.blacklist.request", "view": "labels.blacklist.request.view", "approve": "labels.blacklist.approve"},
     "package": {"request": "labels.package.request", "view": "labels.package.request.view", "approve": "labels.package.approve"},
+    # Account admins request; Super Admin (implicit) or a delegated approver decides.
+    "email": {"request": "labels.accounts", "view": "labels.email.approve", "approve": "labels.email.approve",
+              "view_also": ("labels.accounts",)},
 }
+
+
+def _can_view(user: dict, action_type: str) -> bool:
+    perms = _PERMS[action_type]
+    return any(has_permission(user, key) for key in (perms["view"], *perms.get("view_also", ())))
 
 
 class BlacklistRequestIn(BaseModel):
@@ -36,6 +45,12 @@ class PackageRequestIn(BaseModel):
     expires_on: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     reason: str = Field(min_length=3, max_length=1000)
     expected_revision: int = Field(ge=0)
+
+
+class EmailChangeRequestIn(BaseModel):
+    new_email: str = Field(min_length=3, max_length=254)
+    notify: bool = True
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 class SensitiveDecisionIn(BaseModel):
@@ -86,10 +101,12 @@ async def _create_request(*, action_type: str, label: dict, summary: str, payloa
     await db.sensitive_action_requests.insert_one(doc)
     doc.pop("_id", None)
     await log_activity(user["id"], f"{action_type}_request", "sensitive_action", doc["id"], after=doc)
-    approvers = await _approver_ids(action_type)
+    # Delegated email approvers may lack the queue page permission; the label page always works.
+    link = f"/admin/labels/{label['id']}" if action_type == "email" else "/admin/rate-changes"
+    approvers = [uid for uid in await _approver_ids(action_type) if uid != user["id"]]
     await notify_many(approvers, "sensitive_request", "Permintaan Persetujuan",
                       f"{label.get('label_name')}: {summary} menunggu persetujuan.",
-                      link="/admin/rate-changes", meta={"request_id": doc["id"], "action_type": action_type})
+                      link=link, meta={"request_id": doc["id"], "action_type": action_type})
     return doc
 
 
@@ -125,10 +142,20 @@ async def request_package(label_id: str, body: PackageRequestIn, user: dict = De
     return await _create_request(action_type="package", label=label, summary=summary, payload=payload, user=user)
 
 
+@sensitive_r.post("/labels/{label_id}/email-change-request")
+async def request_email_change(label_id: str, body: EmailChangeRequestIn, user: dict = Depends(require_admin)):
+    assert_admin_permission(user, "labels.accounts")
+    change = await prepare_label_email_change(label_id, body.new_email)
+    summary = f"Ganti email {change['old_email']} → {change['new_email']}"
+    payload = {"user_id": change["user_id"], "old_email": change["old_email"],
+               "new_email": change["new_email"], "notify": body.notify, "reason": body.reason.strip()}
+    return await _create_request(action_type="email", label=change["label"], summary=summary, payload=payload, user=user)
+
+
 @sensitive_r.get("/sensitive-requests")
 async def list_sensitive_requests(status: Optional[str] = None, label_id: Optional[str] = None,
                                   action_type: Optional[str] = None, user: dict = Depends(require_admin)):
-    viewable = [t for t, p in _PERMS.items() if has_permission(user, p["view"])]
+    viewable = [t for t in _PERMS if _can_view(user, t)]
     if not viewable:
         raise HTTPException(status_code=403, detail="Anda tidak memiliki izin melihat permintaan aksi sensitif")
     query: Dict[str, Any] = {"action_type": {"$in": viewable}}
@@ -174,6 +201,14 @@ async def _apply_package(*, label: dict, payload: dict, actor: dict) -> None:
     await change_label_package(label["id"], body, actor)
 
 
+async def _apply_email(*, label: dict, payload: dict, actor: dict, request_id: str) -> None:
+    change = await prepare_label_email_change(label["id"], payload["new_email"])
+    if change["user_id"] != payload["user_id"] or change["old_email"] != payload["old_email"]:
+        raise HTTPException(status_code=409, detail="Akun atau email label sudah berubah sejak permintaan diajukan. Tolak permintaan ini lalu ajukan ulang.")
+    await apply_label_email_change(change, send_notification=bool(payload.get("notify", True)), actor=actor,
+                                   reason=payload.get("reason") or "", request_id=request_id)
+
+
 @sensitive_r.post("/sensitive-requests/{request_id}/decision")
 async def decide_sensitive_request(request_id: str, body: SensitiveDecisionIn, user: dict = Depends(require_admin)):
     req = await db.sensitive_action_requests.find_one({"id": request_id}, {"_id": 0})
@@ -196,9 +231,13 @@ async def decide_sensitive_request(request_id: str, body: SensitiveDecisionIn, u
                      f"Permintaan {req.get('reference_id')} untuk {req.get('label_name')} ditolak.",
                      link=f"/admin/labels/{req['label_id']}", meta={"request_id": request_id})
         return {**req, **decision}
+    if action_type == "email" and req["requested_by"] == user["id"] and not has_permission(user, "labels.email"):
+        raise HTTPException(status_code=403, detail="Permintaan ganti email harus disetujui admin lain")
     label = await _get_label(req["label_id"])
     if action_type == "blacklist":
         await _apply_blacklist(label=label, payload=req["payload"], actor=user)
+    elif action_type == "email":
+        await _apply_email(label=label, payload=req["payload"], actor=user, request_id=request_id)
     else:
         await _apply_package(label=label, payload=req["payload"], actor=user)
     decision.update({"status": "approved", "applied": True})

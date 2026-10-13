@@ -13,7 +13,7 @@ import { celebrateWork } from "@/lib/completionFeedback";
 
 export default function AdminLabelDetail() {
   const { id } = useParams();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [data, setData] = useState(null);
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [blacklistReason, setBlacklistReason] = useState("");
@@ -23,6 +23,8 @@ export default function AdminLabelDetail() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [emailNotify, setEmailNotify] = useState(true);
+  const [emailReason, setEmailReason] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [balanceAuditOpen, setBalanceAuditOpen] = useState(false);
@@ -48,6 +50,13 @@ export default function AdminLabelDetail() {
   const canPackageRequest = hasPermission("labels.package.request");
   const canPackageView = hasPermission("labels.package.request.view");
   const canPackageApprove = hasPermission("labels.package.approve");
+  const canAccounts = hasPermission("labels.accounts");
+  const canEmailDirect = hasPermission("labels.email");
+  const canEmailApprove = hasPermission("labels.email.approve");
+  const approvePermission = { blacklist: canBlacklistApprove, package: canPackageApprove, email: canEmailApprove };
+  // Email changes need a second admin unless the approver may change emails directly.
+  const canApproveRequest = (req) => Boolean(approvePermission[req.action_type])
+    && !(req.action_type === "email" && req.requested_by === user?.id && !canEmailDirect);
 
   const runAction = async (action, success) => {
     setErr(""); setMsg("");
@@ -82,30 +91,40 @@ export default function AdminLabelDetail() {
     event.preventDefault(); setErr(""); setMsg("");
     try {
       const form = new FormData(); form.append("cascade_artists", String(revokeCascade)); form.append("reason", revokeReason);
-      const response = await api.post(`/admin/labels/${id}/revoke-account`, form);
+      const response = await api.post(`/admin/labels/${id}/revoke-account`, form, { headers: { "Content-Type": "multipart/form-data" } });
       setRevokeOpen(false); setRevokeReason(""); setRevokeCascade(false); await load();
       setMsg(`Akses akun ${response.data.revoked_email || ""} dicabut. ${response.data.artists_disabled || 0} artist sub-account dinonaktifkan.`);
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
   };
 
+  const closeEmail = () => { setEmailOpen(false); setNewEmail(""); setEmailReason(""); };
   const changeEmail = async (event) => {
-    event.preventDefault(); setErr(""); setMsg("");
+    event.preventDefault(); setErr(""); setMsg(""); setEmailBusy(true);
+    const email = newEmail.trim().toLowerCase();
+    const reason = emailReason.trim();
     try {
-      const form = new FormData(); form.append("new_email", newEmail.trim().toLowerCase()); form.append("notify", String(emailNotify));
-      const response = await api.post(`/admin/labels/${id}/change-email`, form);
-      setEmailOpen(false); setNewEmail(""); await load();
-      setMsg(`Email diubah dari ${response.data.old_email} → ${response.data.new_email}. Sesi login lama terputus.`);
+      if (canEmailDirect) {
+        const form = new FormData(); form.append("new_email", email); form.append("notify", String(emailNotify)); form.append("reason", reason);
+        const response = await api.post(`/admin/labels/${id}/change-email`, form, { headers: { "Content-Type": "multipart/form-data" } });
+        closeEmail(); await load();
+        setMsg(`Email diubah dari ${response.data.old_email} → ${response.data.new_email}. Sesi login lama terputus.`);
+      } else {
+        const response = await api.post(`/admin/labels/${id}/email-change-request`, { new_email: email, notify: emailNotify, reason });
+        closeEmail(); setRefreshKey((k) => k + 1);
+        setMsg(`Permintaan ganti email ${response.data.reference_id || ""} dikirim. Email berubah setelah disetujui Super Admin atau admin penyetuju.`);
+      }
     } catch (error) { setErr(formatApiError(error.response?.data?.detail)); }
+    finally { setEmailBusy(false); }
   };
 
   if (!data) return <div className="text-zinc-500">Memuat…</div>;
   const label = data.label;
   const isBlacklisted = label.account_status === "blacklisted";
-  const permissions = { canFinance, canBlacklist, canBlacklistDirect, canBlacklistRequest, isBlacklisted, canPackage: canPackageDirect, canPackageRequest, canAccounts: hasPermission("labels.accounts") };
+  const permissions = { canFinance, canBlacklist, canBlacklistDirect, canBlacklistRequest, isBlacklisted, canPackage: canPackageDirect, canPackageRequest, canAccounts };
   const actions = { setStatus, unblacklist, verifyBank, openBlacklist: () => setBlacklistOpen(true), openEmail: () => setEmailOpen(true), openRevoke: () => setRevokeOpen(true) };
   const modals = {
     revoke: { open: revokeOpen, close: () => setRevokeOpen(false), submit: revokeAccount, reason: revokeReason, setReason: setRevokeReason, cascade: revokeCascade, setCascade: setRevokeCascade },
-    email: { open: emailOpen, close: () => setEmailOpen(false), submit: changeEmail, value: newEmail, setValue: setNewEmail, notify: emailNotify, setNotify: setEmailNotify },
+    email: { open: emailOpen, close: closeEmail, submit: changeEmail, value: newEmail, setValue: setNewEmail, notify: emailNotify, setNotify: setEmailNotify, reason: emailReason, setReason: setEmailReason, direct: canEmailDirect, busy: emailBusy },
     blacklist: { open: blacklistOpen, close: () => setBlacklistOpen(false), submit: blacklist, reason: blacklistReason, setReason: setBlacklistReason },
   };
 
@@ -116,7 +135,7 @@ export default function AdminLabelDetail() {
     {isBlacklisted && label.blacklist_reason && <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm"><div className="text-xs font-bold uppercase tracking-widest text-red-300 mb-1">Alasan Blacklist</div><div className="text-red-100">{label.blacklist_reason}</div></div>}
     <LabelDetailCards data={data} permissions={permissions} actions={actions} onChanged={load} onPackageChanged={() => { load(); setRefreshKey((k) => k + 1); }} />
     {(canRateDirect || canRateRequest || canRateView || canRateApprove) && <RateChangePanel labelId={id} label={label} perms={{ direct: canRateDirect, request: canRateRequest && !canRateDirect, approve: canRateApprove, view: canRateView }} onChanged={load} />}
-    <SensitiveRequestsPanel labelId={id} canView={canBlacklistView || canPackageView} canApprove={canBlacklistApprove || canPackageApprove} onChanged={load} refreshKey={refreshKey} />
+    <SensitiveRequestsPanel labelId={id} canView={canBlacklistView || canPackageView || canAccounts || canEmailApprove} canApprove={canApproveRequest} onChanged={load} refreshKey={refreshKey} />
     {hasPermission("royalty.manage") && <RoyaltyAdjustmentPanel label={label} onChanged={load} />}
     {canFinance && <section className="border-y border-white/10 py-5" data-testid="admin-label-balance-adjustment-section"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Kesesuaian Saldo Royalti</h2><p className="mt-1 text-sm text-zinc-400">Preview perhitungan ulang setelah cutoff tanpa menyentuh withdrawal web.</p></div><button type="button" className={balanceAuditOpen ? "rm-btn-primary inline-flex items-center gap-2" : "rm-btn-ghost inline-flex items-center gap-2"} onClick={() => setBalanceAuditOpen((value) => !value)} data-testid="admin-label-balance-audit-toggle"><Scale className="h-4 w-4" /> {balanceAuditOpen ? "Tutup Penyesuaian" : "Audit & Sesuaikan Saldo"}</button></div>{balanceAuditOpen && <div className="mt-5" data-testid="admin-label-balance-audit-content"><BalanceAuditPanel label={label} onComplete={load} /></div>}</section>}
     <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />

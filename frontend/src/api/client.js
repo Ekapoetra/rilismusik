@@ -16,6 +16,11 @@ export const api = axios.create({
 // returns the existing upload route's response, including all its validation.
 api.interceptors.request.use(async (config) => {
   if (typeof FormData === "undefined" || !(config.data instanceof FormData)) return config;
+  // Under the instance's JSON default axios serializes FormData to JSON, which
+  // FastAPI Form(...) endpoints reject. Send it as multipart instead.
+  if (String(config.headers.get("Content-Type") || "").includes("application/json")) {
+    config.headers.set("Content-Type", "multipart/form-data");
+  }
   const entries = Array.from(config.data.entries());
   const files = entries.filter(([, value]) => typeof Blob !== "undefined" && value instanceof Blob);
   if (files.length !== 1 || files[0][0] !== "file" || files[0][1].size <= 3 * 1024 * 1024) return config;

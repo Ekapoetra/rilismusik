@@ -16,16 +16,16 @@ const BADGE = {
   approved: "bg-emerald-500/15 text-emerald-300",
   rejected: "bg-red-500/15 text-red-300",
 };
-const TYPE_LABEL = { rate: "Rate/Fee", package: "Paket", blacklist: "Blacklist" };
+const TYPE_LABEL = { rate: "Rate/Fee", package: "Paket", blacklist: "Blacklist", email: "Ganti Email" };
 
 export default function RateChangeQueue() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [tab, setTab] = useState("pending");
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const approvePerm = { rate: "labels.rate.approve", package: "labels.package.approve", blacklist: "labels.blacklist.approve" };
+  const approvePerm = { rate: "labels.rate.approve", package: "labels.package.approve", blacklist: "labels.blacklist.approve", email: "labels.email.approve" };
 
   const load = useCallback(async () => {
     setErr("");
@@ -62,7 +62,7 @@ export default function RateChangeQueue() {
       <header className="border-b border-white/10 pb-5">
         <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">Aksi Sensitif</div>
         <h1 className="mt-1 flex items-center gap-2 font-display text-3xl font-extrabold"><ShieldCheck className="h-6 w-6 text-pink-400" /> Persetujuan Aksi Sensitif</h1>
-        <p className="mt-2 text-sm text-zinc-400">Perubahan rate/fee, paket, dan blacklist tidak berlaku sampai Super Admin menyetujui permintaan.</p>
+        <p className="mt-2 text-sm text-zinc-400">Perubahan rate/fee, paket, blacklist, dan email akun label tidak berlaku sampai Super Admin menyetujui permintaan.</p>
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -76,7 +76,8 @@ export default function RateChangeQueue() {
       ) : (
         <div className="space-y-3">
           {rows.map((req) => {
-            const canApprove = hasPermission(approvePerm[req._type]);
+            const ownEmailRequest = req._type === "email" && req.requested_by === user?.id && !hasPermission("labels.email");
+            const canApprove = hasPermission(approvePerm[req._type]) && !ownEmailRequest;
             return (
               <div key={`${req._kind}-${req.id}`} className="rounded-lg border border-white/10 bg-white/[0.02] p-4" data-testid={`rate-queue-row-${req.id}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">

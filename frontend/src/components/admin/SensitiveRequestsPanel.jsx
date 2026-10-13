@@ -8,9 +8,9 @@ const STATUS = {
   approved: { label: "Disetujui", cls: "bg-emerald-500/15 text-emerald-300" },
   rejected: { label: "Ditolak", cls: "bg-red-500/15 text-red-300" },
 };
-const TYPE_LABEL = { blacklist: "Blacklist", package: "Paket" };
+const TYPE_LABEL = { blacklist: "Blacklist", package: "Paket", email: "Ganti Email" };
 
-// Shows blacklist + package sensitive requests for one label, with approve/reject for approvers.
+// Shows blacklist, package and email sensitive requests for one label; canApprove(req) gates each row.
 export function SensitiveRequestsPanel({ labelId, canView, canApprove, onChanged, refreshKey }) {
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -48,7 +48,7 @@ export function SensitiveRequestsPanel({ labelId, canView, canApprove, onChanged
             <div className="mt-1 font-semibold">{req.summary}</div>
             {req.reason && <div className="mt-1 text-xs text-zinc-400">Alasan: {req.reason}</div>}
             <div className="mt-1 text-[11px] text-zinc-500">Diajukan oleh {req.requested_by_name} · {(req.requested_at || "").slice(0, 10)}{req.decided_by_name ? ` · Diputuskan oleh ${req.decided_by_name}` : ""}</div>
-            {canApprove && req.status === "pending" && (
+            {canApprove(req) && req.status === "pending" && (
               <div className="mt-2 flex gap-2">
                 <button type="button" disabled={busy} onClick={() => decide(req, "approve")} className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50" data-testid={`sensitive-request-approve-${req.id}`}><Check className="h-3.5 w-3.5" /> Setujui</button>
                 <button type="button" disabled={busy} onClick={() => decide(req, "reject")} className="inline-flex items-center gap-1 rounded-md border border-red-400/30 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-50" data-testid={`sensitive-request-reject-${req.id}`}><X className="h-3.5 w-3.5" /> Tolak</button>

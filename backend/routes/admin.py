@@ -1043,11 +1043,12 @@ async def admin_change_label_email(
     label_id: str,
     new_email: str = Form(...),
     send_notification: bool = Form(True, alias="notify"),
+    reason: str = Form(""),
     user: dict = Depends(require_admin),
 ):
     return await change_label_email(
         label_id=label_id, new_email=new_email,
-        send_notification=send_notification, user=user,
+        send_notification=send_notification, user=user, reason=reason,
     )
 
 
