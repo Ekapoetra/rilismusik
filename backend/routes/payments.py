@@ -265,6 +265,7 @@ async def admin_create_product(body: PaymentProductCreateIn, user: dict = Depend
         "id": new_id(), "name": body.name.strip(), "description": (body.description or "").strip(),
         "amount": int(body.amount), "active": body.active,
         "delivery_type": body.delivery_type if body.delivery_type in ("link", "file") else "link",
+        "benefit_eligible": bool(body.benefit_eligible),
         "created_by": user["id"],
         "created_at": now_iso(), "updated_at": now_iso(),
     }

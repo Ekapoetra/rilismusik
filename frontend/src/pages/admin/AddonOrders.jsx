@@ -44,7 +44,7 @@ export default function AdminAddonOrders() {
   const [refundNote, setRefundNote] = useState("");
   // Catalog state
   const [products, setProducts] = useState([]);
-  const [pform, setPform] = useState({ name: "", description: "", amount: "", delivery_type: "link" });
+  const [pform, setPform] = useState({ name: "", description: "", amount: "", delivery_type: "link", benefit_eligible: true });
   const [editingProduct, setEditingProduct] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -107,11 +107,11 @@ export default function AdminAddonOrders() {
       if (editingProduct) await api.patch(`/payments/admin/products/${editingProduct}`, payload);
       else await api.post("/payments/admin/products", { ...payload, active: true });
       toast.success(editingProduct ? "Layanan diperbarui" : "Layanan baru ditambahkan");
-      setPform({ name: "", description: "", amount: "", delivery_type: "link" }); setEditingProduct(null);
+      setPform({ name: "", description: "", amount: "", delivery_type: "link", benefit_eligible: true }); setEditingProduct(null);
       await loadProducts();
     } catch (err) { toast.error(formatApiError(err.response?.data?.detail) || "Gagal"); }
   };
-  const editProduct = (p) => { setEditingProduct(p.id); setPform({ name: p.name, description: p.description || "", amount: String(p.amount), delivery_type: p.delivery_type || "link" }); };
+  const editProduct = (p) => { setEditingProduct(p.id); setPform({ name: p.name, description: p.description || "", amount: String(p.amount), delivery_type: p.delivery_type || "link", benefit_eligible: p.benefit_eligible !== false }); };
   const toggleProduct = async (p) => { try { await api.patch(`/payments/admin/products/${p.id}`, { active: !p.active }); await loadProducts(); } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); } };
   const removeProduct = async () => { try { await api.delete(`/payments/admin/products/${deleteTarget.id}`); setDeleteTarget(null); toast.success("Layanan dihapus/diarsipkan"); await loadProducts(); } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); } };
 
@@ -178,7 +178,8 @@ export default function AdminAddonOrders() {
             <div className="md:col-span-2"><label className="rm-label">Harga IDR</label><input required min="1000" type="number" className="rm-input" value={pform.amount} onChange={(e) => setPform({ ...pform, amount: e.target.value })} data-testid="addon-product-amount" /></div>
             <div className="md:col-span-2"><label className="rm-label">Pengiriman</label><select className="rm-input" value={pform.delivery_type} onChange={(e) => setPform({ ...pform, delivery_type: e.target.value })} data-testid="addon-product-delivery-type"><option value="link">Tautan (link)</option><option value="file">Berkas (upload)</option></select></div>
             <button className="rm-btn-primary md:col-span-2 flex items-center justify-center gap-2" type="submit" data-testid="addon-product-submit">{editingProduct ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />} {editingProduct ? "Simpan" : "Tambah"}</button>
-            {editingProduct && <button type="button" className="rm-btn-ghost md:col-span-12" onClick={() => { setEditingProduct(null); setPform({ name: "", description: "", amount: "", delivery_type: "link" }); }} data-testid="addon-product-edit-cancel">Batal Edit</button>}
+            <label className="flex items-center gap-2 text-xs text-zinc-400 md:col-span-12"><input type="checkbox" checked={pform.benefit_eligible} onChange={(e) => setPform({ ...pform, benefit_eligible: e.target.checked })} data-testid="addon-product-benefit-eligible" /> Masuk kuota benefit gratis bulanan — nonaktifkan untuk layanan mahal yang hanya boleh diberikan lewat bonus admin</label>
+            {editingProduct && <button type="button" className="rm-btn-ghost md:col-span-12" onClick={() => { setEditingProduct(null); setPform({ name: "", description: "", amount: "", delivery_type: "link", benefit_eligible: true }); }} data-testid="addon-product-edit-cancel">Batal Edit</button>}
           </form>
           {products.length > 0 && (
             <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -189,6 +190,7 @@ export default function AdminAddonOrders() {
                       <div className="truncate text-sm font-bold">{p.name}</div>
                       <div className="text-xs text-zinc-500">Rp {Number(p.amount || 0).toLocaleString("id-ID")}</div>
                       <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${p.delivery_type === "file" ? "bg-sky-500/15 text-sky-300" : "bg-zinc-500/15 text-zinc-300"}`}>{p.delivery_type === "file" ? "Berkas" : "Tautan"}</span>
+                      {p.benefit_eligible === false && <span className="ml-1 mt-1 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300" data-testid={`addon-product-benefit-off-${p.id}`}>Bonus saja</span>}
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button className="grid h-8 w-8 place-items-center rounded-md text-zinc-300 hover:bg-white/10" title="Edit" onClick={() => editProduct(p)} data-testid={`addon-product-edit-${p.id}`}><Pencil className="h-3.5 w-3.5" /></button>

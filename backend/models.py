@@ -264,6 +264,7 @@ class PaymentProductCreateIn(BaseModel):
     amount: int = Field(ge=1000, le=1_000_000_000)
     active: bool = True
     delivery_type: str = Field(default="link")
+    benefit_eligible: bool = True
 
 
 class PaymentProductUpdateIn(BaseModel):
@@ -272,6 +273,7 @@ class PaymentProductUpdateIn(BaseModel):
     amount: Optional[int] = Field(default=None, ge=1000, le=1_000_000_000)
     active: Optional[bool] = None
     delivery_type: Optional[str] = None
+    benefit_eligible: Optional[bool] = None
 
 
 class PaymentAdminActionIn(BaseModel):

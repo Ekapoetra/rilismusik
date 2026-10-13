@@ -110,6 +110,17 @@ async def active_grants(scope: Dict[str, Any], service: Optional[str] = None,
     return rows
 
 
+async def _quota_eligible(service: str) -> bool:
+    """Whether the monthly package quota may fund this service. Admin grants are
+    unaffected — they are checked before this. Products default to eligible;
+    `benefit_eligible: false` keeps expensive services out of the automatic
+    quota while still allowing targeted bonus grants. WAMI is always eligible."""
+    if service == "wami":
+        return True
+    product = await db.payment_products.find_one({"id": service}, {"_id": 0, "benefit_eligible": 1})
+    return bool((product or {}).get("benefit_eligible", True))
+
+
 async def consume_benefit(scope: Dict[str, Any], service: str,
                           now: Optional[datetime] = None,
                           reserved: int = 0) -> Dict[str, Any]:
@@ -129,6 +140,8 @@ async def consume_benefit(scope: Dict[str, Any], service: str,
         )
         if getattr(res, "modified_count", 0):
             return {"kind": "grant", "grant_id": g["id"], "grant": g}
+    if not await _quota_eligible(service):
+        return {"kind": "paid", "grant_id": None, "ineligible": True}
     cfg = await benefit_config()
     quota = int(cfg["monthly_quota"].get(scope["package"], 0))
     used = await monthly_usage(scope, now)
@@ -147,6 +160,11 @@ async def consume_benefits(scope: Dict[str, Any], service_keys: List[str],
         r = await consume_benefit(scope, sk, now, reserved=reserved)
         if r["kind"] == "paid":
             await rollback_funding(results)
+            if r.get("ineligible"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Layanan yang dipilih tidak termasuk benefit gratis — hapus atau beli terpisah.",
+                )
             raise HTTPException(
                 status_code=400,
                 detail="Kuota layanan gratis bulan ini habis — hapus layanan tambahan atau beli terpisah.",

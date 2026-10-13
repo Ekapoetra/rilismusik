@@ -255,6 +255,59 @@ class BenefitFoundationTests(unittest.TestCase):
         funded = run(ben.consume_benefits(scope, ["svc-a", "svc-b"]))
         self.assertEqual([r["kind"] for r in funded], ["quota", "quota"])
 
+    # ---------- benefit_eligible flag (quota fairness) ----------
+    def test_ineligible_product_skips_quota(self):
+        self._as(LABEL_USER)
+        self.payment_products.docs.append({
+            "id": "svc-expensive", "name": "Visualizer", "amount": 500000,
+            "active": True, "benefit_eligible": False,
+        })
+        scope = {"key": "lab-1", "label_ids": ["lab-1"], "package": "annual_vip", "vip_benefits": True}
+        funded = run(ben.consume_benefit(scope, "svc-expensive"))
+        self.assertEqual(funded["kind"], "paid")
+        self.assertTrue(funded["ineligible"])
+
+    def test_grant_still_covers_ineligible_product(self):
+        self._as(LABEL_USER)
+        self.payment_products.docs.append({
+            "id": "svc-expensive", "name": "Visualizer", "amount": 500000,
+            "active": True, "benefit_eligible": False,
+        })
+        self.benefit_grants.docs.append({
+            "id": "g-vip", "scope_key": "lab-1", "service": "svc-expensive",
+            "quantity": 1, "used": 0, "expires_at": FUTURE,
+        })
+        scope = {"key": "lab-1", "label_ids": ["lab-1"], "package": "annual_vip", "vip_benefits": True}
+        funded = run(ben.consume_benefit(scope, "svc-expensive"))
+        self.assertEqual(funded["kind"], "grant")
+
+    def test_grant_any_covers_ineligible_product(self):
+        self._as(LABEL_USER)
+        self.payment_products.docs.append({
+            "id": "svc-expensive", "name": "Visualizer", "amount": 500000,
+            "active": True, "benefit_eligible": False,
+        })
+        self.benefit_grants.docs.append({
+            "id": "g-any", "scope_key": "lab-1", "service": "any",
+            "quantity": 1, "used": 0, "expires_at": FUTURE,
+        })
+        scope = {"key": "lab-1", "label_ids": ["lab-1"], "package": "annual_vip", "vip_benefits": True}
+        funded = run(ben.consume_benefit(scope, "svc-expensive"))
+        self.assertEqual(funded["kind"], "grant")
+
+    def test_batch_ineligible_message(self):
+        self._as(LABEL_USER)
+        self.payment_products.docs.append({
+            "id": "svc-expensive", "name": "Visualizer", "amount": 500000,
+            "active": True, "benefit_eligible": False,
+        })
+        scope = {"key": "lab-1", "label_ids": ["lab-1"], "package": "annual_vip", "vip_benefits": True}
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as ctx:
+            run(ben.consume_benefits(scope, ["svc-expensive"]))
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("tidak termasuk benefit", ctx.exception.detail)
+
     # ---------- terminal status returns benefits (audit B2) ----------
     def test_rejected_order_restores_quota(self):
         self._as(LABEL_USER)
