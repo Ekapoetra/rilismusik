@@ -77,7 +77,7 @@ jobs:
       MONGO_URL: mongodb://127.0.0.1:27017
       DB_NAME: rilismusik_live_suite
       JWT_SECRET: live-suite-ci-secret
-      ADMIN_EMAIL: ci-superadmin@rilismusik.test
+      ADMIN_EMAIL: ci-superadmin@rilismusik-ci.io
       ADMIN_PASSWORD: CiSuite#Admin2026
       FRONTEND_URL: http://localhost:3000
       CORS_ORIGINS: http://localhost:3000
@@ -108,7 +108,7 @@ jobs:
         working-directory: backend
         run: |
           cat > .env.test <<'EOF'
-          TEST_SUPERADMIN_EMAIL=ci-superadmin@rilismusik.test
+          TEST_SUPERADMIN_EMAIL=ci-superadmin@rilismusik-ci.io
           TEST_SUPERADMIN_PASSWORD=CiSuite#Admin2026
           TEST_FINANCE_EMAIL=finance1@rilismusik.com
           TEST_FINANCE_PASSWORD=Finance#2026
@@ -121,9 +121,9 @@ jobs:
           TEST_CONTENT_EMAIL=content1@rilismusik.com
           TEST_CONTENT_PASSWORD=Content#2026
           TEST_DEMO_PASSWORD=unused
-          TEST_DEMO_VIP_EMAIL=unused-vip@example.invalid
+          TEST_DEMO_VIP_EMAIL=unused-vip@example.com
           TEST_DEMO_VIP_PASSWORD=unused
-          TEST_DEMO_PPR_EMAIL=unused-ppr@example.invalid
+          TEST_DEMO_PPR_EMAIL=unused-ppr@example.com
           TEST_DEMO_PPR_PASSWORD=unused
           EOF
       - name: Start backend (uvicorn)
@@ -138,7 +138,7 @@ jobs:
             if [ "$health" = "200" ]; then
               login_body=$(curl -s -X POST http://127.0.0.1:8010/api/auth/login \
                 -H 'Content-Type: application/json' \
-                -d '{"email":"ci-superadmin@rilismusik.test","password":"CiSuite#Admin2026"}' || true)
+                -d '{"email":"ci-superadmin@rilismusik-ci.io","password":"CiSuite#Admin2026"}' || true)
               if echo "$login_body" | grep -q access_token; then echo "backend ready"; exit 0; fi
               if [ $((i % 15)) -eq 0 ]; then echo "attempt $i login response: $login_body"; fi
             fi
