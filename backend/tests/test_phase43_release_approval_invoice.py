@@ -198,7 +198,7 @@ def test_content_id_claim_requires_valid_youtube_link():
     payload = {
         "release_id": release_id, "category": "content_id_claim", "subject": "Ajukan Content ID",
         "description": "Mohon proses video ini", "originality_declared": True, "attachments": [],
-        "content_id_request_id": f"cid-req-{suffix}",
+        "content_id_request_id": str(uuid.uuid4()),
     }
     try:
         # Schema now rejects non-YouTube hosts before the handler runs (422).

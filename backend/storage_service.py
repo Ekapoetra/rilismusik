@@ -72,6 +72,13 @@ def _local_enabled() -> bool:
     return not is_configured() and _LOCAL_FALLBACK
 
 
+def storage_available() -> bool:
+    """True when *some* backend can persist objects: real R2, or the opt-in
+    local-disk fallback (live-suite CI / dev). Production without R2 stays
+    False so misconfiguration still fails closed."""
+    return is_configured() or _local_enabled()
+
+
 def _local_path(key: str) -> Path:
     root = Path(os.environ.get("UPLOAD_DIR", "/app/backend/uploads")).resolve()
     path = (root / key).resolve()

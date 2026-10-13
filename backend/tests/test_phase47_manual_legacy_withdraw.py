@@ -58,9 +58,31 @@ def test_manual_history_auto_amount_settles_range_and_stays_hidden_from_label():
     })
     db.labels.insert_one({
         "id": label_id, "user_id": user_id, "label_name": f"Phase 47 {suffix}",
+        "pic_name": "Phase47 PIC", "email": email, "whatsapp": "081234567890",
+        "address": "Jl. Phase47", "city": "Jakarta", "country": "Indonesia",
+        "logo_storage_key": f"label-logo/{label_id}/logo.png",
+        "contract_status": "active", "kyc_status": "verified",
+        "kyc_document_id": f"phase47-kyc-{suffix}", "kyc_verified_at": now,
         "account_status": "active", "last_withdrawn_period": None,
         "balance_pending_idr": 999999, "balance_available_idr": 999999,
         "balance_withdraw_requested_idr": 0, "created_at": now, "updated_at": now,
+    })
+    # KYC prerequisites: verified document + bank account + active contract.
+    db.kyc_documents.insert_one({
+        "id": f"phase47-kyc-{suffix}", "label_id": label_id, "status": "verified",
+        "is_current": True, "storage_key": f"kyc-private/{label_id}/ktp.png",
+        "uploaded_at": now, "reviewed_at": now,
+    })
+    db.bank_accounts.insert_one({
+        "id": f"phase47-bank-{suffix}", "label_id": label_id, "bank_name": "Bank QA",
+        "account_number": f"6600{suffix[:6]}", "account_holder_name": "Phase47 PIC",
+        "verified_status": "verified", "created_at": now, "updated_at": now,
+    })
+    db.contracts.insert_one({
+        "id": f"phase47-contract-{suffix}", "label_id": label_id, "status": "active",
+        "file_url": "/api/files/contract/phase47.pdf", "filename": "contract.pdf",
+        "start_date": "2026-01-01", "end_date": "2030-01-01",
+        "created_at": now, "updated_at": now,
     })
     lines = [
         {"id": f"phase47-jan-{suffix}", "label_id": label_id, "period": "2026-01", "status": "draft", "legacy_settled": False, "label_idr": 1000},
@@ -133,6 +155,8 @@ def test_manual_history_auto_amount_settles_range_and_stays_hidden_from_label():
         db.balance_transactions.delete_many({"reference_id": {"$in": history_ids}})
         db.activity_logs.delete_many({"reference_id": {"$in": history_ids}})
         db.withdraw_requests.delete_many({"label_id": label_id})
+        for name in ("bank_accounts", "contracts", "kyc_documents"):
+            db[name].delete_many({"label_id": label_id})
         db.royalty_lines.delete_many({"label_id": label_id})
         db.labels.delete_one({"id": label_id})
         db.users.delete_one({"id": user_id})

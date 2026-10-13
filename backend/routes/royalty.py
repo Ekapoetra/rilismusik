@@ -180,7 +180,7 @@ async def admin_upload_royalty_csv(
             detail="Kolom 'Bulan laporan' wajib ada di CSV. Kolom 'Bulan Penjualan' tidak dapat digunakan sebagai periode laporan.",
         )
 
-    if not storage_service.is_configured():
+    if not storage_service.storage_available():
         target.unlink(missing_ok=True)
         raise HTTPException(status_code=503, detail="Cloud storage belum dikonfigurasi")
     r2_key = f"csv/{import_id}{ext}"

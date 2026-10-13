@@ -3,12 +3,53 @@ import os
 import io
 import uuid
 
+import pymongo
 import pytest
 import requests
 from tests.support_config import SUPERADMIN, temporary_password
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lanjut-core.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
+
+
+def _db():
+    return pymongo.MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+
+
+def _verify_label_kyc(db, label_id: str, email: str) -> None:
+    """Lift a freshly registered label past the KYC gate so royalty endpoints
+    answer it (they are KYC-gated for every label account)."""
+    now = "2026-01-01T00:00:00+00:00"
+    db.labels.update_one(
+        {"id": label_id},
+        {"$set": {
+            "pic_name": "Phase2 PIC", "email": email, "whatsapp": "081234567890",
+            "address": "Jl. Phase2", "city": "Jakarta", "country": "Indonesia",
+            "logo_storage_key": f"label-logo/{label_id}/logo.png",
+            "contract_status": "active", "kyc_status": "verified",
+            "kyc_document_id": f"phase2-kyc-{label_id}", "kyc_verified_at": now,
+        }},
+    )
+    db.kyc_documents.update_one(
+        {"id": f"phase2-kyc-{label_id}"},
+        {"$setOnInsert": {
+            "id": f"phase2-kyc-{label_id}", "label_id": label_id, "status": "verified",
+            "is_current": True, "storage_key": f"kyc-private/{label_id}/ktp.png",
+            "uploaded_at": now, "reviewed_at": now,
+        }},
+        upsert=True,
+    )
+    db.bank_accounts.insert_one({
+        "id": f"phase2-bank-{label_id}", "label_id": label_id, "bank_name": "Bank QA",
+        "account_number": "55001122", "account_holder_name": "Phase2 PIC",
+        "verified_status": "verified", "created_at": now, "updated_at": now,
+    })
+    db.contracts.insert_one({
+        "id": f"phase2-contract-{label_id}", "label_id": label_id, "status": "active",
+        "file_url": "/api/files/contract/phase2.pdf", "filename": "contract.pdf",
+        "start_date": "2026-01-01", "end_date": "2030-01-01",
+        "created_at": now, "updated_at": now,
+    })
 
 SUPER_EMAIL = SUPERADMIN["email"]
 SUPER_PASS = SUPERADMIN["password"]
@@ -56,6 +97,7 @@ def fresh_label_session():
     })
     assert r.status_code == 200, r.text
     data = r.json()
+    _verify_label_kyc(_db(), data["label"]["id"], email)
     return {"session": s, "email": email, "label_id": data["label"]["id"], "user_id": data["user"]["id"]}
 
 
