@@ -21,6 +21,8 @@ import io
 import asyncio
 import logging
 import mimetypes
+import shutil
+from pathlib import Path
 from typing import Optional, BinaryIO
 
 import boto3
@@ -56,6 +58,62 @@ def _client():
 
 def is_configured() -> bool:
     return all([R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET])
+
+
+# Local-disk fallback for environments without R2 (live-suite CI / dev).
+# Opt-in only: RILISMUSIK_STORAGE_LOCAL=1. Without the flag, missing R2
+# credentials still raise RuntimeError so a misconfigured production never
+# silently writes to ephemeral disk. serve_file already reads UPLOAD_DIR
+# as its local fallback, so keys written here are servable.
+_LOCAL_FALLBACK = os.environ.get("RILISMUSIK_STORAGE_LOCAL", "").strip().lower() in ("1", "true", "yes")
+
+
+def _local_enabled() -> bool:
+    return not is_configured() and _LOCAL_FALLBACK
+
+
+def _local_path(key: str) -> Path:
+    root = Path(os.environ.get("UPLOAD_DIR", "/app/backend/uploads")).resolve()
+    path = (root / key).resolve()
+    if path != root and root not in path.parents:
+        raise ValueError(f"storage key escapes local root: {key}")
+    return path
+
+
+def _local_write_sync(*, key: str, data: bytes) -> str:
+    path = _local_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return key
+
+
+def _local_write_fileobj_sync(*, key: str, fileobj: BinaryIO) -> str:
+    path = _local_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as out:
+        shutil.copyfileobj(fileobj, out)
+    return key
+
+
+def _local_delete_sync(*, key: str) -> None:
+    _local_path(key).unlink(missing_ok=True)
+
+
+def _local_head_sync(*, key: str) -> Optional[dict]:
+    path = _local_path(key)
+    return {"ContentLength": path.stat().st_size} if path.is_file() else None
+
+
+def _local_read_sync(*, key: str) -> bytes:
+    return _local_path(key).read_bytes()
+
+
+def _local_download_sync(*, key: str, local_path: str) -> int:
+    path = _local_path(key)
+    dest = Path(local_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(path, dest)
+    return dest.stat().st_size
 
 
 def guess_content_type(filename: str, fallback: str = "application/octet-stream") -> str:
@@ -164,6 +222,8 @@ async def upload_bytes(*, key: str, data: bytes, content_type: str) -> str:
     Never overwrites silently — the key is treated as a stable identifier.
     If the caller wants atomic replace, they must delete first.
     """
+    if _local_enabled():
+        return await asyncio.to_thread(_local_write_sync, key=key, data=data)
     try:
         return await asyncio.to_thread(_upload_bytes_sync, key=key, data=data, content_type=content_type)
     except (BotoCoreError, ClientError) as e:
@@ -175,6 +235,8 @@ async def upload_fileobj(*, key: str, fileobj: BinaryIO, content_type: str) -> s
     """Multipart-aware upload from a file-like object — preferred for large
     audio WAV files (boto3 chunks automatically above 8MB).
     """
+    if _local_enabled():
+        return await asyncio.to_thread(_local_write_fileobj_sync, key=key, fileobj=fileobj)
     try:
         return await asyncio.to_thread(_upload_fileobj_sync, key=key, fileobj=fileobj, content_type=content_type)
     except (BotoCoreError, ClientError) as e:
@@ -220,24 +282,33 @@ async def get_cors_config() -> Optional[dict]:
 
 async def download_to_file(*, key: str, local_path: str) -> int:
     """Download an R2 object to a local file path. Returns bytes written."""
+    if _local_enabled():
+        return await asyncio.to_thread(_local_download_sync, key=key, local_path=local_path)
     return await asyncio.to_thread(_download_to_file_sync, key=key, local_path=local_path)
 
 
 async def download_bytes(*, key: str) -> bytes:
     """Download a small object fully in memory (CMS assets and generated documents)."""
+    if _local_enabled():
+        return await asyncio.to_thread(_local_read_sync, key=key)
     return await asyncio.to_thread(_download_bytes_sync, key=key)
 
 
 async def delete_object(*, key: str) -> None:
     """Best-effort delete — logs but doesn't raise on failure."""
     try:
-        await asyncio.to_thread(_delete_object_sync, key=key)
+        if _local_enabled():
+            await asyncio.to_thread(_local_delete_sync, key=key)
+        else:
+            await asyncio.to_thread(_delete_object_sync, key=key)
     except (BotoCoreError, ClientError) as e:
         logger.warning("[R2] delete_object failed key=%s: %s", key, e)
 
 
 async def head_object(*, key: str) -> Optional[dict]:
     """Return object metadata or None if not found."""
+    if _local_enabled():
+        return await asyncio.to_thread(_local_head_sync, key=key)
     try:
         return await asyncio.to_thread(_head_object_sync, key=key)
     except (BotoCoreError, ClientError) as e:

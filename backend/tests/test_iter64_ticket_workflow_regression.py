@@ -38,14 +38,23 @@ def _headers(token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+_CREDENTIALS_FILE = Path(os.environ.get(
+    "TEST_CREDENTIALS_FILE",
+    str(Path(__file__).resolve().parent / ".test_credentials.md"),
+))
+
+
 def _record_credential(email, password):
-    path = Path("/app/memory/test_credentials.md")
+    path = _CREDENTIALS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as stream:
         stream.write(f"\n- Iter64 fixture `{email}` / `{password}` — ACTIVE QA\n")
 
 
 def _retire_credentials(emails):
-    path = Path("/app/memory/test_credentials.md")
+    path = _CREDENTIALS_FILE
+    if not path.exists():
+        return
     lines = path.read_text().splitlines()
     for index, line in enumerate(lines):
         if any(f"`{email}`" in line for email in emails) and "ACTIVE QA" in line:

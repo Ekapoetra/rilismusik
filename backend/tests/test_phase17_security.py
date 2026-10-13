@@ -84,15 +84,17 @@ def test_sec001_register_does_not_leak_token():
 # =============================================================================
 def test_sec001_xendit_webhook_rejects_unauthenticated_calls():
     """Without XENDIT_CALLBACK_TOKEN, the webhook must fail-closed (503).
-    With token set but wrong header → 401.
+    With token set but wrong header → 401. When the webhook endpoint is
+    disabled entirely (polling mode) it returns 410 — still a rejection.
     """
     r = requests.post(
         f"{API}/payments/webhook/xendit",
         json={"id": "mock_anything", "status": "paid"},
         timeout=30,
     )
-    # Either 503 (no token configured) or 401 (token configured but missing header)
-    assert r.status_code in (401, 503), f"webhook must reject unauthenticated calls, got {r.status_code}: {r.text}"
+    # Either 503 (no token configured), 401 (token configured but missing
+    # header), or 410 (webhook disabled — status is confirmed via polling)
+    assert r.status_code in (401, 410, 503), f"webhook must reject unauthenticated calls, got {r.status_code}: {r.text}"
 
 
 # =============================================================================

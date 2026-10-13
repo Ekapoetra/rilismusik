@@ -66,12 +66,18 @@ def create_refresh_token(
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
+# Secure cookies are mandatory in production. The flag only exists so
+# non-browser clients (live-suite over plain http) can exercise the real
+# cookie auth path; browsers already exempt localhost.
+_SECURE_COOKIES = os.environ.get("AUTH_COOKIE_SECURE", "true").strip().lower() != "false"
+
+
 def set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
+        secure=_SECURE_COOKIES,
         samesite="none",
         max_age=ACCESS_TOKEN_MINUTES * 60,
         path="/",
@@ -80,7 +86,7 @@ def set_auth_cookies(response, access_token: str, refresh_token: str) -> None:
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
+        secure=_SECURE_COOKIES,
         samesite="none",
         max_age=REFRESH_TOKEN_DAYS * 24 * 60 * 60,
         path="/",

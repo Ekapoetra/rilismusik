@@ -39,6 +39,13 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _credentials_file() -> Path:
+    return Path(os.environ.get(
+        "TEST_CREDENTIALS_FILE",
+        str(Path(__file__).resolve().parent / ".test_credentials.md"),
+    ))
+
+
 def _seed_label(db, suffix: str, name_prefix: str = "Iter70") -> dict:
     now = datetime.now(timezone.utc).isoformat()
     user_id = f"iter70-user-{suffix}"
@@ -103,7 +110,8 @@ def _seed_label(db, suffix: str, name_prefix: str = "Iter70") -> dict:
         "end_date": "2030-12-31",
         "created_at": now,
     })
-    credentials = Path("/app/memory/test_credentials.md")
+    credentials = _credentials_file()
+    credentials.parent.mkdir(parents=True, exist_ok=True)
     with credentials.open("a") as handle:
         handle.write(f"\n- Iter70 isolated fixture `{email}` / `{password}` — ACTIVE QA\n")
     return {"user_id": user_id, "label_id": label_id, "email": email, "password": password, "suffix": suffix}
@@ -144,7 +152,9 @@ def _cleanup_seed(db, seeded: dict, release_ids: list[str], artist_ids: list[str
     if artist_ids:
         db.artists.delete_many({"id": {"$in": artist_ids}})
     db.artists.delete_many({"label_id": seeded["label_id"], "source": "release_submission"})
-    credentials = Path("/app/memory/test_credentials.md")
+    credentials = _credentials_file()
+    if not credentials.exists():
+        return
     lines = credentials.read_text().splitlines()
     credentials.write_text("\n".join(line.replace("ACTIVE QA", "REMOVED (fixture teardown)") if seeded["email"] in line else line for line in lines) + "\n")
 

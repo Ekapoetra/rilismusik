@@ -1,4 +1,4 @@
-# Deployment percobaan migrasi Rilis Musik
+﻿# Deployment percobaan migrasi Rilis Musik
 
 Konfigurasi ini menjalankan React dan FastAPI sebagai dua Vercel Services
 dalam satu project. `/api` menuju Python, sedangkan halaman dan aset web
@@ -135,11 +135,11 @@ Prinsip:
 - Kredensial CI adalah nilai uji yang di-seed deterministik oleh
   `seed_indexes_and_admins()` (ADMIN_EMAIL/ADMIN_PASSWORD env + sub-admin
   `support1/finance1/release1/marketing1/content1`). Tidak ada rahasia asli
-  di workflow � `.env.test` ditulis dari nilai seed yang sama.
+  di workflow — `.env.test` ditulis dari nilai seed yang sama.
 - Hanya test yang self-seed (membuat user/label fixture sendiri) yang
   dijalankan. Test yang bergantung fixture demo produksi (mis. label
   `mustafa`/`wanwe`/`khizanah`, kredensial `TEST_DEMO_*`) sengaja
-  dikeluarkan � variabel demo diisi dummy agar `support_config` tetap
+  dikeluarkan — variabel demo diisi dummy agar `support_config` tetap
   bisa diimpor, tetapi test yang memakainya tidak masuk daftar.
 - `RILISMUSIK_DEPLOYMENT_MODE` sengaja tidak di-set agar endpoint mutasi
   benar-benar berfungsi (mode preview justru memblokirnya).
@@ -153,6 +153,18 @@ isi env seperti di job (`MONGO_URL`, `DB_NAME`, `ADMIN_EMAIL`,
 `uvicorn server:app --port 8010` dari `backend/`, tunggu login admin
 berhasil, lalu `python -m pytest tests/<file>.py -v`.
 
+Dua env sengaja diset hanya untuk live-suite (jangan dipakai produksi):
+- `AUTH_COOKIE_SECURE=false` — cookie auth tanpa flag Secure agar klien
+  non-browser (requests) bisa menguji jalur cookie lewat HTTP polos.
+- `RILISMUSIK_STORAGE_LOCAL=1` — storage_service menulis ke UPLOAD_DIR
+  lokal bila kredensial R2 tidak ada; tanpa flag ini ketiadaan R2 tetap
+  RuntimeError seperti biasa.
+
+Role admin dinamis (admin_finance, admin_support, ...) tidak pernah
+di-auto-seed di DB baru — production sudah punya dokumennya. Step
+`python -m tests.ci_seed_admin_roles` menanamkan `BUILTIN_ROLE_DEFAULTS`
+lalu menjalankan ulang `ensure_admin_access_defaults` agar migrasi izin
+berversi tetap teraplikasi, meniru state DB produksi.
 Menambah test ke suite: pastikan file test self-seed dan hanya memakai
 kredensial ter-seed (SUPERADMIN/FINANCE/SUPPORT/RELEASE_ADMIN/MARKETING/
 CONTENT), lalu tambahkan path-nya ke step pytest di workflow.

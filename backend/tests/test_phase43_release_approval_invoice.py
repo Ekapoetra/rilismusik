@@ -2,6 +2,7 @@
 import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 
 import pymongo
 import requests
@@ -101,7 +102,7 @@ def test_submit_waits_for_admin_then_creates_one_combined_invoice():
         "release_title": "Metadata Lengkap",
         "artist_name": "Artist Phase 43",
         "release_type": "single",
-        "release_date": "2026-10-01",
+        "release_date": (date.today() + timedelta(days=14)).isoformat(),
         "genre": "Pop",
         "subgenre": "Indie Pop",
         "language": "Indonesian",
@@ -197,6 +198,7 @@ def test_content_id_claim_requires_valid_youtube_link():
     payload = {
         "release_id": release_id, "category": "content_id_claim", "subject": "Ajukan Content ID",
         "description": "Mohon proses video ini", "originality_declared": True, "attachments": [],
+        "content_id_request_id": f"cid-req-{suffix}",
     }
     try:
         invalid = requests.post(f"{API}/tickets/label/create", json={**payload, "youtube_url": "https://example.com/video"}, headers=_headers(label_token), timeout=30)

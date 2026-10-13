@@ -80,11 +80,17 @@ jobs:
       ADMIN_EMAIL: ci-superadmin@rilismusik-ci.io
       ADMIN_PASSWORD: CiSuite#Admin2026
       FRONTEND_URL: http://localhost:3000
-      CORS_ORIGINS: http://localhost:3000
       REACT_APP_BACKEND_URL: http://127.0.0.1:8010
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:8010
       XENDIT_ALLOW_MOCK_PAY: "true"
       XENDIT_RETURN_URL_BASE: http://localhost:3000
       UPLOAD_DIR: /tmp/rilismusik-live-uploads
+      # Plain-http testability hooks — production keeps Secure cookies and R2.
+      AUTH_COOKIE_SECURE: "false"
+      RILISMUSIK_STORAGE_LOCAL: "1"
+      # iter64 reads these straight from os.environ (fixture passwords)
+      TEST_ITER64_LABEL_PASSWORD: Iter64Label#2026
+      TEST_ITER64_VIEW_PASSWORD: Iter64View#2026
       # email_service.py requires these at import; send attempts fail harmlessly
       SMTP_HOST: 127.0.0.1
       SMTP_PORT: "1"
@@ -145,6 +151,9 @@ jobs:
             sleep 2
           done
           echo "backend failed to become ready"; tail -n 200 backend/server.log || true; exit 1
+      - name: Seed dynamic admin roles
+        working-directory: backend
+        run: python -m tests.ci_seed_admin_roles
       - name: Run self-seeding live tests
         working-directory: backend
         run: |

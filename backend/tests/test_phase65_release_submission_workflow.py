@@ -157,8 +157,19 @@ def test_complete_ppr_revision_payment_believe_live_takedown_flow():
 def test_annual_release_bypasses_payment_after_review():
     db = _db(); suffix = uuid.uuid4().hex[:10]
     release_id = f"phase65-annual-{suffix}"
+    label_id = f"phase65-label-{suffix}"
+    # Coverage is keyed on the label's CURRENT subscription, not the frozen
+    # billing_flow — the label doc must exist with an active annual package.
+    expires = (date.today() + timedelta(days=300)).isoformat() + "T23:59:59+07:00"
+    db.labels.insert_one({
+        "id": label_id, "label_name": f"Phase65 Annual {suffix}",
+        "payment_type": "annual_subscription", "subscription_tier": "annual_normal",
+        "subscription_status": "active", "subscription_expires_at": expires,
+        "account_status": "active", "created_at": "2026-09-03T00:00:00+00:00",
+        "updated_at": "2026-09-03T00:00:00+00:00",
+    })
     db.releases.insert_one({
-        "id": release_id, "label_id": f"phase65-label-{suffix}", "release_title": "Annual Flow",
+        "id": release_id, "label_id": label_id, "release_title": "Annual Flow",
         "status": "submitted", "billing_flow": "subscription", "payment_status": "free_subscription",
         "created_at": "2026-09-03T00:00:00+00:00",
     })
@@ -173,3 +184,4 @@ def test_annual_release_bypasses_payment_after_review():
         db.notifications.delete_many({"meta.release_id": release_id})
         db.activity_logs.delete_many({"reference_id": release_id})
         db.releases.delete_one({"id": release_id})
+        db.labels.delete_one({"id": label_id})
