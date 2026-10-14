@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from pymongo import ReturnDocument
 
 from .deps import (
     ADMIN_ROLES, LABEL_ROLE, db, get_current_user, get_label_by_user,
@@ -19,8 +20,9 @@ from models import (
 from .payment_admin_service import update_custom_service_action
 from .admin_permission_service import assert_admin_permission
 from payment_service import (
-    PaymentCreateData, create_payment_document, create_xendit_session, fulfill_payment,
-    payment_price, poll_payment, reconcile_payment, xendit_configured,
+    PaymentCreateData, assert_release_payable, create_payment_document, create_xendit_session,
+    fulfill_payment, payment_price, poll_payment, reconcile_payment, retire_checkout_session,
+    xendit_configured,
 )
 
 
@@ -371,13 +373,44 @@ async def pay_with_token(payment_id: str, user: dict = Depends(require_label)):
     offer = await token_quote_for_payment(payment, cfg)
     if not offer.get("offered"):
         raise HTTPException(status_code=400, detail="Pembayaran token tidak tersedia untuk layanan ini")
+    await assert_release_payable(payment)
     label = await get_label_by_user(user)
-    parts = await spend_tokens(
-        label["id"], offer["tokens"], "payment", payment_id,
-        f"Pembayaran {payment.get('description') or payment['type']}",
-        cfg=cfg,
+
+    # 1) Claim the invoice so a double click / second tab cannot spend twice.
+    claimed = await db.payments.find_one_and_update(
+        {"id": payment_id, "status": "pending"},
+        {"$set": {"status": "token_processing", "updated_at": now_iso()}},
+        return_document=ReturnDocument.AFTER, projection={"_id": 0},
     )
-    await db.payments.update_one({"id": payment_id}, {"$set": {
+    if not claimed:
+        raise HTTPException(status_code=409, detail="Invoice tidak dalam status menunggu pembayaran")
+
+    async def _release_claim() -> None:
+        await db.payments.update_one({"id": payment_id, "status": "token_processing"}, {"$set": {
+            "status": "pending", "provider": "xendit", "provider_status": None,
+            "payment_method": None, "token_cost": None, "token_parts": None,
+            "paid_at": None, "updated_at": now_iso(),
+        }})
+
+    # 2) Kill the rupiah checkout link first — otherwise the member could
+    #    still pay the same invoice in rupiah after spending tokens.
+    try:
+        await retire_checkout_session(claimed)
+    except HTTPException:
+        await _release_claim()
+        raise HTTPException(status_code=409, detail="Sesi pembayaran rupiah masih aktif atau sudah dibayar — cek status invoice lalu coba lagi")
+
+    # 3) Spend, then mark paid.
+    try:
+        parts = await spend_tokens(
+            label["id"], offer["tokens"], "payment", payment_id,
+            f"Pembayaran {payment.get('description') or payment['type']}",
+            cfg=cfg,
+        )
+    except Exception:
+        await _release_claim()
+        raise
+    await db.payments.update_one({"id": payment_id, "status": "token_processing"}, {"$set": {
         "status": "paid", "provider": "token", "provider_status": "PAID",
         "payment_method": "token_balance", "token_cost": offer["tokens"],
         "token_parts": parts, "paid_at": now_iso(), "updated_at": now_iso(),
@@ -393,7 +426,7 @@ async def pay_with_token(payment_id: str, user: dict = Depends(require_label)):
         await db.payments.update_one({"id": payment_id}, {"$set": {
             "status": "pending", "provider": "xendit", "provider_status": None,
             "payment_method": None, "token_cost": None, "token_parts": None,
-            "paid_at": None, "updated_at": now_iso(),
+            "paid_at": None, "fulfillment_status": None, "updated_at": now_iso(),
         }})
         raise HTTPException(status_code=502, detail="Pembayaran token gagal diproses — token dikembalikan")
     await log_activity(user["id"], "pay_with_token", "payment", payment_id,

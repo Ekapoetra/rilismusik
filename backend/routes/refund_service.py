@@ -27,12 +27,28 @@ async def _label_names(label_ids: List[str]) -> Dict[str, str]:
     return names
 
 
+async def _addons_refunded_separately(payment_id: str) -> int:
+    """Rupiah already returned through individual add-on refunds on this
+    payment — excluded from the payment-level refund so nothing is paid twice."""
+    total = 0
+    async for order in db.addon_orders.find(
+        {"payment_id": payment_id, "refund_status": "refunded", "refund_via": {"$ne": "payment"}},
+        {"_id": 0, "refund_amount": 1},
+    ):
+        total += int(order.get("refund_amount") or 0)
+    return total
+
+
 async def _build_item(pay: Dict[str, Any], release_status: str, release_title: Optional[str], label_name: str) -> Dict[str, Any]:
+    gross = int(pay.get("amount") or 0)
+    already = await _addons_refunded_separately(pay["id"])
     return {
         "payment_id": pay["id"],
         "label_id": pay.get("label_id"),
         "label_name": label_name,
-        "amount_idr": int(pay.get("amount") or 0),
+        "amount_idr": int(pay.get("refund_amount_idr") or max(0, gross - already)),
+        "gross_amount_idr": gross,
+        "addons_refunded_idr": already,
         "type": pay.get("type"),
         "paid_at": pay.get("paid_at"),
         "created_at": pay.get("created_at"),
@@ -47,7 +63,10 @@ async def _build_item(pay: Dict[str, Any], release_status: str, release_title: O
 
 
 async def _scan(refunded: bool) -> List[Dict[str, Any]]:
-    match: Dict[str, Any] = {"status": "paid", "release_id": {"$ne": None}, "type": {"$in": _RELEASE_PAYMENT_TYPES}}
+    # Token-paid invoices are settled in tokens (settle_release_tokens), never
+    # by manual rupiah transfer.
+    match: Dict[str, Any] = {"status": "paid", "release_id": {"$ne": None}, "type": {"$in": _RELEASE_PAYMENT_TYPES},
+                             "payment_method": {"$ne": "token_balance"}}
     if refunded:
         match["refund_status"] = "refunded"
     else:
@@ -67,6 +86,8 @@ async def _scan(refunded: bool) -> List[Dict[str, Any]]:
             release_status, title = "deleted", None
         elif rel.get("status") == "rejected":
             release_status, title = "rejected", rel.get("release_title")
+        elif p.get("needs_refund"):
+            release_status, title = rel.get("status") or "-", rel.get("release_title")
         else:
             if not refunded:
                 continue  # release is healthy → not an orphan
@@ -103,10 +124,13 @@ async def mark_refunded(payment_id: str, body: MarkRefundedIn, user: dict = Depe
         raise HTTPException(status_code=409, detail="Hanya pembayaran berstatus lunas yang bisa direfund")
     if pay.get("refund_status") == "refunded":
         raise HTTPException(status_code=409, detail="Pembayaran ini sudah ditandai direfund")
+    if pay.get("payment_method") == "token_balance":
+        raise HTTPException(status_code=400, detail="Invoice ini dibayar dengan token — token dikembalikan otomatis, bukan transfer rupiah")
     # Guard: must genuinely be an orphan (release rejected or missing).
     rel = await db.releases.find_one({"id": pay.get("release_id")}, {"_id": 0, "status": 1}) if pay.get("release_id") else None
-    if rel is not None and rel.get("status") != "rejected":
+    if rel is not None and rel.get("status") != "rejected" and not pay.get("needs_refund"):
         raise HTTPException(status_code=400, detail="Rilisan masih aktif — hanya rilisan ditolak/dihapus yang bisa direfund")
+    refund_amount = max(0, int(pay.get("amount") or 0) - await _addons_refunded_separately(payment_id))
     patch = {
         "refund_status": "refunded",
         "refunded_by": user["id"],
@@ -114,9 +138,13 @@ async def mark_refunded(payment_id: str, body: MarkRefundedIn, user: dict = Depe
         "refunded_at": now_iso(),
         "refund_method": "manual_transfer",
         "refund_note": body.note.strip(),
+        "refund_amount_idr": refund_amount,
         "updated_at": now_iso(),
     }
-    await db.payments.update_one({"id": payment_id}, {"$set": patch})
+    marked = await db.payments.update_one(
+        {"id": payment_id, "status": "paid", "refund_status": {"$ne": "refunded"}}, {"$set": patch})
+    if not getattr(marked, "modified_count", 1):
+        raise HTTPException(status_code=409, detail="Pembayaran ini sudah ditandai direfund")
     # Cascade: add-on orders covered by this payment are refunded with it — the
     # payment refund already includes their amounts, so marking them prevents
     # a second refund being recorded per order.
@@ -130,7 +158,7 @@ async def mark_refunded(payment_id: str, body: MarkRefundedIn, user: dict = Depe
     )
     await log_activity(user["id"], "payment_mark_refunded", "payment", payment_id,
                        before={"refund_status": pay.get("refund_status")},
-                       after={"refund_status": "refunded", "amount": int(pay.get("amount") or 0),
+                       after={"refund_status": "refunded", "amount": refund_amount,
                               "note": body.note.strip(),
                               "addon_orders_refunded": getattr(cascaded, "modified_count", 0)})
     return {"ok": True, "payment_id": payment_id,

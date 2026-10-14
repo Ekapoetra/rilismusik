@@ -170,8 +170,10 @@ async def spend_tokens(label_id: str, count: int, ref_type: str, ref_id: str,
     # 1) Daily counter (reset stale day first, then conditional increment).
     if daily_part:
         if label.get("token_daily_date") != today:
+            # Conditional reset: a concurrent spend that already rolled the
+            # day over must not have its increment wiped by a stale read.
             await db.labels.update_one(
-                {"id": label_id},
+                {"id": label_id, "token_daily_date": {"$ne": today}},
                 {"$set": {"token_daily_date": today, "token_daily_used": 0}},
             )
         bumped = await db.labels.find_one_and_update(
@@ -305,8 +307,16 @@ async def token_quote_for_payment(payment: Dict[str, Any],
     key = await service_key_for_payment(payment)
     if not key:
         return {"offered": False, "tokens": 0, "service_key": None}
-    offer = token_offer(cfg, key, int(payment.get("amount") or 0))
-    return offer
+    # Tokens price the service itself only. A release invoice that also
+    # carries paid add-ons stays on the rupiah rail — otherwise one release
+    # token would settle the add-on amounts for free.
+    if int(payment.get("addon_amount") or 0) > 0 or payment.get("addon_product_ids"):
+        offer = token_offer(cfg, key, 0)
+        return {**offer, "offered": False, "reason": "addons_rupiah_only"}
+    rupiah_price = payment.get("base_amount")
+    if rupiah_price is None:
+        rupiah_price = payment.get("amount")
+    return token_offer(cfg, key, int(rupiah_price or 0))
 
 
 async def settle_release_tokens(release_id: str, outcome: str, note: str) -> int:
@@ -321,9 +331,21 @@ async def settle_release_tokens(release_id: str, outcome: str, note: str) -> int
     payments = await db.payments.find(
         {"release_id": release_id, "payment_method": "token_balance",
          "status": "paid", "token_settled": {"$exists": False}},
-        {"_id": 0},
+        {"_id": 0, "id": 1},
     ).to_list(50)
-    for pay in payments:
+    settled = 0
+    for candidate in payments:
+        # Claim before moving tokens: concurrent cancel/reject calls race on
+        # the same payment and only the claimant may refund.
+        pay = await db.payments.find_one_and_update(
+            {"id": candidate["id"], "token_settled": {"$exists": False}},
+            {"$set": {"token_settled": outcome, "token_settled_at": now_iso(),
+                      "updated_at": now_iso()}},
+            return_document=ReturnDocument.AFTER, projection={"_id": 0},
+        )
+        if not pay:
+            continue
+        settled += 1
         parts = pay.get("token_parts") or {}
         if outcome == "return":
             await refund_tokens(pay["label_id"], parts, "release", release_id, note)
@@ -334,9 +356,4 @@ async def settle_release_tokens(release_id: str, outcome: str, note: str) -> int
             if parts.get("daily"):
                 await burn_tokens(pay["label_id"], parts["daily"],
                                   "release", release_id, note)
-        await db.payments.update_one(
-            {"id": pay["id"]},
-            {"$set": {"token_settled": outcome, "token_settled_at": now_iso(),
-                      "updated_at": now_iso()}},
-        )
-    return len(payments)
+    return settled

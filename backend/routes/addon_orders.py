@@ -382,10 +382,13 @@ async def admin_refund_order(order_id: str, body: AddonRefundIn, user: dict = De
     # this add-on's amount is already covered by it — never refund twice.
     payment_id = order.get("payment_id")
     if payment_id:
-        pay = await db.payments.find_one({"id": payment_id}, {"_id": 0, "refund_status": 1})
+        pay = await db.payments.find_one({"id": payment_id}, {"_id": 0, "refund_status": 1, "payment_method": 1})
         if pay and pay.get("refund_status") == "refunded":
             raise HTTPException(status_code=409,
                 detail="Pembayaran rilisan ini sudah direfund — nilai add-on tercakup di dalamnya")
+        if pay and pay.get("payment_method") == "token_balance" and int(order.get("amount") or 0) > 0:
+            raise HTTPException(status_code=409,
+                detail="Add-on ini dibayar dengan token — tidak ada dana rupiah untuk ditransfer balik")
     now = now_iso()
     amount = int(order.get("amount") or 0)
     is_benefit = amount <= 0 or order.get("benefit_source") or order.get("source") == "subscription_free"
@@ -399,16 +402,20 @@ async def admin_refund_order(order_id: str, body: AddonRefundIn, user: dict = De
         # Free the dedupe slot so the benefit can be used again on this release.
         if order.get("dedupe_key"):
             patch["dedupe_key"] = f"{order['dedupe_key']}:refunded:{now}"
-        # Grant-funded orders return the increment so the bonus is not lost.
-        if order.get("grant_id"):
-            await db.benefit_grants.update_one(
-                {"id": order["grant_id"], "used": {"$gt": 0}},
-                {"$inc": {"used": -1}, "$set": {"updated_at": now}},
-            )
     else:
         patch["refund_amount"] = amount
         patch["refund_method"] = "manual_transfer"
-    await db.addon_orders.update_one({"id": order_id}, {"$set": patch})
+    claimed = await db.addon_orders.update_one(
+        {"id": order_id, "status": {"$in": list(REFUNDABLE_STATUSES)}}, {"$set": patch})
+    if not getattr(claimed, "modified_count", 1):
+        raise HTTPException(status_code=409, detail="Order sudah diproses oleh admin lain")
+    # Grant-funded orders return the increment so the bonus is not lost
+    # (only after this request won the claim, so it happens exactly once).
+    if is_benefit and order.get("grant_id"):
+        await db.benefit_grants.update_one(
+            {"id": order["grant_id"], "used": {"$gt": 0}},
+            {"$inc": {"used": -1}, "$set": {"updated_at": now}},
+        )
     await log_activity(user["id"], "addon_order_refunded", "addon", order_id,
                        before={"status": order.get("status")},
                        after={"status": "refunded", "amount": amount, "benefit": bool(is_benefit), "note": body.note.strip()})

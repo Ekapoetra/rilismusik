@@ -87,11 +87,20 @@ async def admin_update_wami(order_id: str, body: AdminWamiUpdateIn, user: dict =
     # A rejected/cancelled order returns the member's benefit: grant-funded
     # orders give the grant slot back (quota-funded orders stop counting via
     # benefit_service.TERMINAL_EXCLUDED status filtering).
+    # The slot is returned once per order: re-saving a note, rejected→cancelled
+    # or a concurrent update must not hand it back again.
+    if order.get("grant_returned") and body.status not in ("rejected", "cancelled"):
+        raise HTTPException(status_code=409, detail="Benefit order ini sudah dikembalikan — buat order baru untuk mendaftarkan ulang")
     if body.status in ("rejected", "cancelled") and order.get("grant_id"):
-        await db.benefit_grants.update_one(
-            {"id": order["grant_id"], "used": {"$gt": 0}},
-            {"$inc": {"used": -1}, "$set": {"updated_at": now_iso()}},
+        returned = await db.wami_orders.update_one(
+            {"id": order_id, "grant_returned": {"$ne": True}},
+            {"$set": {"grant_returned": True, "grant_returned_at": now_iso()}},
         )
+        if getattr(returned, "modified_count", 0):
+            await db.benefit_grants.update_one(
+                {"id": order["grant_id"], "used": {"$gt": 0}},
+                {"$inc": {"used": -1}, "$set": {"updated_at": now_iso()}},
+            )
     await db.wami_orders.update_one({"id": order_id}, {"$set": upd})
     # Notify label
     user_ids = await label_user_ids(order["label_id"])

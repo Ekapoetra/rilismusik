@@ -657,6 +657,18 @@ async def delete_release(release_id: str, user: dict = Depends(require_label)):
     return await delete_release_record(release_id, user["id"], label_id=label["id"])
 
 
+async def _transition_release(rel: dict, patch: dict, history: dict) -> None:
+    """Compare-and-set status change: applies only if the release is still in
+    the status we validated, so a label action racing a staff action (or a
+    double click) cannot overwrite the other's transition."""
+    result = await db.releases.update_one(
+        {"id": rel["id"], "status": rel.get("status")},
+        {"$set": patch, "$push": {"status_history": history}},
+    )
+    if not getattr(result, "modified_count", 1):
+        raise HTTPException(status_code=409, detail="Status rilisan baru saja berubah — muat ulang halaman")
+
+
 # Statuses where the label may still withdraw on its own (no Believe/payment entanglement yet).
 LABEL_SELF_CANCEL_STATUSES = ("submitted", "under_review", "need_revision", "awaiting_payment", "clarification")
 # Statuses where cancellation is too late to self-serve: label requests, admin confirms.
@@ -674,13 +686,16 @@ async def label_cancel_release(release_id: str, body: LabelReleaseLifecycleIn = 
     if rel["label_id"] != label["id"]:
         raise HTTPException(status_code=403, detail="Bukan rilisan Anda")
     require_status(rel, LABEL_SELF_CANCEL_STATUSES, "Batalkan pengajuan")
+    if rel.get("payment_status") == "paid":
+        # Money already moved — staff must review the cancellation (refund).
+        raise HTTPException(status_code=409, detail="Rilisan sudah dibayar — ajukan permintaan pembatalan ke admin")
     note = ((body.note if body else None) or "").strip()
-    await db.releases.update_one({"id": release_id}, {"$set": {
+    await _transition_release(rel, {
         "status": "closed", "closed_reason": "label_cancelled", "closed_at": now_iso(), "updated_at": now_iso(),
-    }, "$push": {"status_history": {
+    }, {
         "from": rel.get("status"), "to": "closed", "changed_by": user["id"],
         "changed_at": now_iso(), "note": note or "Dibatalkan oleh label",
-    }}})
+    })
     await cancel_release_pending_payments(release_id, user["id"], "Rilisan dibatalkan label")
     # Token matrix: label-initiated cancel is always pre-Believe → both sources return.
     from token_service import settle_release_tokens
@@ -710,13 +725,13 @@ async def label_request_cancellation(release_id: str, body: LabelReleaseLifecycl
     reason = ((body.note if body else None) or "").strip()
     if not reason:
         raise HTTPException(status_code=400, detail="Alasan pembatalan wajib diisi")
-    await db.releases.update_one({"id": release_id}, {"$set": {
+    await _transition_release(rel, {
         "status": "cancel_requested", "cancel_from_status": rel.get("status"),
         "cancel_reason": reason, "cancel_requested_at": now_iso(), "updated_at": now_iso(),
-    }, "$push": {"status_history": {
+    }, {
         "from": rel.get("status"), "to": "cancel_requested", "changed_by": user["id"],
         "changed_at": now_iso(), "note": reason,
-    }}})
+    })
     await log_activity(user["id"], "label_cancel_request", "release", release_id,
                        before={"status": rel.get("status")}, after={"status": "cancel_requested", "reason": reason})
     await notify_many(
@@ -744,13 +759,13 @@ async def label_ask_clarification(release_id: str, body: LabelReleaseLifecycleIn
     question = ((body.note if body else None) or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="Pertanyaan wajib diisi")
-    await db.releases.update_one({"id": release_id}, {"$set": {
+    await _transition_release(rel, {
         "status": "clarification", "clarification_question": question,
         "clarification_used": True, "clarification_at": now_iso(), "updated_at": now_iso(),
-    }, "$push": {"status_history": {
+    }, {
         "from": rel.get("status"), "to": "clarification", "changed_by": user["id"],
         "changed_at": now_iso(), "note": question,
-    }}})
+    })
     await log_activity(user["id"], "label_clarification", "release", release_id,
                        before={"status": rel.get("status")}, after={"status": "clarification"})
     await notify_many(
@@ -1026,10 +1041,10 @@ async def admin_release_action(release_id: str, body: AdminReleaseAction, user: 
         upd["followup_flag"] = False
     if body.action == "mark_live" and new_status == "partial":
         upd["went_partial_at"] = now_iso()
-    await db.releases.update_one({"id": release_id}, {"$set": upd, "$push": {"status_history": {
+    await _transition_release(rel, upd, {
         "from": rel.get("status"), "to": new_status, "changed_by": user["id"],
         "changed_at": now_iso(), "note": body.note,
-    }}})
+    })
     await log_activity(user["id"], f"admin_{body.action}", "release", release_id, before={"status": rel["status"]}, after={"status": new_status})
     # When a release is rejected, void any still-open Xendit payment link so the label can't pay for a dead release.
     if body.action == "reject" or (body.action == "override_status" and new_status == "rejected"):

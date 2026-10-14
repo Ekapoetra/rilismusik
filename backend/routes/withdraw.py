@@ -556,6 +556,10 @@ async def _apply_admin_withdraw_action(wd_id: str, body: WithdrawAdminAction, us
     elif body.action == "reject":
         if wd["status"] not in ("requested", "approved", "delayed"):
             raise HTTPException(status_code=400, detail="Tidak bisa ditolak pada status saat ini")
+        # A reopened correction was already paid out once (counters moved, FIFO
+        # lines withdrawn) — crediting it back would hand the money out twice.
+        if wd.get("financial_settled"):
+            raise HTTPException(status_code=409, detail="Withdraw ini sudah pernah dibayar — selesaikan lewat koreksi, bukan tolak")
         # refund balance
         await db.labels.update_one({"id": wd["label_id"]}, {"$inc": {
             "balance_available_idr": wd["amount_idr"],

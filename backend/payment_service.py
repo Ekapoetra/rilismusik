@@ -345,9 +345,45 @@ async def _xendit_request(method: str, path: str, **kwargs) -> Dict[str, Any]:
     return response.json()
 
 
+# Release states that can no longer be paid for (cancelled/closed/rejected).
+# Reopening checkout on these would resurrect a release the label or staff
+# already ended, so invoices tied to them stay closed.
+CLOSED_RELEASE_STATUSES = ("closed", "rejected", "partial_closed", "cancelled")
+RELEASE_PAYMENT_TYPES = ("pay_per_release", "release_shortfall")
+
+
+async def assert_release_payable(payment: Dict[str, Any]) -> None:
+    """Refuse checkout/token payment for an invoice whose release has ended."""
+    if payment.get("type") not in RELEASE_PAYMENT_TYPES or not payment.get("release_id"):
+        return
+    rel = await db.releases.find_one({"id": payment["release_id"]}, {"_id": 0, "status": 1})
+    if rel is None or rel.get("status") in CLOSED_RELEASE_STATUSES:
+        raise HTTPException(status_code=409, detail="Rilisan ini sudah ditutup — invoice tidak dapat dibayar")
+
+
+async def retire_checkout_session(payment: Dict[str, Any]) -> None:
+    """Cancel the live Xendit session (if any) and rotate the reference so a
+    later rupiah checkout opens a fresh session instead of the dead one.
+    Raises when Xendit refuses the cancel (e.g. the session was just paid)."""
+    session_id = payment.get("xendit_session_id")
+    if session_id:
+        await _xendit_request("POST", f"/sessions/{session_id}/cancel")
+    attempt = int(payment.get("session_attempt") or 0) + 1
+    await db.payments.update_one(
+        {"id": payment["id"]},
+        {"$set": {"reference_id": f"rm-{payment['id']}-{attempt}"[:64],
+                  "session_attempt": attempt, "xendit_invoice_url": None,
+                  "expired_at": None, "updated_at": now_iso()},
+         "$unset": {"xendit_session_id": "", "xendit_invoice_id": ""}},
+    )
+
+
 async def create_xendit_session(payment: Dict[str, Any]) -> Dict[str, Any]:
     if payment.get("status") == "paid":
         raise HTTPException(status_code=409, detail="Pembayaran ini sudah lunas")
+    if payment.get("status") == "token_processing":
+        raise HTTPException(status_code=409, detail="Invoice sedang dibayar dengan token")
+    await assert_release_payable(payment)
     if payment.get("status") in ("expired", "cancelled", "failed"):
         attempt = int(payment.get("session_attempt") or 0) + 1
         reference_id = f"rm-{payment['id']}-{attempt}"[:64]
@@ -557,8 +593,19 @@ async def _claim_fulfillment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]
 
 async def _fulfill_release(payment: Dict[str, Any]) -> None:
     fulfilled_status = "paid" if payment.get("approval_required_before_payment") else "under_review"
+    rel = await db.releases.find_one({"id": payment["release_id"]}, {"_id": 0, "status": 1})
+    if rel is not None and rel.get("status") in CLOSED_RELEASE_STATUSES:
+        # Paid after the release was closed (e.g. Xendit cancel failed). Never
+        # reopen it — flag the payment so it surfaces in the refund queue.
+        logger.warning("[XENDIT] payment=%s settled for closed release=%s", payment["id"], payment["release_id"])
+        await db.payments.update_one({"id": payment["id"]}, {"$set": {
+            "needs_refund": True, "needs_refund_reason": f"release_{rel.get('status')}",
+            "updated_at": now_iso(),
+        }})
+        return
     await db.releases.update_one(
-        {"id": payment["release_id"], "fulfilled_payment_ids": {"$ne": payment["id"]}},
+        {"id": payment["release_id"], "fulfilled_payment_ids": {"$ne": payment["id"]},
+         "status": {"$nin": list(CLOSED_RELEASE_STATUSES)}},
         {"$set": {"payment_status": "paid", "status": fulfilled_status, "updated_at": now_iso()},
          "$addToSet": {"fulfilled_payment_ids": payment["id"]},
          "$push": {"status_history": {
@@ -717,6 +764,10 @@ async def reconcile_payment(payment: Dict[str, Any], remote: Dict[str, Any]) -> 
 
 async def poll_payment(payment: Dict[str, Any], *, force: bool = False) -> Dict[str, Any]:
     if payment.get("status") == "paid" and payment.get("fulfillment_status") == "fulfilled":
+        return payment
+    # Token-settled (or settling) invoices have no live Xendit session; a
+    # remote poll would overwrite the token status with the stale session's.
+    if payment.get("payment_method") == "token_balance" or payment.get("status") == "token_processing":
         return payment
     session_id = payment.get("xendit_session_id")
     if not session_id:
