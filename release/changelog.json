@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.1.0-dev.7",
+    "date": "2026-10-15",
+    "summary": {
+      "id": "Kaca v3 yang diukur sampai cocok dengan referensi; header jadi kartu berjarak dari atas + bar kaca penuh saat scroll; toggle & slider bergaya fisik; tombol kartu seragam; kartu penarikan tanpa tombol.",
+      "en": "Glass v3 measured until it matches the reference; header as an inset card + full-width glass bar on scroll; physical toggle & switch; uniform card buttons; withdrawal card without a button."
+    },
+    "entries": [
+      {
+        "id": "dev7-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Pil kaca cocok dengan referensi (diukur)",
+          "en": "Glass pill matches the reference (measured)"
+        },
+        "detail": {
+          "id": "Profil kecerahan pil dibandingkan angka per angka dengan referensi: tepi atas putih 100, isi 99→97, tepi bawah 86 (ref 89), garis kiri 81 (ref 82). Pil lebih lapang (26 px), tanpa cincin abu, bayangan hanya ke bawah.",
+          "en": "Pill brightness profile compared number by number with the reference: white top rim 100, fill 99→97, bottom edge 86 (ref 89), left line 81 (ref 82). Roomier pill (26 px), no grey ring, downward-only shadow."
+        }
+      },
+      {
+        "id": "dev7-header",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · header",
+            "en": "Dashboard · header"
+          }
+        },
+        "title": {
+          "id": "Header jadi kartu berjarak dari tepi atas",
+          "en": "Header becomes an inset card"
+        },
+        "detail": {
+          "id": "Isi tetap (sapaan + Wawasan); bentuknya kartu bersudut 26 px dengan jarak 12 px dari atas & samping. Saat digulir > 140 px melipat jadi bar penuh kiri–kanan berkaca; mengembang lagi di puncak.",
+          "en": "Content unchanged (greeting + Insights); the frame is a 26 px rounded card inset 12 px from the top and sides. Scrolling past 140 px folds it into a full-width glass bar; it expands again at the top."
+        }
+      },
+      {
+        "id": "dev7-controls",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Header · toggle tema & slider Platform–Staf",
+            "en": "Header · theme toggle & Platform–Staff switch"
+          }
+        },
+        "title": {
+          "id": "Toggle tema & slider Platform–Staf bergaya fisik",
+          "en": "Physical-style theme toggle & workspace switch"
+        },
+        "detail": {
+          "id": "Track cekung, knob cembung dengan sorotan & bayangan lembut, gerak memantul ringan; warna netral.",
+          "en": "Concave track, convex knob with highlight & soft shadow, slight bounce; neutral colours."
+        }
+      },
+      {
+        "id": "dev7-buttons",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu statistik & metrik",
+            "en": "Dashboard · stat & metric cards"
+          }
+        },
+        "title": {
+          "id": "Tombol buka/tutup seragam: hover hitam, chevron memantul, panel mengembang",
+          "en": "Uniform open/close buttons: black hover, bouncing chevron, expanding panel"
+        },
+        "detail": {
+          "id": "Tombol metrik ikut aturan hover kartu lain (hitam di terang, putih di gelap); tombol kartu statistik & tenggat memakai animasi yang sama. Kartu Penarikan periode ini tidak lagi punya tombol rincian.",
+          "en": "The metric button follows the other cards' hover rule (black in light, white in dark); stat and deadline card buttons use the same animation. The period-withdrawal card no longer has a details button."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.6",
     "date": "2026-10-15",
     "summary": {

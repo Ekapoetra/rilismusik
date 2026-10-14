@@ -1,0 +1,16 @@
+/* v1.1 dev.7 — header sebagai KARTU (bentuk ala referensi; isi tidak diubah):
+   saat mengembang, kartu berjarak dari tepi atas & samping, empat sudut
+   membulat besar, atmosfer/karya seni terpotong mengikuti sudut; saat
+   terlipat (scroll / navigasi), menjadi bar penuh kiri–kanan dengan kaca tipis.
+   Selektor memakai #app + kelas release124.release129 agar menang atas aturan
+   v129 "body.release126…release129 #app .masthead124" (bobot 1,5,1 → kami 1,6,2). */
+html:root body.dashboard124.release124.release129 #app .masthead124{transition:margin .3s cubic-bezier(.2,.8,.2,1),border-radius .3s ease,top .3s ease}
+html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124){top:12px;margin:12px 12px 0!important;padding-top:0!important;border-radius:26px!important;overflow:hidden}
+html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124) :is(.masthead-backdrop130,.masthead-atmosphere127,.hero-clip124){border-radius:inherit}
+html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124) .header.header124{padding-inline:28px!important}
+/* Bar terlipat: blok penuh kiri–kanan + kaca tipis */
+html:root body.dashboard124.release124.release129 #app .masthead124.is-collapsed124{top:0;margin-inline:0!important;padding-top:0!important;border-radius:0!important;
+  background:color-mix(in srgb,var(--bg) 72%,transparent)!important;
+  backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+  border-bottom:1px solid color-mix(in srgb,var(--text) 9%,transparent);box-shadow:none!important}
+html:root body.dashboard124.release124.release129 #app .masthead124.is-collapsed124 .header.header124{padding-inline:28px!important}

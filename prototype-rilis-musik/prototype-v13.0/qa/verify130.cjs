@@ -15,7 +15,7 @@ function diff(a,b){const x=png(a),y=png(b);assert.equal(x.w,y.w);assert.equal(x.
   await page.goto('file:///'+source.replaceAll('\\','/'));
   for(const role of ['super','admin','label'])for(const theme of ['light','dark'])for(const width of [1440,820,390]){
    await scene(role,theme,width);const m=await header();views.push({role,theme,width,...m});
-   check(role+'/'+theme+'/'+width+' uses one continuous readable masthead',m.expanded&&m.background==='rgba(0, 0, 0, 0)'&&m.ink==='rgb(245, 249, 255)'&&m.artParent==='masthead-backdrop130'&&m.frameShadow==='none'&&m.overflow<=1&&m.rounded==='18px',m);
+   check(role+'/'+theme+'/'+width+' uses one continuous readable masthead',m.expanded&&m.background==='rgba(0, 0, 0, 0)'&&m.ink==='rgb(245, 249, 255)'&&m.artParent==='masthead-backdrop130'&&m.frameShadow==='none'&&m.overflow<=1&&m.rounded==='26px',m); // dev.7: header jadi kartu bersudut 26 px (keputusan pemilik)
    const boxes=await page.evaluate(()=>[...document.querySelectorAll('.header.header124 .header-controls127,.header.header124 .tools,.header.header124 [data-action=search]')].map(e=>e.getBoundingClientRect().toJSON()));
    const overlap=boxes.some((a,i)=>boxes.slice(i+1).some(b=>Math.min(a.right,b.right)>Math.max(a.left,b.left)+1&&Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)+1));
    check(role+'/'+theme+'/'+width+' controls do not overlap',!overlap,boxes);
