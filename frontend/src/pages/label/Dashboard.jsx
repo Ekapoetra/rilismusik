@@ -12,7 +12,7 @@ import { LiveTodayBanner } from "@/components/label/LiveTodayBanner";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
 import { useLabelAnalytics } from "@/hooks/useLabelAnalytics";
 import { useRoyaltyBalance } from "@/hooks/useRoyaltyBalance";
-import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle, Layers, ChevronDown } from "lucide-react";
+import { Disc3, Users, Wallet, AlertCircle, Receipt, Crown, ShieldCheck, Play, Lock, ArrowRight, Sparkles, CheckCircle2, Circle, PartyPopper, TrendingUp, UploadCloud, BarChart3, Ticket, FileSignature, CheckCircle, Layers, ChevronDown, FileText, Clock3, Send } from "lucide-react";
 import { SubmissionQuota } from "@/components/label/SubmissionQuota";
 import { updatesActive, UPDATES_PUBLISHED_AT } from "@/pages/label/Updates";
 import { motion, AnimatePresence } from "framer-motion";
@@ -283,12 +283,7 @@ export default function LabelDashboardHome() {
 
         <section className="rm-card p-5" data-testid="label-dashboard-pipeline">
           <h3 className="mb-4 font-display text-lg font-bold tracking-tight">Pipeline Rilisan</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <PipelineStep label="Draft" value={pipeline.draft} tone="zinc" />
-            <PipelineStep label="Review" value={pipeline.review} tone="amber" />
-            <PipelineStep label="Dikirim" value={pipeline.delivered} tone="blue" />
-            <PipelineStep label="Tayang" value={pipeline.live} tone="emerald" />
-          </div>
+          <PipelineJourney pipeline={pipeline} />
           <div className="mt-4 grid grid-cols-2 gap-3">
             <MiniStat label="Total Artist" value={fmtNum(stats.total_artists)} icon={Users} testId={LABEL_DASHBOARD.totalArtists} />
             <MiniStat label="Tiket Aktif" value={fmtNum(stats.active_tickets)} icon={AlertCircle} />
@@ -467,14 +462,35 @@ function QuickAction({ to, icon: Icon, label }) {
   );
 }
 
-function PipelineStep({ label, value, tone }) {
-  const tones = {
-    zinc: "text-zinc-300", amber: "text-amber-300", blue: "text-sky-300", emerald: "text-emerald-300",
-  };
+function PipelineJourney({ pipeline }) {
+  const stages = [
+    { key: "draft", label: "Draft", icon: FileText, node: "border-zinc-400/50 bg-zinc-400/10 text-zinc-200", line: "from-zinc-400/60", iconColor: "text-zinc-300" },
+    { key: "review", label: "Review", icon: Clock3, node: "border-amber-400/50 bg-amber-400/10 text-amber-200", line: "from-amber-400/60", iconColor: "text-amber-300" },
+    { key: "delivered", label: "Dikirim", icon: Send, node: "border-sky-400/50 bg-sky-400/10 text-sky-200", line: "from-sky-400/60", iconColor: "text-sky-300" },
+    { key: "live", label: "Tayang", icon: Disc3, node: "border-emerald-400/50 bg-emerald-400/10 text-emerald-200", line: "from-emerald-400/60", iconColor: "text-emerald-300" },
+  ];
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-center" data-testid={`label-pipeline-${label.toLowerCase()}`}>
-      <div className={`font-display text-2xl font-extrabold tabular-nums ${tones[tone]}`}>{value}</div>
-      <div className="mt-1 text-[11px] font-bold uppercase tracking-widest text-zinc-500">{label}</div>
+    <div className="flex items-start" data-testid="label-pipeline-journey">
+      {stages.map((s, i) => {
+        const Icon = s.icon;
+        const count = pipeline[s.key] || 0;
+        const active = count > 0;
+        return (
+          <React.Fragment key={s.key}>
+            <div className="flex w-16 flex-none flex-col items-center text-center" data-testid={`label-pipeline-${s.key}`}>
+              <div className={`grid h-11 w-11 place-items-center rounded-full border font-display text-base font-extrabold tabular-nums ${active ? s.node : "border-white/10 bg-white/[0.02] text-zinc-500"}`}>
+                {fmtNum(count)}
+              </div>
+              <div className={`mt-2 flex items-center gap-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-widest ${active ? "text-zinc-300" : "text-zinc-500"}`}>
+                <Icon className={`h-3 w-3 ${active ? s.iconColor : ""}`} />{s.label}
+              </div>
+            </div>
+            {i < stages.length - 1 && (
+              <div className={`mt-[21px] h-px min-w-3 flex-1 bg-gradient-to-r ${active ? `${s.line} to-white/10` : "from-white/10 to-white/10"}`} data-testid={`label-pipeline-line-${i}`} />
+            )}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
