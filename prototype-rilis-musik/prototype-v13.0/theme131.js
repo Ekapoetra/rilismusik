@@ -4,7 +4,6 @@
    persentasenya ke samping angka sebagai "+12% ↗" / "−8,1% ↘" / "0% →";
    gaya ada di theme131.css. */
 'use strict';
-try{localStorage.removeItem('rm-accent131');}catch{} // sisa eksplorasi warna (dihapus dev.5)
 const deltaArrow131={
   up:'<path d="M3.5 8.5l5-5M4.5 3.5h4v4"/>',
   down:'<path d="M3.5 3.5l5 5M8.5 4.5v4h-4"/>',
@@ -38,7 +37,7 @@ function decorate131(root=document){
     const row=document.createElement('span');
     row.className='value-row131';
     value.before(row);row.append(value);
-    row.insertAdjacentHTML('beforeend',`<span class="delta131" data-trend="${dir}" title="${T('Dibanding periode sebelumnya','Compared with the previous period')}">${sign}${E(pct)}<svg viewBox="0 0 12 12" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${deltaArrow131[dir]}</svg></span>`);
+    row.insertAdjacentHTML('beforeend',`<span class="delta131" data-trend="${dir}" title="${T('Dibanding periode sebelumnya','Compared with the previous period')}"><svg viewBox="0 0 12 12" aria-hidden="true">${deltaArrow131[dir]}</svg>${sign}${E(pct)}</span>`);
   });
 }
 /* v124-ui normalizeType124 membulatkan berat ke 300/400/600 lewat gaya inline
@@ -74,7 +73,7 @@ function metricDetail131(id){
     <div class="md-head131"><span>${E(T(x[1],x[2]))}</span><small>${E(T(x[6],x[7]))}</small></div>
     <div class="md-row131"><span>${T('Periode saat ini','Current period')}</span><i style="--w:${(cur/max*100).toFixed(1)}%"></i><strong>${f(cur)}</strong></div>
     <div class="md-row131 prev"><span>${T('Periode sebelumnya','Previous period')}</span><i style="--w:${(prev/max*100).toFixed(1)}%"></i><strong>${f(prev)}</strong></div>
-    <p class="md-note131"><span class="delta131" data-trend="${dir}">${sign}${nf.format(Math.abs(pct))}%<svg viewBox="0 0 12 12" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${deltaArrow131[dir]}</svg></span><span>${T('Selisih','Difference')} ${sign}${f(Math.abs(diff))} · ${T('perbandingan dua periode, data simulasi.','comparison of two periods, preview data.')}</span></p>
+    <p class="md-note131"><span class="delta131" data-trend="${dir}"><svg viewBox="0 0 12 12" aria-hidden="true">${deltaArrow131[dir]}</svg>${sign}${nf.format(Math.abs(pct))}%</span><span>${T('Selisih','Difference')} ${sign}${f(Math.abs(diff))} · ${T('perbandingan dua periode, data simulasi.','comparison of two periods, preview data.')}</span></p>
   </div>`;
 }
 function placeMetricDetail131(root=document){

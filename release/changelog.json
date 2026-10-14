@@ -1,5 +1,115 @@
 [
   {
+    "version": "1.1.0-dev.6",
+    "date": "2026-10-15",
+    "summary": {
+      "id": "Resep kaca ditulis ulang dari profil piksel referensi; chip status kecil di samping nama; seal label terverifikasi di mana pun; animasi buka/tutup; klik menu 2× lebih ringan.",
+      "en": "Glass recipe rebuilt from the reference pixel profile; small status chips beside the title; verified-label seal everywhere; open/close animation; menu clicks twice as light."
+    },
+    "entries": [
+      {
+        "id": "dev6-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Pil & tooltip kaca seperti referensi",
+          "en": "Glass pills & tooltips like the reference"
+        },
+        "detail": {
+          "id": "Isi gradien putih (lensa), rim atas putih, semu warna hanya di sisi segitiga, bayangan lembut ke bawah; urutan segitiga lalu angka.",
+          "en": "White gradient fill (lens), white top rim, colour tint only on the triangle side, soft downward shadow; triangle before the number."
+        }
+      },
+      {
+        "id": "dev6-chips",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Antrean & Pekerjaan Saya",
+            "en": "Dashboard · Queue & My Work"
+          }
+        },
+        "title": {
+          "id": "Chip status kecil tepat setelah nama pekerjaan",
+          "en": "Small status chips right after the work title"
+        },
+        "detail": {
+          "id": "11 px, resep kaca yang sama, bersemu warna statusnya.",
+          "en": "11 px, same glass recipe, tinted with the status colour."
+        }
+      },
+      {
+        "id": "dev6-seal",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · daftar pekerjaan",
+            "en": "Dashboard · work lists"
+          }
+        },
+        "title": {
+          "id": "Seal terverifikasi di mana pun nama label tampil",
+          "en": "Verified seal wherever a label name appears"
+        },
+        "detail": {
+          "id": "Nama label terverifikasi (mis. Awan Records) selalu diikuti seal — daftar pekerjaan, sidebar, dialog.",
+          "en": "Verified label names are always followed by the seal — work lists, sidebar, dialogs."
+        }
+      },
+      {
+        "id": "dev6-motion",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Animasi buka/tutup rincian metrik",
+          "en": "Metric detail open/close animation"
+        },
+        "detail": {
+          "id": "Panel mengembang 380 ms, isi muncul bertahap, batang menggambar diri; tutup 200 ms; chevron memantul ringan. Mengikuti prefers-reduced-motion.",
+          "en": "Panel expands in 380 ms, content staggers in, bars draw themselves; closes in 200 ms; chevron bounces slightly. Honours prefers-reduced-motion."
+        }
+      },
+      {
+        "id": "dev6-inp",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Seluruh preview",
+            "en": "Whole preview"
+          }
+        },
+        "title": {
+          "id": "Klik menu lebih ringan: simpan ditunda 300 ms",
+          "en": "Lighter menu clicks: saves deferred by 300 ms"
+        },
+        "detail": {
+          "id": "Setiap klik dulu men-serialisasi ±7 MB data (INP 400–540 ms). Kini simpan digabung 300 ms setelah aksi; transaksi atomik tetap seketika. Klik Dashboard 358 → 182 ms.",
+          "en": "Each click used to serialise ±7 MB of data (INP 400–540 ms). Saves are now batched 300 ms after the action; atomic transactions stay immediate. Dashboard click 358 → 182 ms."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.5",
     "date": "2026-10-15",
     "summary": {

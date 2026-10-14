@@ -1,62 +1,76 @@
-/* v1.1 dev.5 — kartu & detail kaca, diukur dari referensi pemilik.
-   Referensi (terang): latar #F2F2F2 (L* 95,5) · kartu #F8F8F8 (L* 97,6) →
-   selisih +3 L*; tepi kartu = garis bayangan 1 px + sorotan putih 1 px.
-   Pil persentase: isi hampir putih, tepi & bayangan bersemu warna metrik,
-   angka hitam, segitiga berwarna. Progress ±14 px, isi bergaris diagonal.
+/* v1.1 dev.6 — kartu & detail kaca, diukur dari referensi pemilik (profil piksel).
+   Referensi (terang): latar #F2F2F2 (L* 95,5) · kartu #F8F8F8 (L* 97,6) → selisih
+   +3 L*; tepi kartu = garis bayangan 1 px + sorotan putih 1 px.
+   Pil/tooltip kaca: isi gradien vertikal #FDFDFD → #F3F3F3 (lensa: terang di
+   atas, teduh di bawah); rim ATAS putih 1 px; rim bawah/samping 1 px hanya
+   4–6 L* lebih gelap dan bersemu warna konten; semu paling kuat di sisi
+   segitiga (#B1D4BD) lalu memudar; bayangan HANYA ke bawah, lembut, pudar
+   dalam ±7 px, sedikit bersemu warna konten. Angka warna teks, segitiga warna
+   metrik. Progress ±14 px, isi bergaris diagonal, track putih.
    Gelap memakai langkah L* yang sama (+3,8): kartu #171718 di atas #0A0A0B. */
 
 /* ---------- Kartu (Dashboard) ---------- */
+html:root:not([data-theme=dark]){--card-hi131:#fff;--card-edge131:#0000000a;--card-sh1-131:#0000000a;--card-sh2-131:#00000018}
+html:root[data-theme=dark]{--card-hi131:#ffffff0e;--card-edge131:#ffffff0d;--card-sh1-131:#00000099;--card-sh2-131:#000000b3}
 html:root body.dashboard124.dashboard124 :is(.stat6,.panel,.withdraw6,.metric124,.dashboard-card124){
   background:var(--surface)!important;border:0!important;border-radius:18px!important;
   box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px var(--card-edge131),0 1px 2px var(--card-sh1-131),0 12px 32px -14px var(--card-sh2-131)!important}
-html:root:not([data-theme=dark]){--card-hi131:#fff;--card-edge131:#0000000a;--card-sh1-131:#0000000a;--card-sh2-131:#00000018}
-html:root[data-theme=dark]{--card-hi131:#ffffff0e;--card-edge131:#ffffff0d;--card-sh1-131:#00000099;--card-sh2-131:#000000b3}
 html:root body.dashboard124.dashboard124 .withdrawal-meter127{border-top-color:var(--line)!important}
 
-/* Penanda buka/tutup kartu metrik: tombol lingkaran bertepi (referensi "···"). */
+/* Penanda buka/tutup kartu metrik: tombol lingkaran bertepi (referensi "···"),
+   chevron memantul ringan saat berganti arah; kartu terangkat saat terbuka. */
+html:root body.dashboard124.dashboard124 .metric124{transition:transform .32s cubic-bezier(.2,.8,.2,1),box-shadow .32s ease!important}
 html:root body.dashboard124.dashboard124 .metric124::before{content:"";position:absolute;top:13px;right:13px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);transition:background-color .16s ease,border-color .16s ease}
-html:root body.dashboard124.dashboard124 .metric124::after{top:23px;right:24px;width:5px;height:5px;border-color:var(--muted)}
+html:root body.dashboard124.dashboard124 .metric124::after{top:23px;right:24px;width:5px;height:5px;border-color:var(--muted);transition:transform .5s cubic-bezier(.34,1.56,.64,1),top .5s cubic-bezier(.34,1.56,.64,1)}
 html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]::after{top:26px}
 html:root body.dashboard124.dashboard124 .metric124:hover::before{background:var(--soft);border-color:var(--muted)}
-html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]{box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px color-mix(in srgb,var(--text) 28%,transparent),0 1px 2px var(--card-sh1-131),0 12px 32px -14px var(--card-sh2-131)!important}
+html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]{transform:translateY(-2px);box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px color-mix(in srgb,var(--text) 28%,transparent),0 2px 4px var(--card-sh1-131),0 16px 36px -14px var(--card-sh2-131)!important}
 
-/* ---------- Resep kaca (dipakai pil, tooltip, chip) ---------- */
-:root{--glass-fill131:#fbfbfbd9;--glass-hi131:#ffffffe6;--glass-base131:#00000012}
-:root[data-theme=dark]{--glass-fill131:#ffffff12;--glass-hi131:#ffffff1a;--glass-base131:#ffffff0f}
+/* ---------- Resep kaca (pil, tooltip, chip) ---------- */
+:root{--g-top131:#fdfdfd;--g-bot131:#f3f3f3;--g-rim131:#fff;--g-line131:#0000000a;--g-shade131:#00000014;--g-sh131:#0000001f;--g-sh2-131:#00000014;--g-tint131:45%}
+:root[data-theme=dark]{--g-top131:#ffffff14;--g-bot131:#ffffff08;--g-rim131:#ffffff26;--g-line131:#ffffff12;--g-shade131:#00000059;--g-sh131:#00000080;--g-sh2-131:#00000059;--g-tint131:40%}
 
-/* Pil persentase: angka warna teks, segitiga warna metrik; tepi kiri & bayangan
-   bersemu warna metrik (detail referensi). */
-html:root .delta131{--tone131:var(--delta131);position:relative;isolation:isolate;display:inline-flex;align-items:center;gap:4px;padding:4px 8px 4px 7px;border-radius:999px;
-  font-size:12px!important;line-height:1;color:var(--text)!important;background:var(--glass-fill131);
-  backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25);
-  box-shadow:inset 0 1px 0 var(--glass-hi131),0 1px 1.5px color-mix(in srgb,var(--tone131) 16%,#0000001a),0 7px 16px -5px color-mix(in srgb,var(--tone131) 28%,#00000026)}
-html:root .delta131::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:-1;
-  background:linear-gradient(105deg,color-mix(in srgb,var(--tone131) 48%,transparent) 0%,color-mix(in srgb,var(--tone131) 14%,var(--glass-base131)) 48%,var(--glass-base131) 100%);
+.delta131,[data-tip131]::after,
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge),
+.md-head131 small{
+  position:relative;isolation:isolate;border:0!important;
+  background:linear-gradient(180deg,var(--g-top131),var(--g-bot131))!important;
+  box-shadow:inset 0 1px 0 var(--g-rim131),
+    inset 0 -1px 0 color-mix(in srgb,var(--tone131,var(--muted)) 8%,var(--g-shade131)),
+    0 0 0 1px color-mix(in srgb,var(--tone131,var(--muted)) 5%,var(--g-line131)),
+    0 2px 4px -1px color-mix(in srgb,var(--tone131,var(--muted)) 8%,var(--g-sh131)),
+    0 5px 10px -4px color-mix(in srgb,var(--tone131,var(--muted)) 6%,var(--g-sh2-131))!important}
+/* Semu warna di sisi kiri rim (sisi segitiga/titik), memudar ke kanan. */
+.delta131::before,
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge)::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:-1;
+  background:radial-gradient(80% 160% at 0% 50%,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint131),transparent) 0%,color-mix(in srgb,var(--tone131,var(--muted)) 14%,transparent) 40%,transparent 72%);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+
+/* Pil persentase: angka warna teks, segitiga warna metrik. */
+html:root .delta131{--tone131:var(--delta131);display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 8px;border-radius:999px;
+  font-size:12px!important;line-height:1;color:var(--text)!important;font-variant-numeric:tabular-nums}
 html:root .delta131 svg{width:7px;height:7px;flex:none;fill:var(--tone131);stroke:none!important}
-html:root[data-theme=dark] .delta131{box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px #ffffff08,0 6px 16px -4px color-mix(in srgb,var(--tone131) 32%,transparent)}
-/* Kartu 5 kolom hanya ±176 px di dalam: nominal ringkas (Rp 151,6 jt) sedikit lebih kecil agar pil tetap sebaris. */
 html:root body.dashboard124.dashboard124 .value-row131{column-gap:8px;flex-wrap:nowrap}
 html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong:has(.unit131){font-size:22px!important}
 
 /* Tooltip kaca: [data-tip131] menampilkan teksnya di atas elemen saat hover. */
 [data-tip131]{position:relative}
-[data-tip131]::after{content:attr(data-tip131);position:absolute;left:50%;bottom:calc(100% + 8px);transform:translate(-50%,4px);opacity:0;pointer-events:none;white-space:nowrap;z-index:6;
+[data-tip131]::after{--tone131:var(--tip-tone131,var(--muted));content:attr(data-tip131);position:absolute;left:50%;bottom:calc(100% + 8px);transform:translate(-50%,4px);opacity:0;pointer-events:none;white-space:nowrap;z-index:6;
   padding:7px 11px;border-radius:999px;font-size:12px;line-height:1;font-weight:400;letter-spacing:0;color:var(--text);
-  background:var(--glass-fill131);backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25);
-  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,var(--tip-tone131,var(--muted)) 30%,var(--glass-base131)),0 7px 18px -5px color-mix(in srgb,var(--tip-tone131,var(--muted)) 28%,#00000026);
-  transition:opacity .14s ease,transform .14s ease}
+  transition:opacity .16s ease,transform .22s cubic-bezier(.2,.8,.2,1)}
 [data-tip131]:hover::after,[data-tip131]:focus-visible::after,.payout-track:hover .payout-mark131::after{opacity:1;transform:translate(-50%,0)}
 html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong[data-tip131]{display:inline-block;cursor:help}
-@media (prefers-reduced-motion:reduce){[data-tip131]::after,.metric124::before,.metric124::after{transition:none}}
 
-/* Chip status di daftar pekerjaan (Dashboard) & chip periode di rincian metrik. */
-html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111){
-  position:relative;isolation:isolate;background:var(--glass-fill131)!important;border:0!important;
-  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,currentColor 32%,var(--glass-base131)),0 5px 12px -5px color-mix(in srgb,currentColor 28%,#00000022)!important;
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.md-head131 small{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--glass-fill131);
-  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,var(--muted) 30%,var(--glass-base131)),0 5px 12px -5px #00000022}
+/* Chip status: kecil, tepat setelah nama pekerjaan (dipindah oleh glass131.js). */
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.work-top9>div:first-child>strong,.action-row>.grow>strong){display:flex!important;flex-wrap:wrap;align-items:center;gap:4px 8px}
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.work-badges9,.states108){display:inline-flex!important;gap:5px!important;margin:0!important;flex:0 0 auto!important;order:0!important;grid-column:auto!important;grid-row:auto!important;max-width:none!important;justify-content:flex-start!important}
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--tone131:currentColor;display:inline-flex;align-items:center;height:18px;padding:0 7px!important;border-radius:999px!important;font-size:11px!important;line-height:1;white-space:nowrap;vertical-align:middle}
+.md-head131 small{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px}
+
+/* Seal label terverifikasi, di mana pun nama label tampil (glass131.js). */
+.verify9.inline131{display:inline-flex;vertical-align:-3px;margin-left:4px;color:inherit}
+.verify9.inline131 svg{width:14px;height:14px;display:block}
 
 /* ---------- Progress "Penyelesaian pembayaran" ---------- */
 html:root{--pg131:#1eaa36;--pg-soft131:#8fe29c}
@@ -69,3 +83,25 @@ html:root body.release124.release127 .withdrawal127 .payout-track i{height:100%!
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--pg131) 70%,transparent)!important}
 .payout-mark131{--tip-tone131:var(--pg131);position:absolute;top:50%;left:var(--x,0%);width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--pg131);box-shadow:0 0 0 3px var(--surface),0 0 0 4px color-mix(in srgb,var(--pg131) 40%,transparent);cursor:default}
 html:root body.release124.release127 .withdrawal127 .withdrawal-meter127 strong{color:var(--text)!important}
+
+/* ---------- Animasi buka/tutup rincian metrik ---------- */
+.metric-detail131{display:grid!important;grid-template-rows:0fr;gap:0!important;padding:0 24px!important;opacity:0;transform:translateY(-8px);animation:none!important;
+  transition:grid-template-rows .38s cubic-bezier(.2,.8,.2,1),padding .38s cubic-bezier(.2,.8,.2,1),opacity .26s ease,transform .38s cubic-bezier(.2,.8,.2,1)}
+.metric-detail131.in{grid-template-rows:1fr;padding:20px 24px!important;opacity:1;transform:none}
+.metric-detail131.out{grid-template-rows:0fr;padding:0 24px!important;opacity:0;transform:translateY(-6px);transition-duration:.2s}
+.md-inner131{min-height:0;overflow:hidden;display:grid;gap:12px}
+.md-inner131>*{opacity:0;transform:translateY(6px);transition:opacity .3s ease,transform .34s cubic-bezier(.2,.8,.2,1)}
+.metric-detail131.in .md-inner131>*{opacity:1;transform:none}
+.metric-detail131.in .md-inner131>:nth-child(2){transition-delay:.05s}
+.metric-detail131.in .md-inner131>:nth-child(3){transition-delay:.1s}
+.metric-detail131.in .md-inner131>:nth-child(4){transition-delay:.15s}
+/* Batang perbandingan "menggambar diri" dari kiri. */
+.md-row131 i{position:relative;overflow:hidden;background:color-mix(in srgb,var(--text) 8%,transparent)!important}
+.md-row131 i::before{content:"";position:absolute;inset:0;width:0;border-radius:inherit;background:var(--text);transition:width .6s cubic-bezier(.2,.8,.2,1) .12s}
+.md-row131.prev i::before{background:color-mix(in srgb,var(--text) 35%,transparent)}
+.metric-detail131.in .md-row131 i::before{width:var(--w)}
+@media (prefers-reduced-motion:reduce){
+  .metric-detail131,.md-inner131>*,.md-row131 i::before,[data-tip131]::after,
+  html:root body.dashboard124.dashboard124 .metric124,html:root body.dashboard124.dashboard124 .metric124::after{transition:none!important}
+  .metric-detail131{grid-template-rows:1fr;padding:20px 24px!important;opacity:1;transform:none}
+  .md-inner131>*{opacity:1;transform:none}.metric-detail131 .md-row131 i::before{width:var(--w)}}
