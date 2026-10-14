@@ -216,6 +216,21 @@ app.include_router(api)
 
 
 @app.middleware("http")
+async def procedures_cache_refresh(request, call_next):
+    """Keep this instance's System115 procedures cache fresh (TTL) so a publish
+    on another worker/serverless instance takes effect without a restart."""
+    from procedures_config import is_stale, touch
+    if is_stale():
+        touch()
+        try:
+            from routes.system_settings import get_published_procedures
+            await get_published_procedures()
+        except Exception:  # noqa: BLE001 — defaults keep applying
+            logger.warning("procedures cache refresh failed; keeping current values")
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def maintenance_readonly_guard(request, call_next):
     """Reject writes to modules under an active read-only maintenance window."""
     try:

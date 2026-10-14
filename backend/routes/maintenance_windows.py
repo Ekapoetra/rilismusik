@@ -197,7 +197,8 @@ async def set_status(wid: str, body: MaintenanceStatusIn, user: dict = Depends(r
 
 READONLY_PREFIXES = {
     "releases": ("/api/releases", "/api/uploads"),
-    "payments": ("/api/payments", "/api/admin/xendit"),
+    "payments": ("/api/payments", "/api/admin/xendit", "/api/admin/refunds",
+                 "/api/admin/token", "/api/admin/benefits", "/api/token"),
     "royalty": ("/api/royalty", "/api/withdraw"),
     "tickets": ("/api/tickets",),
     # The /api/payments/* aliases below are order-creation paths: POST

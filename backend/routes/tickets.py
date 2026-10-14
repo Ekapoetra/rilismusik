@@ -72,6 +72,35 @@ async def list_ticket_categories(user: dict = Depends(require_kyc_for_label_user
     return [{"value": k, "label": TICKET_CATEGORY_LABELS[k]} for k in ACTIVE_CATEGORIES]
 
 
+MAX_TICKET_ATTACHMENTS = 10
+
+
+async def _record_ticket_upload(url: str, user: dict) -> None:
+    """Remember who uploaded a ticket file; attachment refs are only accepted
+    from their uploader (file access is granted through the ticket)."""
+    await db.ticket_uploads.insert_one({"url": url, "uploader_id": user["id"], "created_at": now_iso()})
+
+
+async def _check_attachments(urls: Optional[List[str]], user: dict, existing: Optional[List[str]] = None) -> List[str]:
+    """Reject attachment refs the caller did not upload — otherwise a label
+    could list another label's /api/files/ticket/... URL in its own ticket and
+    gain read access to it."""
+    urls = list(urls or [])
+    if len(urls) > MAX_TICKET_ATTACHMENTS:
+        raise HTTPException(status_code=400, detail=f"Maksimal {MAX_TICKET_ATTACHMENTS} lampiran")
+    if is_admin_identity(user):
+        return urls
+    keep = set(existing or [])
+    for url in urls:
+        if not isinstance(url, str) or len(url) > 300 or not url.startswith("/api/files/"):
+            raise HTTPException(status_code=400, detail="Lampiran tidak valid")
+        if url in keep:
+            continue
+        if not await db.ticket_uploads.find_one({"url": url, "uploader_id": user["id"]}, {"_id": 0, "url": 1}):
+            raise HTTPException(status_code=400, detail="Lampiran tidak valid — unggah ulang berkasnya")
+    return urls
+
+
 @ticket_r.post("/upload-attachment")
 async def upload_ticket_attachment(
     file: UploadFile = File(...),
@@ -105,6 +134,7 @@ async def upload_ticket_attachment(
         key = f"cover/ticket_{fid}.{ext}"
         ct = "image/png" if ext == "png" else "image/jpeg"
         await storage_service.upload_bytes(key=key, data=contents, content_type=ct)
+        await _record_ticket_upload(f"/api/files/{key}", user)
         return {"url": f"/api/files/{key}", "filename": file.filename}
     else:
         if ext not in ("jpg", "jpeg", "png", "pdf", "wav", "mp3", "txt", "docx", "doc"):
@@ -115,6 +145,7 @@ async def upload_ticket_attachment(
     key = f"{sub}/ticket_{fid}.{ext}"
     ct = storage_service.guess_content_type(file.filename or key)
     await storage_service.upload_fileobj(key=key, fileobj=file.file, content_type=ct)
+    await _record_ticket_upload(f"/api/files/{key}", user)
     return {"url": f"/api/files/{key}", "filename": file.filename}
 
 
@@ -123,6 +154,7 @@ async def label_create_ticket(body: TicketCreateIn, user: dict = Depends(require
     label = await get_label_by_user(user)
     if label.get("account_status") in ("suspended", "blacklisted"):
         raise HTTPException(status_code=403, detail="Akun tidak dapat membuat tiket")
+    await _check_attachments(body.attachments, user)
 
     # Validate release ownership — kategori bebas (D11) tidak terikat rilisan.
     is_free = body.category in FREE_CATEGORIES
@@ -296,7 +328,7 @@ async def label_update_draft(ticket_id: str, body: TicketDraftUpdateIn, user: di
     if body.description is not None:
         update["description"] = body.description.strip()
     if body.attachments is not None:
-        update["attachments"] = body.attachments
+        update["attachments"] = await _check_attachments(body.attachments, user, ticket.get("attachments"))
     await db.support_tickets.update_one({"id": ticket_id}, {"$set": update})
     return await db.support_tickets.find_one({"id": ticket_id}, {"_id": 0, "internal_note": 0})
 
@@ -305,15 +337,19 @@ async def label_update_draft(ticket_id: str, body: TicketDraftUpdateIn, user: di
 async def label_submit_draft(ticket_id: str, user: dict = Depends(require_label)):
     ticket = await _get_label_draft(ticket_id, user)
     label = await get_label_by_user(user)
+    if label.get("account_status") in ("suspended", "blacklisted"):
+        raise HTTPException(status_code=403, detail="Akun tidak dapat membuat tiket")
     subject = (ticket.get("subject") or "").strip()
     description = (ticket.get("description") or "").strip()
     if len(subject) < 3:
         raise HTTPException(status_code=400, detail="Subjek wajib diisi minimal 3 karakter sebelum mengirim")
     if len(description) < 3:
         raise HTTPException(status_code=400, detail="Deskripsi wajib diisi minimal 3 karakter sebelum mengirim")
-    await db.support_tickets.update_one({"id": ticket_id}, {"$set": {
+    submitted = await db.support_tickets.update_one({"id": ticket_id, "status": "draft"}, {"$set": {
         "status": "open", "submitted_at": now_iso(), "updated_at": now_iso(),
     }})
+    if not getattr(submitted, "modified_count", 1):
+        raise HTTPException(status_code=409, detail="Draf ini sudah dikirim")
     await db.ticket_comments.insert_one({
         "id": new_id(), "ticket_id": ticket_id, "user_id": user["id"], "user_name": user.get("name"),
         "role": LABEL_ROLE, "body": description or subject,
@@ -395,6 +431,7 @@ async def post_ticket_comment(ticket_id: str, body: TicketCommentIn, user: dict 
         raise HTTPException(status_code=400, detail="Tiket sudah ditutup")
     if is_admin_identity(user):
         assert_admin_permission(user, "support.manage")
+    await _check_attachments(body.attachments, user)
 
     comment = {
         "id": new_id(),

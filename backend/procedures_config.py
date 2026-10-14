@@ -17,14 +17,35 @@ DEFAULTS = {
 }
 
 _CACHE = dict(DEFAULTS)
+# Monotonic time of the last DB load. Each worker / serverless instance keeps
+# its own cache, so it is refreshed on a short TTL (see server.py) — a publish
+# on one instance otherwise never reaches the others until they restart.
+_LOADED_AT = None
+REFRESH_SECONDS = 60
 
 
 def procedure(key):
     return _CACHE.get(key, DEFAULTS.get(key))
 
 
+def is_stale(now=None):
+    import time
+    now = time.monotonic() if now is None else now
+    return _LOADED_AT is None or now - _LOADED_AT >= REFRESH_SECONDS
+
+
+def touch():
+    """Back off after a failed refresh — retry after the TTL, not per request."""
+    import time
+    global _LOADED_AT
+    _LOADED_AT = time.monotonic()
+
+
 def set_published(values):
+    import time
+    global _LOADED_AT
     merged = dict(DEFAULTS)
     merged.update({k: v for k, v in (values or {}).items() if k in DEFAULTS})
     _CACHE.clear()
     _CACHE.update(merged)
+    _LOADED_AT = time.monotonic()

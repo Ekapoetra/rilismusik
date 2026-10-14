@@ -42,6 +42,7 @@ jobs:
       - run: python -m unittest discover -s backend/tests -p test_benefit_foundation.py -v
       - run: python -m unittest discover -s backend/tests -p test_audit_security_fixes.py -v
       - run: python -m unittest discover -s backend/tests -p test_updates_seen.py -v
+      - run: python -m unittest discover -s backend/tests -p test_audit_money_fixes.py -v
   frontend-build:
     runs-on: ubuntu-latest
     steps:
@@ -80,6 +81,9 @@ jobs:
       JWT_SECRET: live-suite-ci-secret
       ADMIN_EMAIL: ci-superadmin@rilismusik-ci.io
       ADMIN_PASSWORD: CiSuite#Admin2026
+      # Staff fixtures are opt-in (never seeded in production).
+      SEED_STAFF_FIXTURES: "1"
+      SEED_STAFF_PASSWORD: CiSuite#Staff2026
       FRONTEND_URL: http://localhost:3000
       REACT_APP_BACKEND_URL: http://127.0.0.1:8010
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:8010
@@ -120,15 +124,15 @@ jobs:
           TEST_SUPERADMIN_EMAIL=ci-superadmin@rilismusik-ci.io
           TEST_SUPERADMIN_PASSWORD=CiSuite#Admin2026
           TEST_FINANCE_EMAIL=finance1@rilismusik.com
-          TEST_FINANCE_PASSWORD=Finance#2026
+          TEST_FINANCE_PASSWORD=CiSuite#Staff2026
           TEST_SUPPORT_EMAIL=support1@rilismusik.com
-          TEST_SUPPORT_PASSWORD=Support#2026
+          TEST_SUPPORT_PASSWORD=CiSuite#Staff2026
           TEST_RELEASE_EMAIL=release1@rilismusik.com
-          TEST_RELEASE_PASSWORD=Release#2026
+          TEST_RELEASE_PASSWORD=CiSuite#Staff2026
           TEST_MARKETING_EMAIL=marketing1@rilismusik.com
-          TEST_MARKETING_PASSWORD=Marketing#2026
+          TEST_MARKETING_PASSWORD=CiSuite#Staff2026
           TEST_CONTENT_EMAIL=content1@rilismusik.com
-          TEST_CONTENT_PASSWORD=Content#2026
+          TEST_CONTENT_PASSWORD=CiSuite#Staff2026
           TEST_DEMO_PASSWORD=unused
           TEST_DEMO_VIP_EMAIL=unused-vip@example.com
           TEST_DEMO_VIP_PASSWORD=unused

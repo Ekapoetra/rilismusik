@@ -10,8 +10,17 @@ from pymongo.errors import DuplicateKeyError
 from models import new_id, now_iso
 from .deps import logger
 
-DAILY_LIMIT = 7
+DAILY_LIMIT = 7  # default; the live value is the published System115 procedure
 WIB = ZoneInfo("Asia/Jakarta")
+
+
+def daily_limit() -> int:
+    from procedures_config import procedure
+    try:
+        value = int(procedure("daily_release_limit") or DAILY_LIMIT)
+    except (TypeError, ValueError):
+        value = DAILY_LIMIT
+    return max(1, min(value, 100))
 
 
 def quota_window(now=None):
@@ -97,8 +106,9 @@ async def submission_quota(db, label, release_id=None, now=None):
     scope = await resolve_quota_scope(db, label)
     _, end, record = await daily_record(db, scope, now)
     entries = record.get("entries", []); used = sum(e["state"] == "committed" for e in entries)
-    return SubmissionQuotaOut(day=record["day"], used=used, pending=len(entries) - used,
-        remaining=max(0, DAILY_LIMIT - len(entries)), resets_at=end,
+    limit = daily_limit()
+    return SubmissionQuotaOut(day=record["day"], limit=limit, used=used, pending=len(entries) - used,
+        remaining=max(0, limit - len(entries)), resets_at=end,
         already_counted=any(e["release_id"] == release_id and e["state"] == "committed" for e in entries))
 
 
@@ -112,12 +122,13 @@ async def submission_slot(db, label, release_id):
         if existing and existing["state"] == "pending":
             raise HTTPException(409, "Pengiriman sebelumnya masih diproses.")
         if new_slot:
+            limit = daily_limit()
             entry = {"release_id": release_id, "token": token, "state": "pending", "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()}
             reserved = await db.label_daily_submissions.find_one_and_update(
-                {"_id": key, "entries.release_id": {"$ne": release_id}, f"entries.{DAILY_LIMIT - 1}": {"$exists": False}},
+                {"_id": key, "entries.release_id": {"$ne": release_id}, f"entries.{limit - 1}": {"$exists": False}},
                 {"$push": {"entries": entry}}, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
             if not reserved:
-                raise HTTPException(429, f"Kuota harian 7 rilisan telah habis. Kuota tersedia kembali pukul 00.00 WIB.", headers={"Retry-After": str(max(1, int((datetime.fromisoformat(end) - datetime.now(timezone.utc)).total_seconds())))})
+                raise HTTPException(429, f"Kuota harian {limit} rilisan telah habis. Kuota tersedia kembali pukul 00.00 WIB.", headers={"Retry-After": str(max(1, int((datetime.fromisoformat(end) - datetime.now(timezone.utc)).total_seconds())))})
         try:
             yield {"token": token, "day": record["day"]}
         finally:
