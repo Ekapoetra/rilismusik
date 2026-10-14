@@ -1,0 +1,54 @@
+[
+  {
+    "version": "1.1.0-dev.1",
+    "date": "2026-10-14",
+    "summary": {
+      "id": "Titik awal v1.1: audit keamanan & uang, ikon verifikasi baru, data contoh disamarkan.",
+      "en": "v1.1 starting point: security & money audit, new verification badge, pseudonymised sample data."
+    },
+    "entries": [
+      {
+        "id": "dev1-verified-badge",
+        "status": "both",
+        "where": { "role": "super", "page": "labels9", "menu": { "id": "Manajemen Label", "en": "Label Management" } },
+        "title": { "id": "Ikon verifikasi label baru", "en": "New label verification badge" },
+        "detail": { "id": "Bintang datar 11 ujung sesuai referensi; centang transparan mengikuti warna latar.", "en": "Flat 11-point star per the reference; the check is transparent and shows the background." }
+      },
+      {
+        "id": "dev1-sample-data",
+        "status": "prototype",
+        "where": { "role": "super", "page": "labels9", "menu": { "id": "Manajemen Label", "en": "Label Management" } },
+        "title": { "id": "Data contoh memakai nama samaran", "en": "Sample data uses pseudonyms" },
+        "detail": { "id": "Nama label, artis, email, WA dan alamat asli diganti samaran; nominal dan status tetap.", "en": "Real label, artist, email, phone and address values are replaced; amounts and statuses are kept." }
+      },
+      {
+        "id": "dev1-boot",
+        "status": "prototype",
+        "where": { "role": "super", "page": "dashboard", "menu": { "id": "Dashboard", "en": "Dashboard" } },
+        "title": { "id": "Preview terbuka tanpa “perjalanan versi”", "en": "Preview opens without the version run-through" },
+        "detail": { "id": "Tampilan muncul sekali dalam kondisi akhir; label versi kini v1.1 · dev N.", "en": "The screen appears once in its final state; the version label is now v1.1 · dev N." }
+      },
+      {
+        "id": "dev1-token-addons",
+        "status": "app",
+        "where": null,
+        "title": { "id": "Pembayaran token tidak lagi melunasi add-on", "en": "Token payments no longer settle add-ons" },
+        "detail": { "id": "Invoice berisi add-on dibayar rupiah; token hanya untuk biaya rilisan.", "en": "Invoices with add-ons are paid in rupiah; tokens cover the release fee only." }
+      },
+      {
+        "id": "dev1-money-guards",
+        "status": "app",
+        "where": null,
+        "title": { "id": "Pengaman uang: bayar, refund, withdraw", "en": "Money guards: pay, refund, withdraw" },
+        "detail": { "id": "Klik ganda tidak memotong token dua kali, tidak ada refund ganda, withdraw yang sudah dibayar tidak bisa ditolak ulang.", "en": "Double clicks never spend twice, no double refunds, paid withdrawals cannot be rejected again." }
+      },
+      {
+        "id": "dev1-staff-preview",
+        "status": "app",
+        "where": null,
+        "title": { "id": "Pratinjau akses staf lebih aman", "en": "Safer staff access preview" },
+        "detail": { "id": "Keluar akun berfungsi saat pratinjau; menu khusus Super Admin tersembunyi selama pratinjau.", "en": "Sign-out works during preview; Super Admin-only menus stay hidden while previewing." }
+      }
+    ]
+  }
+]

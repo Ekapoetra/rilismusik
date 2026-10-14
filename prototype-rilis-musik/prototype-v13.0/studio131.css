@@ -1,0 +1,18 @@
+/* v1.1 dev — Studio Pratinjau: entri catatan perubahan + riwayat lama */
+.studio-current131 .studio-version-title time{margin-left:auto;font-size:12px;color:var(--muted)}
+.studio-summary131{margin:-4px 0 14px;font-size:13px;color:var(--muted)}
+.studio-foot131{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.studio-status131{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.01em}
+.studio-status131.prototype{background:#2d96e91f;color:#1f6fb2}
+.studio-status131.app{background:#10b9811f;color:#0b7a55}
+.studio-status131.both{background:#7c3aed1a;color:#5b2bb5}
+[data-theme=dark] .studio-status131.prototype{color:#7cc0f5}
+[data-theme=dark] .studio-status131.app{color:#5fd6a8}
+[data-theme=dark] .studio-status131.both{color:#b79cf5}
+.studio-menu131{font-size:11px;color:var(--muted)}
+.studio-info131{cursor:default;border-style:dashed!important}
+.studio-info131:hover{background:transparent!important}
+.studio-legacy131{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.studio-legacy131>summary{cursor:pointer;font-weight:600;font-size:14px;list-style:revert}
+.studio-legacy131>summary small{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:2px}
+.studio-legacy131[open]>summary{margin-bottom:12px}
