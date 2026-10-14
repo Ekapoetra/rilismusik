@@ -5,6 +5,6 @@
   "standalone": "prototype-rilis-musik/prototype-v13.0/Rilis-Musik-V13.0.html",
   "runFrom": "prototype-rilis-musik",
   "previewCommand": "npm run preview",
-  "standaloneSha256": "c3e62ce82b33152118456633dab4d2b3f5682a6c6e9130d84cacb166b38fc018",
+  "standaloneSha256": "ed90c0b8a80de3a4766422a4a5eec50b1a2a15f358e350101962d0fc873e872a",
   "productionIntegrated": false
 }

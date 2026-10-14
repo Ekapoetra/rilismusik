@@ -10,16 +10,25 @@
      - label lama belum klaim (legacy_unclaimed) — dibatasi
    lalu sisanya diisi label berskor aktivitas tertinggi.
 
-   Dokumen diambil apa adanya (tanpa proyeksi) agar bentuk asli koleksi
-   terekam; kredensial dibuang, nomor rekening/NIK disamarkan. Nama label,
-   judul rilisan, email dipertahankan (keputusan user). Hanya membaca. */
+   Bentuk dokumen dipertahankan (kunci asli koleksi terekam), tetapi SEMUA
+   nilai dipseudonimkan saat ekspor (lihat pseudonym.js, default-deny untuk
+   teks): kredensial dibuang; nama label/artis/judul/orang, email, WhatsApp,
+   alamat, URL/berkas, ISRC/UPC dan teks bebas diganti nilai palsu yang
+   konsisten; nomor rekening/NIK disamarkan. Akun admin/staf hanya diekspor
+   sebagai id + peran + nama palsu. Koleksi notifikasi/aktivitas/work item
+   dibatasi ke label terpilih. Hanya membaca. */
+const {createPseudonymizer,scrubValue}=require('./pseudonym');
 
-const DROP_KEY=/password|hash|token|secret|otp|session|api_key|apikey|private/i;
+const DROP_KEY=/password|hash|token|secret|otp|session|api_key|apikey|private|google_subject|provider_id/i;
 const MASK_KEY=/account_number|^nik$|id_number|ktp|npwp|card_number/i;
+const MAX_TIME_MS=20000;
+const STAFF_ROLES=['admin','super','super_admin','superadmin','staff','admin_support','admin_finance'];
 
 const str=v=>v==null?v:typeof v==='object'&&typeof v.toHexString==='function'?v.toHexString():v;
 const mask=v=>{const s=String(v??'');return s.length>4?'•'.repeat(Math.min(s.length-4,8))+s.slice(-4):s?'••••':s;};
 
+/* Normalisasi struktural: ObjectId/Date → string, kredensial dibuang,
+   nomor identitas/rekening disamarkan. Pseudonimisasi nilai menyusul. */
 function clean(v,key=''){
   if(Array.isArray(v))return v.map(x=>clean(x));
   if(v instanceof Date)return v.toISOString();
@@ -42,10 +51,10 @@ const TICKET_OPEN=['open','in_progress','waiting_label','submitted_to_believe'];
 const WITHDRAW_OPEN=['requested','approved','processing'];
 
 async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPerImport=400,legacyMax=3,light=false}={}){
-  const names=new Set((await db.listCollections().toArray()).map(c=>c.name));
+  const names=new Set((await db.listCollections({},{nameOnly:true,maxTimeMS:MAX_TIME_MS}).toArray()).map(c=>c.name));
   const col=n=>names.has(n)?db.collection(n):null;
-  const all=async(n,q={},limit=5000,sort={_id:-1})=>{const c=col(n);return c?c.find(q).sort(sort).limit(limit).toArray():[];};
-  const agg=async(n,pipeline)=>{const c=col(n);return c?c.aggregate(pipeline).toArray():[];};
+  const all=async(n,q={},limit=5000,sort={_id:-1})=>{const c=col(n);return c?c.find(q).sort(sort).limit(limit).maxTimeMS(MAX_TIME_MS).toArray():[];};
+  const agg=async(n,pipeline)=>{const c=col(n);return c?c.aggregate(pipeline,{maxTimeMS:MAX_TIME_MS}).toArray():[];};
   const count=async(n,field,match={})=>{const rows=await agg(n,[{$match:{[field]:{$ne:null},...match}},{$group:{_id:'$'+field,n:{$sum:1}}}]);return new Map(rows.map(r=>[String(r._id),r.n]));};
   const distinctLabels=async(n,match)=>new Set((await agg(n,[{$match:match},{$group:{_id:'$label_id'}}])).map(r=>String(r._id)));
 
@@ -82,7 +91,10 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
   const inLabel={label_id:{$in:ids}};
 
   /* 2. Entitas terkait */
-  const users=[...await all('users',{id:{$in:picked.map(l=>l.user_id).filter(Boolean)}},200),...await all('users',{$or:[{active_label_id:{$in:ids}},{primary_label_id:{$in:ids}}]},200),...await all('users',{role:{$in:['admin','super','super_admin','superadmin','staff','admin_support','admin_finance']}},50)];
+  const labelUsers=[...await all('users',{id:{$in:picked.map(l=>l.user_id).filter(Boolean)}},200),...await all('users',{$or:[{active_label_id:{$in:ids}},{primary_label_id:{$in:ids}}]},200)].filter(u=>!STAFF_ROLES.includes(u.role));
+  const staffUsers=await all('users',{role:{$in:STAFF_ROLES}},50);
+  const labelUserIds=[...new Set(labelUsers.map(idOf).filter(Boolean))];
+  const staffIds=staffUsers.map(idOf).filter(Boolean);
   /* Rilisan: utamakan status non-live agar alur kerja terlihat, sisanya terbaru. */
   const releasesRaw=await all('releases',inLabel,5000);
   const rank=r=>RELEASE_ACTIVE.includes(r.status)?0:r.status==='draft'?1:r.status==='live'?2:3;
@@ -102,12 +114,12 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
     all('wami_orders',inLabel,100),
     all('addon_orders',inLabel,100),
     all('service_orders',inLabel,100),
-    all('notifications',{},300),
+    all('notifications',{user_id:{$in:labelUserIds}},300),
     all('balance_transactions',inLabel,300),
-    all('work_items',{},200),
-    all('activity_logs',{},300),
+    all('work_items',inLabel,200),
+    all('activity_logs',{$or:[{user_id:{$in:labelUserIds}},{reference_id:{$in:[...ids,...relIds]}}]},300),
     all('royalty_imports',{},imports),
-    all('staff_profiles',{},50),
+    all('staff_profiles',{user_id:{$in:staffIds}},50),
     all('release_metadata_edits',inLabel,100),
     all('contentid_assets',inLabel,100),
     agg('releases',[{$group:{_id:'$status',n:{$sum:1}}}]),
@@ -129,8 +141,11 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
 
   const dedupe=arr=>{const seen=new Set();return arr.filter(x=>{const k=idOf(x)||JSON.stringify(x);if(seen.has(k))return false;seen.add(k);return true;});};
   const flat=rows=>rows.map(r=>({...r._id,...Object.fromEntries(Object.entries(r).filter(([k])=>k!=='_id'))}));
+  /* Akun admin/staf: hanya id + peran + nama (dipseudonimkan di bawah). */
+  const staffSlim=staffUsers.map(u=>({id:idOf(u),role:u.role,name:u.name||''}));
+  const staffProfilesSlim=staff.map(p=>({id:idOf(p),user_id:p.user_id,employment_status:p.employment_status||null}));
   const data={
-    labels:picked,users:dedupe(users),releases,tracks,artists,
+    labels:picked,users:dedupe([...labelUsers,...staffSlim]),releases,tracks,artists,
     royalty_imports:importsRaw,royalty_lines:royaltyLines,
     royalty_summary:flat(royaltySummary),royalty_by_platform:flat(royaltyByPlatform),royalty_by_track:flat(royaltyByTrack),
     balance_transactions:balance,
@@ -138,18 +153,23 @@ async function exportSample(db,{labels:N=15,releasesPerLabel=6,imports=4,linesPe
     support_tickets:tickets,ticket_comments:ticketComments,
     kyc_documents:kyc,bank_accounts:banks,bank_account_change_requests:bankChanges,contracts,
     wami_orders:wami,addon_orders:addons,service_orders:services,contentid_assets:contentId,release_metadata_edits:metaEdits,
-    notifications,work_items:workItems,activity_logs:activity,staff_profiles:staff,
+    notifications,work_items:workItems,activity_logs:activity,staff_profiles:staffProfilesSlim,
     chat_conversations:chats,chat_messages:chatMessages
   };
+  const cleaned={};
+  for(const [k,v] of Object.entries(data))cleaned[k]=clean(v);
+  /* Satu pseudonymizer untuk seluruh ekspor → pemetaan konsisten lintas koleksi. */
+  const ps=createPseudonymizer().reserveFrom(cleaned);
   const out={};
-  for(const [k,v] of Object.entries(data))out[k]=clean(v);
+  for(const [k,v] of Object.entries(cleaned))out[k]=v.map(doc=>scrubValue(ps,doc,{collection:k}));
   const counts=Object.fromEntries(Object.entries(out).map(([k,v])=>[k,v.length]));
   return {meta:{
     exportedAt:new Date().toISOString(),db:db.databaseName,labels:N,
-    selection:picked.map(l=>({id:idOf(l),name:l.label_name||l.name||idOf(l),score:Math.round(score(l)),account:l.account_status,kyc:l.kyc_status||null,reasons:reasons.get(idOf(l))})),
+    selection:picked.map(l=>({id:idOf(l),name:ps.label(l.label_name||l.name||idOf(l)),score:Math.round(score(l)),account:l.account_status,kyc:l.kyc_status||null,reasons:reasons.get(idOf(l))})),
     population:{labels:labels.length,releaseStatus:Object.fromEntries(releaseStatusCounts.map(r=>[String(r._id),r.n])),ticketStatus:Object.fromEntries(ticketStatusCounts.map(r=>[String(r._id),r.n]))},
-    counts,masking:'password/hash/token/secret dibuang; account_number/NIK/NPWP disamarkan'
+    counts,masking:'dipseudonimkan (pseudonym.js): kredensial dibuang; nama/email/WhatsApp/alamat/URL/ISRC/UPC/teks bebas diganti nilai palsu konsisten; rekening/NIK disamarkan; staf hanya id+peran+nama palsu',
+    pseudonymized:true
   },data:out};
 }
 
-module.exports={exportSample,clean};
+module.exports={exportSample,clean,MAX_TIME_MS};

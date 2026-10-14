@@ -2,7 +2,9 @@
    screenshot halaman bisnis → reload (jalur applied() harus skip). */
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
-const OUT='C:\\Users\\rotam\\AppData\\Local\\Temp\\sample-shots';
+const path=require('node:path');
+/* Screenshot ke sample/shots (folder sample/ di-gitignore). */
+const OUT=process.env.SHOTS_DIR||path.join(__dirname,'sample','shots');
 require('node:fs').mkdirSync(OUT,{recursive:true});
 const PORT='4590';
 
@@ -44,7 +46,7 @@ const PORT='4590';
   },label);
   await page.waitForTimeout(1300);
   const text=await page.evaluate(()=>(document.querySelector('#main')||document.body).innerText.slice(0,700));
-  await page.screenshot({path:OUT+'\\'+shot+'.png'});
+  await page.screenshot({path:path.join(OUT,shot+'.png')});
   console.log(`\n== ${shot} (klik:${clicked}) ==\n${text.slice(0,550)}`);
  };
  for(const [label,shot] of [['Rilisan','01-rilisan'],['Royalti','02-royalti'],['Penarikan','03-penarikan'],['Tiket','04-tiket'],['Manajemen Label','05-label']])await snap(label,shot);

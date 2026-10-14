@@ -5,10 +5,10 @@
   "description": "Service kecil preview Vercel: cek database + ekspor cuplikan data produksi untuk prototype V13.0",
   "scripts": {
     "start": "node index.js",
-    "test": "node test-sample.cjs"
+    "test": "node test-sample.cjs && node test-auth.cjs"
   },
   "dependencies": {
-    "express": "4.21.2",
+    "express": "4.22.3",
     "mongodb": "6.20.0"
   }
 }

@@ -2,8 +2,13 @@
    Mengubah cuplikan produksi (hasil preview-api/sample-export) menjadi data
    ringkas yang dipakai layer v131-sample.js sebagai skenario dummy tambahan.
    Deterministik: menjalankan ulang pada sampel yang sama menghasilkan berkas
-   yang sama. Tidak ada kredensial; nomor rekening sudah disamarkan di sumber. */
+   yang sama. Tidak ada kredensial; nomor rekening sudah disamarkan di sumber.
+   Hasil akhir SELALU dipseudonimkan (preview-api/pseudonym.js): nama label/
+   artis/judul/orang, email, WhatsApp, alamat, ISRC/UPC, URL dan teks bebas
+   tiket/chat diganti nilai palsu yang konsisten — berkas ini ter-commit ke
+   repo publik, jadi tidak boleh memuat data pribadi asli. */
 const fs=require('node:fs'),path=require('node:path');
+const {pseudonymizeCompact}=require(path.join(__dirname,'..','preview-api','pseudonym.js'));
 const SRC=path.join(__dirname,'sample','production-sample.json'),OUT=path.join(__dirname,'prototype-v13.0','sample131-data.js');
 const raw=JSON.parse(fs.readFileSync(SRC,'utf8')),d=raw.data;
 
@@ -70,7 +75,7 @@ const convs=d.chat_conversations.filter(c=>labelId.has(c.label_id)).map(c=>({id:
 const services=d.service_orders.filter(o=>labelId.has(o.label_id)).map(o=>({label:labelId.get(o.label_id),name:title(o.name),amount:int(o.amount),status:o.status,created:day(o.created_at)}));
 const products=d.payment_products.map(p=>({name:title(p.name),amount:int(p.amount),active:!!p.active,description:title(p.description||'')}));
 
-const out={version:1,exportedAt:raw.meta.exportedAt,source:{db:raw.meta.db,population:raw.meta.population,selection:raw.meta.selection.map(s=>({id:labelId.get(s.id),name:s.name,reasons:s.reasons}))},labels,releases,royalty:{imports,summary,byTrack,byPlatform},withdrawals,tickets,chats:convs,services,products};
-const js='/* Cuplikan produksi untuk skenario prototype V13.0 — dibangkitkan oleh build-sample.cjs dari sample/production-sample.json ('+raw.meta.exportedAt.slice(0,10)+').\n   Jangan sunting manual; jalankan `npm run build:sample`. Nomor rekening sudah disamarkan di sumber. */\nwindow.SAMPLE131='+JSON.stringify(out)+';\n';
+const out=pseudonymizeCompact({version:1,exportedAt:raw.meta.exportedAt,source:{db:raw.meta.db,population:raw.meta.population,selection:raw.meta.selection.map(s=>({id:labelId.get(s.id),name:s.name,reasons:s.reasons}))},labels,releases,royalty:{imports,summary,byTrack,byPlatform},withdrawals,tickets,chats:convs,services,products});
+const js='/* Cuplikan produksi untuk skenario prototype V13.0 — dibangkitkan oleh build-sample.cjs dari sample/production-sample.json ('+raw.meta.exportedAt.slice(0,10)+').\n   Jangan sunting manual; jalankan `npm run build:sample`. Seluruh data pribadi dipseudonimkan (nama, email, WhatsApp, alamat, teks bebas). */\nwindow.SAMPLE131='+JSON.stringify(out)+';\n';
 fs.writeFileSync(OUT,js);
-console.log('sample131-data.js:',Math.round(js.length/1024)+' KB |',labels.length,'label,',releases.length,'rilisan,',imports.length,'import royalti,',summary.length,'ringkasan,',byTrack.length,'baris lagu,',byPlatform.length,'baris platform,',withdrawals.length,'penarikan,',tickets.length,'tiket,',convs.length,'chat');
+console.log('sample131-data.js:',Math.round(js.length/1024)+' KB |',out.labels.length,'label,',out.releases.length,'rilisan,',imports.length,'import royalti,',summary.length,'ringkasan,',byTrack.length,'baris lagu,',byPlatform.length,'baris platform,',withdrawals.length,'penarikan,',tickets.length,'tiket,',convs.length,'chat');
