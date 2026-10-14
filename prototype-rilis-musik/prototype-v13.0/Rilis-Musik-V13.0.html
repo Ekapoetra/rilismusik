@@ -1442,7 +1442,7 @@ body.release130 .staff-choice122.selected .avatar114{transition:box-shadow .25s 
 .maint-banner131 p small{color:inherit;opacity:.75}
 .maint-banner131.upcoming131 .status-dot9{background:#b58b2a}
 </style>
-</head><body><a class="skip" href="#main">Lewati navigasi</a><div id="app"></div><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status" aria-live="polite"></div><script>/* Register before legacy click handlers; the implementation is loaded last. */
+<style id="boot131">/* Boot guard: ~140 lapisan skrip masing-masing memanggil render(); tanpa ini layar menampilkan setiap versi antara (V10.3→V13.0) saat preview dibuka. */html.booting131 #app,html.booting131 #toast{visibility:hidden}html.booting131 body::after{content:"Memuat Rilis Musik…";position:fixed;inset:0;display:grid;place-items:center;font:500 14px/1.4 system-ui,sans-serif;color:#8a94a3}</style><script>document.documentElement.classList.add('booting131')</script></head><body><a class="skip" href="#main">Lewati navigasi</a><div id="app"></div><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status" aria-live="polite"></div><script>/* Register before legacy click handlers; the implementation is loaded last. */
 window.addEventListener('click',event=>{if(typeof interaction130==='function')interaction130(event);},true);
 window.addEventListener('keydown',event=>{if(typeof key130==='function')key130(event);},true);
 </script>
@@ -7939,7 +7939,7 @@ const actionBefore131u=handleAction;handleAction=async function(b){
  if(b.dataset.action==='v4-module'&&b.dataset.id==='updates'&&!isLabel10()){v4.module='updates';return go('module','platform')}
  return actionBefore131u(b)};
 </script>
-</body></html>
+<script>/* Semua lapisan sudah dieksekusi (skrip klasik berjalan berurutan, galat satu file tidak menghentikan file berikutnya) — tampilkan hasil akhir sekali. */document.documentElement.classList.remove('booting131');document.getElementById('boot131')?.remove();</script></body></html>
 
 
 
