@@ -30,6 +30,7 @@ for (const v of changelog) {
     ids.add(e.id);
     if (!STATUSES.has(e.status)) fail(`status "${e.status}" pada ${e.id} harus prototype | app | both`);
     if (!e.title?.id || !e.title?.en) fail(`judul id/en wajib pada ${e.id}`);
+    if (e.where?.theme && !['light', 'dark'].includes(e.where.theme)) fail(`where.theme pada ${e.id} harus light | dark`);
     if (e.status !== 'app' && !e.where?.page) fail(`entri ${e.id} tampil di prototype — "where.page" wajib`);
   }
 }

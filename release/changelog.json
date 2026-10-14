@@ -1,5 +1,75 @@
 [
   {
+    "version": "1.1.0-dev.4",
+    "date": "2026-10-14",
+    "summary": {
+      "id": "Masukan dev 3: kartu metrik ringkas dengan rincian buka/tutup, preview jauh lebih cepat, entri tema gelap di Studio diperbaiki, eksplorasi warna merek.",
+      "en": "dev 3 feedback: compact metric cards with expandable details, much faster preview, Studio dark-theme entry fixed, brand colour exploration."
+    },
+    "entries": [
+      {
+        "id": "dev4-metric-inline",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Rincian metrik buka/tutup di bawah kartu",
+          "en": "Metric details expand below the cards"
+        },
+        "detail": {
+          "id": "Klik kartu untuk membuka perbandingan periode (tanpa popup). Kartu 20% lebih pendek; nominal besar diringkas (Rp 151,6 jt).",
+          "en": "Click a card to expand the period comparison (no popup). Cards are 20% shorter; large amounts are abbreviated."
+        }
+      },
+      {
+        "id": "dev4-speed",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Seluruh preview",
+            "en": "Whole preview"
+          }
+        },
+        "title": {
+          "id": "Preview lebih cepat, tanpa perjalanan versi",
+          "en": "Faster preview, no version run-through"
+        },
+        "detail": {
+          "id": "Tampil 12,8 → 8,8 dtk (kunjungan ulang 9,8 → 6,2 dtk); setiap gambar ulang 467 → 189 ms. Judul tab & label versi tidak lagi berganti saat memuat.",
+          "en": "Shows in 8.8 s instead of 12.8 s (repeat visits 6.2 s); each re-render 189 ms instead of 467 ms. Tab title and version label no longer cycle while loading."
+        }
+      },
+      {
+        "id": "dev4-brand",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Studio Pratinjau · Eksplorasi warna merek",
+            "en": "Preview Studio · Brand colour exploration"
+          }
+        },
+        "title": {
+          "id": "Eksplorasi warna merek",
+          "en": "Brand colour exploration"
+        },
+        "detail": {
+          "id": "6 palet (Biru, Violet, Lime, Coral, Teal, Grafit) untuk header, logo, progress dan aksen — pilih di bagian atas Studio Pratinjau.",
+          "en": "6 palettes for the header, logo, progress and accent — pick one at the top of the Preview Studio."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.3",
     "date": "2026-10-14",
     "summary": {
@@ -36,7 +106,8 @@
           "menu": {
             "id": "Dashboard (tema gelap)",
             "en": "Dashboard (dark theme)"
-          }
+          },
+          "theme": "dark"
         },
         "title": {
           "id": "Tema gelap lebih pekat",

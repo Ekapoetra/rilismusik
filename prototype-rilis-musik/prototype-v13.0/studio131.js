@@ -41,6 +41,8 @@ studioStart=async function(id){
   await studioBefore131('v130-'+(entry.where.role||'super'));
   studioSelected=id;
   if(entry.where.page)state.page=entry.where.page;
+  // Entri bertema (mis. tema gelap) memaksa tema agar perubahannya terlihat.
+  if(entry.where.theme&&typeof themeMode105==='function')themeMode105(entry.where.theme);
   render();window.scrollTo(0,0);
 };
 

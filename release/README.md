@@ -38,7 +38,7 @@ sehingga member tidak diminta membaca ulang setiap build dev.
 {
   "id": "dev2-contoh",
   "status": "prototype | app | both",
-  "where": { "role": "super | admin | label", "page": "labels9", "menu": { "id": "…", "en": "…" } },
+  "where": { "role": "super | admin | label", "page": "labels9", "theme": "light | dark (opsional)", "menu": { "id": "…", "en": "…" } },
   "title": { "id": "…", "en": "…" },
   "detail": { "id": "…", "en": "…" }
 }
