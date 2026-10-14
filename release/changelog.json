@@ -1,5 +1,75 @@
 [
   {
+    "version": "1.1.0-dev.3",
+    "date": "2026-10-14",
+    "summary": {
+      "id": "Fondasi tampilan baru, diuji di Dashboard Super & Admin: font Geist, skala tulisan tanpa tebal, tema gelap lebih pekat, persentase metrik sebaris.",
+      "en": "New look foundation, trialled on the Super & Admin dashboards: Geist font, weight-light type scale, deeper dark theme, inline metric percentages."
+    },
+    "entries": [
+      {
+        "id": "dev3-type",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard",
+            "en": "Dashboard"
+          }
+        },
+        "title": {
+          "id": "Font Geist + skala tulisan baru",
+          "en": "Geist font + new type scale"
+        },
+        "detail": {
+          "id": "7 ukuran (12–40) dengan berat 400/500 saja; penekanan lewat ukuran & warna. Font 18 KB. Baru di Dashboard.",
+          "en": "7 sizes (12–40), weights 400/500 only; emphasis through size and colour. 18 KB font. Dashboard only for now."
+        }
+      },
+      {
+        "id": "dev3-dark",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard (tema gelap)",
+            "en": "Dashboard (dark theme)"
+          }
+        },
+        "title": {
+          "id": "Tema gelap lebih pekat",
+          "en": "Deeper dark theme"
+        },
+        "detail": {
+          "id": "Latar #0A0A0B, kartu #141415 bertepi tipis — berlaku di seluruh halaman tema gelap.",
+          "en": "Background #0A0A0B, cards #141415 with a hairline border — applies to every dark-theme page."
+        }
+      },
+      {
+        "id": "dev3-metric",
+        "status": "prototype",
+        "where": {
+          "role": "admin",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Persentase metrik di samping angka",
+          "en": "Metric percentage beside the value"
+        },
+        "detail": {
+          "id": "+12% ↗ hijau, −8,1% ↘ merah, 0% → abu-abu; keterangan periode tetap di bawah.",
+          "en": "+12% ↗ green, −8.1% ↘ red, 0% → grey; the period caption stays below."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.2",
     "date": "2026-10-14",
     "summary": {

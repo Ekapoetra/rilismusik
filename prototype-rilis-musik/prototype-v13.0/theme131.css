@@ -1,0 +1,80 @@
+/* v1.1 dev.3 — fondasi tampilan baru (uji coba di Dashboard Super & Admin).
+   1. Font Geist (OFL, Vercel) — subset Latin, berat 400–700, ±18 KB.
+   2. Skala tulisan 12·14·16·20·24·32·40 dengan berat 400/500 saja; penekanan
+      lewat ukuran & warna, bukan tebal. (Saat ini hanya di Dashboard.)
+   3. Tema gelap: latar hampir hitam, kartu gelap bertepi tipis.
+   4. Persentase metrik sebaris di samping angka (+12% ↗ / −8,1% ↘). */
+
+@font-face{font-family:'RM Geist';src:url('geist131.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+:root{--font131:'RM Geist',Geist,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+:root,body{font-family:var(--font131)!important}
+body :is(button,input,select,textarea){font-family:inherit!important}
+
+/* ---------- Tema gelap (seluruh web) ---------- */
+/* release127 mendefinisikan ulang variabel di body — timpa di :root dan body. */
+:root[data-theme=dark],:root[data-theme=dark] body{
+  --bg:#0a0a0b!important;--surface:#141415!important;--soft:#1b1b1d!important;--hover:#222225!important;
+  --line:#232326!important;--glass:rgba(10,10,11,.86)!important;--text:#f2f2f3!important;--muted:#8e8e94!important;
+}
+html:root[data-theme=dark] body{background:var(--bg)!important}
+[data-theme=dark] body.dashboard124 :is(.stat6,.panel,.withdraw6,.metric124,.attention109){background:var(--surface)!important;border:1px solid #ffffff0d!important;box-shadow:none!important}
+
+/* ---------- Skala tulisan — Dashboard (uji coba) ----------
+   Masthead dipakai bersama semua ruang kerja (Platform/Staf), jadi aturannya
+   memakai body.release124 agar tinggi header tidak berubah saat berpindah; tinggi baris
+   dalam px bulat supaya tinggi header tidak berpecahan (QA mengecek sama persis).
+   Prefiks html:root body.dashboard124.dashboard124 sengaja dipertebal: lapisan
+   lama memakai !important dengan selektor panjang. */
+/* Dasar 400 — :where() menjaga spesifisitasnya rendah agar aturan angka 500 di bawah menang. */
+html:root body.release124.release124 :where(.masthead124) :where(h1,h2,h3,h4,p,span,strong,small,b,button,a,em,label,time){font-weight:400!important}
+html:root body.dashboard124.dashboard124 :where(main.dashboard-main124) :where(h1,h2,h3,h4,p,span,strong,small,b,button,a,th,td,em,option,select,label,time){font-weight:400!important}
+html:root body.release124.release124 .masthead124 h1,html:root body.release124.release124 .masthead124 h1 span{font-size:40px!important;line-height:44px!important;letter-spacing:-.02em!important}
+html:root body.release124.release124 .masthead124 .hero-context122{font-size:14px!important;line-height:20px!important}
+html:root body.release124.release124 .masthead124 .insight-title122{font-size:12px!important;line-height:16px!important}
+html:root body.release124.release124 .masthead124 .insight-content122 b{font-size:16px!important;line-height:22px!important}
+html:root body.release124.release124 .masthead124 .insight-content122 small{font-size:14px!important;line-height:20px!important}
+html:root body.release124.release124 .masthead124 :is(.insight122,.hero-insight122) strong{font-size:32px!important;line-height:36px!important;font-weight:500!important}
+
+html:root body.dashboard124.dashboard124 main.dashboard-main124{font-variant-numeric:tabular-nums}
+/* Judul bagian: lapisan lama memakai "html body.release124 #main h2" (ID) — ikut pakai #main. */
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 h2{font-size:20px!important;font-weight:400!important;line-height:1.3!important;letter-spacing:-.01em!important}
+html:root body.dashboard124.dashboard124 main.dashboard-main124 :is(.attention-copy109 h3){font-size:16px!important}
+html:root body.dashboard124.dashboard124 main.dashboard-main124 :is(.attention-copy109 p,.withdraw-heading124 p){font-size:14px!important;color:var(--muted)!important}
+
+/* Kartu ringkasan pekerjaan */
+html:root body.dashboard124.dashboard124 .five-stats .stat6>span{font-size:16px!important}
+html:root body.dashboard124.dashboard124 .five-stats .stat6>strong{font-size:32px!important;font-weight:500!important;letter-spacing:-.02em!important}
+html:root body.dashboard124.dashboard124 .five-stats .stat6>small{font-size:14px!important;color:var(--muted)!important}
+
+/* Daftar pekerjaan */
+html:root body.dashboard124.dashboard124 main.dashboard-main124 :is(.work-row9,.action-row) strong{font-size:16px!important}
+html:root body.dashboard124.dashboard124 main.dashboard-main124 :is(.work-row9,.action-row) small{font-size:14px!important;color:var(--muted)!important}
+html:root body.dashboard124.dashboard124 main.dashboard-main124 :is(.pill107,.badge,.status111){font-size:12px!important}
+html:root body.dashboard124.dashboard124 main.dashboard-main124 .btn.text{font-size:14px!important}
+
+/* Penarikan periode ini */
+html:root body.dashboard124.dashboard124 .withdrawal-facts127 span{font-size:14px!important;color:var(--muted)!important}
+html:root body.dashboard124.dashboard124 .withdrawal-total127 strong{font-size:32px!important;font-weight:500!important;letter-spacing:-.02em!important}
+html:root body.dashboard124.dashboard124 .withdrawal-part127 strong{font-size:24px!important;font-weight:500!important;letter-spacing:-.01em!important}
+html:root body.dashboard124.dashboard124 .withdrawal-meter127 span{font-size:12px!important;color:var(--muted)!important}
+html:root body.dashboard124.dashboard124 .withdrawal-meter127 strong{font-size:14px!important;font-weight:500!important}
+
+/* Kartu metrik + persentase */
+html:root body.dashboard124.dashboard124 .metric124 h3{font-size:16px!important}
+html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong{font-size:24px!important;font-weight:500!important;letter-spacing:-.01em!important}
+html:root body.dashboard124.dashboard124 .metric124 .metric-context124{font-size:12px!important;color:var(--muted)!important}
+.value-row131{display:flex;align-items:baseline;column-gap:10px;row-gap:4px;flex-wrap:wrap;margin:inherit;min-width:0}
+.value-row131>strong{white-space:nowrap}
+.metric124 .metric-trend125{display:none!important}
+.delta131{--delta131:#17845e;display:inline-flex;align-items:center;gap:2px;font-size:12px!important;font-weight:400!important;line-height:1;color:var(--delta131)!important;white-space:nowrap;font-variant-numeric:tabular-nums}
+.delta131[data-trend=down]{--delta131:#c8374d}
+.delta131[data-trend=flat]{--delta131:var(--muted)}
+[data-theme=dark] .delta131{--delta131:#7ee2a8}
+[data-theme=dark] .delta131[data-trend=down]{--delta131:#ff7a8a}
+[data-theme=dark] .delta131[data-trend=flat]{--delta131:var(--muted)}
+.delta131 svg{width:11px;height:11px;flex:none;stroke:currentColor;fill:none}
+
+/* Sebaran member */
+html:root body.dashboard124.dashboard124 .member-map106 th{font-size:12px!important;color:var(--muted)!important}
+html:root body.dashboard124.dashboard124 .member-map106 :is(td,select,option,.map-detail106){font-size:14px!important}
+html:root body.dashboard124.dashboard124 .member-map106 :is(.map-table-note124,.map-legend124 span,.map-legend124 strong){font-size:12px!important}

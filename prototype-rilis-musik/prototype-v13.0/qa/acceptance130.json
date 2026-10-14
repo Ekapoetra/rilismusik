@@ -1,7 +1,7 @@
 {
   "version": "13.0",
-  "hash": "809EE727A796F45959FC7AEF7E0056CEFD7106226CE68FF262D86BBA62CF4F2A",
-  "checkedAt": "2026-10-14T13:09:03.878Z",
+  "hash": "007B7EBAF28E3CC356D3D34F52469D18239D59CAC01487700A6D00CF7A4B5C19",
+  "checkedAt": "2026-10-14T13:58:47.238Z",
   "checks": [
     {
       "name": "super/light/1440 uses one continuous readable masthead",
@@ -110,7 +110,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 402.40625,
+        "height": 486,
         "barHeight": 112,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -263,7 +263,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 402.40625,
+        "height": 486,
         "barHeight": 112,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -355,7 +355,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 266,
+        "height": 277,
         "barHeight": 66,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -396,7 +396,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 384.40625,
+        "height": 470,
         "barHeight": 94,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -478,7 +478,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 266,
+        "height": 277,
         "barHeight": 66,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -519,7 +519,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 384.40625,
+        "height": 470,
         "barHeight": 94,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -575,14 +575,14 @@
       "pass": true,
       "detail": [
         {
-          "x": 894.84375,
+          "x": 894.625,
           "y": 10.5,
-          "width": 494.15625,
+          "width": 494.375,
           "height": 45,
           "top": 10.5,
           "right": 1389,
           "bottom": 55.5,
-          "left": 894.84375
+          "left": 894.625
         }
       ]
     },
@@ -591,7 +591,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 266,
+        "height": 277,
         "barHeight": 66,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -606,14 +606,14 @@
       "pass": true,
       "detail": [
         {
-          "x": 292.84375,
+          "x": 292.625,
           "y": 10.5,
-          "width": 482.15625,
+          "width": 482.375,
           "height": 45,
           "top": 10.5,
           "right": 775,
           "bottom": 55.5,
-          "left": 292.84375
+          "left": 292.625
         }
       ]
     },
@@ -622,7 +622,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 404.921875,
+        "height": 468,
         "barHeight": 132,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -668,14 +668,14 @@
       "pass": true,
       "detail": [
         {
-          "x": 894.84375,
+          "x": 894.625,
           "y": 10.5,
-          "width": 494.15625,
+          "width": 494.375,
           "height": 45,
           "top": 10.5,
           "right": 1389,
           "bottom": 55.5,
-          "left": 894.84375
+          "left": 894.625
         }
       ]
     },
@@ -684,7 +684,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 266,
+        "height": 277,
         "barHeight": 66,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -699,14 +699,14 @@
       "pass": true,
       "detail": [
         {
-          "x": 292.84375,
+          "x": 292.625,
           "y": 10.5,
-          "width": 482.15625,
+          "width": 482.375,
           "height": 45,
           "top": 10.5,
           "right": 775,
           "bottom": 55.5,
-          "left": 292.84375
+          "left": 292.625
         }
       ]
     },
@@ -715,7 +715,7 @@
       "pass": true,
       "detail": {
         "expanded": true,
-        "height": 404.921875,
+        "height": 468,
         "barHeight": 132,
         "background": "rgba(0, 0, 0, 0)",
         "ink": "rgb(245, 249, 255)",
@@ -745,8 +745,8 @@
       "name": "Glass responds to its actual backdrop after the masthead is reunited",
       "pass": true,
       "detail": {
-        "mean": 112.01783788883787,
-        "changed": 0.9794395924308588
+        "mean": 111.96713739024383,
+        "changed": 0.9854204817579941
       }
     },
     {
@@ -948,23 +948,23 @@
         "overflow": -15,
         "stage": {
           "x": 52,
-          "y": 297.7198486328125,
+          "y": 297.7197265625,
           "width": 1161,
           "height": 290.25,
-          "top": 297.7198486328125,
+          "top": 297.7197265625,
           "right": 1213,
-          "bottom": 587.9698486328125,
+          "bottom": 587.9697265625,
           "left": 52
         },
         "upload": {
-          "x": 1045.484375,
-          "y": 239.7198486328125,
-          "width": 167.515625,
-          "height": 38,
-          "top": 239.7198486328125,
+          "x": 1041.359375,
+          "y": 239.71974182128906,
+          "width": 171.640625,
+          "height": 37.99998474121094,
+          "top": 239.71974182128906,
           "right": 1213,
-          "bottom": 277.7198486328125,
-          "left": 1045.484375
+          "bottom": 277.7197265625,
+          "left": 1041.359375
         }
       }
     },
@@ -975,23 +975,23 @@
         "overflow": -15,
         "stage": {
           "x": 52,
-          "y": 297.4423828125,
+          "y": 297.4418029785156,
           "width": 981,
-          "height": 260,
-          "top": 297.4423828125,
+          "height": 259.9999694824219,
+          "top": 297.4418029785156,
           "right": 1033,
-          "bottom": 557.4423828125,
+          "bottom": 557.4417724609375,
           "left": 52
         },
         "upload": {
-          "x": 865.484375,
-          "y": 239.4423828125,
-          "width": 167.515625,
+          "x": 861.359375,
+          "y": 239.44180297851562,
+          "width": 171.640625,
           "height": 38,
-          "top": 239.4423828125,
+          "top": 239.44180297851562,
           "right": 1033,
-          "bottom": 277.4423828125,
-          "left": 865.484375
+          "bottom": 277.4418029785156,
+          "left": 861.359375
         }
       }
     },
@@ -1002,23 +1002,23 @@
         "overflow": -15,
         "stage": {
           "x": 46,
-          "y": 328.71875,
+          "y": 328.71923828125,
           "width": 713,
           "height": 260,
-          "top": 328.71875,
+          "top": 328.71923828125,
           "right": 759,
-          "bottom": 588.71875,
+          "bottom": 588.71923828125,
           "left": 46
         },
         "upload": {
-          "x": 591.484375,
-          "y": 270.71875,
-          "width": 167.515625,
+          "x": 587.359375,
+          "y": 270.71923828125,
+          "width": 171.640625,
           "height": 38,
-          "top": 270.71875,
+          "top": 270.71923828125,
           "right": 759,
-          "bottom": 308.71875,
-          "left": 591.484375
+          "bottom": 308.71923828125,
+          "left": 587.359375
         }
       }
     },
@@ -1029,23 +1029,23 @@
         "overflow": -15,
         "stage": {
           "x": 24,
-          "y": 360.9691162109375,
+          "y": 361.29803466796875,
           "width": 557,
           "height": 356.9375,
-          "top": 360.9691162109375,
+          "top": 361.29803466796875,
           "right": 581,
-          "bottom": 717.9066162109375,
+          "bottom": 718.2355346679688,
           "left": 24
         },
         "upload": {
-          "x": 424.53125,
-          "y": 302.9691162109375,
-          "width": 156.46875,
+          "x": 420.71875,
+          "y": 303.29803466796875,
+          "width": 160.28125,
           "height": 38,
-          "top": 302.9691162109375,
+          "top": 303.29803466796875,
           "right": 581,
-          "bottom": 340.9691162109375,
-          "left": 424.53125
+          "bottom": 341.29803466796875,
+          "left": 420.71875
         }
       }
     },
@@ -1056,23 +1056,23 @@
         "overflow": -15,
         "stage": {
           "x": 24,
-          "y": 419.5638427734375,
+          "y": 419.5624694824219,
           "width": 327,
-          "height": 421.09375,
-          "top": 419.5638427734375,
+          "height": 421.0937805175781,
+          "top": 419.5624694824219,
           "right": 351,
-          "bottom": 840.6575927734375,
+          "bottom": 840.65625,
           "left": 24
         },
         "upload": {
-          "x": 194.53125,
-          "y": 344.9700927734375,
-          "width": 156.46875,
+          "x": 190.71875,
+          "y": 344.9687194824219,
+          "width": 160.28125,
           "height": 38,
-          "top": 344.9700927734375,
+          "top": 344.9687194824219,
           "right": 351,
-          "bottom": 382.9700927734375,
-          "left": 194.53125
+          "bottom": 382.9687194824219,
+          "left": 190.71875
         }
       }
     },
@@ -1140,7 +1140,7 @@
       "theme": "light",
       "width": 390,
       "expanded": true,
-      "height": 402.40625,
+      "height": 486,
       "barHeight": 112,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1182,7 +1182,7 @@
       "theme": "dark",
       "width": 390,
       "expanded": true,
-      "height": 402.40625,
+      "height": 486,
       "barHeight": 112,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1210,7 +1210,7 @@
       "theme": "light",
       "width": 820,
       "expanded": true,
-      "height": 266,
+      "height": 277,
       "barHeight": 66,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1224,7 +1224,7 @@
       "theme": "light",
       "width": 390,
       "expanded": true,
-      "height": 384.40625,
+      "height": 470,
       "barHeight": 94,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1252,7 +1252,7 @@
       "theme": "dark",
       "width": 820,
       "expanded": true,
-      "height": 266,
+      "height": 277,
       "barHeight": 66,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1266,7 +1266,7 @@
       "theme": "dark",
       "width": 390,
       "expanded": true,
-      "height": 384.40625,
+      "height": 470,
       "barHeight": 94,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1294,7 +1294,7 @@
       "theme": "light",
       "width": 820,
       "expanded": true,
-      "height": 266,
+      "height": 277,
       "barHeight": 66,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1308,7 +1308,7 @@
       "theme": "light",
       "width": 390,
       "expanded": true,
-      "height": 404.921875,
+      "height": 468,
       "barHeight": 132,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1336,7 +1336,7 @@
       "theme": "dark",
       "width": 820,
       "expanded": true,
-      "height": 266,
+      "height": 277,
       "barHeight": 66,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
@@ -1350,7 +1350,7 @@
       "theme": "dark",
       "width": 390,
       "expanded": true,
-      "height": 404.921875,
+      "height": 468,
       "barHeight": 132,
       "background": "rgba(0, 0, 0, 0)",
       "ink": "rgb(245, 249, 255)",
