@@ -5,6 +5,7 @@ import { LOGIN } from "@/constants/testIds";
 import { LogoFull } from "@/components/shared/Brand";
 import { Eye, EyeOff } from "lucide-react";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { APP_VERSION } from "@/version";
 
 function roleHome(user) {
   if (user.role === "label") return "/label/dashboard";
@@ -95,6 +96,7 @@ export default function Login() {
           <Link to="/forgot-password" data-testid={LOGIN.forgotPasswordLink} className="text-zinc-400 hover:text-white">Lupa password?</Link>
           <Link to="/register" data-testid={LOGIN.registerLink} className="font-semibold rm-gradient-text">Daftar →</Link>
         </div>
+        <div className="mt-6 text-center text-[10px] text-zinc-600" translate="no" data-testid="login-app-version">RILIS MUSIK v{APP_VERSION}</div>
       </div>
     </div>
   );

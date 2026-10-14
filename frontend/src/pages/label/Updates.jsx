@@ -1,5 +1,6 @@
 import React from "react";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
+import { APP_VERSION } from "@/version";
 import PageHeader from "@/components/shared/PageHeader";
 import { Sparkles, Rocket, FileSearch, Gift, Disc3, Wallet, Settings } from "lucide-react";
 
@@ -26,7 +27,7 @@ const KINDS = {
   dihapus: { id: "Dihapus", en: "Removed", bg: "rgba(239,68,68,0.15)", color: "#FCA5A5", dot: "#EF4444" },
 };
 
-const SECTIONS = [
+export const SECTIONS = [
   {
     id: "aktivasi", icon: Rocket,
     title: { id: "Mulai & aktivasi", en: "Getting started & activation" },
@@ -126,8 +127,8 @@ const SECTIONS = [
         en: "Private files now require sign-in — contracts, payout proofs, ticket & chat attachments open only for their owner or an admin.",
       }],
       ["berubah", {
-        id: "Menu Pembaruan kini tampil sebagai kartu di Dashboard selama 30 hari setelah setiap pembaruan, lalu hilang sampai ada pembaruan baru.",
-        en: "Updates now appears as a Dashboard card for 30 days after each release, then disappears until the next one.",
+        id: "Pembaruan kini menyapa sekali sebagai pop-up saat Anda masuk, lalu tetap bisa dibaca ulang lewat kartu Dashboard selama 30 hari setelah setiap rilis.",
+        en: "Updates now greets you once as a sign-in pop-up, then stays re-readable via the Dashboard card for 30 days after each release.",
       }],
     ],
   },
@@ -151,7 +152,7 @@ export default function LabelUpdates() {
   return (
     <div className="space-y-7 max-w-3xl" data-testid="updates-page">
       <PageHeader icon={Sparkles} eyebrow={t("Apa yang baru")}
-        title={t("Pembaruan")}
+        title={`${t("Pembaruan")} — v${APP_VERSION}`}
         sub={t("Catatan perubahan — hanya fitur yang benar-benar tersedia saat ini.")} />
       <div className="flex flex-wrap gap-2" data-testid="updates-legend">
         {usedKinds.map((k) => <KindBadge key={k} kind={k} lang={lang} />)}

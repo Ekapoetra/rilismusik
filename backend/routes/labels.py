@@ -71,6 +71,24 @@ async def label_me(user: dict = Depends(require_label)):
     return {**redact_label_for_self(label), "entitlements": resolve_label_entitlements(label), "kyc": await compute_kyc_state(user=user, label=label)}
 
 
+class UpdatesSeenIn(BaseModel):
+    version: str
+
+
+@label_r.post("/updates/seen")
+async def label_updates_seen(body: UpdatesSeenIn, user: dict = Depends(require_label)):
+    """Record the newest Updates batch this account has acknowledged so the
+    release popup shows once per version across devices/browsers."""
+    version = (body.version or "").strip()[:20]
+    if not version:
+        raise HTTPException(status_code=400, detail="Versi wajib diisi")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"updates_seen_version": version, "updates_seen_at": now_iso()}},
+    )
+    return {"ok": True}
+
+
 class ActiveLabelIn(BaseModel):
     label_id: str
 
