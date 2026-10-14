@@ -79,7 +79,10 @@ async function studioStart(id) {
     if(!studioCheckpoint) {
       studioCheckpoint=studioCapture();
       // Keep the original session recoverable even when a scenario is reloaded.
-      localStorage.setItem(studioCheckpointKey,JSON.stringify(studioCheckpoint));
+      // Cuplikan produksi membuat checkpoint > kuota localStorage; salinan di
+      // memori sudah cukup untuk memulihkan sesi — jangan gagalkan skenario.
+      try{localStorage.setItem(studioCheckpointKey,JSON.stringify(studioCheckpoint));}
+      catch(error){console.warn('Checkpoint Studio hanya di memori (localStorage penuh)',error.name);}
     }
     studioRestore(studioCheckpoint);
     clearTimeout(toastTimer);$('#toast').classList.remove('show');$('#toast').textContent='';

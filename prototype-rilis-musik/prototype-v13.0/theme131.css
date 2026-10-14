@@ -13,11 +13,12 @@ body :is(button,input,select,textarea){font-family:inherit!important}
 /* ---------- Tema gelap (seluruh web) ---------- */
 /* release127 mendefinisikan ulang variabel di body — timpa di :root dan body. */
 :root[data-theme=dark],:root[data-theme=dark] body{
-  --bg:#0a0a0b!important;--surface:#141415!important;--soft:#1b1b1d!important;--hover:#222225!important;
-  --line:#232326!important;--glass:rgba(10,10,11,.86)!important;--text:#f2f2f3!important;--muted:#8e8e94!important;
+  --bg:#0a0a0b!important;--surface:#171718!important;--soft:#202022!important;--hover:#27272a!important;
+  --line:#262629!important;--glass:rgba(10,10,11,.86)!important;--text:#f2f2f3!important;--muted:#8e8e94!important;
 }
 html:root[data-theme=dark] body{background:var(--bg)!important}
-[data-theme=dark] body.dashboard124 :is(.stat6,.panel,.withdraw6,.metric124,.attention109){background:var(--surface)!important;border:1px solid #ffffff0d!important;box-shadow:none!important}
+html:root:not([data-theme=dark]),html:root:not([data-theme=dark]) body{--bg:#f0f0f0!important;--surface:#f8f8f8!important;--soft:#ebebeb!important;--hover:#e4e4e4!important;--line:#e2e2e2!important;--glass:rgba(240,240,240,.86)!important}
+html:root:not([data-theme=dark]) body{background:var(--bg)!important}
 
 /* ---------- Skala tulisan — Dashboard (uji coba) ----------
    Masthead dipakai bersama semua ruang kerja (Platform/Staf), jadi aturannya

@@ -1,10 +1,101 @@
 [
   {
+    "version": "1.1.0-dev.5",
+    "date": "2026-10-15",
+    "summary": {
+      "id": "Detail kaca dari referensi pemilik: kartu lembut, pil persentase & tooltip kaca bersemu warna, progress tebal bergaris. Eksplorasi warna merek dihapus. Klik pertama di Studio kini berhasil.",
+      "en": "Glass details from the owner reference: soft cards, tinted glass percentage pills & tooltips, thick striped progress. Brand colour exploration removed. First Studio click now works."
+    },
+    "entries": [
+      {
+        "id": "dev5-card",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard",
+            "en": "Dashboard"
+          }
+        },
+        "title": {
+          "id": "Kartu lembut: selisih +3 L* dari latar",
+          "en": "Soft cards: +3 L* step above the background"
+        },
+        "detail": {
+          "id": "Terang #F8F8F8 di atas #F0F0F0, gelap #171718 di atas #0A0A0B — langkah kecerahan yang sama dengan referensi; tepi = garis bayangan 1 px + sorotan 1 px.",
+          "en": "Light #F8F8F8 on #F0F0F0, dark #171718 on #0A0A0B — the same perceptual step as the reference; edge = 1 px shadow line + 1 px highlight."
+        }
+      },
+      {
+        "id": "dev5-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Pil persentase kaca bersemu warna metrik",
+          "en": "Glass percentage pill tinted by the metric colour"
+        },
+        "detail": {
+          "id": "Angka warna teks, segitiga hijau/merah; tepi kiri & bayangan bersemu warna yang sama. Chip status di daftar pekerjaan memakai resep yang sama.",
+          "en": "Text-coloured number, green/red triangle; left edge & shadow tinted with the same colour. Status chips in the work lists use the same recipe."
+        }
+      },
+      {
+        "id": "dev5-tooltip",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period withdrawals"
+          }
+        },
+        "title": {
+          "id": "Progress tebal bergaris + tooltip kaca",
+          "en": "Thick striped progress + glass tooltip"
+        },
+        "detail": {
+          "id": "Batang 14 px bergaris diagonal hijau dengan penanda di ujung; arahkan kursor untuk “75,6% · Rp 75.000.000 dibayarkan”. Nominal ringkas di kartu metrik juga menampilkan angka lengkap saat diarahkan.",
+          "en": "14 px bar with green diagonal stripes and an end marker; hover for “75.6% · Rp 75,000,000 paid”. Abbreviated metric values also reveal the full number on hover."
+        }
+      },
+      {
+        "id": "dev5-studio-fix",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "theme": "dark",
+          "menu": {
+            "id": "Studio Pratinjau",
+            "en": "Preview Studio"
+          }
+        },
+        "title": {
+          "id": "Klik pertama di Studio kini berhasil",
+          "en": "First Studio click now works"
+        },
+        "detail": {
+          "id": "Titik pulih Studio (8,5 MB) melebihi kuota localStorage sehingga skenario pertama selalu gagal diam-diam — kini cukup disimpan di memori.",
+          "en": "The Studio checkpoint (8.5 MB) exceeded the localStorage quota so the first scenario always failed silently — it is now kept in memory."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.4",
     "date": "2026-10-14",
     "summary": {
-      "id": "Masukan dev 3: kartu metrik ringkas dengan rincian buka/tutup, preview jauh lebih cepat, entri tema gelap di Studio diperbaiki, eksplorasi warna merek.",
-      "en": "dev 3 feedback: compact metric cards with expandable details, much faster preview, Studio dark-theme entry fixed, brand colour exploration."
+      "id": "Masukan dev 3: kartu metrik ringkas dengan rincian buka/tutup, preview jauh lebih cepat, entri tema gelap di Studio diperbaiki.",
+      "en": "dev 3 feedback: compact metric cards with expandable details, much faster preview, Studio dark-theme entry fixed."
     },
     "entries": [
       {
@@ -45,26 +136,6 @@
         "detail": {
           "id": "Tampil 12,8 → 8,8 dtk (kunjungan ulang 9,8 → 6,2 dtk); setiap gambar ulang 467 → 189 ms. Judul tab & label versi tidak lagi berganti saat memuat.",
           "en": "Shows in 8.8 s instead of 12.8 s (repeat visits 6.2 s); each re-render 189 ms instead of 467 ms. Tab title and version label no longer cycle while loading."
-        }
-      },
-      {
-        "id": "dev4-brand",
-        "status": "prototype",
-        "where": {
-          "role": "super",
-          "page": "dashboard",
-          "menu": {
-            "id": "Studio Pratinjau · Eksplorasi warna merek",
-            "en": "Preview Studio · Brand colour exploration"
-          }
-        },
-        "title": {
-          "id": "Eksplorasi warna merek",
-          "en": "Brand colour exploration"
-        },
-        "detail": {
-          "id": "6 palet (Biru, Violet, Lime, Coral, Teal, Grafit) untuk header, logo, progress dan aksen — pilih di bagian atas Studio Pratinjau.",
-          "en": "6 palettes for the header, logo, progress and accent — pick one at the top of the Preview Studio."
         }
       }
     ]

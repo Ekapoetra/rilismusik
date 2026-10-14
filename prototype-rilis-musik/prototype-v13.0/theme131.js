@@ -4,6 +4,7 @@
    persentasenya ke samping angka sebagai "+12% ↗" / "−8,1% ↘" / "0% →";
    gaya ada di theme131.css. */
 'use strict';
+try{localStorage.removeItem('rm-accent131');}catch{} // sisa eksplorasi warna (dihapus dev.5)
 const deltaArrow131={
   up:'<path d="M3.5 8.5l5-5M4.5 3.5h4v4"/>',
   down:'<path d="M3.5 3.5l5 5M8.5 4.5v4h-4"/>',

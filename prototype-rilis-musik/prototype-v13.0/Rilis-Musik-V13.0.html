@@ -1474,11 +1474,12 @@ body :is(button,input,select,textarea){font-family:inherit!important}
 /* ---------- Tema gelap (seluruh web) ---------- */
 /* release127 mendefinisikan ulang variabel di body — timpa di :root dan body. */
 :root[data-theme=dark],:root[data-theme=dark] body{
-  --bg:#0a0a0b!important;--surface:#141415!important;--soft:#1b1b1d!important;--hover:#222225!important;
-  --line:#232326!important;--glass:rgba(10,10,11,.86)!important;--text:#f2f2f3!important;--muted:#8e8e94!important;
+  --bg:#0a0a0b!important;--surface:#171718!important;--soft:#202022!important;--hover:#27272a!important;
+  --line:#262629!important;--glass:rgba(10,10,11,.86)!important;--text:#f2f2f3!important;--muted:#8e8e94!important;
 }
 html:root[data-theme=dark] body{background:var(--bg)!important}
-[data-theme=dark] body.dashboard124 :is(.stat6,.panel,.withdraw6,.metric124,.attention109){background:var(--surface)!important;border:1px solid #ffffff0d!important;box-shadow:none!important}
+html:root:not([data-theme=dark]),html:root:not([data-theme=dark]) body{--bg:#f0f0f0!important;--surface:#f8f8f8!important;--soft:#ebebeb!important;--hover:#e4e4e4!important;--line:#e2e2e2!important;--glass:rgba(240,240,240,.86)!important}
+html:root:not([data-theme=dark]) body{background:var(--bg)!important}
 
 /* ---------- Skala tulisan — Dashboard (uji coba) ----------
    Masthead dipakai bersama semua ruang kerja (Platform/Staf), jadi aturannya
@@ -1566,38 +1567,77 @@ html:root body.release124.release124 .metric124[aria-expanded=true]{border-color
 /* Keterangan periode selalu satu baris: buang tinggi minimum 2 baris lama. */
 html:root body.release124.release124 .metric124 .metric-context124{min-height:0!important;margin-top:6px!important;line-height:18px!important}
 html:root body.release124.release124 .metric124 .value-row131>strong{line-height:32px!important}
-</style><style>/* Eksplorasi warna merek (dev) — aktif hanya bila sebuah palet dipilih di
-   Studio Pratinjau (html[data-accent131]). Lima titik warna merek mengikuti
-   palet: latar masthead, logo RM, progress & titik pembayaran, dan --accent.
-   Hijau/merah metrik tetap semantik (naik/turun), tidak ikut palet. */
+</style><style>/* v1.1 dev.5 — kartu & detail kaca, diukur dari referensi pemilik.
+   Referensi (terang): latar #F2F2F2 (L* 95,5) · kartu #F8F8F8 (L* 97,6) →
+   selisih +3 L*; tepi kartu = garis bayangan 1 px + sorotan putih 1 px.
+   Pil persentase: isi hampir putih, tepi & bayangan bersemu warna metrik,
+   angka hitam, segitiga berwarna. Progress ±14 px, isi bergaris diagonal.
+   Gelap memakai langkah L* yang sama (+3,8): kartu #171718 di atas #0A0A0B. */
 
-html[data-accent131=blue]{--m-hi:#87c4ff;--m-main:#318fff;--m-deep:#0873fb;--m-spot:#4fa6ff;--m-spot2:#097cff;--m-night:#031a36;--m-navy:#002658;--m-mid:#0059cf;--m-glow:#98c7ff;--m-mist:#dcecff;--a-acc:#0b63e6;--a-acc-dark:#7cb6ff;--a-tint:#e6f0ff;--a-tint-dark:#10233f}
-html[data-accent131=violet]{--m-hi:#d8c8ff;--m-main:#8b5cf6;--m-deep:#6d28d9;--m-spot:#a98bff;--m-spot2:#7c3aed;--m-night:#12062e;--m-navy:#1e0b4f;--m-mid:#5b21b6;--m-glow:#c4b5fd;--m-mist:#ede9fe;--a-acc:#6d28d9;--a-acc-dark:#b9a0ff;--a-tint:#f1ebff;--a-tint-dark:#221640}
-html[data-accent131=lime]{--m-hi:#e4ff9a;--m-main:#a3e635;--m-deep:#65a30d;--m-spot:#bef264;--m-spot2:#84cc16;--m-night:#0a1703;--m-navy:#132b05;--m-mid:#3f6212;--m-glow:#d9f99d;--m-mist:#f7fee7;--a-acc:#4d7c0f;--a-acc-dark:#c3f26b;--a-tint:#f1fbdf;--a-tint-dark:#1a2a0b}
-html[data-accent131=coral]{--m-hi:#ffcdb8;--m-main:#ff7a59;--m-deep:#f04e2f;--m-spot:#ff9a7a;--m-spot2:#ff5a36;--m-night:#250904;--m-navy:#45110a;--m-mid:#c2371f;--m-glow:#ffc4b0;--m-mist:#fff0ea;--a-acc:#d23f24;--a-acc-dark:#ffa184;--a-tint:#fff0ea;--a-tint-dark:#3a1610}
-html[data-accent131=teal]{--m-hi:#a5f3e9;--m-main:#2dd4bf;--m-deep:#0d9488;--m-spot:#5eead4;--m-spot2:#14b8a6;--m-night:#021b19;--m-navy:#043a36;--m-mid:#0f766e;--m-glow:#99f6e4;--m-mist:#e6fffb;--a-acc:#0f766e;--a-acc-dark:#5eead4;--a-tint:#e3faf6;--a-tint-dark:#0b2a27}
-html[data-accent131=graphite]{--m-hi:#e7e7ea;--m-main:#a1a1aa;--m-deep:#52525b;--m-spot:#d4d4d8;--m-spot2:#71717a;--m-night:#09090b;--m-navy:#18181b;--m-mid:#3f3f46;--m-glow:#d4d4d8;--m-mist:#f4f4f5;--a-acc:#27272a;--a-acc-dark:#e4e4e7;--a-tint:#f1f1f3;--a-tint-dark:#1f1f22}
+/* ---------- Kartu (Dashboard) ---------- */
+html:root body.dashboard124.dashboard124 :is(.stat6,.panel,.withdraw6,.metric124,.dashboard-card124){
+  background:var(--surface)!important;border:0!important;border-radius:18px!important;
+  box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px var(--card-edge131),0 1px 2px var(--card-sh1-131),0 12px 32px -14px var(--card-sh2-131)!important}
+html:root:not([data-theme=dark]){--card-hi131:#fff;--card-edge131:#0000000a;--card-sh1-131:#0000000a;--card-sh2-131:#00000018}
+html:root[data-theme=dark]{--card-hi131:#ffffff0e;--card-edge131:#ffffff0d;--card-sh1-131:#00000099;--card-sh2-131:#000000b3}
+html:root body.dashboard124.dashboard124 .withdrawal-meter127{border-top-color:var(--line)!important}
 
-html[data-accent131],html[data-accent131] body{--accent:var(--a-acc)!important;--tint:var(--a-tint)!important;--brand-gradient:linear-gradient(125deg,var(--m-navy),var(--m-deep) 56%,var(--m-main))!important}
-html[data-accent131][data-theme=dark],html[data-accent131][data-theme=dark] body{--accent:var(--a-acc-dark)!important;--tint:var(--a-tint-dark)!important}
+/* Penanda buka/tutup kartu metrik: tombol lingkaran bertepi (referensi "···"). */
+html:root body.dashboard124.dashboard124 .metric124::before{content:"";position:absolute;top:13px;right:13px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);transition:background-color .16s ease,border-color .16s ease}
+html:root body.dashboard124.dashboard124 .metric124::after{top:23px;right:24px;width:5px;height:5px;border-color:var(--muted)}
+html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]::after{top:26px}
+html:root body.dashboard124.dashboard124 .metric124:hover::before{background:var(--soft);border-color:var(--muted)}
+html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]{box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px color-mix(in srgb,var(--text) 28%,transparent),0 1px 2px var(--card-sh1-131),0 12px 32px -14px var(--card-sh2-131)!important}
 
-html[data-accent131] .masthead-atmosphere127{background:
-  radial-gradient(ellipse at 51% -10%,var(--m-hi) 0%,var(--m-main) 16%,var(--m-deep) 29%,transparent 57%),
-  radial-gradient(ellipse at -3% 51%,var(--m-spot) 0%,var(--m-spot2) 21%,transparent 43%),
-  radial-gradient(ellipse at 105% 62%,var(--m-spot) 0%,var(--m-spot2) 21%,transparent 43%),
-  linear-gradient(180deg,var(--m-night) 0%,var(--m-navy) 43%,var(--m-mid) 68%,var(--m-glow) 92%,var(--m-mist) 100%)!important}
-html[data-accent131] .header-brand122 .mark{background:var(--brand-gradient)!important}
-html[data-accent131] body.release124.release127 .withdrawal127 .payout-track i{background:linear-gradient(90deg,var(--m-glow),var(--m-deep))!important}
-html[data-accent131] .withdrawal-dot127.paid{background:var(--m-deep)!important}
+/* ---------- Resep kaca (dipakai pil, tooltip, chip) ---------- */
+:root{--glass-fill131:#fbfbfbd9;--glass-hi131:#ffffffe6;--glass-base131:#00000012}
+:root[data-theme=dark]{--glass-fill131:#ffffff12;--glass-hi131:#ffffff1a;--glass-base131:#ffffff0f}
 
-/* Pemilih palet di Studio Pratinjau */
-.brand131{display:grid;gap:10px;margin:4px 0 18px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
-.brand131 h3{margin:0;font-size:14px;font-weight:500}
-.brand131 p{margin:0;font-size:12px;color:var(--muted)}
-.brand131-swatches{display:flex;flex-wrap:wrap;gap:8px}
-.brand131-swatches button{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);font-size:13px;cursor:pointer}
-.brand131-swatches button i{width:22px;height:22px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px #ffffff26}
-.brand131-swatches button[aria-pressed=true]{border-color:var(--text)}
+/* Pil persentase: angka warna teks, segitiga warna metrik; tepi kiri & bayangan
+   bersemu warna metrik (detail referensi). */
+html:root .delta131{--tone131:var(--delta131);position:relative;isolation:isolate;display:inline-flex;align-items:center;gap:4px;padding:4px 8px 4px 7px;border-radius:999px;
+  font-size:12px!important;line-height:1;color:var(--text)!important;background:var(--glass-fill131);
+  backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25);
+  box-shadow:inset 0 1px 0 var(--glass-hi131),0 1px 1.5px color-mix(in srgb,var(--tone131) 16%,#0000001a),0 7px 16px -5px color-mix(in srgb,var(--tone131) 28%,#00000026)}
+html:root .delta131::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:-1;
+  background:linear-gradient(105deg,color-mix(in srgb,var(--tone131) 48%,transparent) 0%,color-mix(in srgb,var(--tone131) 14%,var(--glass-base131)) 48%,var(--glass-base131) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+html:root .delta131 svg{width:7px;height:7px;flex:none;fill:var(--tone131);stroke:none!important}
+html:root[data-theme=dark] .delta131{box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px #ffffff08,0 6px 16px -4px color-mix(in srgb,var(--tone131) 32%,transparent)}
+/* Kartu 5 kolom hanya ±176 px di dalam: nominal ringkas (Rp 151,6 jt) sedikit lebih kecil agar pil tetap sebaris. */
+html:root body.dashboard124.dashboard124 .value-row131{column-gap:8px;flex-wrap:nowrap}
+html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong:has(.unit131){font-size:22px!important}
+
+/* Tooltip kaca: [data-tip131] menampilkan teksnya di atas elemen saat hover. */
+[data-tip131]{position:relative}
+[data-tip131]::after{content:attr(data-tip131);position:absolute;left:50%;bottom:calc(100% + 8px);transform:translate(-50%,4px);opacity:0;pointer-events:none;white-space:nowrap;z-index:6;
+  padding:7px 11px;border-radius:999px;font-size:12px;line-height:1;font-weight:400;letter-spacing:0;color:var(--text);
+  background:var(--glass-fill131);backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25);
+  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,var(--tip-tone131,var(--muted)) 30%,var(--glass-base131)),0 7px 18px -5px color-mix(in srgb,var(--tip-tone131,var(--muted)) 28%,#00000026);
+  transition:opacity .14s ease,transform .14s ease}
+[data-tip131]:hover::after,[data-tip131]:focus-visible::after,.payout-track:hover .payout-mark131::after{opacity:1;transform:translate(-50%,0)}
+html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong[data-tip131]{display:inline-block;cursor:help}
+@media (prefers-reduced-motion:reduce){[data-tip131]::after,.metric124::before,.metric124::after{transition:none}}
+
+/* Chip status di daftar pekerjaan (Dashboard) & chip periode di rincian metrik. */
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111){
+  position:relative;isolation:isolate;background:var(--glass-fill131)!important;border:0!important;
+  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,currentColor 32%,var(--glass-base131)),0 5px 12px -5px color-mix(in srgb,currentColor 28%,#00000022)!important;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.md-head131 small{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--glass-fill131);
+  box-shadow:inset 0 1px 0 var(--glass-hi131),0 0 0 1px color-mix(in srgb,var(--muted) 30%,var(--glass-base131)),0 5px 12px -5px #00000022}
+
+/* ---------- Progress "Penyelesaian pembayaran" ---------- */
+html:root{--pg131:#1eaa36;--pg-soft131:#8fe29c}
+html:root[data-theme=dark]{--pg131:#3ddb5a;--pg-soft131:#1f6f31}
+html:root body.release124.release127 .withdrawal127 .payout-track{position:relative;height:14px!important;border-radius:999px!important;overflow:visible!important;
+  background:var(--card-hi131,#fff)!important;box-shadow:inset 0 0 0 1px var(--line)!important}
+html:root[data-theme=dark] body.release124.release127 .withdrawal127 .payout-track{background:#ffffff0a!important}
+html:root body.release124.release127 .withdrawal127 .payout-track i{height:100%!important;border-radius:999px!important;
+  background:repeating-linear-gradient(135deg,var(--pg131) 0 5px,var(--pg-soft131) 5px 9px)!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--pg131) 70%,transparent)!important}
+.payout-mark131{--tip-tone131:var(--pg131);position:absolute;top:50%;left:var(--x,0%);width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--pg131);box-shadow:0 0 0 3px var(--surface),0 0 0 4px color-mix(in srgb,var(--pg131) 40%,transparent);cursor:default}
+html:root body.release124.release127 .withdrawal127 .withdrawal-meter127 strong{color:var(--text)!important}
 </style>
 <style id="boot131">/* Boot guard: ~140 lapisan skrip masing-masing memanggil render(); tanpa ini layar menampilkan setiap versi antara (V10.3→V13.0) saat preview dibuka. */html.booting131 body>*{visibility:hidden!important}html.booting131 body::after{content:"Memuat Rilis Musik…";position:fixed;inset:0;display:grid;place-items:center;font:500 14px/1.4 system-ui,sans-serif;color:#8a94a3}</style><script>document.documentElement.classList.add('booting131')</script></head><body><a class="skip" href="#main">Lewati navigasi</a><div id="app"></div><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status" aria-live="polite"></div><script>/* Muat-belakangan untuk berkas besar yang tidak dibutuhkan tampilan pertama:
    data bank/wilayah (RMDirectory) dan pembuat PDF (PDFLib) — ±1,4 MB dari
@@ -3332,7 +3372,10 @@ async function studioStart(id) {
     if(!studioCheckpoint) {
       studioCheckpoint=studioCapture();
       // Keep the original session recoverable even when a scenario is reloaded.
-      localStorage.setItem(studioCheckpointKey,JSON.stringify(studioCheckpoint));
+      // Cuplikan produksi membuat checkpoint > kuota localStorage; salinan di
+      // memori sudah cukup untuk memulihkan sesi — jangan gagalkan skenario.
+      try{localStorage.setItem(studioCheckpointKey,JSON.stringify(studioCheckpoint));}
+      catch(error){console.warn('Checkpoint Studio hanya di memori (localStorage penuh)',error.name);}
     }
     studioRestore(studioCheckpoint);
     clearTimeout(toastTimer);$('#toast').classList.remove('show');$('#toast').textContent='';
@@ -8159,8 +8202,8 @@ const actionBefore131u=handleAction;handleAction=async function(b){
  if(b.dataset.action==='v4-module'&&b.dataset.id==='updates'&&!isLabel10()){v4.module='updates';return go('module','platform')}
  return actionBefore131u(b)};
 </script><script>/* DIBANGKITKAN oleh scripts/sync-release.cjs dari release/*.json — jangan diedit langsung. */
-window.RM_RELEASE={"version":"1.1.0-dev.4","production":"1.0.0","updated":"2026-10-14"};
-window.RM_CHANGELOG=[{"version":"1.1.0-dev.4","date":"2026-10-14","summary":{"id":"Masukan dev 3: kartu metrik ringkas dengan rincian buka/tutup, preview jauh lebih cepat, entri tema gelap di Studio diperbaiki, eksplorasi warna merek.","en":"dev 3 feedback: compact metric cards with expandable details, much faster preview, Studio dark-theme entry fixed, brand colour exploration."},"entries":[{"id":"dev4-metric-inline","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard · kartu metrik","en":"Dashboard · metric cards"}},"title":{"id":"Rincian metrik buka/tutup di bawah kartu","en":"Metric details expand below the cards"},"detail":{"id":"Klik kartu untuk membuka perbandingan periode (tanpa popup). Kartu 20% lebih pendek; nominal besar diringkas (Rp 151,6 jt).","en":"Click a card to expand the period comparison (no popup). Cards are 20% shorter; large amounts are abbreviated."}},{"id":"dev4-speed","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Seluruh preview","en":"Whole preview"}},"title":{"id":"Preview lebih cepat, tanpa perjalanan versi","en":"Faster preview, no version run-through"},"detail":{"id":"Tampil 12,8 → 8,8 dtk (kunjungan ulang 9,8 → 6,2 dtk); setiap gambar ulang 467 → 189 ms. Judul tab & label versi tidak lagi berganti saat memuat.","en":"Shows in 8.8 s instead of 12.8 s (repeat visits 6.2 s); each re-render 189 ms instead of 467 ms. Tab title and version label no longer cycle while loading."}},{"id":"dev4-brand","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Studio Pratinjau · Eksplorasi warna merek","en":"Preview Studio · Brand colour exploration"}},"title":{"id":"Eksplorasi warna merek","en":"Brand colour exploration"},"detail":{"id":"6 palet (Biru, Violet, Lime, Coral, Teal, Grafit) untuk header, logo, progress dan aksen — pilih di bagian atas Studio Pratinjau.","en":"6 palettes for the header, logo, progress and accent — pick one at the top of the Preview Studio."}}]},{"version":"1.1.0-dev.3","date":"2026-10-14","summary":{"id":"Fondasi tampilan baru, diuji di Dashboard Super & Admin: font Geist, skala tulisan tanpa tebal, tema gelap lebih pekat, persentase metrik sebaris.","en":"New look foundation, trialled on the Super & Admin dashboards: Geist font, weight-light type scale, deeper dark theme, inline metric percentages."},"entries":[{"id":"dev3-type","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Font Geist + skala tulisan baru","en":"Geist font + new type scale"},"detail":{"id":"7 ukuran (12–40) dengan berat 400/500 saja; penekanan lewat ukuran & warna. Font 18 KB. Baru di Dashboard.","en":"7 sizes (12–40), weights 400/500 only; emphasis through size and colour. 18 KB font. Dashboard only for now."}},{"id":"dev3-dark","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard (tema gelap)","en":"Dashboard (dark theme)"},"theme":"dark"},"title":{"id":"Tema gelap lebih pekat","en":"Deeper dark theme"},"detail":{"id":"Latar #0A0A0B, kartu #141415 bertepi tipis — berlaku di seluruh halaman tema gelap.","en":"Background #0A0A0B, cards #141415 with a hairline border — applies to every dark-theme page."}},{"id":"dev3-metric","status":"prototype","where":{"role":"admin","page":"dashboard","menu":{"id":"Dashboard · kartu metrik","en":"Dashboard · metric cards"}},"title":{"id":"Persentase metrik di samping angka","en":"Metric percentage beside the value"},"detail":{"id":"+12% ↗ hijau, −8,1% ↘ merah, 0% → abu-abu; keterangan periode tetap di bawah.","en":"+12% ↗ green, −8.1% ↘ red, 0% → grey; the period caption stays below."}}]},{"version":"1.1.0-dev.2","date":"2026-10-14","summary":{"id":"Preview lebih ringan: berkas besar dimuat belakangan.","en":"Lighter preview: large files load later."},"entries":[{"id":"dev2-lazy-load","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Muatan awal preview turun 35%","en":"Initial preview payload down 35%"},"detail":{"id":"Data bank/wilayah dan pembuat PDF kontrak (1,4 MB) diunduh setelah tampilan muncul; tampil ±15% lebih cepat di jaringan HP.","en":"Bank/region data and the contract PDF maker (1.4 MB) download after the screen appears; about 15% faster on mobile networks."}}]},{"version":"1.1.0-dev.1","date":"2026-10-14","summary":{"id":"Titik awal v1.1: audit keamanan & uang, ikon verifikasi baru, data contoh disamarkan.","en":"v1.1 starting point: security & money audit, new verification badge, pseudonymised sample data."},"entries":[{"id":"dev1-verified-badge","status":"both","where":{"role":"super","page":"labels9","menu":{"id":"Manajemen Label","en":"Label Management"}},"title":{"id":"Ikon verifikasi label baru","en":"New label verification badge"},"detail":{"id":"Bintang datar 11 ujung sesuai referensi; centang transparan mengikuti warna latar.","en":"Flat 11-point star per the reference; the check is transparent and shows the background."}},{"id":"dev1-sample-data","status":"prototype","where":{"role":"super","page":"labels9","menu":{"id":"Manajemen Label","en":"Label Management"}},"title":{"id":"Data contoh memakai nama samaran","en":"Sample data uses pseudonyms"},"detail":{"id":"Nama label, artis, email, WA dan alamat asli diganti samaran; nominal dan status tetap.","en":"Real label, artist, email, phone and address values are replaced; amounts and statuses are kept."}},{"id":"dev1-boot","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Preview terbuka tanpa “perjalanan versi”","en":"Preview opens without the version run-through"},"detail":{"id":"Tampilan muncul sekali dalam kondisi akhir; label versi kini v1.1 · dev N.","en":"The screen appears once in its final state; the version label is now v1.1 · dev N."}},{"id":"dev1-token-addons","status":"app","where":null,"title":{"id":"Pembayaran token tidak lagi melunasi add-on","en":"Token payments no longer settle add-ons"},"detail":{"id":"Invoice berisi add-on dibayar rupiah; token hanya untuk biaya rilisan.","en":"Invoices with add-ons are paid in rupiah; tokens cover the release fee only."}},{"id":"dev1-money-guards","status":"app","where":null,"title":{"id":"Pengaman uang: bayar, refund, withdraw","en":"Money guards: pay, refund, withdraw"},"detail":{"id":"Klik ganda tidak memotong token dua kali, tidak ada refund ganda, withdraw yang sudah dibayar tidak bisa ditolak ulang.","en":"Double clicks never spend twice, no double refunds, paid withdrawals cannot be rejected again."}},{"id":"dev1-staff-preview","status":"app","where":null,"title":{"id":"Pratinjau akses staf lebih aman","en":"Safer staff access preview"},"detail":{"id":"Keluar akun berfungsi saat pratinjau; menu khusus Super Admin tersembunyi selama pratinjau.","en":"Sign-out works during preview; Super Admin-only menus stay hidden while previewing."}}]}];
+window.RM_RELEASE={"version":"1.1.0-dev.5","production":"1.0.0","updated":"2026-10-15"};
+window.RM_CHANGELOG=[{"version":"1.1.0-dev.5","date":"2026-10-15","summary":{"id":"Detail kaca dari referensi pemilik: kartu lembut, pil persentase & tooltip kaca bersemu warna, progress tebal bergaris. Eksplorasi warna merek dihapus. Klik pertama di Studio kini berhasil.","en":"Glass details from the owner reference: soft cards, tinted glass percentage pills & tooltips, thick striped progress. Brand colour exploration removed. First Studio click now works."},"entries":[{"id":"dev5-card","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Kartu lembut: selisih +3 L* dari latar","en":"Soft cards: +3 L* step above the background"},"detail":{"id":"Terang #F8F8F8 di atas #F0F0F0, gelap #171718 di atas #0A0A0B — langkah kecerahan yang sama dengan referensi; tepi = garis bayangan 1 px + sorotan 1 px.","en":"Light #F8F8F8 on #F0F0F0, dark #171718 on #0A0A0B — the same perceptual step as the reference; edge = 1 px shadow line + 1 px highlight."}},{"id":"dev5-glass","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard · kartu metrik","en":"Dashboard · metric cards"}},"title":{"id":"Pil persentase kaca bersemu warna metrik","en":"Glass percentage pill tinted by the metric colour"},"detail":{"id":"Angka warna teks, segitiga hijau/merah; tepi kiri & bayangan bersemu warna yang sama. Chip status di daftar pekerjaan memakai resep yang sama.","en":"Text-coloured number, green/red triangle; left edge & shadow tinted with the same colour. Status chips in the work lists use the same recipe."}},{"id":"dev5-tooltip","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard · Penarikan periode ini","en":"Dashboard · Period withdrawals"}},"title":{"id":"Progress tebal bergaris + tooltip kaca","en":"Thick striped progress + glass tooltip"},"detail":{"id":"Batang 14 px bergaris diagonal hijau dengan penanda di ujung; arahkan kursor untuk “75,6% · Rp 75.000.000 dibayarkan”. Nominal ringkas di kartu metrik juga menampilkan angka lengkap saat diarahkan.","en":"14 px bar with green diagonal stripes and an end marker; hover for “75.6% · Rp 75,000,000 paid”. Abbreviated metric values also reveal the full number on hover."}},{"id":"dev5-studio-fix","status":"prototype","where":{"role":"super","page":"dashboard","theme":"dark","menu":{"id":"Studio Pratinjau","en":"Preview Studio"}},"title":{"id":"Klik pertama di Studio kini berhasil","en":"First Studio click now works"},"detail":{"id":"Titik pulih Studio (8,5 MB) melebihi kuota localStorage sehingga skenario pertama selalu gagal diam-diam — kini cukup disimpan di memori.","en":"The Studio checkpoint (8.5 MB) exceeded the localStorage quota so the first scenario always failed silently — it is now kept in memory."}}]},{"version":"1.1.0-dev.4","date":"2026-10-14","summary":{"id":"Masukan dev 3: kartu metrik ringkas dengan rincian buka/tutup, preview jauh lebih cepat, entri tema gelap di Studio diperbaiki.","en":"dev 3 feedback: compact metric cards with expandable details, much faster preview, Studio dark-theme entry fixed."},"entries":[{"id":"dev4-metric-inline","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard · kartu metrik","en":"Dashboard · metric cards"}},"title":{"id":"Rincian metrik buka/tutup di bawah kartu","en":"Metric details expand below the cards"},"detail":{"id":"Klik kartu untuk membuka perbandingan periode (tanpa popup). Kartu 20% lebih pendek; nominal besar diringkas (Rp 151,6 jt).","en":"Click a card to expand the period comparison (no popup). Cards are 20% shorter; large amounts are abbreviated."}},{"id":"dev4-speed","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Seluruh preview","en":"Whole preview"}},"title":{"id":"Preview lebih cepat, tanpa perjalanan versi","en":"Faster preview, no version run-through"},"detail":{"id":"Tampil 12,8 → 8,8 dtk (kunjungan ulang 9,8 → 6,2 dtk); setiap gambar ulang 467 → 189 ms. Judul tab & label versi tidak lagi berganti saat memuat.","en":"Shows in 8.8 s instead of 12.8 s (repeat visits 6.2 s); each re-render 189 ms instead of 467 ms. Tab title and version label no longer cycle while loading."}}]},{"version":"1.1.0-dev.3","date":"2026-10-14","summary":{"id":"Fondasi tampilan baru, diuji di Dashboard Super & Admin: font Geist, skala tulisan tanpa tebal, tema gelap lebih pekat, persentase metrik sebaris.","en":"New look foundation, trialled on the Super & Admin dashboards: Geist font, weight-light type scale, deeper dark theme, inline metric percentages."},"entries":[{"id":"dev3-type","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Font Geist + skala tulisan baru","en":"Geist font + new type scale"},"detail":{"id":"7 ukuran (12–40) dengan berat 400/500 saja; penekanan lewat ukuran & warna. Font 18 KB. Baru di Dashboard.","en":"7 sizes (12–40), weights 400/500 only; emphasis through size and colour. 18 KB font. Dashboard only for now."}},{"id":"dev3-dark","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard (tema gelap)","en":"Dashboard (dark theme)"},"theme":"dark"},"title":{"id":"Tema gelap lebih pekat","en":"Deeper dark theme"},"detail":{"id":"Latar #0A0A0B, kartu #141415 bertepi tipis — berlaku di seluruh halaman tema gelap.","en":"Background #0A0A0B, cards #141415 with a hairline border — applies to every dark-theme page."}},{"id":"dev3-metric","status":"prototype","where":{"role":"admin","page":"dashboard","menu":{"id":"Dashboard · kartu metrik","en":"Dashboard · metric cards"}},"title":{"id":"Persentase metrik di samping angka","en":"Metric percentage beside the value"},"detail":{"id":"+12% ↗ hijau, −8,1% ↘ merah, 0% → abu-abu; keterangan periode tetap di bawah.","en":"+12% ↗ green, −8.1% ↘ red, 0% → grey; the period caption stays below."}}]},{"version":"1.1.0-dev.2","date":"2026-10-14","summary":{"id":"Preview lebih ringan: berkas besar dimuat belakangan.","en":"Lighter preview: large files load later."},"entries":[{"id":"dev2-lazy-load","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Muatan awal preview turun 35%","en":"Initial preview payload down 35%"},"detail":{"id":"Data bank/wilayah dan pembuat PDF kontrak (1,4 MB) diunduh setelah tampilan muncul; tampil ±15% lebih cepat di jaringan HP.","en":"Bank/region data and the contract PDF maker (1.4 MB) download after the screen appears; about 15% faster on mobile networks."}}]},{"version":"1.1.0-dev.1","date":"2026-10-14","summary":{"id":"Titik awal v1.1: audit keamanan & uang, ikon verifikasi baru, data contoh disamarkan.","en":"v1.1 starting point: security & money audit, new verification badge, pseudonymised sample data."},"entries":[{"id":"dev1-verified-badge","status":"both","where":{"role":"super","page":"labels9","menu":{"id":"Manajemen Label","en":"Label Management"}},"title":{"id":"Ikon verifikasi label baru","en":"New label verification badge"},"detail":{"id":"Bintang datar 11 ujung sesuai referensi; centang transparan mengikuti warna latar.","en":"Flat 11-point star per the reference; the check is transparent and shows the background."}},{"id":"dev1-sample-data","status":"prototype","where":{"role":"super","page":"labels9","menu":{"id":"Manajemen Label","en":"Label Management"}},"title":{"id":"Data contoh memakai nama samaran","en":"Sample data uses pseudonyms"},"detail":{"id":"Nama label, artis, email, WA dan alamat asli diganti samaran; nominal dan status tetap.","en":"Real label, artist, email, phone and address values are replaced; amounts and statuses are kept."}},{"id":"dev1-boot","status":"prototype","where":{"role":"super","page":"dashboard","menu":{"id":"Dashboard","en":"Dashboard"}},"title":{"id":"Preview terbuka tanpa “perjalanan versi”","en":"Preview opens without the version run-through"},"detail":{"id":"Tampilan muncul sekali dalam kondisi akhir; label versi kini v1.1 · dev N.","en":"The screen appears once in its final state; the version label is now v1.1 · dev N."}},{"id":"dev1-token-addons","status":"app","where":null,"title":{"id":"Pembayaran token tidak lagi melunasi add-on","en":"Token payments no longer settle add-ons"},"detail":{"id":"Invoice berisi add-on dibayar rupiah; token hanya untuk biaya rilisan.","en":"Invoices with add-ons are paid in rupiah; tokens cover the release fee only."}},{"id":"dev1-money-guards","status":"app","where":null,"title":{"id":"Pengaman uang: bayar, refund, withdraw","en":"Money guards: pay, refund, withdraw"},"detail":{"id":"Klik ganda tidak memotong token dua kali, tidak ada refund ganda, withdraw yang sudah dibayar tidak bisa ditolak ulang.","en":"Double clicks never spend twice, no double refunds, paid withdrawals cannot be rejected again."}},{"id":"dev1-staff-preview","status":"app","where":null,"title":{"id":"Pratinjau akses staf lebih aman","en":"Safer staff access preview"},"detail":{"id":"Keluar akun berfungsi saat pratinjau; menu khusus Super Admin tersembunyi selama pratinjau.","en":"Sign-out works during preview; Super Admin-only menus stay hidden while previewing."}}]}];
 </script><script>/* v1.1 dev — Studio Pratinjau dengan satu sumber catatan perubahan.
    Data: release/changelog.json → release-data131.js (scripts/sync-release.cjs).
    Entri baru tampil paling atas dengan status (prototype / aplikasi asli /
@@ -8242,6 +8285,7 @@ studio10=studio8;guide=studio8;
    persentasenya ke samping angka sebagai "+12% ↗" / "−8,1% ↘" / "0% →";
    gaya ada di theme131.css. */
 'use strict';
+try{localStorage.removeItem('rm-accent131');}catch{} // sisa eksplorasi warna (dihapus dev.5)
 const deltaArrow131={
   up:'<path d="M3.5 8.5l5-5M4.5 3.5h4v4"/>',
   down:'<path d="M3.5 3.5l5 5M8.5 4.5v4h-4"/>',
@@ -8372,44 +8416,36 @@ render=function(){
 };
 addEventListener('pagehide',flushSave131);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushSave131();});
-</script><script>/* Eksplorasi warna merek (dev). Palet dipilih di Studio Pratinjau dan disimpan
-   per-browser (localStorage, kenyamanan pratinjau saja). Tanpa pilihan, tampilan
-   tetap seperti sekarang. Gaya di brand131.css. */
+</script><script>/* v1.1 dev.5 — detail kaca (gaya di glass131.css).
+   1. Segitiga isi pada pil persentase (referensi) menggantikan panah diagonal.
+   2. Nominal ringkas di kartu metrik: tooltip kaca berisi angka lengkap.
+   3. Penanda ujung batang progress + tooltip "75,6% · Rp 75.000.000 dibayarkan". */
 'use strict';
-const brandKey131='rm-accent131';
-const brandPalettes131=[
-  ['', 'Bawaan saat ini','Current default','linear-gradient(135deg,#0c4e7c,#087aa0 56%,#11b8af)'],
-  ['blue','Biru','Blue','linear-gradient(135deg,#002658,#0873fb 56%,#87c4ff)'],
-  ['violet','Violet','Violet','linear-gradient(135deg,#1e0b4f,#6d28d9 56%,#c4b5fd)'],
-  ['lime','Lime','Lime','linear-gradient(135deg,#132b05,#65a30d 56%,#d9f99d)'],
-  ['coral','Coral','Coral','linear-gradient(135deg,#45110a,#f04e2f 56%,#ffc4b0)'],
-  ['teal','Teal','Teal','linear-gradient(135deg,#043a36,#0d9488 56%,#99f6e4)'],
-  ['graphite','Grafit','Graphite','linear-gradient(135deg,#09090b,#52525b 56%,#e4e4e7)'],
-];
-function applyBrand131(id){
-  const valid=brandPalettes131.some(p=>p[0]===id)?id:'';
-  if(valid)document.documentElement.dataset.accent131=valid;else delete document.documentElement.dataset.accent131;
-  try{valid?localStorage.setItem(brandKey131,valid):localStorage.removeItem(brandKey131);}catch{}
-  document.querySelectorAll('.brand131-swatches button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.accent131===valid)));
-}
-try{applyBrand131(localStorage.getItem(brandKey131)||'');}catch{applyBrand131('');}
+Object.assign(deltaArrow131,{
+  up:'<path d="M6 2.4 10.4 9.2H1.6z"/>',
+  down:'<path d="M6 9.6 1.6 2.8h8.8z"/>',
+  flat:'<rect x="1.6" y="5.2" width="8.8" height="1.6" rx=".8"/>',
+});
 
-function brandPicker131(){
-  const current=document.documentElement.dataset.accent131||'';
-  return `<section class="brand131" aria-label="${T('Eksplorasi warna merek','Brand colour exploration')}"><h3>${T('Eksplorasi warna merek','Brand colour exploration')}</h3><p>${T('Coba palet untuk header, logo, progress dan aksen. Tersimpan di browser ini saja.','Try a palette for the header, logo, progress and accent. Saved in this browser only.')}</p><div class="brand131-swatches">${brandPalettes131.map(([id,a,b,sw])=>`<button type="button" data-accent131="${id}" aria-pressed="${id===current}" style="--sw:${sw}"><i aria-hidden="true"></i>${T(a,b)}</button>`).join('')}</div></section>`;
+function glassDetails131(root=document){
+  root.querySelectorAll('.metric124 .value-row131>strong[title]').forEach(v=>{
+    v.dataset.tip131=v.title;v.setAttribute('aria-label',v.title);v.removeAttribute('title');
+  });
+  const meter=root.querySelector('.withdrawal127 .withdrawal-meter127');
+  if(!meter)return;
+  const track=meter.querySelector('.payout-track'),fill=track&&track.querySelector('i');
+  if(!track||!fill||track.querySelector('.payout-mark131'))return;
+  const pct=(meter.querySelector(':scope>div:first-child strong')||{}).textContent||'';
+  const paid=(root.querySelector('.withdrawal127 .withdrawal-part127 strong')||{}).textContent||'';
+  const tip=`${pct.trim()} · ${paid.trim()} ${T('dibayarkan','paid')}`.trim();
+  track.insertAdjacentHTML('beforeend',`<b class="payout-mark131" style="--x:${E(fill.style.width||'0%')}" data-tip131="${E(tip)}" aria-hidden="true"></b>`);
 }
-const studioBrand131=studio8;
-studio8=function(){
-  studioBrand131();
-  const body=document.querySelector('#dialog .dialog-body');
-  if(body&&!body.querySelector('.brand131'))(body.querySelector('.studio-current131')||body.firstElementChild)?.insertAdjacentHTML('beforebegin',brandPicker131());
-};
-studio10=studio8;guide=studio8;
-document.addEventListener('click',e=>{
-  const b=e.target.closest('.brand131-swatches button');if(!b)return;
-  e.preventDefault();e.stopImmediatePropagation();
-  applyBrand131(b.dataset.accent131);
-},true);
+const renderBeforeGlass131=render;
+render=function(){renderBeforeGlass131();glassDetails131();};
+if(typeof enhanceUI124==='function'){
+  const enhanceBeforeGlass131=enhanceUI124;
+  enhanceUI124=function(root=document){enhanceBeforeGlass131(root);glassDetails131(root===document?document:root);};
+}
 </script>
 <script>/* Semua lapisan sudah dieksekusi (skrip klasik berjalan berurutan, galat satu file tidak menghentikan file berikutnya) — tampilkan hasil akhir sekali. */document.documentElement.classList.remove('booting131');booting116=false;try{render();}catch(e){console.error(e);}try{save10();}catch(e){console.warn(e);}window.flushTitle131&&flushTitle131();typeof stamp130==='function'&&stamp130();document.getElementById('boot131')?.remove();(window.requestIdleCallback||setTimeout)(()=>prefetchLazy131(),{timeout:1500});</script></body></html>
 
