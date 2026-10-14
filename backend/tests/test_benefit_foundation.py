@@ -90,7 +90,7 @@ class BenefitFoundationTests(unittest.TestCase):
             system_settings=self.settings, users=self.users,
             notifications=self.notifications, payments=self.payments,
             payment_products=self.payment_products, releases=self.releases,
-            activity_logs=self.logs,
+            activity_logs=self.logs, benefit_scope_locks=_FakeCollection(),
         )
         self.fake = fake
         patch.object(ben, "db", fake).start()

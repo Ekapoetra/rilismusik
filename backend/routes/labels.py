@@ -230,7 +230,7 @@ async def label_dashboard(user: dict = Depends(require_label)):
         db.payments.count_documents({"label_id": label["id"], "status": "pending"}),
     )
     total_releases = sum(row["count"] for row in release_counts)
-    active_releases = sum(row["count"] for row in release_counts if row["_id"] in {"approved", "delivered", "live"})
+    active_releases = sum(row["count"] for row in release_counts if row["_id"] in {"approved", "delivered", "live", "partial"})
 
     # Latest UNWITHDRAWN royalty only. Admin analytics keeps lifetime history,
     # so its cache cannot be reused for this customer-facing number.

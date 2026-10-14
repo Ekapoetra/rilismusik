@@ -566,9 +566,15 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     import benefit_service as ben
     benefit_scope = None
     benefit_funding = []
+    benefit_lock = None  # held until the free add-on orders exist (quota is order-counted)
     if is_subscribed and selected_addons:
         benefit_scope = await ben.resolve_benefit_scope(user, label)
-        benefit_funding = await ben.consume_benefits(benefit_scope, [a["id"] for a in selected_addons])
+        benefit_lock = await ben.acquire_scope_lock(benefit_scope["key"])
+        try:
+            benefit_funding = await ben.consume_benefits(benefit_scope, [a["id"] for a in selected_addons])
+        except Exception:
+            await ben.release_scope_lock(benefit_lock)
+            raise
     try:
         async with submission_slot(db, label, release_id) as slot:
             # Re-check after acquiring the per-release lease to avoid duplicate submissions.
@@ -610,6 +616,7 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
     except Exception:
         if benefit_funding:
             await ben.rollback_funding(benefit_funding)
+        await ben.release_scope_lock(benefit_lock)
         raise
     if is_subscribed and selected_addons:
         try:
@@ -618,6 +625,8 @@ async def submit_release(release_id: str, body: ReleaseSubmitConfirmation, user:
             await sync_free_addon_orders(fresh, account_ent.get("package") or "subscription", benefit_funding)
         except Exception:
             logger.exception("Free add-on order creation failed for release %s", release_id)
+        finally:
+            await ben.release_scope_lock(benefit_lock)
     try:
         await log_activity(user["id"], "submit_release", "release", release_id, after={"status": new_status})
     except Exception:

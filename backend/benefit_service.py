@@ -14,13 +14,16 @@ Funding order for a benefit-eligible action:
 "service" values: "wami" for WAMI registration, or a payment_products id for
 add-on services. Grants may target "any" service.
 """
-from datetime import datetime, time, timezone
-from typing import Any, Dict, List, Optional
+from contextlib import asynccontextmanager
+from datetime import datetime, time, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
-from models import now_iso
+from models import new_id, now_iso
 from routes.deps import db, logger
 
 WIB = ZoneInfo("Asia/Jakarta")
@@ -119,6 +122,50 @@ async def _quota_eligible(service: str) -> bool:
         return True
     product = await db.payment_products.find_one({"id": service}, {"_id": 0, "benefit_eligible": 1})
     return bool((product or {}).get("benefit_eligible", True))
+
+
+# ---------------------------------------------------------------------------
+# Per-scope lease: the monthly quota is a count of persisted orders, so the
+# decision (consume_benefit) and the order insert must not interleave between
+# two requests of the same account — otherwise both see "1 left" and both get
+# a free order. Short TTL so a crashed request never blocks the member long.
+# ---------------------------------------------------------------------------
+
+BENEFIT_LOCK_SECONDS = 60
+
+
+async def acquire_scope_lock(scope_key: str) -> Tuple[str, str]:
+    owner = new_id()
+    now = datetime.now(timezone.utc)
+    try:
+        lease = await db.benefit_scope_locks.find_one_and_update(
+            {"_id": scope_key, "expires_at": {"$lte": now}},
+            {"$set": {"owner": owner, "expires_at": now + timedelta(seconds=BENEFIT_LOCK_SECONDS)}},
+            upsert=True, return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError:
+        lease = None
+    if not lease or lease.get("owner") != owner:
+        raise HTTPException(status_code=409, detail="Pesanan layanan lain sedang diproses — coba lagi sebentar.")
+    return scope_key, owner
+
+
+async def release_scope_lock(lock: Optional[Tuple[str, str]]) -> None:
+    if not lock:
+        return
+    try:
+        await db.benefit_scope_locks.delete_one({"_id": lock[0], "owner": lock[1]})
+    except Exception:
+        logger.exception("Benefit scope lock release failed for %s", lock[0])
+
+
+@asynccontextmanager
+async def scope_lock(scope_key: str):
+    lock = await acquire_scope_lock(scope_key)
+    try:
+        yield
+    finally:
+        await release_scope_lock(lock)
 
 
 async def consume_benefit(scope: Dict[str, Any], service: str,

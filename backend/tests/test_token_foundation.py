@@ -238,6 +238,7 @@ class TokenFoundationTests(unittest.TestCase):
             releases=self.releases, service_orders=self.service_orders,
             payment_products=self.payment_products,
             landing_settings=self.landing_settings,
+            benefit_scope_locks=_FakeCollection(),
         )
         patch.object(tok, "db", fake).start()
         patch.object(sys_mod, "db", fake).start()
@@ -245,6 +246,7 @@ class TokenFoundationTests(unittest.TestCase):
         patch.object(deps, "db", fake).start()
         patch.object(pay_mod, "db", fake).start()
         patch.object(pay_svc, "db", fake).start()
+        patch.object(ben, "db", fake).start()  # benefit scope lock
         # D4 benefit budget draws from monthly quota — token tests exercise the
         # paid-invoice path, so benefit funding is pinned to "paid".
         patch.object(ben, "consume_benefit", new=AsyncMock(

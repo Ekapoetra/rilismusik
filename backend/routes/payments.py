@@ -133,8 +133,10 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
     release = await db.releases.find_one({"id": track.get("release_id")}, {"_id": 0})
     if not release or release.get("label_id") != label["id"]:
         raise HTTPException(status_code=403, detail="Track ini bukan milik Anda")
-    if release.get("status") != "live":
-        raise HTTPException(status_code=400, detail="Pendaftaran WAMI hanya dapat dilakukan setelah rilisan LIVE")
+    # Partially-live releases: tracks already on DSPs may be registered.
+    track_live = release.get("status") == "live" or (release.get("status") == "partial" and track.get("live"))
+    if not track_live:
+        raise HTTPException(status_code=400, detail="Pendaftaran WAMI hanya dapat dilakukan setelah lagu LIVE")
     existing_order = await db.wami_orders.find_one(
         {"track_id": body.track_id, "status": {"$nin": ["cancelled", "rejected"]}}, {"_id": 0},
     )
@@ -153,26 +155,27 @@ async def create_wami_invoice(body: CreateWamiOrderIn, user: dict = Depends(requ
     # benefit limits free usage, never the service itself.
     import benefit_service as ben
     scope = await ben.resolve_benefit_scope(user, label)
-    funding = await ben.consume_benefit(scope, "wami")
-    is_vip = funding["kind"] != "paid"
-    benefit_source = scope["package"] if is_vip else None
-    quota_exhausted = bool(scope.get("vip_benefits")) and funding["kind"] == "paid"
-    order_id = new_id()
-    amount = 0 if is_vip else await payment_price("wami_addon")
-    order = {
-        "id": order_id, "label_id": label["id"], "release_id": release["id"],
-        "release_title": release.get("release_title"), "track_id": body.track_id,
-        "track_title": track.get("track_title"), "isrc": track.get("isrc"),
-        "is_free_vip": is_vip, "benefit_source": benefit_source, "amount_idr": amount,
-        "funded_by": funding["kind"],
-        "benefit_exhausted": quota_exhausted,
-        "status": "pending" if is_vip else "unpaid", "wami_reference": None,
-        "admin_note": None, "paid_at": now_iso() if is_vip else None,
-        "registered_at": None, "created_at": now_iso(), "updated_at": now_iso(),
-    }
-    if funding.get("grant_id"):
-        order["grant_id"] = funding["grant_id"]
-    await db.wami_orders.insert_one(order)
+    async with ben.scope_lock(scope["key"]):
+        funding = await ben.consume_benefit(scope, "wami")
+        is_vip = funding["kind"] != "paid"
+        benefit_source = scope["package"] if is_vip else None
+        quota_exhausted = bool(scope.get("vip_benefits")) and funding["kind"] == "paid"
+        order_id = new_id()
+        amount = 0 if is_vip else await payment_price("wami_addon")
+        order = {
+            "id": order_id, "label_id": label["id"], "release_id": release["id"],
+            "release_title": release.get("release_title"), "track_id": body.track_id,
+            "track_title": track.get("track_title"), "isrc": track.get("isrc"),
+            "is_free_vip": is_vip, "benefit_source": benefit_source, "amount_idr": amount,
+            "funded_by": funding["kind"],
+            "benefit_exhausted": quota_exhausted,
+            "status": "pending" if is_vip else "unpaid", "wami_reference": None,
+            "admin_note": None, "paid_at": now_iso() if is_vip else None,
+            "registered_at": None, "created_at": now_iso(), "updated_at": now_iso(),
+        }
+        if funding.get("grant_id"):
+            order["grant_id"] = funding["grant_id"]
+        await db.wami_orders.insert_one(order)
     order.pop("_id", None)
     if is_vip:
         await notify_many(
@@ -212,36 +215,37 @@ async def create_service_invoice(product_id: str, user: dict = Depends(require_l
     # and label track) and skip the invoice entirely.
     import benefit_service as ben
     scope = await ben.resolve_benefit_scope(user, label)
-    funding = await ben.consume_benefit(scope, product_id)
-    order_id = new_id()
-    if funding["kind"] != "paid":
-        order_doc = {
-            "id": order_id, "dedupe_key": f"benefit:{order_id}",
-            "label_id": label["id"], "label_name": label.get("label_name"),
-            "release_id": None, "release_title": None,
-            "product_id": product_id,
-            "product_name": product.get("name") or "Layanan Tambahan",
-            "product_description": product.get("description") or "",
-            "delivery_type": product.get("delivery_type") or "link",
-            "amount": 0, "benefit_source": scope["package"],
-            "funded_by": funding["kind"],
-            "payment_id": None, "source": "subscription_free",
-            "status": "pending",
-            "delivery_url": None, "delivery_note": None, "delivery_filename": None,
-            "created_at": now_iso(), "updated_at": now_iso(),
-        }
-        if funding.get("grant_id"):
-            order_doc["grant_id"] = funding["grant_id"]
-        await db.addon_orders.insert_one(order_doc)
-        await notify_many(
-            await admin_user_ids(("super_admin", "admin_release")), "service_new",
-            "Layanan tambahan gratis baru",
-            f"{label.get('label_name')} memesan {product['name']} (benefit paket).",
-            "/admin/addon-orders", {"addon_order_id": order_id},
-        )
-        order_doc.pop("_id", None)
-        return {"order": order_doc, "invoice": None, "free_benefit": True,
-                "funded_by": funding["kind"]}
+    async with ben.scope_lock(scope["key"]):
+        funding = await ben.consume_benefit(scope, product_id)
+        order_id = new_id()
+        if funding["kind"] != "paid":
+            order_doc = {
+                "id": order_id, "dedupe_key": f"benefit:{order_id}",
+                "label_id": label["id"], "label_name": label.get("label_name"),
+                "release_id": None, "release_title": None,
+                "product_id": product_id,
+                "product_name": product.get("name") or "Layanan Tambahan",
+                "product_description": product.get("description") or "",
+                "delivery_type": product.get("delivery_type") or "link",
+                "amount": 0, "benefit_source": scope["package"],
+                "funded_by": funding["kind"],
+                "payment_id": None, "source": "subscription_free",
+                "status": "pending",
+                "delivery_url": None, "delivery_note": None, "delivery_filename": None,
+                "created_at": now_iso(), "updated_at": now_iso(),
+            }
+            if funding.get("grant_id"):
+                order_doc["grant_id"] = funding["grant_id"]
+            await db.addon_orders.insert_one(order_doc)
+            await notify_many(
+                await admin_user_ids(("super_admin", "admin_release")), "service_new",
+                "Layanan tambahan gratis baru",
+                f"{label.get('label_name')} memesan {product['name']} (benefit paket).",
+                "/admin/addon-orders", {"addon_order_id": order_id},
+            )
+            order_doc.pop("_id", None)
+            return {"order": order_doc, "invoice": None, "free_benefit": True,
+                    "funded_by": funding["kind"]}
     await db.service_orders.insert_one({
         "id": order_id, "product_id": product_id, "label_id": label["id"],
         "name": product["name"], "amount": int(product["amount"]), "status": "unpaid",
