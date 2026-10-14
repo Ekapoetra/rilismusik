@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { usePollingRead } from "@/hooks/usePollingRead";
 import { ADMIN_DASHBOARD } from "@/constants/testIds";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import {
   Building2, Users2, Disc3, CreditCard, Crown, Activity, ArrowRight, AlertTriangle,
@@ -389,7 +390,7 @@ export default function AdminDashboard() {
   const isManager = Boolean(workResult.data?.is_manager);
   const workPending = canWork && (!workResult.data || workResult.data.synchronizing);
   const name = user?.name || user?.pic_name || user?.email || "Admin";
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
 
   const m = metrics || {};
 

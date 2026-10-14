@@ -1556,6 +1556,7 @@
   "linear-gradient(180deg, #FF1F8E 0%, #A24EFF 100%)",
   "linear-gradient(90deg, #FF1F8E, #A24EFF)",
   "max-h-[300px] overflow-y-auto overflow-x-hidden",
+  "menit",
   "min-w-0 shrink-0 grow-0 basis-full",
   "nama label",
   "nama_label",

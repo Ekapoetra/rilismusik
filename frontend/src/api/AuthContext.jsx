@@ -12,6 +12,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const acceptAuthPayload = useCallback((data) => {
+    // A fresh sign-in always starts outside any staff preview.
+    exitStaffPreview();
     resetSharedReads();
     setUser(data.user);
     setProfile(data.label || data.artist || null);
@@ -24,6 +26,7 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       setProfile(data.label || data.artist || null);
     } catch (_e) {
+      exitStaffPreview();
       setUser(false);
       setProfile(null);
     } finally {
@@ -54,6 +57,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/auth/logout");
     } catch (_e) { /* ignore */ }
+    exitStaffPreview();
     resetSharedReads();
     setUser(false);
     setProfile(null);
@@ -85,10 +89,12 @@ export function AuthProvider({ children }) {
     const permissions = new Set(user?.permissions || []);
     return permissions.has(permission) || permissions.has(impliedBy[permission]);
   }, [user, staffPreview]);
+  // Super-only UI hides while a staff preview is active (mirrors isSuperEffective).
+  const isSuperAdmin = user?.role === "super_admin" && !staffPreview;
   const isAdmin = Boolean(user?.is_admin || ["super_admin", "admin_release", "admin_finance", "admin_support", "admin_content", "admin_marketing", "admin_ui", "admin_custom"].includes(user?.role));
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, loginWithGoogle, logout, hasPermission, isAdmin, staffPreview, enterStaffPreview, exitStaffPreview: exitPreview }}>
+    <AuthContext.Provider value={{ user, profile, loading, refresh, login, register, loginWithGoogle, logout, hasPermission, isAdmin, isSuperAdmin, staffPreview, enterStaffPreview, exitStaffPreview: exitPreview }}>
       {children}
     </AuthContext.Provider>
   );

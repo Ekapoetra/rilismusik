@@ -32,7 +32,7 @@ export default function AdminBenefits() {
         api.get("/payments/admin/products").catch(() => ({ data: [] })),
       ]);
       setMonitor(m.data); setGrants(g.data.items || []); setProducts(p.data.items || p.data || []);
-    } catch (e) { setErr(formatApiError(e)); }
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
     finally { setLoading(false); }
   }, [showHistory]);
 
@@ -60,14 +60,14 @@ export default function AdminBenefits() {
       });
       toast.success("Bonus diberikan");
       setEditor(null); load();
-    } catch (e) { toast.error(formatApiError(e)); }
+    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
     finally { setSaving(false); }
   };
 
   const revoke = async (id) => {
     if (!window.confirm("Cabut bonus ini? Sisa kuota bonus akan hangus.")) return;
     try { await api.post(`/admin/benefits/grants/${id}/revoke`); toast.success("Bonus dicabut"); load(); }
-    catch (e) { toast.error(formatApiError(e)); }
+    catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
   };
 
   const serviceOptions = useMemo(() => [

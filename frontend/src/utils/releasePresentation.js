@@ -3,7 +3,7 @@ export const RELEASE_STATUS_LABELS = {
   paid: "Sudah Dibayar", under_review: "Sedang Ditinjau", need_revision: "Perlu Revisi",
   clarification: "Menunggu Jawaban Admin", approved: "Disetujui", delivered: "Dikirim ke Believe",
   partial: "Tayang Sebagian", live: "Tayang",
-  rejected: "Ditolak", cancel_requested: "Pembatalan Diajukan",
+  rejected: "Ditolak", cancelled: "Dibatalkan", cancel_requested: "Pembatalan Diajukan",
   partial_closed: "Ditutup (Tayang Sebagian)", closed: "Dibatalkan",
   takedown_requested: "Permintaan Penurunan", taken_down: "Sudah Diturunkan",
 };

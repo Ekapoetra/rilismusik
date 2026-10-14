@@ -57,15 +57,17 @@ export default function Maintenance() {
     ev.preventDefault();
     if (!editing.modules.length) { toast.error("Pilih minimal satu modul terdampak"); return; }
     setBusy(true);
-    const payload = { ...editing, start_at: toIso(editing.start_at), end_at: toIso(editing.end_at), note: editing.note || null };
-    delete payload.id;
     try {
+      // toIso throws RangeError on an invalid date — keep it inside try so
+      // busy always resets.
+      const payload = { ...editing, start_at: toIso(editing.start_at), end_at: toIso(editing.end_at), note: editing.note || null };
+      delete payload.id;
       if (editing.id) await api.patch(`/admin/maintenance/${editing.id}`, payload);
       else await api.post("/admin/maintenance", payload);
       toast.success(editing.id ? "Jadwal diperbarui." : "Jadwal dibuat.");
       setEditing(null);
       await load();
-    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); }
+    } catch (e) { toast.error(e instanceof RangeError ? "Tanggal/waktu tidak valid" : formatApiError(e.response?.data?.detail)); }
     finally { setBusy(false); }
   };
 

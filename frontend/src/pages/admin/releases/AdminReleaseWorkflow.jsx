@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, CreditCard, RadioTower, Send, Save, ShieldCheck, SquareArrowOutUpRight, XCircle, History, Wallet, Upload, Image as ImageIcon, FileAudio, FileCheck2, Minus, ChevronUp, ReceiptText, ExternalLink, ArrowUpRight, PencilLine } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 import { releaseStatusLabel } from "@/utils/releasePresentation";
 import { PAYMENT_STATUS, formatDateTime } from "@/pages/admin/payments/paymentPresentation";
 
@@ -11,7 +12,7 @@ const fmtIDR = (value) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
 
 export const AdminReleaseWorkflow = ({ release, onUpdated, setMessage, setError }) => {
   const { hasPermission, user } = useAuth();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const canGoLive = hasPermission("releases.go_live");
   const canTakedown = hasPermission("releases.takedown");
   const canReview = hasPermission("releases.review") || isSuper;

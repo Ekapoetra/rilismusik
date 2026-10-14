@@ -21,8 +21,13 @@ const RELEASE_STAGE_BY_STATUS = {
   draft: 0,
   submitted: 1, awaiting_payment: 1, paid: 1,
   under_review: 2, need_revision: 2, clarification: 2,
-  approved: 3, delivered: 3, partial: 3, live: 3,
-  cancel_requested: 3, takedown_requested: 3, taken_down: 3, closed: 3, partial_closed: 3,
+  approved: 3, delivered: 3, partial: 3, live: 3, takedown_requested: 3,
+};
+// End states replace the last node with a red terminal marker instead of
+// showing the release as currently "Tayang".
+const RELEASE_TERMINAL_LABELS = {
+  rejected: "Ditolak", cancelled: "Dibatalkan", cancel_requested: "Batal Diajukan",
+  closed: "Dibatalkan", partial_closed: "Ditutup", taken_down: "Diturunkan",
 };
 
 export default function ReleaseDetail() {
@@ -103,8 +108,10 @@ export default function ReleaseDetail() {
     if (!window.confirm(translateUi(confirmText))) return;
     setLifecycleBusy(true); setErr("");
     try {
-      const { data: fresh } = await api.post(`/releases/${id}/${path}`, { note: (note || "").trim() || null });
-      setData(fresh); toast.success(okMsg);
+      await api.post(`/releases/${id}/${path}`, { note: (note || "").trim() || null });
+      // The endpoint returns the bare release doc — reload the full detail
+      // (tracks, payment, invoice) instead of replacing the page state with it.
+      await load(); toast.success(okMsg);
     } catch (error) { setErr(formatApiError(error.response?.data?.detail) || "Aksi gagal"); }
     finally { setLifecycleBusy(false); }
   };
@@ -156,7 +163,7 @@ export default function ReleaseDetail() {
         <JourneySteps
           steps={RELEASE_JOURNEY_STEPS}
           current={RELEASE_STAGE_BY_STATUS[data.status] ?? 0}
-          terminal={data.status === "rejected" ? "Ditolak" : null}
+          terminal={RELEASE_TERMINAL_LABELS[data.status] || null}
           testPrefix="release-journey"
         />
       </div>

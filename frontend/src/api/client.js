@@ -1,5 +1,5 @@
 import axios from "axios";
-import { staffPreviewActive } from "./staffPreview";
+import { staffPreviewActive, exitStaffPreview } from "./staffPreview";
 
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 const IS_BROWSER = typeof window !== "undefined";
@@ -15,9 +15,12 @@ export const api = axios.create({
 
 // D10 staff preview: while a Super Admin previews a staff member's access, all
 // mutations are blocked client-side — the preview is strictly read-only.
+// Session endpoints (/auth/login, logout, refresh, me) stay allowed so the
+// Super Admin can still sign out or keep the session alive while previewing.
+const isAuthEndpoint = (url) => /^(?:\/api)?\/?auth\//.test(String(url || "").replace(/^https?:\/\/[^/]+/, ""));
 api.interceptors.request.use((config) => {
   const method = (config.method || "get").toLowerCase();
-  if (staffPreviewActive() && !["get", "head", "options"].includes(method)) {
+  if (staffPreviewActive() && !["get", "head", "options"].includes(method) && !isAuthEndpoint(config.url)) {
     const err = new Error("Pratinjau akses tidak dapat menjalankan tindakan operasional.");
     err.isStaffPreviewBlocked = true;
     return Promise.reject(err);
@@ -66,6 +69,8 @@ api.interceptors.response.use(
           return api(original);
         } catch (_e) {
           isRefreshing = false;
+          // Session could not be renewed — never keep a preview alive past it.
+          exitStaffPreview();
         }
       }
     }

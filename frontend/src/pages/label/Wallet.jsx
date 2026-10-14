@@ -21,7 +21,11 @@ export default function Wallet() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [wallet, setWallet] = useState(null);
   const [benefits, setBenefits] = useState(null);
-  const [qty, setQty] = useState(5);
+  // Raw input string so clearing / retyping works; validated on submit.
+  const [qty, setQty] = useState("5");
+  // Token invoice created but checkout failed: retry the same invoice instead
+  // of creating a duplicate one.
+  const [pendingPurchase, setPendingPurchase] = useState(null); // { id, quantity }
   const [loading, setLoading] = useState(false);
   const [pollingId, setPollingId] = useState(null);
   const [err, setErr] = useState("");
@@ -52,11 +56,21 @@ export default function Wallet() {
     return () => { active = false; };
   }, [searchParams, setSearchParams, load]);
 
+  const qtyNum = parseInt(qty, 10);
   const buy = async () => {
-    setErr(""); setMsg(""); setLoading(true);
+    setErr(""); setMsg("");
+    if (!Number.isFinite(qtyNum) || qtyNum < 1) { setErr("Jumlah token minimal 1."); return; }
+    const quantity = Math.min(500, qtyNum);
+    if (String(quantity) !== qty) setQty(String(quantity));
+    setLoading(true);
     try {
-      const { data } = await api.post("/payments/token-purchase", { quantity: qty });
-      await openXenditCheckout(data.id);
+      let paymentId = pendingPurchase?.quantity === quantity ? pendingPurchase.id : null;
+      if (!paymentId) {
+        const { data } = await api.post("/payments/token-purchase", { quantity });
+        paymentId = data.id;
+        setPendingPurchase({ id: paymentId, quantity });
+      }
+      await openXenditCheckout(paymentId);
     } catch (e) {
       setErr(formatApiError(e.response?.data?.detail || e.message));
       setLoading(false);
@@ -123,11 +137,11 @@ export default function Wallet() {
           <div>
             <label className="text-xs text-zinc-500">Jumlah token</label>
             <input type="number" min={1} max={500} value={qty}
-              onChange={(e) => setQty(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+              onChange={(e) => setQty(e.target.value)}
               className="rm-input mt-1 w-28" data-testid="wallet-buy-qty" />
           </div>
           <div className="text-sm text-zinc-300 pb-2.5" data-testid="wallet-buy-total">
-            = {fmtIDR(qty * (wallet?.token_price_idr || 0))}
+            = {fmtIDR((Number.isFinite(qtyNum) && qtyNum > 0 ? Math.min(500, qtyNum) : 0) * (wallet?.token_price_idr || 0))}
           </div>
           <button className="rm-btn-primary flex items-center gap-2" onClick={buy} disabled={loading || !wallet} data-testid="wallet-buy-button">
             <ShoppingCart className="w-4 h-4" /> {loading ? "Membuka Xendit…" : "Beli via Xendit"}
@@ -144,7 +158,7 @@ export default function Wallet() {
             <div key={entry.id} className="px-5 py-3.5 border-b border-white/5 last:border-0 flex items-center justify-between gap-3" data-testid={`ledger-${entry.id}`}>
               <div className="min-w-0">
                 <div className="font-semibold text-sm">{KIND_LABELS[entry.kind] || entry.kind} • {SOURCE_LABELS[entry.source] || entry.source}</div>
-                <div className="text-xs text-zinc-500 truncate">{entry.note || entry.ref_type || "—"} • {entry.created_at?.slice(0, 16).replace("T", " ")}</div>
+                <div className="text-xs text-zinc-500 truncate">{entry.note || entry.ref_type || "—"} • {fmtDateTimeWib(entry.created_at)}</div>
               </div>
               <div className={`font-display font-extrabold ${entry.amount > 0 ? "text-emerald-300" : entry.amount < 0 ? "text-red-300" : "text-zinc-400"}`}>
                 {entry.amount > 0 ? `+${entry.amount}` : entry.amount}

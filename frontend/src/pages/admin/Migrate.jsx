@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { UserCheck, UserX, Sparkles, ShieldAlert, Lock } from "lucide-react";
-import { api } from "@/api/client";
+import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 
 export default function AdminMigrate() {
   return (
@@ -31,7 +32,7 @@ export default function AdminMigrate() {
 
 function ClaimsPanel() {
   const { user } = useAuth();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const [claims, setClaims] = useState([]);
   const [search, setSearch] = useState("");
   const [unclaimed, setUnclaimed] = useState([]);
@@ -60,7 +61,7 @@ function ClaimsPanel() {
       await api.post(`/admin/migrate/claims/${activeClaim.id}/link/${legacy.id}`);
       setActiveClaim(null); setUnclaimed([]); await reload();
     } catch (e) {
-      alert(e.response?.data?.detail || "Link gagal");
+      alert(e.response?.data?.detail ? formatApiError(e.response.data.detail) : "Link gagal");
     } finally { setLoading(false); }
   };
   const doReject = async (claim) => {
@@ -186,7 +187,7 @@ function ClaimsPanel() {
 
 function QuarantinePanel() {
   const { user } = useAuth();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const [labels, setLabels] = useState([]);
 
   const reload = async () => {
@@ -201,7 +202,7 @@ function QuarantinePanel() {
       await api.post(`/admin/migrate/labels/${lab.id}/release-quarantine`);
       await reload();
     } catch (e) {
-      alert(e.response?.data?.detail || "Gagal mengesahkan baseline");
+      alert(e.response?.data?.detail ? formatApiError(e.response.data.detail) : "Gagal mengesahkan baseline");
     }
   };
 

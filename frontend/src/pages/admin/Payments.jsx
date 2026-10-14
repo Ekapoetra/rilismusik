@@ -93,7 +93,7 @@ export default function AdminPayments() {
           {(tokenLiability.top_wallets?.length > 0 || tokenLiability.in_flight_token_invoices > 0) && (
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-zinc-400">
               {tokenLiability.in_flight_token_invoices > 0 && <span data-testid="liability-inflight">{tokenLiability.in_flight_token_invoices} invoice token menunggu hasil rilisan</span>}
-              {tokenLiability.top_wallets.slice(0, 5).map((w) => (
+              {(tokenLiability.top_wallets || []).slice(0, 5).map((w) => (
                 <span key={w.label_id}>{w.label_name || w.label_id}: <strong className="text-zinc-200">{w.token_balance}</strong></span>
               ))}
             </div>

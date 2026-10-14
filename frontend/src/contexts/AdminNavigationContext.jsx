@@ -33,7 +33,7 @@ export const AdminNavigationProvider = ({ children }) => {
   useEffect(() => { load(); }, [load]);
   // D10 staff preview: navigation follows the previewed staff member's
   // permissions — server items arrive for the super token, so filter here.
-  const visibleItems = staffPreview ? items.filter((item) => hasPermission(item.permission)) : items;
+  const visibleItems = useMemo(() => (staffPreview ? items.filter((item) => hasPermission(item.permission)) : items), [items, staffPreview, hasPermission]);
   const value = useMemo(() => ({ items: visibleItems, groups, locale, setLocale, loading, reload: load, labelFor: (item) => item.labels?.[locale] || item.labels?.id || item.key }), [visibleItems, groups, locale, setLocale, loading, load]);
   return <AdminNavigationContext.Provider value={value}>{children}</AdminNavigationContext.Provider>;
 };

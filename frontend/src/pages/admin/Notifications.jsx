@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 import { toast } from "@/components/ui/sonner";
 
 const formatDate = (value) => value
@@ -187,7 +188,7 @@ const NotificationPagination = ({ page, pages, onPageChange }) => (
 export default function AdminNotifications() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const [scope, setScope] = useState("mine");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");

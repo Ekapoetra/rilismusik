@@ -31,11 +31,21 @@ export default function UploadRelease() {
   const isPpr = profile?.payment_type !== "annual_subscription" || profile?.subscription_status !== "active";
   // Free add-on budget for annual members: monthly quota remainder + grant
   // remainders. The backend is authoritative — this only drives the UI hint.
+  // Mirrors benefit_service.active_grants: a grant funds an add-on only when
+  // its service is "any" or that add-on's product id ("wami" grants never
+  // apply here). A product-specific grant covers at most its own selected
+  // add-on, since each add-on is chosen once per release.
   const freeAddonsLeft = useMemo(() => {
     if (!benefits) return 0;
-    const grantLeft = (benefits.grants || []).reduce((sum, g) => sum + Math.max(0, Number(g.quantity || 0) - Number(g.used || 0)), 0);
-    return Number(benefits.remaining || 0) + grantLeft;
-  }, [benefits]);
+    const left = (g) => Math.max(0, Number(g.quantity || 0) - Number(g.used || 0));
+    const grants = benefits.grants || [];
+    const anyLeft = grants.filter((g) => g.service === "any").reduce((sum, g) => sum + left(g), 0);
+    const productFunded = selectedAddons.filter((productId) => grants.some((g) => g.service === productId && left(g) > 0)).length;
+    return Number(benefits.remaining || 0) + anyLeft + productFunded;
+  }, [benefits, selectedAddons]);
+  // Product-specific grants keep the add-on picker visible even before the
+  // matching add-on is selected (otherwise the grant could never be used).
+  const hasProductGrant = useMemo(() => (benefits?.grants || []).some((g) => g.service && g.service !== "any" && g.service !== "wami" && Number(g.quantity || 0) > Number(g.used || 0)), [benefits]);
   const addonTotal = useMemo(() => products.filter((item) => selectedAddons.includes(item.id)).reduce((sum, item) => sum + Number(item.amount || 0), 0), [products, selectedAddons]);
 
   const trackCount = release?.tracks?.length || form.tracks?.length || 1;
@@ -114,6 +124,6 @@ export default function UploadRelease() {
     {step === 1 && <ReleaseInfoStep form={form} updateForm={updateForm} labelName={profile?.label_name} responsibleName={user?.name || profile?.pic_name} onNext={goNext} />}
     {step === 2 && <ArtistCreditsStep form={form} updateForm={updateForm} savedArtists={savedArtists} onBack={() => setStep(1)} onNext={goNext} />}
     {step === 3 && <TracksStep form={form} updateForm={updateForm} savedArtists={savedArtists} saving={saving} onBack={() => setStep(2)} onSave={saveDraft} />}
-    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} freeAddonsLeft={freeAddonsLeft} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
+    {step === 4 && release && <AssetsReviewStep release={release} products={products} selectedAddons={selectedAddons} setSelectedAddons={setSelectedAddons} isPpr={isPpr} freeAddonsLeft={freeAddonsLeft} hasProductGrant={hasProductGrant} addonTotal={addonTotal} baseEstimate={baseEstimate} pricingLabel={pricingLabel} declaration={declaration} setDeclaration={setDeclaration} saving={saving} quotaBlocked={quotaState.blocked} setError={setError} reloadRelease={reloadRelease} onBack={() => setStep(3)} onSubmit={submit} />}
   </div>;
 }

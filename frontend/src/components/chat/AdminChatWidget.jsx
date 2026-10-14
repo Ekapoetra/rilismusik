@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { X, Users, LifeBuoy, CheckCircle2, Settings, Search, MessagesSquare } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 import { useAppPreferences } from "@/contexts/AppPreferencesContext";
 import { toast } from "@/components/ui/sonner";
 import { ChatThread, OnlineDot } from "./ChatThread";
@@ -23,8 +24,8 @@ const backendStatusFor = (filter) => (filter === "archived" ? "resolved" : filte
 export default function AdminChatWidget() {
   const { user, hasPermission } = useAuth();
   const { t, locale } = useAppPreferences();
-  const isSupport = user?.role === "super_admin" || hasPermission?.("support.manage");
-  const isSuperAdmin = user?.role === "super_admin";
+  const isSupport = isSuperEffective(user) || hasPermission?.("support.manage");
+  const isSuperAdmin = isSuperEffective(user);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState(isSupport ? "label" : "internal");
   const [labelFilter, setLabelFilter] = useState("active");

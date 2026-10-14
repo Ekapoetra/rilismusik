@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Cog, RefreshCw, Send, Trash2, History, ScrollText, LayoutTemplate } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
@@ -43,17 +43,34 @@ export default function AdminSystem() {
   const [tokDraft, setTokDraft] = useState(null); // editable token value
   const [newCostKey, setNewCostKey] = useState("");
 
+  // Area switches race: only the newest request for the current area may
+  // write state, and switching clears the previous area's data first.
+  const requestRef = useRef(0);
+  const areaRef = useRef(area);
+  const selectArea = (next) => {
+    if (next === areaRef.current) return;
+    areaRef.current = next;
+    requestRef.current += 1;
+    setState(null); setAudit([]); setProcDraft(null); setTokDraft(null);
+    setShowPublish(false); setPublishNote(""); setErr("");
+    setArea(next);
+  };
+
   const load = useCallback(async (a = area) => {
+    const requestId = ++requestRef.current;
     setErr("");
     try {
       const [{ data: detail }, { data: log }] = await Promise.all([
         api.get(`/admin/system/${a}`), api.get(`/admin/system/${a}/audit`),
       ]);
+      if (requestId !== requestRef.current || a !== areaRef.current) return;
       setState(detail);
       setAudit(log.entries || []);
       if (a === "procedures") setProcDraft(detail.draft || detail.published);
       if (a === "token") setTokDraft(detail.draft || detail.published);
-    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); }
+    } catch (e) {
+      if (requestId === requestRef.current) setErr(formatApiError(e.response?.data?.detail));
+    }
   }, [area]);
   useEffect(() => { load(area); }, [area, load]);
 
@@ -61,15 +78,16 @@ export default function AdminSystem() {
     setBusy(true);
     try {
       const { data } = await api.post(`/admin/system/${area}/${kind}`, payload);
+      if (area !== areaRef.current) return true;
       setState(data);
       if (area === "procedures") setProcDraft(data.draft || data.published);
       if (area === "token") setTokDraft(data.draft || data.published);
       const { data: log } = await api.get(`/admin/system/${area}/audit`);
-      setAudit(log.entries || []);
+      if (area === areaRef.current) setAudit(log.entries || []);
       return true;
     } catch (e) {
       toast.error(formatApiError(e.response?.data?.detail));
-      if (e.response?.status === 409) await load();
+      if (e.response?.status === 409 && area === areaRef.current) await load();
       return false;
     } finally { setBusy(false); }
   };
@@ -113,7 +131,7 @@ export default function AdminSystem() {
 
       <div className="flex flex-wrap gap-2 border-b border-white/10">
         {AREAS.map(([id, labelText]) => (
-          <button key={id} onClick={() => setArea(id)}
+          <button key={id} onClick={() => selectArea(id)}
             className={`px-4 py-2 text-sm font-bold rounded-t-xl ${area === id ? "bg-[#14111E] border border-white/10 border-b-[#14111E] rm-gradient-text" : "text-zinc-500 hover:text-white"}`}
             data-testid={`system-area-${id}`}>{labelText}</button>
         ))}

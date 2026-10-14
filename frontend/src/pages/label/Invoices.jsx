@@ -25,11 +25,15 @@ export default function Invoices() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
+  // Only the invoice list is critical; products/tiers failing must not hide it.
   const load = useCallback(async () => {
-    const [{ data: invoices }, { data: services }, { data: tierData }] = await Promise.all([
+    const [invoices, services, tierData] = await Promise.allSettled([
       api.get("/label/invoices"), api.get("/payments/products"), api.get("/payments/tiers"),
     ]);
-    setItems(invoices); setProducts(services); setTiers(tierData?.tiers || []);
+    if (invoices.status === "fulfilled") setItems(invoices.value.data || []);
+    else setErr(formatApiError(invoices.reason?.response?.data?.detail || invoices.reason?.message) || "Gagal memuat invoice");
+    if (services.status === "fulfilled") setProducts(services.value.data || []);
+    if (tierData.status === "fulfilled") setTiers(tierData.value.data?.tiers || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 

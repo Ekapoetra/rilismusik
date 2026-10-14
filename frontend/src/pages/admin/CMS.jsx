@@ -4,6 +4,7 @@ import { api, formatApiError } from "@/api/client";
 import { ADMIN_CMS } from "@/constants/testIds";
 import { CMSPanel } from "@/components/admin/CMSPanels";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 
 const TABS = [
   ["general", "General"], ["hero", "Hero"], ["benefits", "Benefits"],
@@ -29,7 +30,7 @@ function withoutEditorIds(settings) {
 
 export default function AdminCMS() {
   const { user } = useAuth();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const [settings, setSettings] = useState(null);
   const [sys, setSys] = useState(null); // System115 content state (super only)
   const [tab, setTab] = useState("hero");

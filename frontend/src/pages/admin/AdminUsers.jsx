@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Pencil, Plus, Trash2, UserCog, ShieldX, Ban, Eye } from "lucide-react";
 import { api, formatApiError } from "@/api/client";
 import { useAuth } from "@/api/AuthContext";
+import { isSuperEffective } from "@/api/staffPreview";
 import { AdminUserDialog } from "@/components/admin/access/AdminUserDialog";
 import { ADMIN_USER } from "@/constants/testIds";
 import { toast } from "@/components/ui/sonner";
@@ -10,7 +11,7 @@ import { toast } from "@/components/ui/sonner";
 export default function AdminUsers() {
   const { user, hasPermission, enterStaffPreview } = useAuth();
   const navigate = useNavigate();
-  const isSuper = user?.role === "super_admin";
+  const isSuper = isSuperEffective(user);
   const [items, setItems] = useState([]); const [roles, setRoles] = useState([]);
   const [dialog, setDialog] = useState(undefined); const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

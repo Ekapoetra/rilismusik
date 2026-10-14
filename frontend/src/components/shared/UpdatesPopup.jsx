@@ -11,7 +11,7 @@ import { SECTIONS, updatesActive, UPDATES_PUBLISHED_AT } from "@/pages/label/Upd
 // server-side (users.updates_seen_version) so it follows the member across
 // devices — not just this browser. The archive stays at /label/updates.
 export default function UpdatesPopup() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const { locale, t } = useAppPreferences();
   const lang = locale === "en" ? "en" : "id";
   const navigate = useNavigate();
@@ -20,9 +20,14 @@ export default function UpdatesPopup() {
   const show = !closed && user?.role === "label" && updatesActive() && user?.updates_seen_version !== APP_VERSION;
   if (!show) return null;
 
-  const acknowledge = () => {
-    api.post("/label/updates/seen", { version: APP_VERSION }).catch(() => {});
+  // Close immediately, then persist and re-read the session user so a remount
+  // (e.g. after navigating) sees updates_seen_version. Failures stay silent.
+  const acknowledge = async () => {
     setClosed(true);
+    try {
+      await api.post("/label/updates/seen", { version: APP_VERSION });
+      if (typeof refresh === "function") await refresh();
+    } catch (_e) { /* silent: worst case the popup shows again next visit */ }
   };
   const openArchive = () => { acknowledge(); navigate("/label/updates"); };
   const total = SECTIONS.reduce((n, s) => n + s.items.length, 0);
