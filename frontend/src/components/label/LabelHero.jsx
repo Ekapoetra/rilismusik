@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BadgeCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { fileUrl } from "@/api/client";
 import { LabelLogo } from "@/components/shared/LabelLogo";
+import { VerifiedBadge } from "@/components/shared/VerifiedBadge";
 
 const DEFAULT_DESKTOP = "/hero/label-hero-desktop.webp";
 const DEFAULT_MOBILE = "/hero/label-hero-mobile.webp";
@@ -42,7 +43,7 @@ export function LabelHero({ hero, label, verified, subline }) {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="truncate font-display text-base font-extrabold tracking-tight text-white md:text-lg" data-testid="label-hero-name" translate="no">{label?.label_name}</span>
-              {verified && <BadgeCheck className="h-4 w-4 shrink-0 text-sky-400" data-testid="label-hero-verified" />}
+              {verified && <VerifiedBadge className="h-4 w-4 md:h-[18px] md:w-[18px]" testid="label-hero-verified" />}
             </div>
             {subline && <div className="truncate text-xs text-zinc-300/90">{subline}</div>}
           </div>
