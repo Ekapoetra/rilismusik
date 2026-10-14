@@ -4,11 +4,26 @@ import { api, formatApiError } from "@/api/client";
 import { openXenditCheckout, pollPaymentUntilTerminal } from "@/api/payments";
 import { translateUi } from "@/i18n/languageStore";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { CreditCard, Music, Download, Trash2, MessageCircleQuestion, XOctagon } from "lucide-react";
+import JourneySteps from "@/components/shared/JourneySteps";
+import { CreditCard, Music, Download, Trash2, MessageCircleQuestion, XOctagon, FileText, Send, Clock3, Disc3 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { ReleaseMetadataView } from "@/components/releases/ReleaseMetadataView";
 import { ReleaseArtwork } from "@/components/releases/ReleaseArtwork";
 import { LabelAddonOrders } from "@/components/label/LabelAddonOrders";
+
+const RELEASE_JOURNEY_STEPS = [
+  { key: "draft", label: "Draft", icon: FileText },
+  { key: "submitted", label: "Diajukan", icon: Send },
+  { key: "review", label: "Review", icon: Clock3 },
+  { key: "live", label: "Tayang", icon: Disc3 },
+];
+const RELEASE_STAGE_BY_STATUS = {
+  draft: 0,
+  submitted: 1, awaiting_payment: 1, paid: 1,
+  under_review: 2, need_revision: 2, clarification: 2,
+  approved: 3, delivered: 3, partial: 3, live: 3,
+  cancel_requested: 3, takedown_requested: 3, taken_down: 3, closed: 3, partial_closed: 3,
+};
 
 export default function ReleaseDetail() {
   const { id } = useParams();
@@ -135,6 +150,15 @@ export default function ReleaseDetail() {
         {data.status === "need_revision" && (
           <button type="button" onClick={askClarification} disabled={lifecycleBusy || data.clarification_used} className="rm-btn-ghost flex items-center gap-2 disabled:opacity-40" data-testid="release-detail-clarification-button" title={data.clarification_used ? "Klarifikasi sudah dipakai pada siklus revisi ini" : undefined}><MessageCircleQuestion className="w-4 h-4" /> Tanya Admin</button>
         )}
+      </div>
+
+      <div className="rm-card p-4 sm:p-5" data-testid="release-detail-journey-card">
+        <JourneySteps
+          steps={RELEASE_JOURNEY_STEPS}
+          current={RELEASE_STAGE_BY_STATUS[data.status] ?? 0}
+          terminal={data.status === "rejected" ? "Ditolak" : null}
+          testPrefix="release-journey"
+        />
       </div>
 
       {err && <div className="rounded-2xl bg-red-500/15 text-red-300 px-4 py-3 text-sm border border-red-100">{err}</div>}

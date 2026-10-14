@@ -3,12 +3,26 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, formatApiError, fileUrl } from "@/api/client";
 import TicketStatusBadge, { TICKET_CATEGORY_LABELS } from "@/components/shared/TicketStatusBadge";
 import { SUPPORT } from "@/constants/testIds";
-import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Ban } from "lucide-react";
+import { ArrowLeft, Paperclip, Send, X, AlertTriangle, Ban, FileText, Clock3, CheckCircle2 } from "lucide-react";
+import JourneySteps from "@/components/shared/JourneySteps";
 import { TicketReleaseIdentifiers } from "@/components/shared/TicketReleaseIdentifiers";
 import { TicketRequestSummary } from "@/components/shared/TicketRequestSummary";
 import { ContentIdDocuments } from "@/components/shared/ContentIdDocuments";
 
 const NON_CANCELLABLE = ["done", "submitted_to_believe", "rejected", "cancelled"];
+
+const TICKET_JOURNEY_STEPS = [
+  { key: "draft", label: "Draf", icon: FileText },
+  { key: "sent", label: "Terkirim", icon: Send },
+  { key: "processing", label: "Diproses", icon: Clock3 },
+  { key: "done", label: "Selesai", icon: CheckCircle2 },
+];
+const TICKET_STAGE_BY_STATUS = {
+  draft: 0, open: 1,
+  waiting_admin: 2, in_progress: 2, waiting_label: 2, submitted_to_believe: 2,
+  done: 3,
+};
+const TICKET_TERMINAL_LABELS = { rejected: "Ditolak", cancelled: "Dibatalkan" };
 
 export default function LabelSupportTicketDetail() {
   const { id } = useParams();
@@ -133,6 +147,15 @@ export default function LabelSupportTicketDetail() {
               <Ban className="w-4 h-4" /> {isDraft ? "Hapus Draf" : "Batalkan"}
             </button>
           )}
+        </div>
+
+        <div className="mt-5 border-t border-white/5 pt-5" data-testid="label-ticket-journey-wrap">
+          <JourneySteps
+            steps={TICKET_JOURNEY_STEPS}
+            current={TICKET_STAGE_BY_STATUS[t.status] ?? 1}
+            terminal={TICKET_TERMINAL_LABELS[t.status] || null}
+            testPrefix="ticket-journey"
+          />
         </div>
 
         <div className="mt-5 grid md:grid-cols-3 gap-4">
