@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.8",
+    "date": "2026-10-15",
+    "summary": {
+      "id": "Kaca v4: lensa di sisi kiri, rim berwarna indikator di kiri–kanan untuk pil DAN chip status, bayangan diukur ulang terhadap referensi baru.",
+      "en": "Glass v4: left-side lens, indicator-coloured rim on left/right for the pill AND status chips, shadow re-measured against the new references."
+    },
+    "entries": [
+      {
+        "id": "dev8-glass-pill",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik",
+            "en": "Dashboard · metric cards"
+          }
+        },
+        "title": {
+          "id": "Pil kaca v4: lensa kiri + rim berwarna di kiri–kanan",
+          "en": "Glass pill v4: left lens + coloured rim on both sides"
+        },
+        "detail": {
+          "id": "Referensi pil 15% diukur per 1 px: isi di sisi kiri lebih gelap 3 L* dari latar (lensa), rim putih di atas & bawah, warna indikator kuat di kiri dan lembut di kanan, bayangan hanya ke bawah. Hasil kami vs referensi: bayangan 86·89·91·92·93 (ref 89·91·92·93·94), garis kiri 81 (ref 82), isi kiri 94–95 (ref 95), garis kanan 94 (ref 94).",
+          "en": "The 15% reference pill measured per CSS px: left fill 3 L* darker than the page (lens), white rim top & bottom, strong indicator colour on the left and soft on the right, downward-only shadow. Ours vs reference: shadow 86·89·91·92·93 (ref 89·91·92·93·94), left line 81 (ref 82), left fill 94–95 (ref 95), right line 94 (ref 94)."
+        }
+      },
+      {
+        "id": "dev8-chips",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · daftar pekerjaan",
+            "en": "Dashboard · work list"
+          }
+        },
+        "title": {
+          "id": "Chip status memakai resep yang sama: warna indikator di sisi kiri & kanan",
+          "en": "Status chips use the same recipe: indicator colour on the left & right sides"
+        },
+        "detail": {
+          "id": "Chip tidak punya pseudo-elemen bebas (::before = titik status, ::after dimatikan), jadi rim digambar lewat border transparan 1 px + lapisan border-box. Profil vs referensi chip: tepi atas putih 100, isi 99→98, bayangan 89·92·93·94 (ref 91·93·94·95). Tema gelap memakai alas kartu opak agar rim tidak tembus ke dalam chip.",
+          "en": "Chips have no free pseudo-element (::before = status dot, ::after disabled), so the rim is drawn via a 1 px transparent border + border-box layers. Profile vs the reference chip: white top 100, fill 99→98, shadow 89·92·93·94 (ref 91·93·94·95). Dark theme uses an opaque card base so the rim does not show through the chip."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.7",
     "date": "2026-10-15",
     "summary": {
