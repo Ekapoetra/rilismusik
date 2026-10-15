@@ -1,0 +1,41 @@
+/* v1.1 dev.11 — Kotak Masuk & Profil (gaya mengikuti kartu dashboard: Geist, skala tipe, chip status). */
+.inbox-tabs131 .count131{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:999px;font-size:11px;line-height:1;background:var(--text);color:var(--bg)}
+.inbox-filters131{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}
+.inbox-filters131 .pill107{cursor:pointer;font-size:11px;padding:4px 10px;border-radius:999px;background:var(--soft);color:var(--muted);border:0}
+.inbox-filters131 .pill107.active{background:var(--text);color:var(--bg)}
+.inbox-filters131 .grow{flex:1}
+.inbox-day131{font-size:12px;font-weight:500;color:var(--muted);margin:16px 0 2px;letter-spacing:.2px}
+.inbox-row131{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.inbox-row131:first-of-type{border-top:0}
+.inbox-row131 .eventdot{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none;margin:7px 2px 0}
+.inbox-row131.unread .eventdot{background:var(--accent,#2e689e)}
+.inbox-row131>button{flex:1;min-width:0;text-align:left;padding:0;display:block}
+.inbox-row131 strong{display:block;font-size:14px;font-weight:500;line-height:1.35}
+.inbox-row131.unread strong{color:var(--text)}
+.inbox-row131 p{font-size:12px;color:var(--muted);margin:3px 0 4px;line-height:1.45}
+.inbox-row131 small{font-size:11px;color:var(--muted)}
+.inbox-row131 .kind131{font-weight:400;color:var(--muted);margin-left:6px}
+.inbox-row131 .status111,.inbox-row131 .badge{flex:none;align-self:center}
+.profile-grid131{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+@media (max-width:900px){.profile-grid131{grid-template-columns:1fr}}
+.profile-grid131 h2{font-size:16px;font-weight:500;margin-bottom:14px}
+.facts131{display:grid;gap:10px;margin:16px 0 14px}
+.facts131>div{display:grid;grid-template-columns:150px 1fr;gap:12px;font-size:13px}
+.facts131 dt{color:var(--muted)}
+.facts131 dd{margin:0;word-break:break-word}
+.row-actions131{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.pref-row131,.perm131,.session131{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.pref-row131:first-of-type,.perm131:first-of-type,.session131:first-of-type{border-top:0}
+.session131{flex-wrap:wrap}
+.session131 strong{font-weight:500;flex:1 1 160px}
+.session131 small{color:var(--muted);flex:1 1 140px}
+.form131 .field{margin-bottom:10px}
+.form131 #form-feedback:not(:empty){font-size:12px;color:var(--red,#c8324a);margin:4px 0 8px}
+.prefs131{width:100%;border-collapse:collapse;font-size:13px}
+.prefs131 th,.prefs131 td{padding:10px 8px;border-top:1px solid var(--line);text-align:left}
+.prefs131 th:not(:first-child),.prefs131 td:not(:first-child){text-align:center;width:120px}
+.prefs131 thead th{border-top:0;color:var(--muted);font-weight:500;font-size:12px}
+.prefs131 input[type=checkbox]{width:16px;height:16px;accent-color:var(--text)}
+.profile-grid131 .person{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.profile-grid131 .person>div{display:flex;flex-direction:column;gap:2px}
+.profile-grid131 .person small{color:var(--muted);font-size:12px}

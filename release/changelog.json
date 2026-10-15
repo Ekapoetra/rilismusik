@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.11",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Dua halaman baru: Kotak Masuk (Notifikasi | Percakapan) dari lonceng/ikon chat, dan Profil (Akun · Label & akses · Preferensi notifikasi) dari avatar.",
+      "en": "Two new pages: Inbox (Notifications | Conversations) from the bell/chat icons, and Profile (Account · Labels & access · Notification preferences) from the avatar."
+    },
+    "entries": [
+      {
+        "id": "dev11-inbox",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · lonceng & chat → Kotak Masuk",
+            "en": "Header · bell & chat → Inbox"
+          }
+        },
+        "title": {
+          "id": "Kotak Masuk: notifikasi per hari + percakapan dalam satu halaman",
+          "en": "Inbox: notifications per day + conversations on one page"
+        },
+        "detail": {
+          "id": "Lonceng dan ikon chat tidak lagi membuka popover kecil, melainkan halaman penuh dengan dua tab. Notifikasi dikelompokkan per hari, difilter per jenis (Pembayaran, Rilisan, Tiket & chat, Personal, Sistem), \"Tandai semua dibaca\", dan setiap baris mengarah ke objeknya. Percakapan memuat chat label, chat internal, dan tiket bantuan dengan penanda status dari Kamus; membuka thread memakai tampilan chat yang sudah ada.",
+          "en": "The bell and chat icons no longer open a small popover but a full page with two tabs. Notifications are grouped per day, filtered by type (Payments, Releases, Tickets & chat, Personal, System), \"Mark all read\", and every row links to its object. Conversations list label chat, internal chat and support tickets with Guide status indicators; opening a thread uses the existing chat view."
+        }
+      },
+      {
+        "id": "dev11-profile",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Profil: halaman khusus saat avatar diklik",
+          "en": "Profile: a dedicated page when the avatar is clicked"
+        },
+        "detail": {
+          "id": "Tiga tab. Akun: data akun (ubah lewat drawer yang sudah ada), tema & bahasa, ganti kata sandi (validasi: minimal 10 karakter, ulangan harus sama), sesi aktif dengan keluar dari perangkat lain. Label & akses: peran, status akses, daftar kewenangan memakai penanda Kamus. Preferensi notifikasi: kanal dalam-aplikasi / email per jenis kejadian, tersimpan di browser.",
+          "en": "Three tabs. Account: account data (edited via the existing drawer), theme & language, change password (validation: at least 10 characters, repeat must match), active sessions with sign-out of other devices. Labels & access: role, access status, permission list using Guide indicators. Notification preferences: in-app / email channel per event type, saved in the browser."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.10",
     "date": "2026-10-16",
     "summary": {
