@@ -47,14 +47,15 @@ html:root body.dashboard124.dashboard124 .withdraw-heading124 .detail-arrow124{d
      (ciri bias kaca), memudar dalam ±22 px;
    • rim 1 px: putih di atas & bawah, warna indikator di sisi KIRI (kuat) dan KANAN (lembut),
      abu tipis di antaranya — warna hanya di kiri–kanan, tidak di atas/bawah;
-   • bayangan hanya ke bawah: puncak −9 L* tepat di bawah tepi, hilang ±10 px, bersemu warna.
+   • bayangan hanya ke bawah, NETRAL (tanpa semu warna indikator) dan rendah — dev.9: pemilik
+     merasa dev.8 "terlalu melayang", jadi offset/blur dikurangi (pil 2/6 px, chip 1/4 px).
    Pil memakai ::before bertopeng untuk rim; chip & tooltip tidak punya pseudo-elemen bebas
    (::before = titik status, ::after dimatikan v111/v125) → rim digambar lewat border transparan
    + lapisan background-origin border-box. */
 :root{--g-top131:#fefefe;--g-bot131:#f8f8f8;--g-lens131:#0000000b;--g-lens-w131:22px;--g-rim-top131:#ffffff;--g-rim-side131:#00000012;
-  --g-sh1-131:#0000000a;--g-sh2-131:#0000001a;--g-sh131:0 5px 10px -4px;--g-tint131:34%;--g-tint-r131:9%}
+  --g-sh1-131:#0000000a;--g-sh2-131:#00000016;--g-sh131:0 2px 6px -2px;--g-tint131:34%;--g-tint-r131:9%}
 :root[data-theme=dark]{--g-top131:#ffffff18;--g-bot131:#ffffff08;--g-lens131:#00000040;--g-rim-top131:#ffffff36;--g-rim-side131:#ffffff14;
-  --g-sh1-131:#00000066;--g-sh2-131:#000000b0;--g-tint131:52%;--g-tint-r131:24%}
+  --g-sh1-131:#00000066;--g-sh2-131:#00000099;--g-tint131:52%;--g-tint-r131:24%}
 
 .delta131,[data-tip131]::after,
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge),
@@ -65,7 +66,7 @@ html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.b
   --g-rim-h131:linear-gradient(90deg,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint131),transparent) 0%,color-mix(in srgb,var(--tone131,var(--muted)) 20%,transparent) 14%,var(--g-rim-side131) 32%,var(--g-rim-side131) 74%,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint-r131),transparent) 100%);
   position:relative;isolation:isolate;border:0!important;
   background:var(--g-lens-layer131),var(--g-fill131)!important;
-  box-shadow:0 1px 1px var(--g-sh1-131),var(--g-sh131) color-mix(in srgb,var(--tone131,var(--muted)) 18%,var(--g-sh2-131))!important}
+  box-shadow:0 1px 1px var(--g-sh1-131),var(--g-sh131) var(--g-sh2-131)!important}
 /* Rim pil & kepala detail: cincin 1 px bertopeng. */
 .delta131::before,.md-head131 small::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:-1;
   background:var(--g-rim-v131),var(--g-rim-h131);
@@ -76,7 +77,10 @@ html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.b
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){border:1px solid transparent!important;
   background:var(--g-lens-layer131) padding-box,var(--g-fill131) padding-box,linear-gradient(var(--surface),var(--surface)) padding-box,var(--g-rim-v131) border-box,var(--g-rim-h131) border-box!important}
 /* Chip lebih kecil: lensa & bayangan diperpendek proporsional; padding dikurangi 1 px untuk border. */
-html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--g-lens131:#00000007;--g-lens-w131:14px;--g-sh131:0 3px 9px -3px;padding:2px 7px!important}
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--g-lens131:#00000007;--g-lens-w131:14px;--g-sh131:0 1px 4px -1px;padding:2px 7px!important;
+  /* dev.9: hanya titik yang berwarna; teks chip memakai warna teks biasa. Rim tetap memakai warna penanda. */
+  --tone131:var(--status111,currentColor);color:var(--text)!important}
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge)::before{background:var(--status111,currentColor)!important}
 /* Pil persentase: lapang (≈30 px), angka warna teks, segitiga warna metrik. */
 html:root .delta131{--tone131:var(--delta131);display:inline-flex;align-items:center;gap:6px;padding:7px 11px 7px 9px;border-radius:999px;
   font-size:12px!important;line-height:1;color:var(--text)!important;font-variant-numeric:tabular-nums}

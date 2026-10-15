@@ -124,3 +124,29 @@ if(typeof enhanceUI124==='function'){
   let busy=false;
   new MutationObserver(()=>{if(busy)return;busy=true;try{sealEverywhere131(dialog);}finally{busy=false;}}).observe(dialog,{childList:true,subtree:true});
 })();
+
+/* dev.9 — warna penanda mengikuti Kamus Penanda (Standar & Penanda):
+   biru = menunggu/diproses, oranye = perlu tindakan, merah = lewat tenggat,
+   hijau = selesai/terkonfirmasi, netral = ditutup/kedaluwarsa. Temuan audit:
+   "Baru" dan "Diajukan" (tiket) dipetakan netral padahal keduanya antrean
+   → biru; penanda akses di halaman Label (Normal/Dibatasi/Ditangguhkan) belum
+   masuk sistem status111 (warna & titik berbeda) → dinormalkan. */
+const toneMap131=[
+  [/^(baru|new|diajukan|submitted)$/i,'blue'],
+  [/^(normal)$/i,'neutral'],
+  [/^(dibatasi|limited)$/i,'mustard'],
+  [/^(ditangguhkan|suspended)$/i,'red'],
+  [/^(aktif|active)$/i,'green'],
+  [/^(belum aktif|not yet active)$/i,'blue'],
+  [/^(lama tidak beraktivitas|inactive for a while|nonoperasional|nonoperational)$/i,'neutral'],
+];
+function fixTones131(root=document){
+  root.querySelectorAll('.badge,.pill107,.status111,.ten-chip').forEach(el=>{
+    if(el.closest('.package104,.plan9'))return;
+    const txt=el.textContent.trim();
+    const hit=toneMap131.find(([re])=>re.test(txt));if(!hit)return;
+    el.classList.add('status111');el.dataset.tone=hit[1];
+  });
+}
+const passBeforeTones131=glassPass131;
+glassPass131=function(root=document){passBeforeTones131(root);fixTones131(root===document?document:root);};

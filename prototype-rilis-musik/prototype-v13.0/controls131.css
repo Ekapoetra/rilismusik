@@ -13,7 +13,7 @@ html:root .theme111 .theme-thumb111{position:absolute;top:3px;left:3px;width:20p
   background:linear-gradient(180deg,#ffffff,#f0f0f3)!important;
   box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 #00000008,0 1px 2px #0000002e,0 3px 7px #00000024!important;
   transform:translateX(0)!important;transition:transform .5s cubic-bezier(.34,1.56,.64,1),background .3s ease!important}
-html:root .theme111 .theme-thumb111 svg{width:11px!important;height:11px!important;color:#8a8a90;opacity:.9}
+html:root .theme111 .theme-thumb111 svg{display:none!important} /* dev.9: tanpa ikon */
 html:root .theme111.is-dark .theme-track111{background:linear-gradient(180deg,#232326,#39393e)!important;
   box-shadow:inset 0 2px 5px #00000080,inset 0 1px 1px #00000066,inset 0 -1px 0 #ffffff1a,0 1px 0 #ffffff14!important}
 html:root .theme111.is-dark .theme-thumb111{transform:translateX(20px)!important;background:linear-gradient(180deg,#f7f7f9,#e4e4e8)!important}

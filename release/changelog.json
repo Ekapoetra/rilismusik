@@ -1,5 +1,75 @@
 [
   {
+    "version": "1.1.0-dev.9",
+    "date": "2026-10-15",
+    "summary": {
+      "id": "Bayangan kaca netral & lebih rendah; warna penanda diaudit terhadap Kamus Penanda (teks chip netral, hanya titik berwarna); toggle tema tanpa ikon; tombol header tanpa blok hover.",
+      "en": "Neutral, lower glass shadow; indicator colours audited against the Indicator Guide (neutral chip text, only the dot coloured); theme toggle without icon; header buttons without hover block."
+    },
+    "entries": [
+      {
+        "id": "dev9-shadow",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu metrik & daftar pekerjaan",
+            "en": "Dashboard · metric cards & work list"
+          }
+        },
+        "title": {
+          "id": "Bayangan pil & chip: netral dan tidak melayang",
+          "en": "Pill & chip shadow: neutral and grounded"
+        },
+        "detail": {
+          "id": "Semu warna indikator pada bayangan dihapus; offset/blur dikurangi (pil 2/6 px, chip 1/4 px). Profil di bawah tepi: pil 91·94·96·97 (dev.8: 86·89·91·92), chip 93·97·97.",
+          "en": "Indicator tint removed from the shadow; offset/blur reduced (pill 2/6 px, chip 1/4 px). Profile below the edge: pill 91·94·96·97 (dev.8: 86·89·91·92), chip 93·97·97."
+        }
+      },
+      {
+        "id": "dev9-tones",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · daftar pekerjaan; Label",
+            "en": "Dashboard · work list; Labels"
+          }
+        },
+        "title": {
+          "id": "Warna penanda mengikuti Kamus Penanda; teks chip netral",
+          "en": "Indicator colours follow the Indicator Guide; neutral chip text"
+        },
+        "detail": {
+          "id": "Aturan kamus: biru = menunggu/diproses, oranye = perlu tindakan, merah = lewat tenggat, hijau = selesai, netral = ditutup/kedaluwarsa. Diperbaiki: \"Baru\" dan \"Diajukan\" (tiket) tadinya netral → biru; penanda akses di halaman Label (Normal/Dibatasi/Ditangguhkan) tadinya di luar sistem status (kuning lain, tanpa titik) → netral/oranye/merah dengan titik. Pada chip kaca hanya titik dan rim yang berwarna; teks memakai warna teks biasa.",
+          "en": "Guide rule: blue = waiting/processing, orange = action needed, red = past deadline, green = done, neutral = closed/expired. Fixed: \"New\" and \"Submitted\" (tickets) were neutral → blue; access indicators on the Labels page (Normal/Limited/Suspended) sat outside the status system (different yellow, no dot) → neutral/orange/red with a dot. On glass chips only the dot and rim carry the colour; text uses the normal text colour."
+        }
+      },
+      {
+        "id": "dev9-header",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Header",
+            "en": "Header"
+          }
+        },
+        "title": {
+          "id": "Toggle tema tanpa ikon; tombol bahasa/notifikasi/chat/profil tanpa blok hover",
+          "en": "Theme toggle without icon; language/notification/chat/profile buttons without hover block"
+        },
+        "detail": {
+          "id": "Ikon matahari/bulan di dalam knop disembunyikan. Latar hover pada empat tombol header dihapus; fokus keyboard tetap diberi garis luar.",
+          "en": "The sun/moon icon inside the knob is hidden. Hover background on the four header buttons removed; keyboard focus still shows an outline."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.8",
     "date": "2026-10-15",
     "summary": {
