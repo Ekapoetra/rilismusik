@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.10",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Satu standar kaca untuk pil & chip: rim chip kini benar-benar berwarna penanda; tema gelap dirancang ulang sebagai lempeng kaca (bukan outline putih).",
+      "en": "One glass standard for pill & chip: the chip rim now truly carries the indicator colour; dark theme redesigned as a glass slab (not a white outline)."
+    },
+    "entries": [
+      {
+        "id": "dev10-chip-rim",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · daftar pekerjaan",
+            "en": "Dashboard · work list"
+          }
+        },
+        "title": {
+          "id": "Rim chip mengikuti warna penanda (perbaikan dev.9)",
+          "en": "Chip rim follows the indicator colour (dev.9 fix)"
+        },
+        "detail": {
+          "id": "Di dev.9 rim chip tampak abu karena deklarasi warna penanda tertimpa aturan chip yang lebih tua; kini warna penanda (--status111) dipakai sekali untuk titik dan rim, teks tetap netral. Pil dan chip memakai satu set variabel yang sama — chip hanya versi berskala.",
+          "en": "In dev.9 the chip rim looked grey because the indicator-colour declaration was overridden by an older chip rule; now the indicator colour (--status111) is used once for the dot and the rim, text stays neutral. Pill and chip share one set of variables — the chip is just a scaled version."
+        }
+      },
+      {
+        "id": "dev10-dark-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · tema gelap",
+            "en": "Dashboard · dark theme"
+          }
+        },
+        "title": {
+          "id": "Kaca tema gelap: lempeng lebih terang dari kartu, sorot atas, sisi lembut",
+          "en": "Dark-theme glass: slab brighter than the card, top highlight, soft sides"
+        },
+        "detail": {
+          "id": "Analisis dev.9: isi hampir sama dengan kartu, rim putih 43 L* dan sisi berwarna 52% terbaca sebagai outline, bayangan hitam tak terlihat — tidak ada kesan kaca. Dari lima varian mock, dipilih D: isi +15 L* di atas kartu memudar ke bawah, lensa kiri kuat, sorot 1 px di dalam tepi atas, rim atas terang → bawah redup, sisi berwarna 30%/14%, bayangan hitam ke bawah (−5 L*).",
+          "en": "dev.9 analysis: fill nearly equal to the card, a 43 L* white rim and 52% coloured sides read as an outline, black shadow invisible — no glass feel. Of five mock variants, D was chosen: fill +15 L* above the card fading downward, strong left lens, 1 px inner top highlight, bright top rim → dim bottom, coloured sides 30%/14%, black downward shadow (−5 L*)."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.9",
     "date": "2026-10-15",
     "summary": {

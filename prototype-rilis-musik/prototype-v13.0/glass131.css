@@ -54,19 +54,23 @@ html:root body.dashboard124.dashboard124 .withdraw-heading124 .detail-arrow124{d
    + lapisan background-origin border-box. */
 :root{--g-top131:#fefefe;--g-bot131:#f8f8f8;--g-lens131:#0000000b;--g-lens-w131:22px;--g-rim-top131:#ffffff;--g-rim-side131:#00000012;
   --g-sh1-131:#0000000a;--g-sh2-131:#00000016;--g-sh131:0 2px 6px -2px;--g-tint131:34%;--g-tint-r131:9%}
-:root[data-theme=dark]{--g-top131:#ffffff18;--g-bot131:#ffffff08;--g-lens131:#00000040;--g-rim-top131:#ffffff36;--g-rim-side131:#ffffff14;
-  --g-sh1-131:#00000066;--g-sh2-131:#00000099;--g-tint131:52%;--g-tint-r131:24%}
+/* Gelap (dev.10, varian D dari mock darkglass): lempeng kaca lebih terang dari kartu (#141415),
+   lensa kiri kuat, sorot 1 px di dalam tepi atas, rim atas terang → bawah redup, sisi berwarna
+   penanda lebih lembut (30%/14%) agar tidak terbaca sebagai outline, bayangan hitam ke bawah. */
+:root[data-theme=dark]{--g-top131:#ffffff24;--g-bot131:#ffffff0c;--g-lens131:#00000066;--g-rim-top131:#ffffff26;--g-rim-side131:#ffffff14;--g-rim-bot131:#ffffff0c;
+  --g-inner131:inset 0 1px 0 #ffffff1f;--g-sh1-131:#00000080;--g-sh2-131:#000000a6;--g-tint131:30%;--g-tint-r131:14%}
+:root{--g-rim-bot131:var(--g-rim-top131)}
 
 .delta131,[data-tip131]::after,
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge),
 .md-head131 small{
   --g-lens-layer131:linear-gradient(90deg,var(--g-lens131) 0,var(--g-lens131) calc(var(--g-lens-w131) * .3),color-mix(in srgb,var(--g-lens131) 40%,transparent) calc(var(--g-lens-w131) * .62),transparent var(--g-lens-w131));
   --g-fill131:linear-gradient(180deg,var(--g-top131),var(--g-bot131));
-  --g-rim-v131:linear-gradient(180deg,var(--g-rim-top131) 0%,var(--g-rim-top131) 14%,transparent 36%,transparent 68%,var(--g-rim-top131) 92%);
+  --g-rim-v131:linear-gradient(180deg,var(--g-rim-top131) 0%,var(--g-rim-top131) 14%,transparent 36%,transparent 68%,var(--g-rim-bot131) 92%);
   --g-rim-h131:linear-gradient(90deg,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint131),transparent) 0%,color-mix(in srgb,var(--tone131,var(--muted)) 20%,transparent) 14%,var(--g-rim-side131) 32%,var(--g-rim-side131) 74%,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint-r131),transparent) 100%);
   position:relative;isolation:isolate;border:0!important;
   background:var(--g-lens-layer131),var(--g-fill131)!important;
-  box-shadow:0 1px 1px var(--g-sh1-131),var(--g-sh131) var(--g-sh2-131)!important}
+  box-shadow:var(--g-inner131,0 0 0 0 transparent),0 1px 1px var(--g-sh1-131),var(--g-sh131) var(--g-sh2-131)!important}
 /* Rim pil & kepala detail: cincin 1 px bertopeng. */
 .delta131::before,.md-head131 small::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:-1;
   background:var(--g-rim-v131),var(--g-rim-h131);
@@ -78,8 +82,8 @@ html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.b
   background:var(--g-lens-layer131) padding-box,var(--g-fill131) padding-box,linear-gradient(var(--surface),var(--surface)) padding-box,var(--g-rim-v131) border-box,var(--g-rim-h131) border-box!important}
 /* Chip lebih kecil: lensa & bayangan diperpendek proporsional; padding dikurangi 1 px untuk border. */
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--g-lens131:#00000007;--g-lens-w131:14px;--g-sh131:0 1px 4px -1px;padding:2px 7px!important;
-  /* dev.9: hanya titik yang berwarna; teks chip memakai warna teks biasa. Rim tetap memakai warna penanda. */
-  --tone131:var(--status111,currentColor);color:var(--text)!important}
+  /* dev.9: hanya titik & rim yang berwarna (warna penanda = --status111); teks chip memakai warna teks biasa. */
+  color:var(--text)!important}
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge)::before{background:var(--status111,currentColor)!important}
 /* Pil persentase: lapang (≈30 px), angka warna teks, segitiga warna metrik. */
 html:root .delta131{--tone131:var(--delta131);display:inline-flex;align-items:center;gap:6px;padding:7px 11px 7px 9px;border-radius:999px;
@@ -99,7 +103,7 @@ html:root body.dashboard124.dashboard124 .metric124 .value-row131>strong[data-ti
 /* Chip status: kecil, tepat setelah nama pekerjaan (dipindah oleh glass131.js). */
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.work-top9>div:first-child>strong,.action-row>.grow>strong){display:flex!important;flex-wrap:wrap;align-items:center;gap:4px 8px}
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.work-badges9,.states108){display:inline-flex!important;gap:5px!important;margin:0!important;flex:0 0 auto!important;order:0!important;grid-column:auto!important;grid-row:auto!important;max-width:none!important;justify-content:flex-start!important}
-html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--tone131:currentColor;display:inline-flex;align-items:center;padding:3px 8px!important;border-radius:999px!important;font-size:11px!important;line-height:14px!important;white-space:nowrap;vertical-align:middle}
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--tone131:var(--status111,currentColor);display:inline-flex;align-items:center;padding:3px 8px!important;border-radius:999px!important;font-size:11px!important;line-height:14px!important;white-space:nowrap;vertical-align:middle}
 .md-head131 small{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px}
 
 /* Seal label terverifikasi, di mana pun nama label tampil (glass131.js). */
