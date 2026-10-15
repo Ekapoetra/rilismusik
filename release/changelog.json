@@ -1,5 +1,115 @@
 [
   {
+    "version": "1.1.0-dev.12",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Popover ringkas lonceng/chat kembali (+ tautan Kotak Masuk); Chat Center dua panel; Profil dirancang ulang sebagai daftar pengaturan; kaca tema gelap menyatu dengan kartu; ikon toggle hanya saat bergeser; audit Kamus Penanda.",
+      "en": "Quick bell/chat popovers are back (+ Inbox link); two-pane Chat Center; Profile redesigned as a settings list; dark glass blends with the card; toggle icon only while sliding; Indicator Guide audit."
+    },
+    "entries": [
+      {
+        "id": "dev12-popover",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · lonceng & chat",
+            "en": "Header · bell & chat"
+          }
+        },
+        "title": {
+          "id": "Popover ringkas tetap, dengan tautan \"Buka Kotak Masuk\"",
+          "en": "Quick popover kept, with an \"Open Inbox\" link"
+        },
+        "detail": {
+          "id": "Lonceng dan ikon chat membuka tampilan cepat seperti semula; judul popover diberi tautan ke halaman Kotak Masuk.",
+          "en": "The bell and chat icons open the quick view as before; the popover title links to the Inbox page."
+        }
+      },
+      {
+        "id": "dev12-chat-center",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Kotak Masuk · Percakapan",
+            "en": "Inbox · Conversations"
+          }
+        },
+        "title": {
+          "id": "Chat Center: daftar thread di kiri, percakapan di kanan",
+          "en": "Chat Center: thread list on the left, conversation on the right"
+        },
+        "detail": {
+          "id": "Thread = chat label, chat internal, tiket. Pencarian, saringan \"menunggu jawabanku\" (pesan terakhir bukan dariku), penanda status Kamus, gelembung pesan milikku/lawan bicara, kotak balasan (Enter mengirim, Shift+Enter baris baru). Balasan tersimpan di data lokal.",
+          "en": "Threads = label chat, internal chat, tickets. Search, \"awaiting my reply\" filter (last message not mine), Guide status indicator, my/their message bubbles, composer (Enter sends, Shift+Enter new line). Replies are stored locally."
+        }
+      },
+      {
+        "id": "dev12-profile",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Profil dirancang ulang: kartu identitas + daftar pengaturan",
+          "en": "Profile redesigned: identity card + settings list"
+        },
+        "detail": {
+          "id": "Satu kolom 820 px: kartu identitas (avatar, nama, email, chip peran & akses, tombol ubah), tab, lalu kelompok baris \"judul · keterangan · kontrol di kanan\". Formulir panjang dipindah ke drawer (ubah data, ubah kata sandi); saklar kecil untuk preferensi; tanpa ikon (i) yatim.",
+          "en": "One 820 px column: identity card (avatar, name, email, role & access chips, edit button), tabs, then groups of \"title · description · control on the right\" rows. Long forms moved to drawers (edit data, change password); small switches for preferences; no orphan (i) icons."
+        }
+      },
+      {
+        "id": "dev12-dark-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · tema gelap",
+            "en": "Dashboard · dark theme"
+          }
+        },
+        "title": {
+          "id": "Kaca tema gelap menyatu dengan kartu (varian G)",
+          "en": "Dark glass blends with the card (variant G)"
+        },
+        "detail": {
+          "id": "Tanpa garis rim yang terbaca, tanpa bayangan lebar; isi hanya +4 L* dari kartu; kesan kaca dari sorot atas berupa gradien lembut dan warna penanda sebagai cahaya di sisi kiri (radial), bukan garis. Ikon toggle tema hanya muncul saat knop bergeser.",
+          "en": "No readable rim line, no wide shadow; fill only +4 L* above the card; the glass feel comes from a soft gradient top highlight and the indicator colour as a glow on the left side (radial), not a line. The theme-toggle icon appears only while the knob slides."
+        }
+      },
+      {
+        "id": "dev12-kamus-audit",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "standards9",
+          "menu": {
+            "id": "Standar & Penanda · Kamus Penanda",
+            "en": "Standards & Indicators · Indicator Guide"
+          }
+        },
+        "title": {
+          "id": "Audit Kamus Penanda (dokumen, belum diterapkan)",
+          "en": "Indicator Guide audit (document, not applied yet)"
+        },
+        "detail": {
+          "id": "prototype-rilis-musik/AUDIT-KAMUS-PENANDA.md: 8 temuan fungsi/struktur, 9 kata, 8 warna, penyesuaian ke chip kaca, dan daftar ubah/kembangkan/hapus. Menunggu keputusan pemilik untuk K5, K7, W3–W5.",
+          "en": "prototype-rilis-musik/AUDIT-KAMUS-PENANDA.md: 8 function/structure findings, 9 wording, 8 colour, alignment with glass chips, and a change/develop/remove list. Awaiting owner decisions on K5, K7, W3–W5."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.11",
     "date": "2026-10-16",
     "summary": {
