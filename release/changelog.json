@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.17",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Profil: ubah data akun & kata sandi langsung di kartu; kartu Penarikan periode ini mengikuti siklus bulanan (laporan → potensi ≥ Rp 1 jt → pengajuan s.d. tgl 14 → sisa ke pemantauan).",
+      "en": "Profile: edit account data & password right inside the cards; Period Withdrawals follows the monthly cycle (report → potential ≥ Rp 1M → requests until the 14th → remainder to monitoring)."
+    },
+    "entries": [
+      {
+        "id": "dev17-profile-inline",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Ubah data akun & kata sandi langsung di kartu",
+          "en": "Edit account data & password inside the cards"
+        },
+        "detail": {
+          "id": "Kartu Kinerja dihapus, diganti kartu Kata sandi berisi isian langsung (meter kekuatan, validasi). \"Ubah\" di Data akun mengubah kartu menjadi isian di tempat dengan Simpan/Batal (Esc membatalkan) — tidak lagi membuka panel dari kanan. Tetap muat 1366×768.",
+          "en": "The Performance card is removed and replaced by a Password card with inline fields (strength meter, validation). \"Edit\" on Account data turns the card into in-place fields with Save/Cancel (Esc cancels) — no side panel. Still fits 1366×768."
+        }
+      },
+      {
+        "id": "dev17-payout-cycle",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period Withdrawals"
+          }
+        },
+        "title": {
+          "id": "Penarikan periode ini mengikuti siklus bulanan",
+          "en": "Period Withdrawals follows the monthly cycle"
+        },
+        "detail": {
+          "id": "Ringkasan laporan Believe (total royalti, bisa dicairkan ≥ Rp 1 jt + jumlah label, di bawah ambang yang bergulir); angka utama \"Diajukan dari maksimal\"; batang berskala potensi maksimal: dibayar · menunggu bayar · diperiksa · belum/tidak diajukan; garis waktu 2 (laporan) · 14 (tutup pengajuan) · 20 (batas bayar) · laporan berikutnya dengan penanda hari ini; dua ajakan: sisa belum dibayar & sisa tidak diajukan → Pemantauan Royalti. Angka laporan/potensi = data pratinjau.",
+          "en": "Believe report summary (total royalties, withdrawable ≥ Rp 1M + label count, below-threshold carried over); headline \"Requested of maximum\"; bar scaled to the maximum potential: paid · awaiting payment · in review · not (yet) requested; timeline 2 (report) · 14 (requests close) · 20 (payment due) · next report with a today marker; two calls to action: unpaid remainder & unrequested remainder → Royalty Monitoring. Report/potential figures are preview data."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.16",
     "date": "2026-10-16",
     "summary": {

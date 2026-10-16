@@ -195,3 +195,47 @@ html:root body .geography124>footer{display:flex;align-items:center;flex-wrap:wr
 html:root body .geography124 .geo-cov131 strong{color:var(--text)!important}
 html:root body .geography124>footer .geo-cov131 .btn{background:var(--soft)!important;color:var(--text)!important;border-radius:999px!important;padding:6px 12px!important;font-size:12px!important;border:0!important;text-decoration:none!important}
 html:root body .geography124>footer .geo-cov131 .btn:hover{background:var(--hover)!important}
+
+/* dev.17 — Penarikan periode ini: siklus bulanan (laporan → potensi ≥ Rp 1 jt → pengajuan → sisa ke pemantauan) */
+.withdrawal127 .cy-phase131{display:inline-flex;margin-top:8px;font-size:11px;padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--text)}
+.withdrawal127 .cy-facts131{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 0}
+.withdrawal127 .cy-facts131>div{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--soft) 60%,transparent)}
+.withdrawal127 .cy-facts131 small{font-size:11px;color:var(--muted)}
+.withdrawal127 .cy-facts131 b{font-size:15px;font-weight:500}
+.withdrawal127 .cy-facts131 span{font-size:11px;color:var(--muted)}
+.withdrawal127 .cy-main131{display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px}
+.withdrawal127 .cy-main131 small{display:block;font-size:12px;color:var(--muted)}
+.withdrawal127 .cy-main131 strong{display:block;font-size:30px;font-weight:500;letter-spacing:-.6px;line-height:1.15}
+.withdrawal127 .cy-main131 span{font-size:12px;color:var(--muted)}
+.withdrawal127 .seg131.left{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--text) 10%,transparent) 0 4px,transparent 4px 8px),color-mix(in srgb,var(--text) 4%,var(--surface));border-radius:0 999px 999px 0}
+.withdrawal127 .seg131.review{border-radius:0!important}
+.withdrawal127 .cy-cap131{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--text);border-radius:2px}
+.withdrawal127 .wb131-dot.left{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--text) 35%,transparent) 0 2px,transparent 2px 4px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 25%,transparent)}
+.withdrawal127 .cy-cols131{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.withdrawal127 .cy-time131{position:relative;height:46px;margin:18px 6px 4px}
+.withdrawal127 .cy-line131{position:absolute;left:0;right:0;top:6px;height:2px;border-radius:2px;background:var(--line)}
+.withdrawal127 .cy-line131 b{display:block;height:100%;border-radius:2px;background:color-mix(in srgb,var(--text) 45%,transparent)}
+.withdrawal127 .cy-step131{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:3px;white-space:nowrap}
+.withdrawal127 .cy-step131 i{width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:inset 0 0 0 2px var(--line)}
+.withdrawal127 .cy-step131.done i{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--text) 45%,transparent);background:color-mix(in srgb,var(--text) 45%,transparent)}
+.withdrawal127 .cy-step131 small{font-size:11px;color:var(--text)}
+.withdrawal127 .cy-step131 em{font-style:normal;font-size:10.5px;color:var(--muted)}
+.withdrawal127 .cy-step131:first-of-type{transform:none;align-items:flex-start}
+.withdrawal127 .cy-step131:last-of-type{transform:translateX(-100%);align-items:flex-end}
+.withdrawal127 .cy-today131{position:absolute;top:-16px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
+.withdrawal127 .cy-today131 small{font-size:10.5px;padding:1px 7px;border-radius:999px;background:var(--text);color:var(--bg);white-space:nowrap}
+.withdrawal127 .cy-today131::after{content:"";width:2px;height:12px;background:var(--text)}
+.withdrawal127 .cy-calls131{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.withdrawal127 .cy-calls131 .wb131-call{margin-top:0}
+.withdrawal127 .cy-left131{border-style:dashed!important}
+/* dev.17 rapikan: ringkasan & angka utama satu baris, dua ajakan berdampingan, tonggak ujung rata. */
+.withdrawal127 .cy-top131{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:end;margin-top:12px}
+.withdrawal127 .cy-top131 .cy-main131{margin-top:0}
+.withdrawal127 .cy-top131 .cy-facts131{margin:0;grid-template-columns:repeat(3,auto)}
+.withdrawal127 .cy-top131 .cy-facts131>div{padding:8px 14px}
+.withdrawal127 .cy-step131.first{transform:none!important;align-items:flex-start!important}
+.withdrawal127 .cy-step131.last{transform:translateX(-100%)!important;align-items:flex-end!important}
+.withdrawal127 .cy-step131:first-of-type:not(.first),.withdrawal127 .cy-step131:last-of-type:not(.last){transform:translateX(-50%);align-items:center}
+.withdrawal127 .cy-calls131{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
+.withdrawal127 .wb131-pct{margin-top:4px}
+@media (max-width:1100px){.withdrawal127 .cy-top131{grid-template-columns:1fr}}

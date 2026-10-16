@@ -70,26 +70,37 @@ function profilePage131(){
       <div><small>${last?t('Selesai ','Completed ')+monthName131(last):t('Penyelesaian','Completion')}</small><strong>${cur?`${cur[1]}<em>/${cur[0]}</em>`:'—'}</strong><span>${rate!=null?`${rate}% ${t('pekerjaan tuntas','of work closed')}`:''}</span></div>
       <div><small>${t('Sesi aktif','Active sessions')}</small><strong>2</strong><span>${t('perangkat ini + 1 lainnya','this device + 1 other')}</span></div>
     </div></section>`;
-  const maxA=Math.max(1,...months.map(k=>sc[k][0]));
-  const perf=`<section class="panel g131">${ghead131(t('Kinerja','Performance'),btn(t('Detail','Details'),'nav','data-page="profile"','small'))}<div class="perf131"><div class="pmonths131">${months.slice(-3).map(k=>`<div class="pm131"><div class="pbars131"><i class="a" style="height:${sc[k][0]/maxA*100}%"></i><i class="b" style="height:${sc[k][1]/maxA*100}%"></i></div><b>${sc[k][1]}<em>/${sc[k][0]}</em></b><small>${monthName131(k).slice(0,3)}</small></div>`).join('')||`<p class="hint131">${t('Belum ada data.','No data yet.')}</p>`}</div>
-    <ul class="pfacts131"><li><span>${t('Isu bulan ini','Issues this month')}</span><b>${cur?cur[2]:0}</b></li><li><span>${t('Cuti terpakai 2026','Leave used 2026')}</span><b>${leaveDays} ${t('hari','days')}</b></li><li><span>${t('Pengingat KPI','KPI reminder')}</span><b>${rate!=null&&rate>=90?t('Di atas target','Above target'):t('Pantau','Watch')}</b></li></ul></div>
-    <div class="plegend131"><span><i class="a"></i>${t('Ditangani','Handled')}</span><span><i class="b"></i>${t('Tuntas','Closed')}</span></div></section>`;
-  return `<div class="profile4-131">${hero}<div class="pgrid131">${akunTab131(p,d)}${perf}${secTab131(p)}</div></div>`;
+  return `<div class="profile4-131">${hero}<div class="pgrid131">${akunTab131(p,d)}${pwCard131()}${secTab131(p)}</div></div>`;
 }
+/* dev.17: Data akun diubah LANGSUNG di kartu (bukan drawer kanan). Klik Ubah → kolom jadi isian;
+   Simpan/Batal di kepala kartu; Esc membatalkan. Menyimpan ke tempat yang sama dengan form v8. */
 function akunTab131(p,d){
-  const facts=[[t('Nama tampilan','Display name'),p.name],[t('Nama administrasi','Administrative name'),d.legal||p.name],['Email',p.email],[t('Telepon','Phone'),d.phone||'—'],[t('Alamat','Address'),d.location||'—'],[t('Kontrak','Contract'),d.contract||'—']];
-  return `<section class="panel g131">${ghead131(t('Data akun','Account data'),btn(t('Ubah','Edit'),'profile131-edit',`title="${t('Dokumen yang sudah diterbitkan tetap memakai data saat diterbitkan.','Issued documents keep the data they were issued with.')}"`,'small'))}<dl class="kv131">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</dl></section>`;
+  const ed=!!profile131.editAccount;
+  const facts=[['display',t('Nama tampilan','Display name'),p.name,'text','required maxlength="70"'],['legal',t('Nama administrasi','Administrative name'),d.legal||p.name,'text','required maxlength="100"'],['email','Email',p.email,'email','required'],['phone',t('Telepon','Phone'),d.phone||'','tel','maxlength="30"'],['address',t('Alamat','Address'),d.location||'','text','maxlength="200"'],['contract',t('Kontrak','Contract'),d.contract||'—',null,'']];
+  const note=t('Dokumen yang sudah diterbitkan tetap memakai data saat diterbitkan.','Issued documents keep the data they were issued with.');
+  if(!ed)return `<section class="panel g131">${ghead131(t('Data akun','Account data'),btn(t('Ubah','Edit'),'profile131-edit',`title="${note}"`,'small'))}<dl class="kv131">${facts.map(([,k,v])=>`<div><dt>${k}</dt><dd>${E(v||'—')}</dd></div>`).join('')}</dl></section>`;
+  return `<section class="panel g131 editing131"><form data-form="profile131-account" novalidate>${ghead131(t('Data akun','Account data'),`<span class="gact131">${btn(t('Batal','Cancel'),'profile131-edit-cancel','','small text')}<button type="submit" class="btn small primary">${t('Simpan','Save')}</button></span>`)}<div class="kv131 kvedit131">${facts.map(([n,k,v,type,extra])=>type?`<label><span>${k}</span><input name="${n}" type="${type}" value="${E(v)}" ${extra}></label>`:`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</div><p class="fb131" role="status"></p><p class="hint131 note131">${note}</p></form></section>`;
+}
+/* dev.17: kartu Kata sandi — ubah langsung di kartu (pengganti kartu Kinerja). */
+function pwCard131(){
+  return `<section class="panel g131"><form data-form="profile131-password" novalidate>${ghead131(t('Kata sandi','Password'),`<small class="gmeta131">${t('Diubah 3 bulan lalu','Changed 3 months ago')}</small>`)}<div class="pw131">
+    <label><span>${t('Kata sandi saat ini','Current password')}</span><input name="current" type="password" autocomplete="current-password" required></label>
+    <label><span>${t('Kata sandi baru','New password')}</span><input name="next" type="password" autocomplete="new-password" minlength="10" required></label>
+    <label><span>${t('Ulangi kata sandi baru','Repeat new password')}</span><input name="again" type="password" autocomplete="new-password" required></label>
+    <div class="pwmeter131" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <p class="fb131" role="status" id="form-feedback"></p>
+    <div class="pwfoot131"><span class="hint131">${t('Min. 10 karakter · perangkat lain diminta masuk lagi','Min. 10 characters · other devices must sign in again')}</span><button type="submit" class="btn small primary">${t('Perbarui','Update')}</button></div></div></form></section>`;
 }
 function secTab131(p){
   const ua=navigator.userAgent,browser=/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Firefox\//.test(ua)?'Firefox':/Safari\//.test(ua)?'Safari':t('Peramban','Browser'),os=/Windows/.test(ua)?'Windows':/Mac/.test(ua)?'macOS':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':'';
-  return `<section class="panel g131">${ghead131(t('Keamanan & tampilan','Security & appearance'))}<div class="rows131">`
-    +srow131(t('Kata sandi','Password'),t('Diubah 3 bulan lalu','Changed 3 months ago'),btn(t('Ubah','Change'),'profile131-password','','small'))
+  return `<section class="panel g131">${ghead131(t('Sesi & tampilan','Sessions & appearance'))}<div class="rows131">`
     +srow131(`${browser}${os?` · ${os}`:''}`,t('Perangkat ini','This device'),statusBadge111(t('Sesi ini','This session'),'green'))
     +srow131('Chrome · Android',t('Jakarta · 2 hari lalu','Jakarta · 2 days ago'),btn(t('Keluar','Sign out'),'profile131-signout','data-id="other"','small'))
     +srow131(t('Tema gelap','Dark theme'),'',themeControl106())
     +srow131(t('Bahasa','Language'),'',btn(state.lang==='id'?'English':'Indonesia','lang','','small'))
     +`</div></section>`;
 }
+function pwStrength131(v){let s=0;if(v.length>=10)s++;if(/[A-Z]/.test(v)&&/[a-z]/.test(v))s++;if(/\d/.test(v))s++;if(/[^A-Za-z0-9]/.test(v)||v.length>=16)s++;return s;}
 function aksesTab131(p){
   const level=k=>permission(k),toneOf=l=>l==='none'?'neutral':l==='direct'?'green':'blue',labelOf=l=>l==='none'?t('Tidak ada','None'):l==='direct'?t('Langsung','Direct'):t('Dibatasi','Limited');
   const labels=(data.v9&&data.v9.labels||[]).filter(l=>!l.master).slice(0,6);
@@ -113,7 +124,8 @@ function passwordDrawer131(){
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id;
-  if(a==='profile131-edit')account8();
+  if(a==='profile131-edit'){profile131.editAccount=true;render();document.querySelector('form[data-form="profile131-account"] input')?.focus();}
+  else if(a==='profile131-edit-cancel'){profile131.editAccount=false;render();}
   else if(a==='profile131-password')passwordDrawer131();
   else if(a==='profile131-signout')toast(id==='all'?t('Semua sesi lain diakhiri (simulasi).','All other sessions ended (simulation).'):t('Sesi diakhiri (simulasi).','Session ended (simulation).'));
   else if(a==='profile131-photo-save')savePhoto131();
@@ -138,13 +150,26 @@ document.addEventListener('pointerdown',e=>{
 });
 document.addEventListener('keydown',e=>{const fr=e.target.closest&&e.target.closest('#ph-frame131.editing');if(!fr||!profile131.photo)return;const st=.02,m={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];if(!m)return;e.preventDefault();profile131.photo.cx+=m[0];profile131.photo.cy+=m[1];layoutPhoto131();});
 document.addEventListener('submit',e=>{
+  const acc=e.target.closest('form[data-form="profile131-account"]');
+  if(acc){e.preventDefault();e.stopImmediatePropagation();
+    const fb=acc.querySelector('.fb131'),v=k=>acc.elements[k].value.trim(),bad=(k,m)=>{fb.textContent=m;acc.elements[k].focus();acc.elements[k].setAttribute('aria-invalid','true');};
+    acc.querySelectorAll('[aria-invalid]').forEach(i=>i.removeAttribute('aria-invalid'));
+    if(!v('display'))return bad('display',t('Nama tampilan wajib diisi.','Display name is required.'));
+    if(!v('legal'))return bad('legal',t('Nama administrasi wajib diisi.','Administrative name is required.'));
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email')))return bad('email',t('Format email tidak valid.','Invalid email format.'));
+    const p=me(),d=prof131();p.name=v('display');p.email=v('email').toLowerCase();
+    try{const u=user114(p.id);if(u){u.name=p.name;u.email=p.email;}}catch{}
+    Object.assign(d,{legal:v('legal'),phone:v('phone'),location:v('address')});
+    profile131.editAccount=false;if(typeof save8==='function')save8();else if(typeof save10==='function')save10();render();toast(t('Data akun tersimpan.','Account data saved.'));return;}
   const f=e.target.closest('form[data-form="profile131-password"]');if(!f)return;e.preventDefault();e.stopImmediatePropagation();
   const fb=f.querySelector('#form-feedback'),v=k=>f.elements[k].value;
   if(!v('current'))return fb.textContent=t('Isi kata sandi saat ini.','Enter your current password.');
   if(v('next').length<10)return fb.textContent=t('Kata sandi baru minimal 10 karakter.','New password needs at least 10 characters.');
   if(v('next')!==v('again'))return fb.textContent=t('Ulangan kata sandi tidak sama.','Repeated password does not match.');
-  f.reset();fb.textContent='';try{closeModal();}catch{}toast(t('Kata sandi diperbarui (simulasi).','Password updated (simulation).'));
+  f.reset();fb.textContent='';f.querySelector('.pwmeter131')?.removeAttribute('data-s');try{closeModal();}catch{}toast(t('Kata sandi diperbarui (simulasi).','Password updated (simulation).'));
 },true);
+document.addEventListener('input',e=>{const i=e.target.closest('form[data-form="profile131-password"] input[name="next"]');if(!i)return;const m=i.form.querySelector('.pwmeter131');if(m)m.dataset.s=i.value?pwStrength131(i.value):'';});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&profile131.editAccount&&e.target.closest('form[data-form="profile131-account"]')){e.preventDefault();profile131.editAccount=false;render();}});
 const modulePageBeforeProfile131=modulePage;
 modulePage=function(){if(v4.module==='profile131')return profilePage131();return modulePageBeforeProfile131();};
 /* setelah render: tata ulang gambar draf & beri fokus keyboard pada bingkai */

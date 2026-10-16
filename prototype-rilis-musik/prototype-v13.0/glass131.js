@@ -156,32 +156,42 @@ function arrowZones131(root=document){root.querySelectorAll('.metric124:not(:has
 const passBeforeArrow131=glassPass131;
 glassPass131=function(root=document){passBeforeArrow131(root);arrowZones131(root===document?document:root);};
 
-/* dev.16 — kartu "Penarikan periode ini" versi W-B (pilihan pemilik): satu batang alur status
-   (dibayar · menunggu pembayaran · menunggu pemeriksaan), angka di bawah tiap bagian, dan satu
-   kalimat tindakan dengan tenggat tanggal 21 (Kamus: pencairan terlambat mulai tgl 21 WIB).
-   Struktur .withdrawal-meter127 > .payout-track > i dipertahankan (tooltip & penanda dev.6). */
+/* dev.17 — kartu "Penarikan periode ini" mengikuti SIKLUS BULANAN pemilik:
+   1) awal bulan laporan Believe (CSV) diunggah → total royalti periode;
+   2) hanya label dengan saldo ≥ Rp 1 juta yang bisa mencairkan → POTENSI MAKSIMAL pencairan bulan ini;
+   3) pengajuan label (1–14) mengisi batang menuju potensi maksimal; dibayar/menunggu bayar/diperiksa;
+   4) setelah tgl 14, sisa yang TIDAK diajukan menjadi saldo yang dipantau (Pemantauan Royalti);
+      saldo < Rp 1 juta bergulir ke bulan berikutnya.
+   Angka laporan/potensi adalah data pratinjau (cycle131); pengajuan memakai withdrawalTotals7 & WD-091/092. */
 const wdStatus131={'WD-091':'review','WD-092':'pay'};
+const cycle131={report:'Believe_Agustus_2026.csv',uploaded:'2026-09-02',reportTotal:131640000,eligible:{labels:48,amount:118900000},below:{labels:312,amount:12740000},requestedLabels:31,threshold:1000000,windowEnd:14,payDue:20,today:18,nextReport:'1 Okt'};
 const wdBefore131=withdrawalCard124;
 withdrawalCard124=function(card){
   wdBefore131(card);
-  const d=withdrawalTotals7(),fmt=n=>new Intl.NumberFormat(state.lang==='id'?'id-ID':'en-US',{maximumFractionDigits:1}).format(n);
+  const c=cycle131,d=withdrawalTotals7(),fmt=n=>new Intl.NumberFormat(state.lang==='id'?'id-ID':'en-US',{maximumFractionDigits:1}).format(n);
+  const short=n=>{const v=n/1e6;return 'Rp '+fmt(v>=100?Math.round(v):Math.round(v*10)/10)+T(' jt',' M');};
   const paidIds=new Set((data.ops||[]).filter(x=>x.status==='paid').map(x=>x.id));
   const open=Object.entries(withdrawalAmount7).filter(([id])=>!paidIds.has(id)).map(([id,amount])=>({id,amount,st:wdStatus131[id]||'pay'}));
-  const pay=open.filter(x=>x.st==='pay'),rev=open.filter(x=>x.st==='review'),sum=a=>a.reduce((n,x)=>n+x.amount,0);
-  const segs=[['paid',d.paid,T('Dibayarkan','Paid'),null],['pay',sum(pay),T('Menunggu pembayaran','Awaiting payment'),pay.length],['review',sum(rev),T('Menunggu pemeriksaan','Awaiting review'),rev.length]].filter(s=>s[1]>0);
-  const pct=v=>d.total>0?v/d.total*100:0,paidPct=pct(d.paid);
-  let at=0;const extra=segs.map(s=>{const html=s[0]==='paid'?'':`<s class="seg131 ${s[0]}" style="left:${at}%;width:${pct(s[1])}%"></s>`;at+=pct(s[1]);return html;}).join('');
-  const today=18,due=21,daysLeft=due-today,openN=open.length;
+  const sum=a=>a.reduce((n,x)=>n+x.amount,0),pay=open.filter(x=>x.st==='pay'),rev=open.filter(x=>x.st==='review');
+  const max=Math.max(c.eligible.amount,d.total),notReq=Math.max(0,max-d.total),closed=c.today>c.windowEnd,daysPay=c.payDue-c.today;
+  const notLabels=Math.max(0,c.eligible.labels-c.requestedLabels);
+  const pct=v=>max>0?v/max*100:0,reqPct=pct(d.total);
+  const segs=[['paid',d.paid,T('Dibayarkan','Paid'),null],['pay',sum(pay),T('Menunggu pembayaran','Awaiting payment'),pay.length],['review',sum(rev),T('Menunggu pemeriksaan','Awaiting review'),rev.length],['left',notReq,closed?T('Tidak diajukan','Not requested'):T('Belum diajukan','Not yet requested'),notLabels]].filter(s=>s[1]>0);
+  let at=0;const extra=segs.map(s=>{const h=s[0]==='paid'?'':`<s class="seg131 ${s[0]}" style="left:${at}%;width:${pct(s[1])}%"></s>`;at+=pct(s[1]);return h;}).join('');
+  const day=n=>`${n} Sep`;
+  const steps=[[2,T('Laporan diunggah','Report uploaded')],[c.windowEnd,T('Pengajuan ditutup','Requests close')],[c.payDue,T('Batas bayar','Payment due')],[30,T('Laporan berikutnya','Next report')]];
+  const pos=n=>Math.min(100,Math.max(0,(n-1)/29*100));
   const head=card.querySelector('.withdraw-heading124');
   card.querySelectorAll(':scope>:not(.withdraw-heading124)').forEach(e=>e.remove());
-  if(head){const p=head.querySelector('p');if(p)p.textContent=T(`1–18 September 2026 · ${openN} pengajuan belum dibayar`,`September 1–18, 2026 · ${openN} unpaid requests`);}
-  const plural=n=>T('pengajuan',n===1?'request':'requests');
-  card.insertAdjacentHTML('beforeend',`<div class="wb131-total"><span>${T('Total diajukan','Total requested')}</span><strong>${money(d.total)}</strong></div>`
-   +`<div class="withdrawal-meter127 wb131"><div class="wb131-pct"><span>${T('Penyelesaian pembayaran','Payment completion')}</span><strong>${fmt(paidPct)}%</strong></div>`
-   +`<div class="payout-track" role="progressbar" aria-label="${T('Bagian penarikan yang telah dibayar','Share of withdrawals paid')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${paidPct.toFixed(1)}" aria-valuetext="${fmt(paidPct)}% ${T('telah dibayarkan','paid')}"><i style="width:${paidPct}%"></i>${extra}</div></div>`
-   +`<div class="wb131-cols" style="grid-template-columns:${segs.map(s=>`minmax(150px,${Math.max(pct(s[1]),12).toFixed(1)}fr)`).join(' ')}">`
-   +segs.map(s=>`<div class="wb131-col ${s[0]}"><span><i class="wb131-dot ${s[0]}"></i>${s[2]}${s[0]==='paid'?` · ${fmt(pct(s[1]))}%`:''}</span><strong>${money(s[1])}</strong>${s[3]!=null?`<small>${s[3]} ${plural(s[3])}</small>`:''}</div>`).join('')+`</div>`
-   +(d.unpaid>0?`<div class="wb131-call"><span>${T('Sisa','Remaining')} <b>${money(d.unpaid)}</b> ${T('harus dibayar sebelum','must be paid before')} <b>21 Sep</b> (${T(`${daysLeft} hari lagi`,`${daysLeft} days left`)}).</span>${btn(T(`Lihat ${openN} pengajuan`,`View ${openN} ${plural(openN)}`),'v6-metric','data-id="withdraw"','small')}</div>`:''));
+  if(head){const p=head.querySelector('p');if(p)p.textContent=T(`Laporan Believe Agustus · diunggah 2 Sep 2026 · data pratinjau`,`Believe August report · uploaded Sep 2, 2026 · preview data`);
+    if(!head.querySelector('.cy-phase131'))head.querySelector('div')?.insertAdjacentHTML('beforeend',`<span class="cy-phase131">${closed?T(`Pengajuan ditutup · bayar s.d. ${day(c.payDue)}`,`Requests closed · pay by ${day(c.payDue)}`):T(`Pengajuan dibuka s.d. ${day(c.windowEnd)}`,`Requests open until ${day(c.windowEnd)}`)}</span>`);}
+  card.insertAdjacentHTML('beforeend',
+    `<div class="cy-top131"><div class="cy-main131"><div><small>${T('Diajukan','Requested')}</small><strong>${money(d.total)}</strong><span>${T('dari maksimal','of a maximum of')} ${money(max)} · ${c.requestedLabels} label</span></div></div><div class="cy-facts131"><div><small>${T('Royalti laporan','Report royalties')}</small><b>${money(c.reportTotal)}</b></div><div><small>${T('Bisa dicairkan · ≥ Rp 1 jt','Withdrawable · ≥ Rp 1M')}</small><b>${money(c.eligible.amount)}</b><span>${c.eligible.labels} label</span></div><div><small>${T('Di bawah ambang · bergulir','Below threshold · carried over')}</small><b>${money(c.below.amount)}</b><span>${c.below.labels} label</span></div></div></div>`
+   +`<div class="withdrawal-meter127 wb131"><div class="wb131-pct"><span>${T('Pengajuan terhadap potensi maksimal','Requests vs maximum potential')}</span><strong>${fmt(reqPct)}%</strong></div>`
+   +`<div class="payout-track" role="progressbar" aria-label="${T('Bagian potensi yang telah dibayar','Share of potential paid')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct(d.paid).toFixed(1)}" aria-valuetext="${fmt(pct(d.paid))}% ${T('telah dibayarkan','paid')}"><i style="width:${pct(d.paid)}%"></i>${extra}<em class="cy-cap131" style="left:${reqPct}%" title="${T('Batas pengajuan','Requested so far')}"></em></div></div>`
+   +`<div class="wb131-cols cy-cols131">${segs.map(s=>`<div class="wb131-col ${s[0]}"><span><i class="wb131-dot ${s[0]}"></i>${s[2]}</span><strong>${short(s[1])}</strong><small>${s[0]==='paid'?fmt(pct(s[1]))+'%':s[0]==='left'?`${s[3]} label${closed?' → '+T('pemantauan','monitoring'):''}`:`${s[3]} ${T('pengajuan','request'+(s[3]===1?'':'s'))}`}</small></div>`).join('')}</div>`
+   +`<div class="cy-time131"><i class="cy-line131"><b style="width:${pos(c.today)}%"></b></i>${steps.map(([n,l],i)=>`<span class="cy-step131 ${n<=c.today?'done':''} ${i===0?'first':i===steps.length-1?'last':''}" style="left:${pos(n)}%"><i></i><small>${day(n)}</small><em>${l}</em></span>`).join('')}<span class="cy-today131" style="left:${pos(c.today)}%"><small>${T('Hari ini','Today')} · ${day(c.today)}</small></span></div>`
+   +`<div class="cy-calls131">${d.unpaid>0?`<div class="wb131-call"><span><b>${money(d.unpaid)}</b> ${T('belum dibayar','unpaid')} · ${T(`selesaikan sebelum 21 Sep (${daysPay+1} hari lagi)`,`settle before Sep 21 (${daysPay+1} days left)`)}</span>${btn(T(`Lihat ${open.length} pengajuan`,`View ${open.length} requests`),'v6-metric','data-id="withdraw"','small')}</div>`:''}${closed&&notReq>0?`<div class="wb131-call cy-left131"><span><b>${money(notReq)}</b> ${T(`dari ${notLabels} label tidak diajukan s.d. 14 Sep → masuk Pemantauan Royalti`,`from ${notLabels} labels not requested by Sep 14 → moved to Royalty Monitoring`)}</span>${btn(T('Buka pemantauan','Open monitoring'),'nav','data-page="liability9"','small')}</div>`:''}</div>`);
   return card;
 };
 

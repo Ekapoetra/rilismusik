@@ -245,3 +245,26 @@
 .pfacts131{flex:1;margin:0!important;align-self:stretch;justify-content:space-around}
 .pfacts131 li{flex-direction:row!important;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:7px}
 .pfacts131 li:last-child{border-bottom:0}
+
+/* dev.17: Profil — Data akun diubah di kartu, kartu Kata sandi langsung. */
+.gact131{display:flex;gap:6px;align-items:center}
+.gmeta131{font-size:11px;color:var(--muted)}
+.kvedit131{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:10px 20px 4px}
+.kvedit131 label,.pw131 label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);min-width:0}
+.kvedit131 input,.pw131 input{font:inherit;font-size:13px;color:var(--text);padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);min-width:0}
+.kvedit131 input:focus,.pw131 input:focus{outline:none;border-color:color-mix(in srgb,var(--text) 45%,transparent);background:var(--surface)}
+.kvedit131 input[aria-invalid=true]{border-color:var(--red,#c8324a)}
+.kvedit131>div dt{font-size:11px;color:var(--muted);margin-bottom:4px}.kvedit131>div dd{margin:0;font-size:13px;padding:7px 0}
+.editing131{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--text) 22%,transparent)}
+.fb131{margin:2px 20px 0;font-size:12px;color:var(--red,#c8324a);min-height:0}.fb131:empty{display:none}
+.note131{margin:6px 20px 14px}
+.pw131{display:flex;flex-direction:column;gap:9px;padding:10px 20px 16px}
+.pw131 .fb131{margin:0}
+.pwmeter131{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:-2px}
+.pwmeter131 i{height:4px;border-radius:999px;background:var(--line);transition:background .2s}
+.pwmeter131[data-s="1"] i:nth-child(-n+1){background:var(--red,#c8324a)}
+.pwmeter131[data-s="2"] i:nth-child(-n+2){background:var(--orange,#cc6419)}
+.pwmeter131[data-s="3"] i:nth-child(-n+3){background:#2e8f5e}
+.pwmeter131[data-s="4"] i{background:var(--pg131,#1eaa36)}
+.pwfoot131{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pwfoot131 .hint131{font-size:11px}
