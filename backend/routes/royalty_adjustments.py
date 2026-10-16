@@ -85,5 +85,5 @@ async def history(label_id: str, q: str = Query("", max_length=120), status: str
     active = await db.withdraw_requests.find_one({"label_id": label_id, "status": {"$in": ["requested", "approved"]}, "legacy_import": {"$ne": True}}, {"_id": 0, "id": 1})
     for item in items:
         allocation = allocations.get(item["id"], {})
-        item.update(withdrawal_id=allocation.get("id"), withdrawal_status=allocation.get("status"), can_void=item["status"] == "active" and not allocation and not active)
+        item.update(withdrawal_id=allocation.get("id"), withdrawal_status=allocation.get("status"), can_void=item["status"] == "active" and not allocation and not active and item.get("source") != "LABEL_TRANSFER")
     return AdjustmentHistory(items=[AdjustmentRecord(**item) for item in items], total=total, page=page, limit=limit)

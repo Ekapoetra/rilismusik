@@ -44,7 +44,7 @@ from auth_utils import (
 from royalty_utils import (
     parse_csv_bytes, detect_columns, parse_amount, normalize_header,
     parse_period_from_value, calculate_line, label_percentage_at,
-    strip_sensitive, iter_csv_file, slug_artist,
+    strip_sensitive, iter_csv_file, slug_artist, label_name_key,
 )
 from withdraw_utils import withdraw_window_state, jakarta_now, MIN_WITHDRAW_IDR
 import storage_service
@@ -62,9 +62,25 @@ def _norm_name(s: Optional[str]) -> str:
     """Fuzzy-match key: lowercase + trim + collapse whitespace.
     Used to match Believe CSV label/artist names that may differ in case or spacing.
     """
-    if not s:
-        return ""
-    return " ".join(s.strip().lower().split())
+    return label_name_key(s)
+
+
+def _label_name_index(labels: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Believe label name → label: current names first, then former names
+    (aliases); a label merged into another answers to its target."""
+    index = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
+    for lab in labels.values():
+        for alias in lab.get("label_name_aliases") or []:
+            index.setdefault(_norm_name(alias.get("name")), lab)
+    for lab in labels.values():
+        target, seen = lab, set()
+        while target.get("merged_into_label_id") and target["id"] not in seen:
+            seen.add(target["id"])
+            target = labels.get(target["merged_into_label_id"]) or target
+        if target is not lab:
+            index[_norm_name(lab.get("label_name"))] = target
+    index.pop("", None)
+    return index
 
 
 def _match_line(row: Dict[str, Any], col_idx: Dict[str, Optional[int]], headers: List[str]) -> Dict[str, Any]:
@@ -518,7 +534,13 @@ async def _process_csv_import_inline(
     # cursor over the entire `tracks` collection would otherwise hit the 10s
     # CSOT cap on Atlas.
     labels: Dict[str, Dict[str, Any]] = {lab["id"]: lab async for lab in db_bg.labels.find({}, {"_id": 0})}
-    labels_by_name = {_norm_name(lab.get("label_name")): lab for lab in labels.values()}
+    labels_by_name = _label_name_index(labels)
+    # Sold catalogs keep earning for the seller for periods before the sale.
+    from .label_transfer_service import owner_for_period, sale_routes as build_sale_routes
+    sale_routes = build_sale_routes([doc async for doc in db_bg.label_transfers.find(
+        {"mode": "sale", "status": "completed"},
+        {"_id": 0, "source_label_id": 1, "effective_period": 1, "plan.isrcs": 1, "plan.upcs": 1},
+    )])
     all_tracks: Dict[str, Dict[str, Any]] = {}
     async for t in db_bg.tracks.find(
         {"isrc": {"$exists": True, "$ne": None}},
@@ -668,6 +690,11 @@ async def _process_csv_import_inline(
                 release = r
                 label_id = r["label_id"]
                 match_by = "upc"
+        if label_id and sale_routes and match_by in ("isrc", "upc"):
+            seller = owner_for_period(sale_routes, match_by, raw[match_by], line_period)
+            if seller and seller in labels:
+                label_id = seller
+                match_by = f"{match_by}_before_sale"
         if not label_id and raw["label_name"]:
             lab = labels_by_name.get(_norm_name(raw["label_name"]))
             if lab:

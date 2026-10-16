@@ -249,6 +249,8 @@ async def create_release_draft(body: ReleaseDraftIn, user: dict = Depends(requir
     label = await get_label_by_user(user)
     if label.get("account_status") in ("suspended", "blacklisted"):
         raise HTTPException(status_code=403, detail="Akun tidak dapat membuat rilisan")
+    if label.get("merged_into_label_id"):
+        raise HTTPException(status_code=409, detail=f"Label ini sudah digabung ke {label.get('merged_into_label_name') or 'label lain'}. Pindah ke label tersebut untuk membuat rilisan.")
     if label.get("contract_status") == "contract_expired":
         raise HTTPException(status_code=403, detail="Kontrak expired - tidak bisa submit rilisan baru")
 
