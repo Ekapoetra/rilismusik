@@ -50,13 +50,17 @@ function savePhoto131(){
 const ghead131=(title,action='')=>`<header class="ghead131"><h2>${title}</h2>${action}</header>`;
 function tenure131(from){const a=new Date(from+'T00:00:00'),b=new Date('2026-09-18T00:00:00');let m=(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth();const y=Math.floor(m/12);m%=12;return T(`${y} th ${m} bln`,`${y} yr ${m} mo`);}
 function monthName131(k){const [y,m]=k.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString(state.lang==='id'?'id-ID':'en-US',{month:'long'});}
+/* dev.18: foto — tanpa tombol berdiri sendiri. Hover/fokus pada foto memunculkan pilihan
+   (unggah/ganti · atur · hapus). Mode atur: geser untuk posisi, gulir roda/cubit dua jari untuk ukuran
+   (tanpa slider); +/- dan panah juga bekerja dari keyboard. */
+const ico131p={cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',move:'<path d="M12 3v18M3 12h18M12 3l-3 3m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3"/>',trash:'<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>'};
+const svgp131=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ico131p[k]}</svg>`;
 function photoCard131(p){
   const d=prof131(),draft=profile131.photo,has=!!(draft||d.avatar);
   const preview=draft?`<img id="ph-img131" src="${draft.src}" alt="" draggable="false">`:d.avatar?`<img class="ph-cover131" src="${d.avatar}" alt="${E(p.name)}">`:`<span class="ph-initials131">${p.initials}</span>`;
-  const zoom=draft?draft.zoom:(d.avatarCrop131?.zoom||1);
-  const tools=draft?`<div class="ph-tools131"><label class="ph-zoom131"><span>${t('Ukuran','Size')}</span><input type="range" id="ph-zoom131" min="1" max="3" step="0.01" value="${zoom}" aria-label="${t('Ukuran foto','Photo size')}"></label><div class="ph-actions131">${btn(t('Simpan','Save'),'profile131-photo-save','','small primary')}${btn(t('Batal','Cancel'),'profile131-photo-cancel','','small')}</div></div>`
-    :`<div class="ph-actions131 ph-min131"><label class="btn small ph-upload131" title="${t('PNG, JPEG atau WebP, maksimal 5 MB','PNG, JPEG or WebP, up to 5 MB')}">${t(has?'Ganti foto':'Unggah foto',has?'Replace photo':'Upload photo')}<input type="file" id="ph-file131" accept="image/png,image/jpeg,image/webp" hidden></label>${d.avatarSrc131?btn(t('Atur','Adjust'),'profile131-photo-adjust','','small'):''}${has?btn(t('Hapus','Remove'),'profile131-photo-remove','','small text'):''}</div>`;
-  return `<div class="ph-wrap131"><div class="ph-frame131 ${draft?'editing':''}" id="ph-frame131" style="--ph:${PH131}px" ${draft?`title="${t('Geser untuk memposisikan','Drag to position')}"`:''}>${preview}${draft?'<span class="ph-hint131">'+t('Geser foto','Drag photo')+'</span>':''}</div>${tools}</div>`;
+  const menu=draft?'':`<div class="ph-menu131"><label class="ph-opt131" title="${t('PNG, JPEG atau WebP, maksimal 5 MB','PNG, JPEG or WebP, up to 5 MB')}" tabindex="0">${svgp131('cam')}<span>${t(has?'Ganti':'Unggah',has?'Replace':'Upload')}</span><input type="file" id="ph-file131" accept="image/png,image/jpeg,image/webp" hidden></label>${d.avatarSrc131?`<button type="button" class="ph-opt131" data-action="profile131-photo-adjust">${svgp131('move')}<span>${t('Atur','Adjust')}</span></button>`:''}${has?`<button type="button" class="ph-opt131" data-action="profile131-photo-remove">${svgp131('trash')}<span>${t('Hapus','Remove')}</span></button>`:''}</div>`;
+  const tools=draft?`<div class="ph-tools131"><span class="hint131">${t('Geser untuk posisi · gulir/cubit untuk ukuran','Drag to position · scroll/pinch to resize')}</span><div class="ph-actions131">${btn(t('Simpan','Save'),'profile131-photo-save','','small primary')}${btn(t('Batal','Cancel'),'profile131-photo-cancel','','small')}</div></div>`:'';
+  return `<div class="ph-wrap131"><div class="ph-frame131 ${draft?'editing':'menu'}" id="ph-frame131" style="--ph:${PH131}px" ${draft?`title="${t('Geser untuk posisi, gulir untuk ukuran','Drag to position, scroll to resize')}" tabindex="0"`:''}>${preview}${menu}</div>${tools}</div>`;
 }
 function profilePage131(){
   const p=me(),d=prof131();
@@ -84,9 +88,9 @@ function akunTab131(p,d){
 /* dev.17: kartu Kata sandi — ubah langsung di kartu (pengganti kartu Kinerja). */
 function pwCard131(){
   return `<section class="panel g131"><form data-form="profile131-password" novalidate>${ghead131(t('Kata sandi','Password'),`<small class="gmeta131">${t('Diubah 3 bulan lalu','Changed 3 months ago')}</small>`)}<div class="pw131">
-    <label><span>${t('Kata sandi saat ini','Current password')}</span><input name="current" type="password" autocomplete="current-password" required></label>
-    <label><span>${t('Kata sandi baru','New password')}</span><input name="next" type="password" autocomplete="new-password" minlength="10" required></label>
-    <label><span>${t('Ulangi kata sandi baru','Repeat new password')}</span><input name="again" type="password" autocomplete="new-password" required></label>
+    <label><span>${t('Kata sandi saat ini','Current password')}</span><span class="pwin131"><input name="current" type="password" autocomplete="current-password" required><button type="button" class="eye131" data-action="profile131-eye" aria-label="${t('Tampilkan kata sandi','Show password')}" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="o" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="x" d="M3 3l18 18"/></svg></button></span></label>
+    <label><span>${t('Kata sandi baru','New password')}</span><span class="pwin131"><input name="next" type="password" autocomplete="new-password" minlength="10" required><button type="button" class="eye131" data-action="profile131-eye" aria-label="${t('Tampilkan kata sandi','Show password')}" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="o" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="x" d="M3 3l18 18"/></svg></button></span></label>
+    <label><span>${t('Ulangi kata sandi baru','Repeat new password')}</span><span class="pwin131"><input name="again" type="password" autocomplete="new-password" required><button type="button" class="eye131" data-action="profile131-eye" aria-label="${t('Tampilkan kata sandi','Show password')}" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="o" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="x" d="M3 3l18 18"/></svg></button></span></label>
     <div class="pwmeter131" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <p class="fb131" role="status" id="form-feedback"></p>
     <div class="pwfoot131"><span class="hint131">${t('Min. 10 karakter · perangkat lain diminta masuk lagi','Min. 10 characters · other devices must sign in again')}</span><button type="submit" class="btn small primary">${t('Perbarui','Update')}</button></div></div></form></section>`;
@@ -126,6 +130,7 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id;
   if(a==='profile131-edit'){profile131.editAccount=true;render();document.querySelector('form[data-form="profile131-account"] input')?.focus();}
   else if(a==='profile131-edit-cancel'){profile131.editAccount=false;render();}
+  else if(a==='profile131-eye'){const i=b.parentElement.querySelector('input'),show=i.type==='password';i.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?t('Sembunyikan kata sandi','Hide password'):t('Tampilkan kata sandi','Show password'));i.focus();}
   else if(a==='profile131-password')passwordDrawer131();
   else if(a==='profile131-signout')toast(id==='all'?t('Semua sesi lain diakhiri (simulasi).','All other sessions ended (simulation).'):t('Sesi diakhiri (simulasi).','Session ended (simulation).'));
   else if(a==='profile131-photo-save')savePhoto131();
@@ -139,16 +144,22 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   if(e.target.id==='ph-file131'){loadFile131(e.target.files[0]);return;}
   const c=e.target.closest('[data-pref131]');if(!c)return;const [k,ch]=c.dataset.pref131.split(':');prefs131()[k][ch]=c.checked;if(typeof save10==='function')save10();});
-document.addEventListener('input',e=>{if(e.target.id!=='ph-zoom131'||!profile131.photo)return;profile131.photo.zoom=+e.target.value;layoutPhoto131();});
+function zoomPhoto131(f){const dr=profile131.photo;if(!dr)return;dr.zoom=Math.min(4,Math.max(1,dr.zoom*f));layoutPhoto131();}
+document.addEventListener('wheel',e=>{if(!e.target.closest('#ph-frame131.editing')||!profile131.photo)return;e.preventDefault();zoomPhoto131(e.deltaY<0?1.06:1/1.06);},{passive:false});
 /* geser untuk memposisikan (pointer: mouse, sentuh, pena) */
+const pts131=new Map();
 document.addEventListener('pointerdown',e=>{
   const fr=e.target.closest('#ph-frame131.editing');if(!fr||!profile131.photo)return;e.preventDefault();fr.setPointerCapture(e.pointerId);
-  const dr=profile131.photo,s=Math.max(PH131/dr.w,PH131/dr.h)*dr.zoom,start={x:e.clientX,y:e.clientY,cx:dr.cx,cy:dr.cy};fr.classList.add('dragging');
-  const move=ev=>{dr.cx=start.cx-(ev.clientX-start.x)/(dr.w*s);dr.cy=start.cy-(ev.clientY-start.y)/(dr.h*s);layoutPhoto131();};
-  const up=()=>{fr.classList.remove('dragging');fr.removeEventListener('pointermove',move);fr.removeEventListener('pointerup',up);fr.removeEventListener('pointercancel',up);};
+  pts131.set(e.pointerId,{x:e.clientX,y:e.clientY});const dr=profile131.photo;fr.classList.add('dragging');
+  let last={x:e.clientX,y:e.clientY},pinch=null;
+  const dist=()=>{const v=[...pts131.values()];return v.length<2?0:Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y);};
+  const move=ev=>{if(!pts131.has(ev.pointerId))return;pts131.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+    if(pts131.size>=2){const dd=dist();if(pinch)zoomPhoto131(dd/pinch);pinch=dd;return;}
+    pinch=null;const s=Math.max(PH131/dr.w,PH131/dr.h)*dr.zoom;dr.cx-=(ev.clientX-last.x)/(dr.w*s);dr.cy-=(ev.clientY-last.y)/(dr.h*s);last={x:ev.clientX,y:ev.clientY};layoutPhoto131();};
+  const up=ev=>{pts131.delete(ev.pointerId);if(!pts131.size){fr.classList.remove('dragging');fr.removeEventListener('pointermove',move);fr.removeEventListener('pointerup',up);fr.removeEventListener('pointercancel',up);}else{const v=[...pts131.values()][0];last={x:v.x,y:v.y};pinch=null;}};
   fr.addEventListener('pointermove',move);fr.addEventListener('pointerup',up);fr.addEventListener('pointercancel',up);
 });
-document.addEventListener('keydown',e=>{const fr=e.target.closest&&e.target.closest('#ph-frame131.editing');if(!fr||!profile131.photo)return;const st=.02,m={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];if(!m)return;e.preventDefault();profile131.photo.cx+=m[0];profile131.photo.cy+=m[1];layoutPhoto131();});
+document.addEventListener('keydown',e=>{const fr=e.target.closest&&e.target.closest('#ph-frame131.editing');if(!fr||!profile131.photo)return;if(e.key==='+'||e.key==='='){e.preventDefault();return zoomPhoto131(1.08);}if(e.key==='-'){e.preventDefault();return zoomPhoto131(1/1.08);}const st=.02,m={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];if(!m)return;e.preventDefault();profile131.photo.cx+=m[0];profile131.photo.cy+=m[1];layoutPhoto131();});
 document.addEventListener('submit',e=>{
   const acc=e.target.closest('form[data-form="profile131-account"]');
   if(acc){e.preventDefault();e.stopImmediatePropagation();
@@ -169,9 +180,10 @@ document.addEventListener('submit',e=>{
   f.reset();fb.textContent='';f.querySelector('.pwmeter131')?.removeAttribute('data-s');try{closeModal();}catch{}toast(t('Kata sandi diperbarui (simulasi).','Password updated (simulation).'));
 },true);
 document.addEventListener('input',e=>{const i=e.target.closest('form[data-form="profile131-password"] input[name="next"]');if(!i)return;const m=i.form.querySelector('.pwmeter131');if(m)m.dataset.s=i.value?pwStrength131(i.value):'';});
+document.addEventListener('keydown',e=>{const o=e.target.closest&&e.target.closest('label.ph-opt131');if(o&&(e.key==='Enter'||e.key===' ')){e.preventDefault();o.querySelector('input')?.click();}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&profile131.editAccount&&e.target.closest('form[data-form="profile131-account"]')){e.preventDefault();profile131.editAccount=false;render();}});
 const modulePageBeforeProfile131=modulePage;
 modulePage=function(){if(v4.module==='profile131')return profilePage131();return modulePageBeforeProfile131();};
 /* setelah render: tata ulang gambar draf & beri fokus keyboard pada bingkai */
 const renderBeforeProfile131=render;
-render=function(){renderBeforeProfile131();document.body.classList.toggle('nosidebar131',!!document.querySelector('#main .inbox3-131,#main .profile3-131,#main .profile4-131'));if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};
+render=function(){renderBeforeProfile131();document.body.classList.toggle('nosidebar131',!!document.querySelector('#main .inbox3-131,#main .cha131,#main .profile3-131,#main .profile4-131'));if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};

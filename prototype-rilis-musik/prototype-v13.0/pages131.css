@@ -268,3 +268,119 @@
 .pwmeter131[data-s="4"] i{background:var(--pg131,#1eaa36)}
 .pwfoot131{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pwfoot131 .hint131{font-size:11px}
+
+/* dev.18: menu foto saat hover/fokus (tanpa tombol berdiri sendiri), atur tanpa slider, mata kata sandi. */
+.ph-frame131.menu{cursor:pointer}
+.ph-menu131{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;padding:18px;
+  background:color-mix(in srgb,#0b0c0e 52%,transparent);opacity:0;transition:opacity .18s ease;backdrop-filter:blur(2px)}
+.ph-frame131.menu:hover .ph-menu131,.ph-frame131.menu:focus-within .ph-menu131{opacity:1}
+.ph-opt131{display:flex;flex-direction:column;align-items:center;gap:2px;width:44px;padding:5px 0;border:0;border-radius:12px;background:transparent;color:#fff;font:inherit;font-size:10.5px;cursor:pointer}
+.ph-opt131:hover,.ph-opt131:focus-visible{background:#ffffff26;outline:none}
+.ph-opt131 svg{width:18px;height:18px}
+.ph-tools131{width:200px!important;text-align:center}
+.ph-tools131 .hint131{font-size:11px}
+.ph-frame131.editing{touch-action:none}
+.pwin131{position:relative;display:flex}
+.pwin131 input{flex:1;padding-right:38px!important}
+.eye131{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.eye131:hover{background:var(--hover);color:var(--text)}
+.eye131 svg{width:17px;height:17px}
+.eye131 .x{opacity:0;transition:opacity .15s}
+.eye131[aria-pressed=true] .x{opacity:1}
+/* mode atur foto tidak menggeser tata letak: Simpan/Batal melayang menempel di bawah lingkaran */
+.ph-wrap131{position:relative}
+.ph-tools131{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);width:auto!important;z-index:3}
+.ph-tools131 .hint131{display:none}
+.ph-tools131 .ph-actions131{margin:0!important;gap:4px!important;padding:3px;border-radius:999px;background:var(--surface);box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent),0 4px 10px -4px #00000040}
+.ph-tools131 .btn{border-radius:999px!important}
+
+/* dev.18 — Pemantauan › Kewajiban Royalti */
+.py131{display:flex;flex-direction:column;gap:16px}
+.py-tiles131{display:grid;grid-template-columns:1.3fr repeat(3,1fr);gap:12px}
+.py-tile131{display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-radius:20px;background:var(--surface);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 6%,transparent)}
+.py-tile131.main{background:radial-gradient(120% 140% at 0% 0%,color-mix(in srgb,#2e7be6 12%,var(--surface)),var(--surface) 60%)}
+.py-tile131 small{font-size:12px;color:var(--muted);display:flex;align-items:center}
+.py-tile131 strong{font-size:24px;font-weight:500;letter-spacing:-.4px}
+.py-tile131.main strong{font-size:32px}
+.py-tile131 span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.py-dot131{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:6px}
+.py-dot131.a{background:var(--orange,#cc6419)}.py-dot131.b{background:color-mix(in srgb,var(--text) 22%,transparent)}.py-dot131.c{background:var(--info109,#2e689e)}
+.py-grid131{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:start}
+.py-sec131>header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.py-sec131 h2{font-size:16px;font-weight:500;margin:0}
+.py-legend131{display:flex;gap:14px;font-size:12px;color:var(--muted)}.py-legend131 span{display:inline-flex;align-items:center}
+.py-chart131{display:grid;grid-template-columns:repeat(5,1fr);gap:18px;align-items:end;height:190px;padding:6px 6px 0;margin-bottom:14px}
+.py-col131{display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+.py-col131 b{font-size:12px;font-weight:500}
+.py-stack131{flex:1;width:46px;display:flex;flex-direction:column-reverse;justify-content:flex-start;border-radius:10px;overflow:hidden}
+.py-stack131 i{display:block;width:100%}
+.py-stack131 i.a{background:var(--orange,#cc6419)}.py-stack131 i.b{background:color-mix(in srgb,var(--text) 18%,transparent)}
+.py-col131 small{font-size:11px;color:var(--muted)}
+.py-table131 table{width:100%;font-size:13px}
+.py-table131 small{color:var(--muted);font-size:11px;margin-left:4px}
+.py-table131 b{font-weight:500}
+.py-age131{display:flex;flex-direction:column;gap:12px}
+.py-agerow131{display:grid;grid-template-columns:78px 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center;font-size:13px}
+.py-agerow131 small{grid-column:3;font-size:11px;color:var(--muted);text-align:right}
+.py-agebar131{height:10px;border-radius:999px;background:var(--soft);overflow:hidden}
+.py-agebar131 i{display:block;height:100%;border-radius:999px;background:color-mix(in srgb,var(--orange,#cc6419) 75%,var(--surface))}
+.py-agerow131:nth-child(n+3) .py-agebar131 i{background:var(--red,#c8324a)}
+.py-agerow131 b{font-weight:500}
+.py-listhead131{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.py-listhead131 input{font:inherit;font-size:13px;padding:7px 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);width:240px}
+.seg131{display:inline-flex;padding:3px;border-radius:999px;background:var(--soft)}
+.seg131 button{font:inherit;font-size:12px;padding:5px 12px;border:0;border-radius:999px;background:none;color:var(--muted);cursor:pointer}
+.seg131 button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px #00000014}
+.py-note131{margin:0}
+@media (max-width:1100px){.py-tiles131{grid-template-columns:1fr 1fr}.py-grid131{grid-template-columns:1fr}}
+
+/* dev.18 — CH-A: daftar · percakapan · konteks (tanpa judul halaman, chat lebih dulu) */
+.cha131{display:grid;grid-template-columns:340px minmax(0,1fr) 300px;gap:16px;height:calc(100vh - 66px - 40px);min-height:560px;margin-top:4px}
+@media (min-width:901px){body.nosidebar131 #main:has(.cha131){padding-top:16px}}
+.cha131>*{background:var(--surface);border-radius:22px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 6%,transparent);min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.cha-list131 .rows131i{flex:1;overflow:auto;padding:0 8px 12px}
+.cha-lhead131{padding:14px 14px 8px}
+.cha-switch131{display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:999px;background:var(--soft)}
+.cha-switch131 button{font:inherit;font-size:13px;padding:7px 10px;border:0;border-radius:999px;background:none;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.cha-switch131 button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px #00000014}
+.cha-switch131 b,.cha-tabs131 b{font-weight:500;font-size:10.5px;min-width:17px;height:17px;padding:0 5px;border-radius:999px;display:inline-grid;place-items:center;background:var(--text);color:var(--bg)}
+.cha-tabs131,.cha-chips131{display:flex;align-items:center;gap:4px;padding:2px 14px 10px;flex-wrap:wrap}
+.cha-tabs131 button,.cha-chips131 button{font:inherit;font-size:12px;padding:5px 10px;border:0;border-radius:999px;background:none;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.cha-tabs131 button.on,.cha-chips131 button.on{background:var(--text);color:var(--bg)}
+.cha-tabs131 button.on b{background:var(--bg);color:var(--text)}
+.cha-wait131{margin-left:auto;width:30px;height:30px;justify-content:center;padding:0!important}
+.cha-wait131 svg{width:15px;height:15px}
+.cha-wait131.on{background:var(--soft)!important;color:var(--text)!important;box-shadow:inset 0 0 0 1.5px var(--text)}
+.cha-subhead131{display:flex;align-items:center;justify-content:space-between;padding:0 16px 8px;font-size:12px;color:var(--muted)}
+.cha-list131 .search131{margin:0 14px 8px}
+.cha-mid131 .msgs131{flex:1;overflow:auto}
+.day131c{align-self:center;font-size:11px;color:var(--muted);background:var(--soft);padding:3px 10px;border-radius:999px}
+.cha-mid131 .msg131 p{background:var(--bg)}
+.cha-mid131 .msg131.mine p{background:var(--text)}
+.cha-mid131 .msg131.note p{background:transparent}
+.quick131{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.quick131 button{font:inherit;font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.quick131 button:hover{color:var(--text);background:var(--hover)}
+.nmid131{padding:28px 30px;overflow:auto}
+.cha-ctx131{overflow:auto!important}
+.ctx-sec131{padding:14px 18px;border-top:1px solid var(--line)}
+.ctx-sec131:first-child{border-top:0}
+.ctx-sec131 h4{margin:0 0 9px;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.kv131c{display:grid;grid-template-columns:90px 1fr;gap:6px 10px;font-size:12px}
+.kv131c span{color:var(--muted)}.kv131c b{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.vsteps131{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;font-size:12px}
+.vsteps131 li{display:flex;gap:9px;align-items:center;color:var(--muted)}
+.vsteps131 i{width:10px;height:10px;border-radius:50%;border:2px solid var(--line);flex:none}
+.vsteps131 li.d i{background:color-mix(in srgb,var(--text) 45%,transparent);border-color:transparent}
+.vsteps131 li.n{color:var(--text);font-weight:500}
+.vsteps131 li.n i{border-color:var(--text);box-shadow:0 0 0 3px color-mix(in srgb,var(--text) 14%,transparent)}
+.ctx-acts131{display:flex;flex-direction:column;gap:6px}
+.ctx-acts131 .btn{justify-content:flex-start;text-align:left}
+.ctx-note131{display:flex;gap:10px;align-items:center;width:100%;padding:8px;border:0;border-radius:12px;background:none;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.ctx-note131:hover{background:var(--hover)}
+.ctx-note131 b{display:block;font-size:12.5px;font-weight:500}.ctx-note131 small{font-size:11px;color:var(--muted)}
+.kind-ico131.sm{width:26px;height:26px;border-radius:8px}.kind-ico131.sm svg{width:13px;height:13px}
+.ctx-faces131{margin-top:10px;padding-left:6px}
+.cha-ctx131 .obj131{margin:0}
+@media (max-width:1200px){.cha131{grid-template-columns:300px minmax(0,1fr)}.cha-ctx131{display:none!important}}
+@media (max-width:900px){.cha131{grid-template-columns:1fr;height:auto}.cha-list131{max-height:50vh}}

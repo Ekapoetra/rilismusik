@@ -10,7 +10,7 @@
    Lonceng & ikon chat tetap membuka popover ringkas dengan tautan "Buka Kotak Masuk".
    Halaman memakai mekanisme modul v4 (v4.module) agar tidak menyentuh peta halaman app.js. */
 'use strict';
-const inbox131={view:'n:all',sel:null,search:'',waiting:false,mode:'reply'};
+const inbox131={view:'c:all',sel:null,search:'',waiting:false,mode:'reply'};
 modules.push({id:'inbox131',group:'ops',title:['Kotak Masuk','Inbox'],desc:['Notifikasi dan percakapan dalam satu pintu.','Notifications and conversations in one place.'],actions:['',''],note:['',''],access:''});
 const allowedBeforeInbox131=allowedModule;
 allowedModule=function(m){if(m&&(m.id==='inbox131'||m.id==='profile131'))return true;return allowedBeforeInbox131(m);};
@@ -60,13 +60,15 @@ const msgText131=m=>Array.isArray(m.text)?L(m.text):String(m.text||m.note||'');
 const initials131=n=>String(n||'').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase();
 const labelVerified131=name=>{try{const l=(data.v9.labels||[]).find(x=>x.name===name);return !!(l&&verification9(l).status==='verified');}catch{return false;}};
 
+/* urutan linimasa: waktu "HH.MM" (Kem = kemarin), pesan baru (ts) paling akhir; tanpa waktu → urutan asli */
+function key131(at,i){if(typeof at==='number')return at;const m=/(Kems)?(d{1,2}).(d{2})/.exec(at||'');if(m)return (m[1]?-1440:0)+(+m[2])*60+(+m[3]);return /baru|just/.test(at||'')?1e7+i:i;}
 function threads131(){
   const st=threadStore131(),out=[];
   if(permission('support')!=='none')for(const tk of st.tickets){
     const label=tk.chat?(data.chats[tk.chat]||[]):tk.msgs;
-    const items=[...label.map(m=>({...m,kind:'msg'})),...tk.notes.map(m=>({...m,kind:'note'}))];
+    const defAt=tk.chat==='label'?['09.02','09.10']:[];const items=[...label.map((m,i)=>({...m,at:m.at||defAt[i],kind:'msg',k:key131(m.ts||m.at||defAt[i],i)})),...tk.notes.map((m,i)=>({...m,kind:'note',k:key131(m.ts||m.at,100+i)}))].sort((a,b)=>a.k-b.k);
     const lastLabel=label[label.length-1];
-    out.push({id:'t:'+tk.id,type:'ticket',tk,title:tk.label,sub:L(tk.subject),code:tk.id,items,labelCount:label.length,noteCount:tk.notes.length,
+    out.push({id:'t:'+tk.id,type:'ticket',tk,time:(label[label.length-1]||{}).at||(tk.id==='T-318'?'10.45':''),title:tk.label,sub:L(tk.subject),code:tk.id,items,labelCount:label.length,noteCount:tk.notes.length,
       last:items.length?msgText131(items[items.length-1]):'',waiting:!!lastLabel&&!isStaff131(lastLabel.who)});
   }
   const room=data.chats.internal||[],lastRoom=room[room.length-1];
@@ -79,70 +81,78 @@ function threads131(){
 function openInbox131(view){if(view)inbox131.view=view;try{closeModal();}catch{}try{closePop();}catch{}module102('inbox131');render();window.scrollTo(0,0);}
 function markAllRead131(){visibleNotifications().forEach(n=>{if(isUnread131(n))n.read.push(me().id);});if(typeof save10==='function')save10();render();}
 
-function inboxPage131(){
-  const notes=visibleNotifications(),th=threads131();
-  const navItem=(view,icon,label,count,extra='')=>`<button type="button" class="nav131 ${inbox131.view===view?'active':''}" data-action="inbox131-view" data-id="${view}" aria-current="${inbox131.view===view}">${svg131(icon)}<span>${label}</span>${count?`<b>${count}</b>`:''}${extra}</button>`;
-  const nav=`<nav class="inbox-nav131" aria-label="${t('Kotak Masuk','Inbox')}">
-    <h3>${t('Notifikasi','Notifications')}</h3>
-    ${kinds131.map(([k,l])=>navItem('n:'+k,k==='all'?'bell':k,L(l),notes.filter(n=>isUnread131(n)&&(k==='all'||kindOf131(n)===k)).length)).join('')}
-    <h3>${t('Percakapan','Conversations')}</h3>
-    ${navItem('c:all','chat',t('Semua percakapan','All conversations'),th.filter(x=>x.waiting).length)}
-    ${th.some(x=>x.type==='ticket')?navItem('c:ticket','ticket',t('Tiket & label','Tickets & labels'),th.filter(x=>x.type==='ticket'&&x.waiting).length):''}
-    ${navItem('c:internal','lock',t('Internal','Internal'),th.filter(x=>x.type==='internal'&&x.waiting).length)}
-  </nav>`;
-  const isNotif=inbox131.view.startsWith('n:');
-  return pageHead(t('Kotak Masuk','Inbox'),t('Notifikasi memberi tahu sesuatu terjadi; percakapan menunggu balasanmu.','Notifications tell you something happened; conversations wait for your reply.'))
-    +`<section class="panel inbox3-131">${nav}${isNotif?notifColumns131(notes):chatColumns131(th)}</section>`;
-}
-function notifColumns131(all){
-  const k=inbox131.view.slice(2),q=inbox131.search.toLowerCase();
-  const list=all.filter(n=>(k==='all'||kindOf131(n)===k)&&(!q||(L(n.title)+' '+L(n.body)+' '+(n.obj||'')).toLowerCase().includes(q)));
-  if(!list.some(n=>n.id===inbox131.sel))inbox131.sel=list[0]?.id||null;
-  const cur=list.find(n=>n.id===inbox131.sel);const unread=list.filter(isUnread131).length;
-  let day='';
-  const rows=list.map(n=>{const d=dayOf131(n),head=d!==day?`<h4 class="day131">${d}</h4>`:'';day=d;const kk=kindOf131(n);
-    return head+`<button type="button" class="row131 ${n.id===inbox131.sel?'active':''} ${isUnread131(n)?'unread':''}" data-action="inbox131-sel" data-id="${n.id}"><span class="kind-ico131">${svg131(kk)}</span><span class="row-main131"><span class="row-top131"><strong>${L(n.title)}</strong><time>${n.time}</time></span><span class="row-sub131">${L(n.body)}</span></span>${isUnread131(n)?'<i class="udot131" aria-label="'+t('Belum dibaca','Unread')+'"></i>':''}</button>`;}).join('');
-  const listCol=`<div class="list131"><header class="list-head131"><div><h2>${kindName131(k)}</h2><small>${list.length} ${t('notifikasi','notifications')}${unread?` · ${unread} ${t('belum dibaca','unread')}`:''}</small></div>${btn(t('Tandai semua dibaca','Mark all read'),'inbox131-read',unread?'':'disabled','small text')}</header>${searchBox131()}<div class="rows131i">${rows||`<p class="hint131 pad131">${t('Tidak ada notifikasi.','No notifications.')}</p>`}</div></div>`;
-  const detail=cur?`<article class="detail131"><div class="eyebrow131">${svg131(kindOf131(cur))}<span>${kindName131(kindOf131(cur))}</span><span>·</span><time>${dayOf131(cur)}${/^\d/.test(cur.time)&&dayOf131(cur)!==cur.time?' '+cur.time:''}</time></div><h2 class="detail-title131">${L(cur.title)}</h2><p class="detail-body131">${L(cur.body)}</p>${cur.obj||cur.page?`<div class="obj131"><span class="obj-ico131">${svg131(kindOf131(cur)==='personal'?'personal':'release')}</span><div><small>${t('Objek terkait','Related item')}</small><strong>${E(cur.obj||pages()[cur.page]||cur.page)}</strong></div>${btn(t('Buka','Open'),'notification-open',`data-id="${cur.id}"`,'small primary')}</div>`:''}<p class="hint131">${t('Membaca notifikasi tidak menyelesaikan pekerjaan terkait.','Reading a notification does not complete the related work.')}</p></article>`:`<article class="detail131 empty131">${empty(t('Pilih notifikasi','Pick a notification'))}</article>`;
-  return listCol+detail;
-}
 function searchBox131(){return `<div class="search131">${svg131('all')}<input type="search" data-input="inbox131-search" value="${E(inbox131.search)}" placeholder="${t('Cari…','Search…')}" aria-label="${t('Cari','Search')}"></div>`;}
-function chatColumns131(all){
+function bubble131(m){
+  const mine=isMine131(m.who),note=m.kind==='note',staff=isStaff131(m.who);
+  return `<div class="msg131 ${mine?'mine':''} ${note?'note':''}"><span class="msg-who131">${note?svg131('lock'):''}${E(whoName131(m.who))}${note?` · ${t('catatan internal','internal note')}`:staff?'':` · ${t('label','label')}`}${m.at?` · ${E(m.at)}`:''}</span><p>${E(msgText131(m))}</p></div>`;
+}
+/* ---------- dev.18: CH-A (pilihan pemilik) — chat lebih dulu ----------
+   Tata letak: daftar (kiri) · percakapan (tengah) · konteks (kanan), tanpa judul halaman.
+   Notification Center TIDAK jadi menu terpisah: pengalih "Percakapan | Notifikasi" di kepala daftar;
+   popover lonceng "Buka Kotak Masuk" membuka mode Notifikasi; notifikasi yang terkait objek tiket
+   juga tampil di panel konteks sebagai "Aktivitas terkait". */
+const ticketMeta131={'T-318':{cat:['Metadata','Metadata'],opened:'16 Sep · 09.02',owner:'adovi'},'T-322':{cat:['Takedown','Takedown'],opened:'17 Sep · 14.20',owner:'cantika'},'T-325':{cat:['Ubah metadata','Metadata change'],opened:'18 Sep · 08.31',owner:'eka'}};
+const quick131=[['Terima kasih, kami cek dulu.','Thanks, we will check.'],['Mohon lengkapi dokumen pendukung.','Please complete the supporting documents.'],['Sudah kami teruskan ke distributor.','We have forwarded it to the distributor.']];
+const modeOf131=()=>inbox131.view.startsWith('n:')?'notif':'chat';
+function inboxPage131(){
+  const notes=visibleNotifications(),th=threads131(),unread=notes.filter(isUnread131).length,waiting=th.filter(x=>x.waiting).length,mode=modeOf131();
+  const sw=`<div class="cha-switch131" role="tablist">${[['c:all',t('Percakapan','Conversations'),waiting,'chat'],['n:all',t('Notifikasi','Notifications'),unread,'notif']].map(([v,l,n,m])=>`<button type="button" role="tab" aria-selected="${mode===m}" class="${mode===m?'on':''}" data-action="inbox131-view" data-id="${v}">${l}${n?`<b>${n}</b>`:''}</button>`).join('')}</div>`;
+  return `<section class="cha131">${mode==='chat'?chatA131(th,sw):notifA131(notes,sw)}</section>`;
+}
+function rowThread131(x){
+  const lead=x.type==='ticket'?`<span class="avatar lead131">${initials131(x.title)}</span>`:`<span class="kind-ico131 lock131">${svg131('lock')}</span>`;
+  return `<button type="button" class="row131 ${x.id===inbox131.sel?'active':''}" data-action="inbox131-sel" data-id="${x.id}">${lead}<span class="row-main131"><span class="row-top131"><strong>${E(x.title)}</strong><time>${E(x.time||'')}</time></span><span class="row-meta131"><span class="code131">${E(x.code)}</span>${E(x.sub)}</span><span class="row-sub131">${E(x.last)}</span></span>${x.waiting?'<i class="udot131" title="'+t('Menunggu jawabanmu','Awaiting your reply')+'"></i>':''}</button>`;
+}
+function chatA131(all,sw){
   const v=inbox131.view.slice(2),q=inbox131.search.toLowerCase();
   let th=all.filter(x=>v==='all'||x.type===v);
   if(q)th=th.filter(x=>(x.title+' '+x.sub+' '+x.code+' '+x.last).toLowerCase().includes(q));
   if(inbox131.waiting)th=th.filter(x=>x.waiting);
   if(!th.some(x=>x.id===inbox131.sel))inbox131.sel=th[0]?.id||null;
   const cur=th.find(x=>x.id===inbox131.sel);
-  const lead=x=>x.type==='ticket'?`<span class="avatar lead131">${initials131(x.title)}</span>`:`<span class="kind-ico131 lock131">${svg131('lock')}</span>`;
-  const rows=th.map(x=>`<button type="button" class="row131 ${x.id===inbox131.sel?'active':''}" data-action="inbox131-sel" data-id="${x.id}">${lead(x)}<span class="row-main131"><span class="row-top131"><strong>${E(x.title)}${x.type==='ticket'&&labelVerified131(x.title)?'<span class="seal-slot131"></span>':''}</strong>${x.type==='ticket'?statusBadge111(stepName131(x.tk.status),ticketTone131[x.tk.status]):`<span class="tag131">${t('Internal','Internal')}</span>`}</span><span class="row-meta131"><span class="code131">${E(x.code)}</span>${E(x.sub)}</span><span class="row-sub131">${E(x.last)}</span></span>${x.waiting?'<i class="udot131" title="'+t('Menunggu jawabanmu','Awaiting your reply')+'"></i>':''}</button>`).join('');
-  const title=v==='ticket'?t('Tiket & label','Tickets & labels'):v==='internal'?t('Internal','Internal'):t('Semua percakapan','All conversations');
-  const listCol=`<div class="list131"><header class="list-head131"><div><h2>${title}</h2><small>${th.length} ${t('percakapan','conversations')}</small></div><button type="button" class="chip-toggle131 ${inbox131.waiting?'on':''}" aria-pressed="${inbox131.waiting}" data-action="inbox131-waiting">${t('Menunggu jawabanku','Awaiting my reply')}</button></header>${searchBox131()}<div class="rows131i">${rows||`<p class="hint131 pad131">${t('Tidak ada percakapan yang cocok.','No matching conversation.')}</p>`}</div></div>`;
-  return listCol+(cur?(cur.type==='ticket'?ticketDetail131(cur):roomDetail131(cur)):`<article class="detail131 empty131">${empty(t('Pilih percakapan','Pick a conversation'))}</article>`);
+  const tabs=`<div class="cha-tabs131">${[['all',t('Semua','All'),all.filter(x=>x.waiting).length],['ticket',t('Label & tiket','Labels & tickets'),all.filter(x=>x.type==='ticket'&&x.waiting).length],['internal',t('Internal','Internal'),0]].map(([id,l,n])=>`<button type="button" class="${v===id?'on':''}" data-action="inbox131-view" data-id="c:${id}">${l}${n?` <b>${n}</b>`:''}</button>`).join('')}<button type="button" class="cha-wait131 ${inbox131.waiting?'on':''}" aria-pressed="${inbox131.waiting}" data-action="inbox131-waiting" title="${t('Hanya yang menunggu jawabanku','Only awaiting my reply')}">${svg131('chat')}</button></div>`;
+  const list=`<aside class="cha-list131"><header class="cha-lhead131">${sw}</header>${tabs}${searchBox131()}<div class="rows131i">${th.map(rowThread131).join('')||`<p class="hint131 pad131">${t('Tidak ada percakapan yang cocok.','No matching conversation.')}</p>`}</div></aside>`;
+  if(!cur)return list+`<article class="cha-mid131">${empty(t('Pilih percakapan','Pick a conversation'))}</article><aside class="cha-ctx131"></aside>`;
+  return list+chatMid131(cur)+chatCtx131(cur);
 }
-function bubble131(m){
-  const mine=isMine131(m.who),note=m.kind==='note',staff=isStaff131(m.who);
-  return `<div class="msg131 ${mine?'mine':''} ${note?'note':''}"><span class="msg-who131">${note?svg131('lock'):''}${E(whoName131(m.who))}${note?` · ${t('catatan internal','internal note')}`:staff?'':` · ${t('label','label')}`}${m.at?` · ${E(m.at)}`:''}</span><p>${E(msgText131(m))}</p></div>`;
+function chatMid131(x){
+  const tk=x.tk,note=inbox131.mode==='note'||x.type==='internal';
+  const head=x.type==='ticket'
+    ?`<header class="thread-head131"><span class="avatar lead131 big">${initials131(x.title)}</span><div class="th-id131"><h2>${E(x.title)}</h2><small><span class="code131">${E(tk.id)}</span>${E(x.sub)} · ${E(tk.obj)}</small></div><div class="th-ctl131">${statusBadge111(stepName131(tk.status),ticketTone131[tk.status])}${btn(t('Buka tiket','Open ticket'),'inbox131-ticket',`data-id="${E(tk.id)}"`,'small')}</div></header>`
+    :`<header class="thread-head131"><span class="kind-ico131 lock131 big">${svg131('lock')}</span><div class="th-id131"><h2>${E(x.title)}</h2><small><span class="code131">${E(x.code)}</span>${E(x.sub)}</small></div><div class="th-ctl131"><span class="tag131">${t('Hanya staf','Staff only')}</span></div></header>`;
+  const composer=`<form class="composer131 ${note?'note':''}" data-form="inbox131-send">${x.type==='ticket'&&!note?`<div class="quick131">${quick131.map((q,i)=>`<button type="button" data-action="inbox131-quick" data-id="${i}">${L(q)}</button>`).join('')}</div>`:''}${x.type==='ticket'?`<div class="mode131" role="tablist"><button type="button" role="tab" aria-selected="${!note}" class="${!note?'on':''}" data-action="inbox131-mode" data-id="reply">${t('Balas ke label','Reply to label')}</button><button type="button" role="tab" aria-selected="${note}" class="${note?'on':''}" data-action="inbox131-mode" data-id="note">${svg131('lock')}${t('Catatan internal','Internal note')}</button></div>`:''}<div class="compose-row131"><textarea name="text" rows="2" placeholder="${x.type==='internal'?t('Tulis ke tim internal…','Write to the internal team…'):note?t('Catatan untuk staf — tidak terlihat oleh label','Note for staff — not visible to the label'):t(`Balas ke ${x.title}…`,`Reply to ${x.title}…`)}" aria-label="${t('Pesan','Message')}"></textarea><button type="submit" class="btn primary small">${note&&x.type==='ticket'?t('Simpan catatan','Save note'):t('Kirim','Send')}</button></div></form>`;
+  return `<article class="cha-mid131">${head}${x.type==='internal'?`<div class="banner131">${svg131('lock')}${t('Ruang internal staf — tidak terlihat oleh label.','Staff-only room — not visible to labels.')}</div>`:''}<div class="msgs131"><span class="day131c">${t('Hari ini','Today')}</span>${x.items.map(bubble131).join('')||`<p class="hint131">${t('Belum ada pesan.','No messages yet.')}</p>`}</div>${composer}</article>`;
 }
-function ticketDetail131(x){
-  const tk=x.tk,idx=ticketSteps131.findIndex(s=>s[0]===tk.status);
-  const steps=`<ol class="steps131">${ticketSteps131.map(([k,l],i)=>`<li class="${i<idx?'done':i===idx?'now':''}"><i></i><span>${L(l)}</span></li>`).join('')}</ol>`;
-  const note=inbox131.mode==='note';
-  return `<article class="detail131 thread131d"><header class="thread-head131"><span class="avatar lead131 big">${initials131(x.title)}</span><div class="th-id131"><h2>${E(x.title)}${labelVerified131(x.title)?'<span class="seal-slot131"></span>':''}</h2><small><span class="code131">${E(tk.id)}</span>${E(x.sub)} · ${E(tk.obj)}</small></div><div class="th-ctl131">${statusBadge111(stepName131(tk.status),ticketTone131[tk.status])}${btn(t('Buka tiket','Open ticket'),'inbox131-ticket',`data-id="${E(tk.id)}"`,'small')}</div></header>${steps}
-  <div class="legend131"><span><i class="lg-msg"></i>${t('Dengan label','With label')} · ${x.labelCount}</span><span><i class="lg-note"></i>${t('Catatan internal','Internal notes')} · ${x.noteCount}</span></div>
-  <div class="msgs131">${x.items.map(bubble131).join('')||`<p class="hint131">${t('Belum ada pesan.','No messages yet.')}</p>`}</div>
-  <form class="composer131 ${note?'note':''}" data-form="inbox131-send"><div class="mode131" role="tablist"><button type="button" role="tab" aria-selected="${!note}" class="${!note?'on':''}" data-action="inbox131-mode" data-id="reply">${t('Balas ke label','Reply to label')}</button><button type="button" role="tab" aria-selected="${note}" class="${note?'on':''}" data-action="inbox131-mode" data-id="note">${svg131('lock')}${t('Catatan internal','Internal note')}</button></div><div class="compose-row131"><textarea name="text" rows="2" placeholder="${note?t('Catatan untuk staf — tidak terlihat oleh label','Note for staff — not visible to the label'):t(`Balas ke ${x.title}…`,`Reply to ${x.title}…`)}" aria-label="${t('Pesan','Message')}"></textarea><button type="submit" class="btn primary small">${note?t('Simpan catatan','Save note'):t('Kirim','Send')}</button></div></form></article>`;
+function relatedNotes131(obj){return obj?visibleNotifications().filter(n=>n.obj===obj):[];}
+function chatCtx131(x){
+  if(x.type==='internal'){const who=[...new Set(x.items.map(m=>m.who))].map(w=>personOf131(w)).filter(Boolean);
+    return `<aside class="cha-ctx131"><section class="ctx-sec131"><h4>${t('Ruang','Room')}</h4><div class="kv131c"><span>${t('Terkait','Related')}</span><b>${E(x.code)}</b><span>${t('Anggota','Members')}</span><b>${who.length}</b></div><div class="faces131 ctx-faces131">${who.map(p=>`<span class="avatar" title="${E(p.name)}">${p.initials}</span>`).join('')}</div></section><section class="ctx-sec131"><h4>${t('Tindakan','Actions')}</h4><div class="ctx-acts131">${btn(t(`Buka ${x.code}`,`Open ${x.code}`),'task',`data-id="${E(x.code)}"`,'small')}</div></section>${ctxNotes131(relatedNotes131(x.code))}</aside>`;}
+  const tk=x.tk,meta=ticketMeta131[tk.id]||{},idx=ticketSteps131.findIndex(s=>s[0]===tk.status),lab=(ten.members||[]).find(m=>m.name===tk.label);
+  return `<aside class="cha-ctx131">
+    <section class="ctx-sec131"><h4>${t('Tiket','Ticket')}</h4><div class="kv131c"><span>${t('Kategori','Category')}</span><b>${meta.cat?L(meta.cat):'—'}</b><span>${t('Rilisan','Release')}</span><b>${E(L(tk.subject).split('·').pop().trim())} · ${E(tk.obj)}</b><span>${t('Dibuka','Opened')}</span><b>${E(meta.opened||'—')}</b><span>${t('Penanggung','Owner')}</span><b>${E(whoName131(meta.owner||'')||'—')}</b></div></section>
+    <section class="ctx-sec131"><h4>${t('Tahapan','Stages')}</h4><ol class="vsteps131">${ticketSteps131.map(([k,l],i)=>`<li class="${i<idx?'d':i===idx?'n':''}"><i></i>${L(l)}</li>`).join('')}</ol></section>
+    <section class="ctx-sec131"><h4>${t('Tindakan','Actions')}</h4><div class="ctx-acts131">${idx<ticketSteps131.length-1?btn(t(`Lanjut ke "${L(ticketSteps131[idx+1][1])}"`,`Move to "${L(ticketSteps131[idx+1][1])}"`),'inbox131-advance',`data-id="${E(tk.id)}"`,'small'):''}${tk.status!=='awaiting_distributor'&&tk.status!=='completed'?btn(t('Teruskan ke distributor','Forward to distributor'),'inbox131-forward',`data-id="${E(tk.id)}"`,'small'):''}${btn(t(`Buka rilisan ${tk.obj}`,`Open release ${tk.obj}`),'task',`data-id="${E(tk.obj)}"`,'small')}</div></section>
+    <section class="ctx-sec131"><h4>Label</h4><div class="kv131c"><span>${t('Paket','Plan')}</span><b>${E(lab?.plan||'—')}${lab?.active?' · '+t('aktif','active'):''}</b><span>${t('Tiket terbuka','Open tickets')}</span><b>${threadStore131().tickets.filter(z=>z.label===tk.label&&z.status!=='completed').length}</b><span>Email</span><b>${E(lab?.email||'—')}</b></div></section>
+    ${ctxNotes131(relatedNotes131(tk.obj))}</aside>`;
 }
-function roomDetail131(x){
-  const who=[...new Set(x.items.map(m=>m.who))].map(w=>personOf131(w)).filter(Boolean);
-  return `<article class="detail131 thread131d"><header class="thread-head131"><span class="kind-ico131 lock131 big">${svg131('lock')}</span><div class="th-id131"><h2>${E(x.title)}</h2><small><span class="code131">${E(x.code)}</span>${E(x.sub)}</small></div><div class="th-ctl131"><span class="faces131">${who.map(p=>`<span class="avatar" title="${E(p.name)}">${p.initials}</span>`).join('')}</span>${btn(x.code,'task',`data-id="${E(x.code)}"`,'small')}</div></header>
-  <div class="banner131">${svg131('lock')}${t('Ruang internal staf — tidak terlihat oleh label.','Staff-only room — not visible to labels.')}</div>
-  <div class="msgs131">${x.items.map(bubble131).join('')}</div>
-  <form class="composer131 note" data-form="inbox131-send"><div class="compose-row131"><textarea name="text" rows="2" placeholder="${t('Tulis ke tim internal…','Write to the internal team…')}" aria-label="${t('Pesan','Message')}"></textarea><button type="submit" class="btn primary small">${t('Kirim','Send')}</button></div></form></article>`;
+function ctxNotes131(list){return `<section class="ctx-sec131"><h4>${t('Aktivitas terkait','Related activity')}</h4>${list.length?list.map(n=>`<button type="button" class="ctx-note131" data-action="inbox131-noteopen" data-id="${n.id}"><span class="kind-ico131 sm">${svg131(kindOf131(n))}</span><span><b>${L(n.title)}</b><small>${n.time}</small></span></button>`).join(''):`<p class="hint131">${t('Belum ada notifikasi terkait.','No related notifications.')}</p>`}</section>`;}
+function notifA131(all,sw){
+  const k=inbox131.view.slice(2),q=inbox131.search.toLowerCase();
+  const list=all.filter(n=>(k==='all'||kindOf131(n)===k)&&(!q||(L(n.title)+' '+L(n.body)+' '+(n.obj||'')).toLowerCase().includes(q)));
+  if(!list.some(n=>n.id===inbox131.sel))inbox131.sel=list[0]?.id||null;
+  const cur=list.find(n=>n.id===inbox131.sel),unread=all.filter(isUnread131).length;
+  const chips=`<div class="cha-chips131">${kinds131.map(([id,l])=>`<button type="button" class="${k===id?'on':''}" data-action="inbox131-view" data-id="n:${id}">${id==='all'?t('Semua','All'):L(l)}</button>`).join('')}</div>`;
+  let day='';const rows=list.map(n=>{const d=dayOf131(n),head=d!==day?`<h4 class="day131">${d}</h4>`:'';day=d;return head+`<button type="button" class="row131 ${n.id===inbox131.sel?'active':''} ${isUnread131(n)?'unread':''}" data-action="inbox131-sel" data-id="${n.id}"><span class="kind-ico131">${svg131(kindOf131(n))}</span><span class="row-main131"><span class="row-top131"><strong>${L(n.title)}</strong><time>${n.time}</time></span><span class="row-sub131">${L(n.body)}</span></span>${isUnread131(n)?'<i class="udot131"></i>':''}</button>`;}).join('');
+  const left=`<aside class="cha-list131"><header class="cha-lhead131">${sw}</header>${chips}<div class="cha-subhead131"><small>${list.length} ${t('notifikasi','notifications')}</small>${btn(t('Tandai semua dibaca','Mark all read'),'inbox131-read',unread?'':'disabled','small text')}</div>${searchBox131()}<div class="rows131i">${rows||`<p class="hint131 pad131">${t('Tidak ada notifikasi.','No notifications.')}</p>`}</div></aside>`;
+  if(!cur)return left+`<article class="cha-mid131">${empty(t('Pilih notifikasi','Pick a notification'))}</article><aside class="cha-ctx131"></aside>`;
+  const kk=kindOf131(cur),conv=threads131().find(x=>x.type==='ticket'&&x.tk.obj&&x.tk.obj===cur.obj);
+  const mid=`<article class="cha-mid131 nmid131"><div class="eyebrow131">${svg131(kk)}<span>${kindName131(kk)}</span><span>·</span><time>${dayOf131(cur)}${/^\d/.test(cur.time)&&dayOf131(cur)!==cur.time?' '+cur.time:''}</time></div><h2 class="detail-title131">${L(cur.title)}</h2><p class="detail-body131">${L(cur.body)}</p><p class="hint131">${t('Membaca notifikasi tidak menyelesaikan pekerjaan terkait.','Reading a notification does not complete the related work.')}</p></article>`;
+  const ctx=`<aside class="cha-ctx131">${cur.obj||cur.page?`<section class="ctx-sec131"><h4>${t('Objek terkait','Related item')}</h4><div class="obj131"><span class="obj-ico131">${svg131(kk==='personal'?'personal':'release')}</span><div><strong>${E(cur.obj||pages()[cur.page]||cur.page)}</strong></div>${btn(t('Buka','Open'),'notification-open',`data-id="${cur.id}"`,'small primary')}</div></section>`:''}${conv?`<section class="ctx-sec131"><h4>${t('Percakapan terkait','Related conversation')}</h4><button type="button" class="ctx-note131" data-action="inbox131-goconv" data-id="${conv.id}"><span class="avatar lead131">${initials131(conv.title)}</span><span><b>${E(conv.title)}</b><small>${E(conv.code)} · ${E(conv.sub)}</small></span></button></section>`:''}<section class="ctx-sec131"><h4>${t('Tindakan','Actions')}</h4><div class="ctx-acts131">${btn(t('Tandai belum dibaca','Mark unread'),'inbox131-unread',`data-id="${cur.id}"`,'small')}</div></section></aside>`;
+  return left+mid+ctx;
 }
 function sendMessage131(form){
   const text=form.elements.text.value.trim();if(!text)return;const id=inbox131.sel;if(!id)return;
-  const msg={who:me().id,text:[text,text],at:t('baru saja','just now')};
+  const msg={who:me().id,text:[text,text],at:t('baru saja','just now'),ts:Date.now()};
   if(id==='i:room')(data.chats.internal=data.chats.internal||[]).push(msg);
   else if(id.startsWith('t:')){const tk=threadStore131().tickets.find(x=>x.id===id.slice(2));if(!tk)return;
     if(inbox131.mode==='note')tk.notes.push(msg);else if(tk.chat)(data.chats[tk.chat]=data.chats[tk.chat]||[]).push(msg);else tk.msgs.push(msg);}
@@ -158,11 +168,16 @@ notificationModal=function(){notificationModalBase131();inboxLink131('n:all');};
 
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id;
-  if(a==='inbox131-view'){inbox131.view=id;inbox131.sel=null;inbox131.search='';render();}
-  else if(a==='inbox131-sel'){inbox131.sel=id;const n=visibleNotifications().find(x=>x.id===id);if(n&&isUnread131(n)){n.read.push(me().id);if(typeof save10==='function')save10();}render();}
+  if(a==='inbox131-view'){if(id[0]!==inbox131.view[0])inbox131.sel=null;inbox131.view=id;inbox131.search='';render();}
+  else if(a==='inbox131-sel'){inbox131.sel=id;const n=visibleNotifications().find(x=>x.id===id);if(n&&isUnread131(n)){n.read.push(me().id);if(typeof save10==='function')save10();}if(id.startsWith('i:'))inbox131.mode='reply';render();}
   else if(a==='inbox131-read')markAllRead131();
   else if(a==='inbox131-waiting'){inbox131.waiting=!inbox131.waiting;render();}
-  else if(a==='inbox131-mode'){inbox131.mode=id;render();const ta=document.querySelector('.composer131 textarea');if(ta)ta.focus();}
+  else if(a==='inbox131-mode'){inbox131.mode=id;render();document.querySelector('.composer131 textarea')?.focus();}
+  else if(a==='inbox131-quick'){const ta=document.querySelector('.composer131 textarea');if(ta){ta.value=L(quick131[+id]);ta.focus();}}
+  else if(a==='inbox131-advance'||a==='inbox131-forward'){const tk=threadStore131().tickets.find(x=>x.id===id);if(!tk)return;const i=ticketSteps131.findIndex(s=>s[0]===tk.status);tk.status=a==='inbox131-forward'?'awaiting_distributor':ticketSteps131[Math.min(i+1,ticketSteps131.length-1)][0];tk.notes.push({who:me().id,text:[`Status diubah ke "${L(ticketSteps131.find(s=>s[0]===tk.status)[1])}".`,`Status changed to "${L(ticketSteps131.find(s=>s[0]===tk.status)[1])}".`],at:t('baru saja','just now'),ts:Date.now()});if(typeof save10==='function')save10();render();toast(t('Status tiket diperbarui (simulasi).','Ticket status updated (simulation).'));}
+  else if(a==='inbox131-noteopen'){inbox131.view='n:all';inbox131.sel=id;const n=visibleNotifications().find(x=>x.id===id);if(n&&isUnread131(n))n.read.push(me().id);render();}
+  else if(a==='inbox131-goconv'){inbox131.view='c:all';inbox131.sel=id;render();}
+  else if(a==='inbox131-unread'){const n=visibleNotifications().find(x=>x.id===id);if(n)n.read=n.read.filter(r=>r!==me().id);if(typeof save10==='function')save10();render();}
   else if(a==='inbox131-page')openInbox131(id);
   else if(a==='inbox131-ticket'){if(typeof route102==='function')route102('tickets');}
   else return;
@@ -181,13 +196,13 @@ if(typeof headerControls127!=='undefined'&&!headerControls127.some(c=>c.id==='in
   headerControls127.splice(1,0,{id:'inbox',label:['Kotak Masuk','Inbox']});
   controlIcons127.inbox='<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6H3v-6z"/>';
   const activeBeforeInbox131=controlActive126;
-  controlActive126=function(id){if(id==='inbox')return v4.module==='inbox131'&&!!document.querySelector('#main .inbox3-131');if(id==='home'&&v4.module==='inbox131'&&document.querySelector('#main .inbox3-131'))return false;return activeBeforeInbox131(id);};
+  controlActive126=function(id){if(id==='inbox')return v4.module==='inbox131'&&!!document.querySelector('#main .cha131');if(id==='home'&&v4.module==='inbox131'&&document.querySelector('#main .cha131'))return false;return activeBeforeInbox131(id);};
   const goBeforeInbox131=goControl126;
   goControl126=function(id){if(id==='inbox')return openInbox131();return goBeforeInbox131(id);};
 }
 function markInboxIcon131(){
   const b=document.querySelector('.header [data-control126="inbox"]');if(!b)return;
-  const on=v4.module==='inbox131'&&!!document.querySelector('#main .inbox3-131');
+  const on=v4.module==='inbox131'&&!!document.querySelector('#main .inbox3-131,#main .cha131');
   b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
   if(on)document.querySelectorAll('.header [data-control126="home"]').forEach(h=>{h.classList.remove('active');h.removeAttribute('aria-current');});
   let n=0;try{n=visibleNotifications().filter(isUnread131).length+threads131().filter(x=>x.waiting).length;}catch{}

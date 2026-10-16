@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.1.0-dev.18",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Foto profil: menu saat hover + atur dengan geser/gulir; mata kata sandi; kartu Penarikan diringkas; CH-A (chat lebih dulu) dengan Notifikasi di halaman yang sama; tab baru Kewajiban Royalti di Pemantauan Keuangan.",
+      "en": "Profile photo: hover menu + drag/scroll to adjust; password eye; Period Withdrawals card simplified; CH-A (chat first) with Notifications on the same page; new Royalty Payable tab in Financial Monitoring."
+    },
+    "entries": [
+      {
+        "id": "dev18-photo",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Profil · foto & kata sandi",
+            "en": "Profile · photo & password"
+          }
+        },
+        "title": {
+          "id": "Foto: pilihan muncul saat hover; ukuran & posisi tanpa slider; mata kata sandi",
+          "en": "Photo: options on hover; size & position without a slider; password eye"
+        },
+        "detail": {
+          "id": "Tombol \"Unggah foto\" yang berdiri sendiri dihapus. Arahkan kursor ke foto → Unggah/Ganti · Atur · Hapus. Mode atur: geser untuk posisi, gulir roda atau cubit dua jari untuk ukuran (+/− dan panah dari keyboard); Simpan/Batal melayang di bawah lingkaran sehingga tata letak tidak bergeser. Tiga isian kata sandi punya tombol mata.",
+          "en": "The standalone \"Upload photo\" button is gone. Hover the photo → Upload/Replace · Adjust · Remove. Adjust mode: drag to position, scroll wheel or two-finger pinch to resize (+/− and arrows from the keyboard); Save/Cancel float under the circle so the layout does not shift. All three password fields have an eye toggle."
+        }
+      },
+      {
+        "id": "dev18-payout-simple",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period Withdrawals"
+          }
+        },
+        "title": {
+          "id": "Penarikan periode ini diringkas",
+          "en": "Period Withdrawals simplified"
+        },
+        "detail": {
+          "id": "Satu angka utama (diajukan / maksimal bulan ini), dua angka yang perlu tindakan (belum dibayar dengan tenggat · tidak diajukan → Kewajiban Royalti), satu batang tiga warna dengan legenda satu baris, dan satu baris konteks laporan.",
+          "en": "One headline (requested / this month’s maximum), two numbers that need action (unpaid with deadline · not requested → Royalty Payable), one three-colour bar with a one-line legend, and one line of report context."
+        }
+      },
+      {
+        "id": "dev18-cha",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · Kotak Masuk",
+            "en": "Header · Inbox"
+          }
+        },
+        "title": {
+          "id": "Kotak Masuk CH-A: percakapan lebih dulu, notifikasi di halaman yang sama",
+          "en": "Inbox CH-A: conversations first, notifications on the same page"
+        },
+        "detail": {
+          "id": "Daftar (pengalih Percakapan | Notifikasi, tab Semua · Label & tiket · Internal, cari, saringan menunggu jawabanku) · percakapan (balasan cepat, Balas ke label / Catatan internal, linimasa berurutan waktu) · konteks tiket (rincian, tahapan, tindakan lanjut tahap / teruskan ke distributor / buka rilisan, info label, aktivitas terkait). Mode Notifikasi memakai kolom yang sama; notifikasi menunjuk percakapan terkait. Lonceng → \"Buka Kotak Masuk\" membuka mode Notifikasi.",
+          "en": "List (Conversations | Notifications switch, All · Labels & tickets · Internal tabs, search, awaiting-my-reply filter) · conversation (quick replies, Reply to label / Internal note, time-ordered timeline) · ticket context (details, stages, actions: next stage / forward to distributor / open release, label info, related activity). Notification mode uses the same columns; notifications link to the related conversation. Bell → \"Open Inbox\" opens notification mode."
+        }
+      },
+      {
+        "id": "dev18-payable",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "liability9",
+          "menu": {
+            "id": "Pemantauan Keuangan · Kewajiban Royalti",
+            "en": "Financial Monitoring · Royalty Payable"
+          }
+        },
+        "title": {
+          "id": "Tab baru: Kewajiban Royalti (rekap bulanan saldo belum dicairkan)",
+          "en": "New tab: Royalty Payable (monthly recap of unpaid balances)"
+        },
+        "detail": {
+          "id": "Ringkasan kewajiban berjalan (siap cair tidak diajukan + di bawah ambang Rp 1 jt; yang sedang dibayar dipisah), tren per laporan (grafik + tabel: royalti laporan, bisa dicairkan, diajukan, tidak diajukan, di bawah ambang, kewajiban), umur saldo, dan daftar label dengan saringan & tombol \"Kirim pengingat\". Rekap bulanan & umur = data pratinjau; daftar label dari saldo label prototype.",
+          "en": "Running payable summary (withdrawable not requested + below the Rp 1M threshold; balances being paid shown separately), per-report trend (chart + table: report royalties, withdrawable, requested, not requested, below threshold, payable), balance age, and a label list with filters & \"Send reminder\". Monthly recap & age = preview data; label list from prototype label balances."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.17",
     "date": "2026-10-16",
     "summary": {
