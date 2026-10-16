@@ -1,5 +1,115 @@
 [
   {
+    "version": "1.1.0-dev.13",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Saklar hijau standar; Profil kiri–kanan dengan pengatur foto langsung; Kotak Masuk tiga kolom (notifikasi, tiket & label, internal); popover chat tidak lagi terpotong; kaca gelap memakai logika yang sama dengan terang.",
+      "en": "Standard green switch; left–right Profile with inline photo editor; three-column Inbox (notifications, tickets & labels, internal); chat popover no longer clipped; dark glass uses the same logic as light."
+    },
+    "entries": [
+      {
+        "id": "dev13-switch",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Profil · Preferensi notifikasi",
+            "en": "Profile · Notification preferences"
+          }
+        },
+        "title": {
+          "id": "Saklar standar: hijau saat aktif (dari referensi)",
+          "en": "Standard switch: green when on (from the reference)"
+        },
+        "detail": {
+          "id": "Rasio dan warna diukur dari referensi: trek hijau bergradasi (kiri gelap → kanan terang, bayangan dalam di atas), knop putih dengan bayangan lembut, trek abu cekung saat nonaktif. Kelas .sw131 menjadi standar untuk saklar baru.",
+          "en": "Ratio and colours measured from the reference: gradient green track (dark left → light right, inner top shadow), white knob with soft shadow, recessed grey track when off. Class .sw131 is the standard for new switches."
+        }
+      },
+      {
+        "id": "dev13-profile",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Profil kiri–kanan + atur foto langsung di kolom foto",
+          "en": "Left–right Profile + edit the photo right in the photo column"
+        },
+        "detail": {
+          "id": "Kolom kiri: foto (unggah, geser untuk posisi, slider ukuran, simpan/batal, hapus) dan identitas. Kolom kanan: Data akun dalam kisi tiga kolom, Tampilan & bahasa berdampingan dengan Keamanan. Foto tersimpan sebagai potongan 256 px dan langsung dipakai avatar header & sidebar.",
+          "en": "Left column: photo (upload, drag to position, size slider, save/cancel, remove) and identity. Right column: account data in a three-column grid, Appearance & language beside Security. The photo is saved as a 256 px crop and used by the header & sidebar avatars right away."
+        }
+      },
+      {
+        "id": "dev13-inbox",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Kotak Masuk",
+            "en": "Inbox"
+          }
+        },
+        "title": {
+          "id": "Kotak Masuk tiga kolom: navigasi · daftar · detail",
+          "en": "Three-column Inbox: navigation · list · detail"
+        },
+        "detail": {
+          "id": "Kiri: Notifikasi per jenis dan Percakapan (Semua · Tiket & label · Internal) dengan hitungan. Pembeda jenis: tiket = avatar label + ID + chip status; internal = gembok + tag. Tiket menampilkan tahapan dan satu linimasa berisi pesan label serta catatan internal (garis putus-putus + gembok); composer bisa beralih \"Balas ke label\" / \"Catatan internal\". Ruang internal diberi pita \"tidak terlihat oleh label\".",
+          "en": "Left: Notifications by type and Conversations (All · Tickets & labels · Internal) with counts. Type cues: ticket = label avatar + ID + status chip; internal = lock + tag. A ticket shows its stages and one timeline of label messages plus internal notes (dashed + lock); the composer switches between \"Reply to label\" / \"Internal note\". The internal room carries a \"not visible to labels\" strip."
+        }
+      },
+      {
+        "id": "dev13-popover",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Header · chat",
+            "en": "Header · chat"
+          }
+        },
+        "title": {
+          "id": "Popover chat tidak terpotong; jarak tautan & tombol tutup",
+          "en": "Chat popover no longer clipped; spacing between link & close"
+        },
+        "detail": {
+          "id": "Kartu header tidak lagi overflow:hidden (lapisan atmosfer dipotong sendiri), sehingga popover tampil utuh di atas konten.",
+          "en": "The header card is no longer overflow:hidden (atmosphere layers clip themselves), so the popover shows in full above the content."
+        }
+      },
+      {
+        "id": "dev13-dark-glass",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · tema gelap",
+            "en": "Dashboard · dark theme"
+          }
+        },
+        "title": {
+          "id": "Kaca gelap = logika terang: warna hanya di lengkung ujung, bergradasi",
+          "en": "Dark glass = light logic: colour only on the end curves, graded"
+        },
+        "detail": {
+          "id": "Analisis: di terang, rim atas/bawah putih opak menutup lapisan warna sehingga warna hanya tampak di lengkung kiri (kuat) & kanan (lembut). Di gelap rim tembus pandang, jadi warna terlihat mengelilingi pil seperti outline. Kini lapisan warna memudar sendiri ke atas/bawah (radial 14 px di ujung), sorot atas sangat tipis, tanpa semburat warna di isi.",
+          "en": "Analysis: in light, the opaque white top/bottom rim covers the colour layer so colour only shows on the left (strong) & right (soft) curves. In dark the rim is translucent, so colour ringed the pill like an outline. The colour layer now fades by itself towards top/bottom (14 px radial at the ends), very thin top highlight, no colour wash in the fill."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.12",
     "date": "2026-10-16",
     "summary": {

@@ -5,7 +5,7 @@
    Selektor memakai #app + kelas release124.release129 agar menang atas aturan
    v129 "body.release126…release129 #app .masthead124" (bobot 1,5,1 → kami 1,6,2). */
 html:root body.dashboard124.release124.release129 #app .masthead124{transition:margin .3s cubic-bezier(.2,.8,.2,1),border-radius .3s ease,top .3s ease}
-html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124){top:12px;margin:12px 12px 0!important;padding-top:0!important;border-radius:26px!important;overflow:hidden}
+html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124){top:12px;margin:12px 12px 0!important;padding-top:0!important;border-radius:26px!important;overflow:visible}
 html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124) :is(.masthead-backdrop130,.masthead-atmosphere127,.hero-clip124){border-radius:inherit}
 html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124) .header.header124{padding-inline:28px!important}
 /* Bar terlipat: blok penuh kiri–kanan + kaca tipis */
@@ -17,3 +17,7 @@ html:root body.dashboard124.release124.release129 #app .masthead124.is-collapsed
 /* dev.9: tombol bahasa / notifikasi / chat / profil tanpa blok hover (fokus keyboard tetap terlihat). */
 html:root #app .header .tools>.iconbtn:hover,html:root body.dashboard124.release124.release129 #app .masthead124 .header.header124 .tools>.iconbtn:hover{background:transparent!important}
 html:root #app .header .tools>.iconbtn:focus-visible{outline:2px solid color-mix(in srgb,var(--text) 35%,transparent);outline-offset:2px}
+/* dev.13: kartu header tidak lagi overflow:hidden (memotong popover chat/notifikasi); lapisan atmosfer dipotong sendiri. */
+html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124)>:is(.masthead-backdrop130,.masthead-atmosphere127,.hero-clip124){overflow:hidden;border-radius:inherit}
+#header-popover .popover-title>div{display:flex;align-items:center;gap:14px}
+#header-popover{z-index:40}

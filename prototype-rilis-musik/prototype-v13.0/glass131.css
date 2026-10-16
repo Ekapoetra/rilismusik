@@ -54,14 +54,18 @@ html:root body.dashboard124.dashboard124 .withdraw-heading124 .detail-arrow124{d
    + lapisan background-origin border-box. */
 :root{--g-top131:#fefefe;--g-bot131:#f8f8f8;--g-lens131:#0000000b;--g-lens-w131:22px;--g-rim-top131:#ffffff;--g-rim-side131:#00000012;
   --g-sh1-131:#0000000a;--g-sh2-131:#00000016;--g-sh131:0 2px 6px -2px;--g-tint131:34%;--g-tint-r131:9%}
-/* Gelap (dev.12, varian G dari mock darkglass2 — "menyatu dengan kartu"): tanpa garis rim yang
-   terbaca (rim samar 5%), tanpa bayangan luar lebar, isi hanya +4 L* dari kartu; kesan kaca
-   datang dari SOROT atas berupa gradien lembut dan warna penanda sebagai CAHAYA di sisi kiri
-   (radial, bukan garis). */
-:root[data-theme=dark]{--g-top131:#ffffff12;--g-bot131:#ffffff06;--g-lens131:#00000040;--g-rim-top131:#ffffff0c;--g-rim-side131:#ffffff06;--g-rim-bot131:#ffffff05;
-  --g-sh1-131:#00000066;--g-sh2-131:#00000000;--g-tint131:0%;--g-tint-r131:0%}
+/* Gelap (dev.13, varian V dari mock darkglass5) — logika SAMA dengan terang:
+   di terang, rim atas/bawah putih OPAK menutupi lapisan warna, sehingga garis lurus tak terlihat
+   dan warna penanda hanya tampak di LENGKUNG ujung kiri (kuat) & kanan (lembut). Di gelap rim
+   atas tembus pandang, jadi lapisan warna dibuat memudar sendiri ke atas/bawah (radial 14 px di
+   ujung) — hasilnya garis tipis bergradasi, bukan outline solid atau semburat luas.
+   Isi +5 L* dari kartu, sorot atas sangat tipis, bayangan hitam lembut ke bawah. */
+:root[data-theme=dark]{--g-top131:#ffffff10;--g-bot131:#ffffff07;--g-lens131:#00000030;--g-rim-top131:#ffffff10;--g-rim-side131:#ffffff00;--g-rim-bot131:#ffffff05;
+  --g-sh1-131:#00000066;--g-sh2-131:#00000099;--g-tint131:55%;--g-tint-r131:16%}
 :root[data-theme=dark] .delta131,:root[data-theme=dark] [data-tip131]::after,:root[data-theme=dark] .md-head131 small,
-html:root[data-theme=dark] body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--g-hl131:linear-gradient(180deg,#ffffff0e,transparent 45%),radial-gradient(60% 120% at 0% 50%,color-mix(in srgb,var(--tone131,var(--muted)) 22%,transparent),transparent 70%)}
+html:root[data-theme=dark] body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){
+  --g-rim-v131:linear-gradient(180deg,var(--g-rim-top131) 0%,transparent 40%,transparent 70%,var(--g-rim-bot131) 100%);
+  --g-rim-h131:radial-gradient(14px 70% at 0% 50%,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint131),transparent),transparent),radial-gradient(14px 70% at 100% 50%,color-mix(in srgb,var(--tone131,var(--muted)) var(--g-tint-r131),transparent),transparent)}
 :root{--g-rim-bot131:var(--g-rim-top131)}
 
 .delta131,[data-tip131]::after,

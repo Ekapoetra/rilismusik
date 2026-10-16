@@ -7,5 +7,5 @@
   "previewCommand": "npm run preview",
   "standaloneSha256": "f02a1bc8157eae7729a699486aa794e49a0808985d27498b8d2f688449d17ab6",
   "productionIntegrated": false,
-  "release": "1.1.0-dev.12"
+  "release": "1.1.0-dev.13"
 }
