@@ -171,3 +171,28 @@
   body.nosidebar131 #app .workspace-body122>.shell{flex:1 1 auto;max-width:none}
   body.nosidebar131 #main .profile2-131,body.nosidebar131 #main:has(.profile2-131) .pagehead{max-width:1120px;margin-inline:auto}
 }
+
+/* dev.15: Profil satu layar — tiga kolom sejajar, kelompok rapat, aksi di kepala kelompok. */
+.profile3-131{display:grid;grid-template-columns:260px minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:901px){body.nosidebar131 #main .profile3-131,body.nosidebar131 #main:has(.profile3-131) .pagehead{max-width:1180px;margin-inline:auto}}
+@media (max-width:1100px){.profile3-131{grid-template-columns:240px minmax(0,1fr)}.profile3-131>.g131:last-child{grid-column:2}}
+@media (max-width:760px){.profile3-131{grid-template-columns:1fr}.profile3-131>.g131:last-child{grid-column:auto}}
+.profile3-131 .photo131{padding:20px 18px 18px}
+.profile3-131 .ph-zoom131{margin-top:12px}
+.profile3-131 .ph-actions131{margin-top:12px}
+.profile3-131 .id131{margin-top:14px;padding-top:14px}
+.profile3-131 .id131 h2{font-size:16px}
+.profile3-131 .id131 p{font-size:12px;margin-bottom:8px}
+.pcol131{display:flex;flex-direction:column;gap:16px;min-width:0}
+.g131{overflow:hidden}
+.ghead131{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 20px 2px}
+.ghead131 h2{font-size:15px;font-weight:500;margin:0}
+.g131 .kv131{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px 20px;margin:10px 20px 18px}
+.g131 .kv131 dd{font-size:13px}
+.g131 .rows131{padding:2px 20px 6px}
+.g131 .srow131{padding:10px 0}
+.g131 .srow-text131 strong{font-size:13px}
+.gfoot131{padding:4px 20px 14px}
+/* dev.15: ikon Kotak Masuk di header — titik penanda belum dibaca */
+.header [data-control126="inbox"]{position:relative}
+.header [data-control126="inbox"].has-dot131::after{content:"";position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 2px var(--surface,#fff)}

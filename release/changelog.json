@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.15",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Profil muat satu layar (tiga kolom, tanpa gulir); ikon Kotak Masuk di menu header tepat setelah Home.",
+      "en": "Profile fits one screen (three columns, no scrolling); Inbox icon in the header menu right after Home."
+    },
+    "entries": [
+      {
+        "id": "dev15-profile",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Profil dirapikan: satu layar tanpa gulir",
+          "en": "Profile tidied: one screen, no scrolling"
+        },
+        "detail": {
+          "id": "Tiga kolom sejajar: foto & identitas · data akun (kisi dua kolom) + tampilan & bahasa · keamanan. Tombol aksi pindah ke kepala kelompok, catatan panjang jadi tooltip, foto 112 px. Diuji muat penuh pada layar 1440×1000 dan 1366×768.",
+          "en": "Three aligned columns: photo & identity · account data (two-column grid) + appearance & language · security. Action buttons moved to group headers, long notes became tooltips, 112 px photo. Verified to fit fully on 1440×1000 and 1366×768 screens."
+        }
+      },
+      {
+        "id": "dev15-inbox-icon",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Header · menu ikon",
+            "en": "Header · icon menu"
+          }
+        },
+        "title": {
+          "id": "Ikon Kotak Masuk di menu header, setelah Home",
+          "en": "Inbox icon in the header menu, after Home"
+        },
+        "detail": {
+          "id": "Membuka halaman Kotak Masuk; aktif (lingkaran gelap) saat halaman terbuka dan Home tidak ikut aktif; titik merah bila ada notifikasi belum dibaca atau percakapan menunggu jawaban. Desain ulang halaman Kotak Masuk menyusul.",
+          "en": "Opens the Inbox page; active (dark circle) while the page is open and Home is not; red dot when there are unread notifications or conversations awaiting a reply. Inbox page redesign to follow."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.14",
     "date": "2026-10-16",
     "summary": {

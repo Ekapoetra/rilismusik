@@ -173,3 +173,25 @@ document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form=
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.target.closest('.composer131 textarea')){e.preventDefault();sendMessage131(e.target.form);}});
 const modulePageBeforeInbox131=modulePage;
 modulePage=function(){if(v4.module==='inbox131')return inboxPage131();return modulePageBeforeInbox131();};
+
+/* dev.15: ikon Kotak Masuk di menu header, tepat setelah Home (kontrol Super Admin v127).
+   Aktif saat halaman Kotak Masuk terbuka; titik kecil bila ada notifikasi belum dibaca atau
+   percakapan yang menunggu jawaban. */
+if(typeof headerControls127!=='undefined'&&!headerControls127.some(c=>c.id==='inbox')){
+  headerControls127.splice(1,0,{id:'inbox',label:['Kotak Masuk','Inbox']});
+  controlIcons127.inbox='<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6H3v-6z"/>';
+  const activeBeforeInbox131=controlActive126;
+  controlActive126=function(id){if(id==='inbox')return v4.module==='inbox131'&&!!document.querySelector('#main .inbox3-131');if(id==='home'&&v4.module==='inbox131'&&document.querySelector('#main .inbox3-131'))return false;return activeBeforeInbox131(id);};
+  const goBeforeInbox131=goControl126;
+  goControl126=function(id){if(id==='inbox')return openInbox131();return goBeforeInbox131(id);};
+}
+function markInboxIcon131(){
+  const b=document.querySelector('.header [data-control126="inbox"]');if(!b)return;
+  const on=v4.module==='inbox131'&&!!document.querySelector('#main .inbox3-131');
+  b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+  if(on)document.querySelectorAll('.header [data-control126="home"]').forEach(h=>{h.classList.remove('active');h.removeAttribute('aria-current');});
+  let n=0;try{n=visibleNotifications().filter(isUnread131).length+threads131().filter(x=>x.waiting).length;}catch{}
+  b.classList.toggle('has-dot131',n>0);b.title=b.getAttribute('aria-label')+(n?` · ${n}`:'');
+}
+const renderBeforeInboxIcon131=render;
+render=function(){renderBeforeInboxIcon131();markInboxIcon131();};
