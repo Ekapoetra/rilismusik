@@ -1,4 +1,6 @@
-/* v1.1 dev.11–13 — Profil: halaman khusus saat avatar kanan atas diklik.
+/* v1.1 dev.11–14 — Profil: halaman khusus saat avatar kanan atas diklik.
+   dev.14 (pemilik): tanpa sidebar aplikasi, tanpa tab "Label & akses" dan "Preferensi notifikasi"
+   (aksesTab131/notifPrefTab131 disimpan untuk dipindah ke menu lain bila diperlukan).
    Tata letak kiri–kanan (dev.13): kolom kiri lengket berisi kartu FOTO yang bisa diatur langsung
    (unggah, geser untuk memposisikan, slider ukuran, simpan/batal — tanpa membuka drawer) dan
    ringkasan identitas; kolom kanan berisi tab dan kelompok pengaturan. Data akun memakai kisi
@@ -56,9 +58,8 @@ function savePhoto131(){
 
 function profilePage131(){
   const p=me(),d=prof131();
-  const tabs=`<div class="tabs profile-tabs131" role="tablist">${[['akun',t('Akun','Account')],['akses',t('Label & akses','Labels & access')],['notif',t('Preferensi notifikasi','Notification preferences')]].map(([id,label])=>`<button type="button" role="tab" aria-selected="${profile131.tab===id}" class="${profile131.tab===id?'active':''}" data-action="profile131-tab" data-id="${id}">${label}</button>`).join('')}</div>`;
-  return pageHead(t('Profil','Profile'),t('Siapa kamu di Rilis Musik, apa yang bisa kamu akses, dan bagaimana kami menghubungimu.','Who you are in Rilis Musik, what you can access, and how we reach you.'))
-    +`<div class="profile2-131"><aside class="profile-side131">${photoCard131(p)}</aside><div class="profile-main131">${tabs}${({akun:akunTab131,akses:aksesTab131,notif:notifPrefTab131})[profile131.tab](p,d)}</div></div>`;
+  return pageHead(t('Profil','Profile'),t('Data akun, foto, tampilan, dan keamanan masuk.','Account data, photo, appearance and sign-in security.'))
+    +`<div class="profile2-131"><aside class="profile-side131">${photoCard131(p)}</aside><div class="profile-main131">${akunTab131(p,d)}</div></div>`;
 }
 function akunTab131(p,d){
   const ua=navigator.userAgent,browser=/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Firefox\//.test(ua)?'Firefox':/Safari\//.test(ua)?'Safari':t('Peramban','Browser'),os=/Windows/.test(ua)?'Windows':/Mac/.test(ua)?'macOS':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':'';
@@ -98,8 +99,7 @@ function passwordDrawer131(){
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id;
-  if(a==='profile131-tab'){profile131.tab=id;render();}
-  else if(a==='profile131-edit')account8();
+  if(a==='profile131-edit')account8();
   else if(a==='profile131-password')passwordDrawer131();
   else if(a==='profile131-signout')toast(id==='all'?t('Semua sesi lain diakhiri (simulasi).','All other sessions ended (simulation).'):t('Sesi diakhiri (simulasi).','Session ended (simulation).'));
   else if(a==='profile131-photo-save')savePhoto131();
@@ -135,4 +135,4 @@ const modulePageBeforeProfile131=modulePage;
 modulePage=function(){if(v4.module==='profile131')return profilePage131();return modulePageBeforeProfile131();};
 /* setelah render: tata ulang gambar draf & beri fokus keyboard pada bingkai */
 const renderBeforeProfile131=render;
-render=function(){renderBeforeProfile131();if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};
+render=function(){renderBeforeProfile131();document.body.classList.toggle('nosidebar131',!!document.querySelector('#main .inbox3-131,#main .profile2-131'));if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};

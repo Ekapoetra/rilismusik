@@ -150,3 +150,8 @@ function fixTones131(root=document){
 }
 const passBeforeTones131=glassPass131;
 glassPass131=function(root=document){passBeforeTones131(root);fixTones131(root===document?document:root);};
+
+/* dev.14: zona hover panah kartu metrik — hanya panah yang berubah warna saat di-hover. */
+function arrowZones131(root=document){root.querySelectorAll('.metric124:not(:has(> .mk131))').forEach(c=>c.insertAdjacentHTML('beforeend','<span class="mk131" aria-hidden="true"></span>'));}
+const passBeforeArrow131=glassPass131;
+glassPass131=function(root=document){passBeforeArrow131(root);arrowZones131(root===document?document:root);};

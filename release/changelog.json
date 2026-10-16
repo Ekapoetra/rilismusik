@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.1.0-dev.14",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Chip gelap tanpa garis merah muda di ujung kanan; panah kartu ringkasan hanya bereaksi saat panah di-hover; Kotak Masuk & Profil tanpa sidebar aplikasi; Profil hanya akun; saklar disamakan dengan referensi.",
+      "en": "Dark chips without the pink right edge; summary-card arrow reacts only when the arrow is hovered; Inbox & Profile without the app sidebar; Profile is account-only; switch matched to the reference."
+    },
+    "entries": [
+      {
+        "id": "dev14-chip-edge",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · daftar pekerjaan · tema gelap",
+            "en": "Dashboard · work list · dark theme"
+          }
+        },
+        "title": {
+          "id": "Chip penanda gelap: hanya lengkung kiri yang berwarna",
+          "en": "Dark indicator chips: only the left curve is coloured"
+        },
+        "detail": {
+          "id": "Penyebab garis di ujung kanan: lapisan warna kiri berulang ke kolom tepi kanan karena hanya lapisan terakhir yang memakai border-box. Semua lapisan kini border-box tanpa ulang; warna kanan dihilangkan dan bayangan dibuat lebih rendah, sehingga chip sama logikanya dengan pil metrik.",
+          "en": "Cause of the right-edge line: the left colour layer repeated into the right border column because only the last layer used border-box. All layers are now border-box with no repeat; the right colour is removed and the shadow lowered, so chips follow the same logic as the metric pill."
+        }
+      },
+      {
+        "id": "dev14-arrow-hover",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · kartu ringkasan",
+            "en": "Dashboard · summary cards"
+          }
+        },
+        "title": {
+          "id": "Tombol panah berubah warna hanya saat panah di-hover",
+          "en": "Arrow button changes colour only when the arrow is hovered"
+        },
+        "detail": {
+          "id": "Zona panah 28 px ditambahkan di atas lingkaran panah; hover pada bagian kartu lain tidak lagi mengubah panah. Klik di mana pun pada kartu tetap membuka rincian; fokus keyboard tetap menyorot panah.",
+          "en": "A 28 px arrow zone sits over the arrow circle; hovering elsewhere on the card no longer changes it. Clicking anywhere on the card still opens the detail; keyboard focus still highlights the arrow."
+        }
+      },
+      {
+        "id": "dev14-no-sidebar",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Kotak Masuk & Profil",
+            "en": "Inbox & Profile"
+          }
+        },
+        "title": {
+          "id": "Kotak Masuk & Profil sebagai halaman header, tanpa sidebar aplikasi",
+          "en": "Inbox & Profile as header pages, without the app sidebar"
+        },
+        "detail": {
+          "id": "Keduanya dibuka dari header (lonceng/chat/avatar); sidebar aplikasi disembunyikan karena Kotak Masuk punya navigasinya sendiri. Profil kini hanya Akun (foto, data, tampilan & bahasa, keamanan); \"Label & akses\" dan \"Preferensi notifikasi\" dilepas untuk ditempatkan di menu lain bila diperlukan.",
+          "en": "Both open from the header (bell/chat/avatar); the app sidebar is hidden because the Inbox has its own navigation. Profile is now Account only (photo, data, appearance & language, security); \"Labels & access\" and \"Notification preferences\" are removed, to be placed elsewhere if needed."
+        }
+      },
+      {
+        "id": "dev14-switch",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Komponen · saklar",
+            "en": "Component · switch"
+          }
+        },
+        "title": {
+          "id": "Saklar disamakan dengan referensi (bevel)",
+          "en": "Switch matched to the reference (bevel)"
+        },
+        "detail": {
+          "id": "Rasio 1,68 : 1; trek hijau bergradasi diagonal dengan tepi hijau gelap, bayangan dalam dari kiri-atas dan sorot dalam di bawah; knop #f3f3f3 bercincin putih tipis dengan bayangan ke kiri; bayangan luar lembut. Varian gelap disertakan.",
+          "en": "1.68 : 1 ratio; diagonal green gradient track with a dark-green edge, inner shadow from top-left and inner highlight at the bottom; #f3f3f3 knob with a thin white ring and leftward shadow; soft outer shadow. Dark variant included."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.13",
     "date": "2026-10-16",
     "summary": {

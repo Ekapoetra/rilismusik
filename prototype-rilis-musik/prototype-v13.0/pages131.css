@@ -163,3 +163,11 @@
 .list-head131 h2{white-space:nowrap}
 .msg131{display:flex;flex-direction:column;align-items:flex-start}
 .msg131.mine{align-items:flex-end}
+
+/* dev.14: Kotak Masuk & Profil tampil tanpa sidebar aplikasi (navigasinya sudah di header;
+   Kotak Masuk punya navigasinya sendiri). Hanya layar lebar — di ponsel laci menu tetap ada. */
+@media (min-width:901px){
+  body.nosidebar131 #app .workspace-body122>aside.side5{display:none!important}
+  body.nosidebar131 #app .workspace-body122>.shell{flex:1 1 auto;max-width:none}
+  body.nosidebar131 #main .profile2-131,body.nosidebar131 #main:has(.profile2-131) .pagehead{max-width:1120px;margin-inline:auto}
+}

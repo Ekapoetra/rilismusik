@@ -23,8 +23,10 @@ html:root body.dashboard124.dashboard124 .metric124{transition:transform .32s cu
 html:root body.dashboard124.dashboard124 .metric124::before{content:"";position:absolute;top:13px;right:13px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface);transition:background-color .16s ease,border-color .16s ease}
 html:root body.dashboard124.dashboard124 .metric124::after{top:23px;right:24px;width:5px;height:5px;border-color:var(--muted);transition:transform .5s cubic-bezier(.34,1.56,.64,1),top .5s cubic-bezier(.34,1.56,.64,1),border-color .16s ease}
 html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]::after{top:26px}
-html:root body.dashboard124.dashboard124 .metric124:hover::before{background:var(--btn-hover-bg131);border-color:var(--btn-hover-bg131)}
-html:root body.dashboard124.dashboard124 .metric124:hover::after{border-color:var(--btn-hover-fg131)}
+/* dev.14: tombol panah hanya bereaksi saat PANAH di-hover (zona .mk131 dari glass131.js), bukan seluruh kartu. */
+html:root body.dashboard124.dashboard124 .metric124 .mk131{position:absolute;top:13px;right:13px;width:28px;height:28px;border-radius:50%;z-index:2}
+html:root body.dashboard124.dashboard124 .metric124:is(:has(.mk131:hover),:focus-visible)::before{background:var(--btn-hover-bg131);border-color:var(--btn-hover-bg131)}
+html:root body.dashboard124.dashboard124 .metric124:is(:has(.mk131:hover),:focus-visible)::after{border-color:var(--btn-hover-fg131)}
 html:root body.dashboard124.dashboard124 .metric124[aria-expanded=true]{transform:translateY(-2px);box-shadow:inset 0 1px 0 var(--card-hi131),0 0 0 1px color-mix(in srgb,var(--text) 28%,transparent),0 2px 4px var(--card-sh1-131),0 16px 36px -14px var(--card-sh2-131)!important}
 
 /* Tombol buka/tutup kartu lain (statistik, tenggat): chevron memantul sama,
@@ -150,3 +152,11 @@ html:root body.release124.release127 .withdrawal127 .withdrawal-meter127 strong{
   html:root body.release125.release126 :is(.stat-open8,.attention-action109,.detail-arrow124) svg{transition:none!important}
   .metric-detail131{grid-template-rows:1fr;padding:20px 24px!important;opacity:1;transform:none}
   .md-inner131>*,html:root .reveal9>div>*{opacity:1;transform:none}.metric-detail131 .md-row131 i::before{width:var(--w)}}
+
+/* dev.14: chip penanda di tema gelap — warna hanya lengkung KIRI (lembut), tanpa lengkung kanan; bayangan rendah agar tidak tampak bertepi. */
+html:root[data-theme=dark] body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){--g-tint131:34%;--g-tint-r131:0%;--g-sh131:0 1px 2px -1px;--g-sh1-131:#00000040}
+/* dev.14: --g-rim-h131 di gelap berisi DUA lapisan radial; kata kunci border-box di shorthand hanya
+   mengenai lapisan terakhir, sehingga radial kiri berasal dari padding-box dan BERULANG ke kolom
+   border kanan (garis merah muda di ujung kanan chip). Semua lapisan dipaksa border-box tanpa ulang. */
+[data-tip131]::after,
+html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){background-origin:border-box!important;background-repeat:no-repeat!important}
