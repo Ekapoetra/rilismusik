@@ -21,19 +21,7 @@ const group131=(title,body,foot='',lead='')=>`<section class="panel group131"><h
 const switch131=(name,on,label)=>`<label class="sw131"><input type="checkbox" role="switch" data-pref131="${name}" ${on?'checked':''} aria-label="${label}"><span></span></label>`;
 
 /* ---------- kartu foto ---------- */
-const PH131=112; /* diameter pratinjau (px) */
-function photoCard131(p){
-  const d=prof131(),draft=profile131.photo,src=draft?draft.src:d.avatarSrc131,has=!!(draft||d.avatar);
-  const preview=draft?`<img id="ph-img131" src="${draft.src}" alt="" draggable="false">`:d.avatar?`<img class="ph-cover131" src="${d.avatar}" alt="${E(p.name)}">`:`<span class="ph-initials131">${p.initials}</span>`;
-  const zoom=draft?draft.zoom:(d.avatarCrop131?.zoom||1);
-  return `<section class="panel photo131">
-    <div class="ph-frame131 ${draft?'editing':''}" id="ph-frame131" style="--ph:${PH131}px" ${draft?`title="${t('Geser untuk memposisikan','Drag to position')}"`:''}>${preview}${draft?'<span class="ph-hint131">'+t('Geser foto','Drag photo')+'</span>':''}</div>
-    ${draft||d.avatarSrc131?`<label class="ph-zoom131"><span>${t('Ukuran','Size')}</span><input type="range" id="ph-zoom131" min="1" max="3" step="0.01" value="${zoom}" ${draft?'':'disabled'} aria-label="${t('Ukuran foto','Photo size')}"></label>`:''}
-    <div class="ph-actions131">${draft?`${btn(t('Simpan foto','Save photo'),'profile131-photo-save','','small primary')}${btn(t('Batal','Cancel'),'profile131-photo-cancel','','small')}`
-      :`<label class="btn small ph-upload131" title="${t('PNG, JPEG atau WebP, maksimal 5 MB','PNG, JPEG or WebP, up to 5 MB')}">${t(has?'Ganti foto':'Unggah foto',has?'Replace photo':'Upload photo')}<input type="file" id="ph-file131" accept="image/png,image/jpeg,image/webp" hidden></label>${d.avatarSrc131?btn(t('Atur posisi','Adjust'),'profile131-photo-adjust','','small'):''}${has?btn(t('Hapus','Remove'),'profile131-photo-remove','','small text'):''}`}</div>
-    <div class="id131"><h2>${E(p.name)}</h2><p>${E(p.email)}</p><div class="hero-chips131">${statusBadge111(p.super?'Super Admin':'Admin','blue')}${statusBadge111(t('Akses normal','Normal access'),'neutral')}</div></div>
-  </section>`;
-}
+const PH131=120; /* diameter pratinjau (px) */
 /* Tata letak gambar dalam lingkaran: cx/cy = titik gambar (0–1) di tengah lingkaran. */
 function layoutPhoto131(){
   const dr=profile131.photo,img=document.getElementById('ph-img131');if(!dr||!img||!dr.w)return;
@@ -55,25 +43,52 @@ function savePhoto131(){
     profile131.photo=null;if(typeof save10==='function')save10();render();toast(t('Foto profil diperbarui.','Profile photo updated.'));};im.src=dr.src;
 }
 
-/* dev.15: satu layar tanpa gulir — tiga kolom sejajar (foto · data akun + tampilan · keamanan);
-   tombol aksi di kepala kelompok, bukan di kaki; catatan panjang menjadi tooltip. */
+/* dev.16: Profil tanpa judul halaman — satu layar penuh dengan sentuhan lebih hidup:
+   pita identitas (atmosfer lembut seperti header Dashboard) berisi foto yang bisa diatur langsung,
+   nama, peran, kontak, dan tiga sorotan (masa kerja · penyelesaian bulan ini · sesi aktif);
+   di bawahnya tiga kartu: Data akun · Kinerja 2 bulan · Keamanan & tampilan. Foto tanpa bayangan. */
 const ghead131=(title,action='')=>`<header class="ghead131"><h2>${title}</h2>${action}</header>`;
+function tenure131(from){const a=new Date(from+'T00:00:00'),b=new Date('2026-09-18T00:00:00');let m=(b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth();const y=Math.floor(m/12);m%=12;return T(`${y} th ${m} bln`,`${y} yr ${m} mo`);}
+function monthName131(k){const [y,m]=k.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString(state.lang==='id'?'id-ID':'en-US',{month:'long'});}
+function photoCard131(p){
+  const d=prof131(),draft=profile131.photo,has=!!(draft||d.avatar);
+  const preview=draft?`<img id="ph-img131" src="${draft.src}" alt="" draggable="false">`:d.avatar?`<img class="ph-cover131" src="${d.avatar}" alt="${E(p.name)}">`:`<span class="ph-initials131">${p.initials}</span>`;
+  const zoom=draft?draft.zoom:(d.avatarCrop131?.zoom||1);
+  const tools=draft?`<div class="ph-tools131"><label class="ph-zoom131"><span>${t('Ukuran','Size')}</span><input type="range" id="ph-zoom131" min="1" max="3" step="0.01" value="${zoom}" aria-label="${t('Ukuran foto','Photo size')}"></label><div class="ph-actions131">${btn(t('Simpan','Save'),'profile131-photo-save','','small primary')}${btn(t('Batal','Cancel'),'profile131-photo-cancel','','small')}</div></div>`
+    :`<div class="ph-actions131 ph-min131"><label class="btn small ph-upload131" title="${t('PNG, JPEG atau WebP, maksimal 5 MB','PNG, JPEG or WebP, up to 5 MB')}">${t(has?'Ganti foto':'Unggah foto',has?'Replace photo':'Upload photo')}<input type="file" id="ph-file131" accept="image/png,image/jpeg,image/webp" hidden></label>${d.avatarSrc131?btn(t('Atur','Adjust'),'profile131-photo-adjust','','small'):''}${has?btn(t('Hapus','Remove'),'profile131-photo-remove','','small text'):''}</div>`;
+  return `<div class="ph-wrap131"><div class="ph-frame131 ${draft?'editing':''}" id="ph-frame131" style="--ph:${PH131}px" ${draft?`title="${t('Geser untuk memposisikan','Drag to position')}"`:''}>${preview}${draft?'<span class="ph-hint131">'+t('Geser foto','Drag photo')+'</span>':''}</div>${tools}</div>`;
+}
 function profilePage131(){
   const p=me(),d=prof131();
-  return pageHead(t('Profil','Profile'),t('Data akun, foto, tampilan, dan keamanan masuk.','Account data, photo, appearance and sign-in security.'))
-    +`<div class="profile3-131">${photoCard131(p)}${akunTab131(p,d)}</div>`;
+  let sc={};try{sc=scores[p.id]||{};}catch{}
+  const months=Object.keys(sc).sort(),last=months[months.length-1],cur=last?sc[last]:null,rate=cur&&cur[0]?Math.round(cur[1]/cur[0]*100):null;
+  const leaves=(data.leaves||[]).filter(l=>l.staff===p.id&&l.status!=='rejected'),leaveDays=leaves.reduce((n,l)=>n+(l.days||0),0);
+  const hero=`<section class="phero131">${photoCard131(p)}
+    <div class="phero-id131"><div class="phero-chips131">${statusBadge111(p.super?'Super Admin':'Admin','blue')}${statusBadge111(t('Akses normal','Normal access'),'neutral')}</div><h1>${E(p.name)}</h1><p>${E(p.email)}${d.phone?` · ${E(d.phone)}`:''}${d.location?` · ${E(d.location)}`:''}</p></div>
+    <div class="phero-stats131">
+      <div><small>${t('Masa kerja','Tenure')}</small><strong>${p.joined?tenure131(p.joined):'—'}</strong><span>${p.joined?t('sejak ','since ')+new Date(p.joined+'T00:00:00').toLocaleDateString(state.lang==='id'?'id-ID':'en-US',{day:'numeric',month:'short',year:'numeric'}):''}${d.contract?` · ${E(d.contract)}`:''}</span></div>
+      <div><small>${last?t('Selesai ','Completed ')+monthName131(last):t('Penyelesaian','Completion')}</small><strong>${cur?`${cur[1]}<em>/${cur[0]}</em>`:'—'}</strong><span>${rate!=null?`${rate}% ${t('pekerjaan tuntas','of work closed')}`:''}</span></div>
+      <div><small>${t('Sesi aktif','Active sessions')}</small><strong>2</strong><span>${t('perangkat ini + 1 lainnya','this device + 1 other')}</span></div>
+    </div></section>`;
+  const maxA=Math.max(1,...months.map(k=>sc[k][0]));
+  const perf=`<section class="panel g131">${ghead131(t('Kinerja','Performance'),btn(t('Detail','Details'),'nav','data-page="profile"','small'))}<div class="perf131"><div class="pmonths131">${months.slice(-3).map(k=>`<div class="pm131"><div class="pbars131"><i class="a" style="height:${sc[k][0]/maxA*100}%"></i><i class="b" style="height:${sc[k][1]/maxA*100}%"></i></div><b>${sc[k][1]}<em>/${sc[k][0]}</em></b><small>${monthName131(k).slice(0,3)}</small></div>`).join('')||`<p class="hint131">${t('Belum ada data.','No data yet.')}</p>`}</div>
+    <ul class="pfacts131"><li><span>${t('Isu bulan ini','Issues this month')}</span><b>${cur?cur[2]:0}</b></li><li><span>${t('Cuti terpakai 2026','Leave used 2026')}</span><b>${leaveDays} ${t('hari','days')}</b></li><li><span>${t('Pengingat KPI','KPI reminder')}</span><b>${rate!=null&&rate>=90?t('Di atas target','Above target'):t('Pantau','Watch')}</b></li></ul></div>
+    <div class="plegend131"><span><i class="a"></i>${t('Ditangani','Handled')}</span><span><i class="b"></i>${t('Tuntas','Closed')}</span></div></section>`;
+  return `<div class="profile4-131">${hero}<div class="pgrid131">${akunTab131(p,d)}${perf}${secTab131(p)}</div></div>`;
 }
 function akunTab131(p,d){
+  const facts=[[t('Nama tampilan','Display name'),p.name],[t('Nama administrasi','Administrative name'),d.legal||p.name],['Email',p.email],[t('Telepon','Phone'),d.phone||'—'],[t('Alamat','Address'),d.location||'—'],[t('Kontrak','Contract'),d.contract||'—']];
+  return `<section class="panel g131">${ghead131(t('Data akun','Account data'),btn(t('Ubah','Edit'),'profile131-edit',`title="${t('Dokumen yang sudah diterbitkan tetap memakai data saat diterbitkan.','Issued documents keep the data they were issued with.')}"`,'small'))}<dl class="kv131">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</dl></section>`;
+}
+function secTab131(p){
   const ua=navigator.userAgent,browser=/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Firefox\//.test(ua)?'Firefox':/Safari\//.test(ua)?'Safari':t('Peramban','Browser'),os=/Windows/.test(ua)?'Windows':/Mac/.test(ua)?'macOS':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':'';
-  const facts=[[t('Nama tampilan','Display name'),p.name],[t('Nama administrasi','Administrative name'),d.legal||p.name],['Email',p.email],[t('Telepon','Phone'),d.phone||'—'],[t('Alamat','Address'),d.location||'—'],[t('Peran','Role'),p.super?'Super Admin':'Admin']];
-  return `<div class="pcol131">`
-    +`<section class="panel g131">${ghead131(t('Data akun','Account data'),btn(t('Ubah','Edit'),'profile131-edit',`title="${t('Dokumen yang sudah diterbitkan tetap memakai data saat diterbitkan.','Issued documents keep the data they were issued with.')}"`,'small'))}<dl class="kv131">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</dl></section>`
-    +`<section class="panel g131">${ghead131(t('Tampilan & bahasa','Appearance & language'))}<div class="rows131">${srow131(t('Tema gelap','Dark theme'),'',themeControl106())+srow131(t('Bahasa','Language'),state.lang==='id'?'Bahasa Indonesia':'English',btn(state.lang==='id'?'English':'Indonesia','lang','','small'))}</div></section>`
-    +`</div><section class="panel g131">${ghead131(t('Keamanan','Security'))}<div class="rows131">`
+  return `<section class="panel g131">${ghead131(t('Keamanan & tampilan','Security & appearance'))}<div class="rows131">`
     +srow131(t('Kata sandi','Password'),t('Diubah 3 bulan lalu','Changed 3 months ago'),btn(t('Ubah','Change'),'profile131-password','','small'))
-    +srow131(`${browser}${os?` · ${os}`:''}`,t('Perangkat ini · sekarang','This device · now'),statusBadge111(t('Sesi ini','This session'),'green'))
+    +srow131(`${browser}${os?` · ${os}`:''}`,t('Perangkat ini','This device'),statusBadge111(t('Sesi ini','This session'),'green'))
     +srow131('Chrome · Android',t('Jakarta · 2 hari lalu','Jakarta · 2 days ago'),btn(t('Keluar','Sign out'),'profile131-signout','data-id="other"','small'))
-    +`</div><footer class="gfoot131">${btn(t('Keluar dari semua perangkat lain','Sign out of all other devices'),'profile131-signout','data-id="all"','small text')}</footer></section>`;
+    +srow131(t('Tema gelap','Dark theme'),'',themeControl106())
+    +srow131(t('Bahasa','Language'),'',btn(state.lang==='id'?'English':'Indonesia','lang','','small'))
+    +`</div></section>`;
 }
 function aksesTab131(p){
   const level=k=>permission(k),toneOf=l=>l==='none'?'neutral':l==='direct'?'green':'blue',labelOf=l=>l==='none'?t('Tidak ada','None'):l==='direct'?t('Langsung','Direct'):t('Dibatasi','Limited');
@@ -134,4 +149,4 @@ const modulePageBeforeProfile131=modulePage;
 modulePage=function(){if(v4.module==='profile131')return profilePage131();return modulePageBeforeProfile131();};
 /* setelah render: tata ulang gambar draf & beri fokus keyboard pada bingkai */
 const renderBeforeProfile131=render;
-render=function(){renderBeforeProfile131();document.body.classList.toggle('nosidebar131',!!document.querySelector('#main .inbox3-131,#main .profile3-131'));if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};
+render=function(){renderBeforeProfile131();document.body.classList.toggle('nosidebar131',!!document.querySelector('#main .inbox3-131,#main .profile3-131,#main .profile4-131'));if(profile131.photo&&v4.module==='profile131'){const fr=document.getElementById('ph-frame131');if(fr)fr.tabIndex=0;layoutPhoto131();}};

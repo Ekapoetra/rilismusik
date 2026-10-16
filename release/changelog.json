@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.1.0-dev.16",
+    "date": "2026-10-16",
+    "summary": {
+      "id": "Profil tanpa judul dengan pita identitas & sorotan kinerja; kartu Penarikan periode ini versi W-B; Geografi menampilkan \"x/y lokasi lengkap\" + \"Lihat & lengkapi\"; header halaman lain penuh seperti Home.",
+      "en": "Title-less Profile with an identity band & performance highlights; Period Withdrawals card in the W-B layout; Geography shows \"x/y complete locations\" + \"View & complete\"; other header pages use the full-width bar like Home."
+    },
+    "entries": [
+      {
+        "id": "dev16-profile",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · avatar → Profil",
+            "en": "Header · avatar → Profile"
+          }
+        },
+        "title": {
+          "id": "Profil: pita identitas, sorotan, kinerja — tetap satu layar",
+          "en": "Profile: identity band, highlights, performance — still one screen"
+        },
+        "detail": {
+          "id": "Tanpa judul/subjudul halaman. Pita atas berisi foto (tanpa bayangan, bisa diatur langsung), nama, peran, kontak, dan tiga sorotan: masa kerja (sejak tanggal bergabung · jenis kontrak), pekerjaan tuntas bulan terakhir, sesi aktif. Di bawahnya: Data akun · Kinerja (batang ditangani vs tuntas per bulan, isu, cuti terpakai, status KPI) · Keamanan & tampilan. Muat penuh di 1366×768.",
+          "en": "No page title/subtitle. The top band holds the photo (no shadow, editable in place), name, role, contact and three highlights: tenure (join date · contract type), work closed last month, active sessions. Below: Account data · Performance (handled vs closed bars per month, issues, leave used, KPI status) · Security & appearance. Fits fully on 1366×768."
+        }
+      },
+      {
+        "id": "dev16-withdraw-wb",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period Withdrawals"
+          }
+        },
+        "title": {
+          "id": "Penarikan periode ini: satu batang alur status (W-B)",
+          "en": "Period Withdrawals: one status-flow bar (W-B)"
+        },
+        "detail": {
+          "id": "Batang dibagi dibayar · menunggu pembayaran · menunggu pemeriksaan; angka dan jumlah pengajuan di bawah tiap bagian; kalimat tindakan \"Sisa Rp … harus dibayar sebelum 21 Sep (n hari lagi)\" dengan tombol ke daftar pengajuan. Rincian status diambil dari data pengajuan prototype (WD-091 menunggu pemeriksaan, WD-092 menunggu pembayaran).",
+          "en": "The bar splits paid · awaiting payment · awaiting review; amounts and request counts under each part; an action sentence \"Remaining Rp … must be paid before 21 Sep (n days left)\" with a button to the request list. The status split comes from the prototype requests (WD-091 awaiting review, WD-092 awaiting payment)."
+        }
+      },
+      {
+        "id": "dev16-geo",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Geografi anggota",
+            "en": "Dashboard · Member Geography"
+          }
+        },
+        "title": {
+          "id": "Geografi: \"x/y lokasi lengkap\" + \"Lihat & lengkapi\"",
+          "en": "Geography: \"x/y complete locations\" + \"View & complete\""
+        },
+        "detail": {
+          "id": "Kaki kartu kini menunjukkan cincin kelengkapan lokasi dan tombol ke daftar lokasi belum lengkap, menggantikan tautan polos \"Lokasi belum lengkap · n\".",
+          "en": "The card footer now shows a location-completeness ring and a button to the incomplete-location list, replacing the plain \"Location incomplete · n\" link."
+        }
+      },
+      {
+        "id": "dev16-header",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Header · halaman selain Home",
+            "en": "Header · pages other than Home"
+          }
+        },
+        "title": {
+          "id": "Bar header halaman lain penuh kiri–kanan seperti Home",
+          "en": "Header bar on other pages is full-width like Home"
+        },
+        "detail": {
+          "id": "Keuangan, Staf & Akses, Pengaturan, Kotak Masuk, dan Profil tidak lagi memakai bar yang menjorok dengan sudut bawah membulat (konten terlihat di tepi saat digulir).",
+          "en": "Finance, Staff & Access, Settings, Inbox and Profile no longer use an inset bar with rounded bottom corners (content showed at the edges when scrolling)."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.15",
     "date": "2026-10-16",
     "summary": {

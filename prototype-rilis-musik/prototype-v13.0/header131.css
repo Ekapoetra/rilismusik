@@ -21,3 +21,9 @@ html:root #app .header .tools>.iconbtn:focus-visible{outline:2px solid color-mix
 html:root body.dashboard124.release124.release129 #app .masthead124:not(.is-collapsed124)>:is(.masthead-backdrop130,.masthead-atmosphere127,.hero-clip124){overflow:hidden;border-radius:inherit}
 #header-popover .popover-title>div{display:flex;align-items:center;gap:14px}
 #header-popover{z-index:40}
+/* dev.16: halaman header lain (Keuangan, Staf & Akses, Pengaturan, Kotak Masuk, Profil) memakai
+   bar yang SAMA dengan Home saat digulir — penuh kiri–kanan tanpa sudut membulat. Sebelumnya bar
+   menjorok 12 px dengan sudut bawah 18 px sehingga konten terlihat di tepi saat menggulir. */
+html:root body.release124.release129:not(.dashboard124) #app .masthead124{top:0;margin-inline:0!important;padding-top:0!important;border-radius:0!important;left:0;right:0;
+  background:var(--surface)!important;border-bottom:1px solid color-mix(in srgb,var(--text) 9%,transparent);box-shadow:none!important}
+html:root body.release124.release129:not(.dashboard124) #app .masthead124 .header.header124{padding-inline:28px!important;border-radius:0!important}

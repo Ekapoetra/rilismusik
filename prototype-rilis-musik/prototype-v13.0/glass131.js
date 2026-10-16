@@ -155,3 +155,47 @@ glassPass131=function(root=document){passBeforeTones131(root);fixTones131(root==
 function arrowZones131(root=document){root.querySelectorAll('.metric124:not(:has(> .mk131))').forEach(c=>c.insertAdjacentHTML('beforeend','<span class="mk131" aria-hidden="true"></span>'));}
 const passBeforeArrow131=glassPass131;
 glassPass131=function(root=document){passBeforeArrow131(root);arrowZones131(root===document?document:root);};
+
+/* dev.16 — kartu "Penarikan periode ini" versi W-B (pilihan pemilik): satu batang alur status
+   (dibayar · menunggu pembayaran · menunggu pemeriksaan), angka di bawah tiap bagian, dan satu
+   kalimat tindakan dengan tenggat tanggal 21 (Kamus: pencairan terlambat mulai tgl 21 WIB).
+   Struktur .withdrawal-meter127 > .payout-track > i dipertahankan (tooltip & penanda dev.6). */
+const wdStatus131={'WD-091':'review','WD-092':'pay'};
+const wdBefore131=withdrawalCard124;
+withdrawalCard124=function(card){
+  wdBefore131(card);
+  const d=withdrawalTotals7(),fmt=n=>new Intl.NumberFormat(state.lang==='id'?'id-ID':'en-US',{maximumFractionDigits:1}).format(n);
+  const paidIds=new Set((data.ops||[]).filter(x=>x.status==='paid').map(x=>x.id));
+  const open=Object.entries(withdrawalAmount7).filter(([id])=>!paidIds.has(id)).map(([id,amount])=>({id,amount,st:wdStatus131[id]||'pay'}));
+  const pay=open.filter(x=>x.st==='pay'),rev=open.filter(x=>x.st==='review'),sum=a=>a.reduce((n,x)=>n+x.amount,0);
+  const segs=[['paid',d.paid,T('Dibayarkan','Paid'),null],['pay',sum(pay),T('Menunggu pembayaran','Awaiting payment'),pay.length],['review',sum(rev),T('Menunggu pemeriksaan','Awaiting review'),rev.length]].filter(s=>s[1]>0);
+  const pct=v=>d.total>0?v/d.total*100:0,paidPct=pct(d.paid);
+  let at=0;const extra=segs.map(s=>{const html=s[0]==='paid'?'':`<s class="seg131 ${s[0]}" style="left:${at}%;width:${pct(s[1])}%"></s>`;at+=pct(s[1]);return html;}).join('');
+  const today=18,due=21,daysLeft=due-today,openN=open.length;
+  const head=card.querySelector('.withdraw-heading124');
+  card.querySelectorAll(':scope>:not(.withdraw-heading124)').forEach(e=>e.remove());
+  if(head){const p=head.querySelector('p');if(p)p.textContent=T(`1–18 September 2026 · ${openN} pengajuan belum dibayar`,`September 1–18, 2026 · ${openN} unpaid requests`);}
+  const plural=n=>T('pengajuan',n===1?'request':'requests');
+  card.insertAdjacentHTML('beforeend',`<div class="wb131-total"><span>${T('Total diajukan','Total requested')}</span><strong>${money(d.total)}</strong></div>`
+   +`<div class="withdrawal-meter127 wb131"><div class="wb131-pct"><span>${T('Penyelesaian pembayaran','Payment completion')}</span><strong>${fmt(paidPct)}%</strong></div>`
+   +`<div class="payout-track" role="progressbar" aria-label="${T('Bagian penarikan yang telah dibayar','Share of withdrawals paid')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${paidPct.toFixed(1)}" aria-valuetext="${fmt(paidPct)}% ${T('telah dibayarkan','paid')}"><i style="width:${paidPct}%"></i>${extra}</div></div>`
+   +`<div class="wb131-cols" style="grid-template-columns:${segs.map(s=>`minmax(150px,${Math.max(pct(s[1]),12).toFixed(1)}fr)`).join(' ')}">`
+   +segs.map(s=>`<div class="wb131-col ${s[0]}"><span><i class="wb131-dot ${s[0]}"></i>${s[2]}${s[0]==='paid'?` · ${fmt(pct(s[1]))}%`:''}</span><strong>${money(s[1])}</strong>${s[3]!=null?`<small>${s[3]} ${plural(s[3])}</small>`:''}</div>`).join('')+`</div>`
+   +(d.unpaid>0?`<div class="wb131-call"><span>${T('Sisa','Remaining')} <b>${money(d.unpaid)}</b> ${T('harus dibayar sebelum','must be paid before')} <b>21 Sep</b> (${T(`${daysLeft} hari lagi`,`${daysLeft} days left`)}).</span>${btn(T(`Lihat ${openN} pengajuan`,`View ${openN} ${plural(openN)}`),'v6-metric','data-id="withdraw"','small')}</div>`:''));
+  return card;
+};
+
+/* dev.16 — Geografi: konteks "x/y lokasi lengkap" + "Lihat & lengkapi" (disukai pemilik dari G-A/G-C)
+   menggantikan tautan polos "Lokasi belum lengkap · n" di kaki kartu. */
+function geoCoverage131(root=document){
+  const card=root.querySelector&&root.querySelector('.geography124');if(!card||card.querySelector('.geo-cov131'))return;
+  let groups=[];try{groups=mapGroups106();}catch{return;}
+  const total=groups.reduce((n,g)=>n+g.members.length,0),unknown=(groups.find(g=>g.id==='unknown')||{members:[]}).members.length,done=total-unknown;
+  if(!total)return;
+  const C=2*Math.PI*15,frac=done/total;
+  let foot=card.querySelector(':scope>footer');if(!foot){card.insertAdjacentHTML('beforeend','<footer></footer>');foot=card.querySelector(':scope>footer');}
+  foot.querySelector('[data-ui106="region"][data-id="unknown"]')?.remove();
+  foot.insertAdjacentHTML('afterbegin',`<div class="geo-cov131"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="trk"/>${done?`<circle cx="18" cy="18" r="15" class="val" stroke-dasharray="${(C*frac).toFixed(1)} ${C.toFixed(1)}"/>`:""}</svg><div><strong>${done}/${total}</strong><span>${T('lokasi lengkap','complete locations')}</span></div>${unknown?`<button type="button" class="btn small" data-ui106="region" data-id="unknown">${T('Lihat & lengkapi','View & complete')} · ${unknown}</button>`:''}</div>`);
+}
+const passBeforeGeo131=glassPass131;
+glassPass131=function(root=document){passBeforeGeo131(root);geoCoverage131(root===document?document:root);};

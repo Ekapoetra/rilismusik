@@ -160,3 +160,38 @@ html:root[data-theme=dark] body.dashboard124.dashboard124 #main.dashboard-main12
    border kanan (garis merah muda di ujung kanan chip). Semua lapisan dipaksa border-box tanpa ulang. */
 [data-tip131]::after,
 html:root body.dashboard124.dashboard124 #main.dashboard-main124 :is(.pill107,.badge.status111,.work-badges9 .badge){background-origin:border-box!important;background-repeat:no-repeat!important}
+
+/* dev.16 — Penarikan periode ini (W-B) */
+html:root body.release124.release127 .withdrawal127 .wb131-total{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:4px 0 0}
+.withdrawal127 .wb131-total span{font-size:13px;color:var(--muted)}
+.withdrawal127 .wb131-total strong{font-size:32px;font-weight:500;letter-spacing:-.6px}
+html:root body.release124.release127 .withdrawal127 .withdrawal-meter127.wb131{margin-top:14px;padding-top:0;border-top:0}
+.withdrawal127 .wb131-pct{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
+.withdrawal127 .wb131-pct strong{color:var(--text);font-weight:500}
+html:root body.release124.release127 .withdrawal127 .payout-track .seg131{position:absolute;top:0;height:100%;border-left:2px solid var(--surface);text-decoration:none}
+.withdrawal127 .seg131.pay{background:var(--info109,#2e689e)}
+.withdrawal127 .seg131.review{background:color-mix(in srgb,var(--info109,#2e689e) 40%,var(--surface));border-radius:0 999px 999px 0}
+.withdrawal127 .wb131-cols{display:grid;gap:12px;margin-top:12px}
+.withdrawal127 .wb131-col{display:flex;flex-direction:column;gap:3px;min-width:0}
+.withdrawal127 .wb131-col span{font-size:12px;color:var(--muted);white-space:nowrap}
+.withdrawal127 .wb131-col strong{font-size:18px;font-weight:500;letter-spacing:-.2px}
+.withdrawal127 .wb131-col small{font-size:12px;color:var(--muted)}
+.withdrawal127 .wb131-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.withdrawal127 .wb131-dot.paid{background:var(--pg131)}
+.withdrawal127 .wb131-dot.pay{background:var(--info109,#2e689e)}
+.withdrawal127 .wb131-dot.review{background:color-mix(in srgb,var(--info109,#2e689e) 40%,var(--surface))}
+.withdrawal127 .wb131-call{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:11px 14px;border-radius:14px;border:1px solid var(--line);font-size:13px}
+.withdrawal127 .wb131-call b{font-weight:500}
+/* dev.16 — Geografi: cakupan lokasi */
+.geography124 .geo-cov131{display:flex;align-items:center;gap:12px;margin-right:auto}
+.geography124 .geo-cov131 svg{width:36px;height:36px;transform:rotate(-90deg)}
+.geography124 .geo-cov131 circle{fill:none;stroke-width:4}
+.geography124 .geo-cov131 .trk{stroke:var(--line)}
+.geography124 .geo-cov131 .val{stroke:var(--text);stroke-linecap:round}
+.geography124 .geo-cov131 strong{display:block;font-size:16px;font-weight:500;line-height:1.1}
+.geography124 .geo-cov131 span{font-size:12px;color:var(--muted)}
+.geography124 .geo-cov131 .btn{margin-left:8px}
+html:root body .geography124>footer{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+html:root body .geography124 .geo-cov131 strong{color:var(--text)!important}
+html:root body .geography124>footer .geo-cov131 .btn{background:var(--soft)!important;color:var(--text)!important;border-radius:999px!important;padding:6px 12px!important;font-size:12px!important;border:0!important;text-decoration:none!important}
+html:root body .geography124>footer .geo-cov131 .btn:hover{background:var(--hover)!important}
