@@ -61,6 +61,8 @@ async def void_adjustment(label_id, adjustment_id, reason, user):
         if not record:
             raise HTTPException(404, "Penyesuaian tidak ditemukan")
         summary, balance = await source_summary(label_id)
+        if record.get("source") == "LABEL_TRANSFER":
+            raise HTTPException(409, "Entri dari perpindahan label tidak dapat dibatalkan dari sini.")
         if record["status"] == "voided":
             return AdjustmentResult(adjustment=AdjustmentRecord(**record), replayed=True, balance_available_idr=balance["balance_available_idr"])
         allocated = await db.withdraw_requests.find_one({

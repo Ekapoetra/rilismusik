@@ -143,6 +143,8 @@ async def _create_label_withdrawal(label: dict, user: dict):
     if not state["request_open"]:
         raise HTTPException(status_code=400, detail=f"Permintaan withdraw ditutup. {state['message']}")
 
+    if label.get("transfer_in_progress_id"):
+        raise HTTPException(status_code=409, detail="Label sedang dalam proses pindah label. Coba lagi setelah selesai.")
     info = await _compute_withdrawable(label["id"])
     amount_idr = info["withdrawable_idr"]
     if info["has_active_withdraw"]:
@@ -251,6 +253,8 @@ async def label_request_withdraw_batch(user: dict = Depends(require_label)):
     total = 0
     shared_period_to = None
     for lab in labels:
+        if lab.get("transfer_in_progress_id"):
+            raise HTTPException(status_code=409, detail=f"Label {lab.get('label_name')} sedang dalam proses pindah label")
         info = await _compute_withdrawable(lab["id"])
         if info["has_active_withdraw"]:
             raise HTTPException(status_code=409, detail=f"Label {lab.get('label_name')} masih ada withdraw diproses")

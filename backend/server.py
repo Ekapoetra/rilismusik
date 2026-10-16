@@ -37,6 +37,7 @@ from routes.admin import admin_r
 from routes.admin_access import access_r
 from routes.label_rate_change import rate_change_r
 from routes.sensitive_requests import sensitive_r
+from routes.label_transfers import label_transfer_r
 from routes.work_service import work_r
 from routes.dashboard_metrics import dashboard_metrics_r
 from routes.staff import staff_r
@@ -140,6 +141,7 @@ api.include_router(admin_r)
 api.include_router(access_r)
 api.include_router(rate_change_r)
 api.include_router(sensitive_r)
+api.include_router(label_transfer_r)
 api.include_router(work_r)
 api.include_router(dashboard_metrics_r)
 api.include_router(staff_r)

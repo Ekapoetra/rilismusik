@@ -21,7 +21,7 @@ async def source_summary(label_id: str, legacy_period_to: str | None = None):
     if not label:
         raise HTTPException(404, "Label tidak ditemukan")
     latest = await db.balance_transactions.find_one(
-        {"label_id": label_id, "type": ADJUSTMENT_TYPE}, {"_id": 0, "legacy_period_to": 1},
+        {"label_id": label_id, "type": ADJUSTMENT_TYPE, "source": {"$ne": "LABEL_TRANSFER"}}, {"_id": 0, "legacy_period_to": 1},
         sort=[("created_at", -1)],
     )
     boundary = legacy_period_to or (latest or {}).get("legacy_period_to")

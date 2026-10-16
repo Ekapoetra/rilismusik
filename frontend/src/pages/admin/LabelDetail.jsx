@@ -9,6 +9,7 @@ import { Scale } from "lucide-react";
 import { RoyaltyAdjustmentPanel } from "@/components/admin/royalty-adjustments/RoyaltyAdjustmentPanel";
 import { RateChangePanel } from "@/components/admin/RateChangePanel";
 import { SensitiveRequestsPanel } from "@/components/admin/SensitiveRequestsPanel";
+import { LabelTransferPanel } from "@/components/admin/LabelTransferPanel";
 import { celebrateWork } from "@/lib/completionFeedback";
 
 export default function AdminLabelDetail() {
@@ -138,6 +139,7 @@ export default function AdminLabelDetail() {
     <SensitiveRequestsPanel labelId={id} canView={canBlacklistView || canPackageView || canAccounts || canEmailApprove} canApprove={canApproveRequest} onChanged={load} refreshKey={refreshKey} />
     {hasPermission("royalty.manage") && <RoyaltyAdjustmentPanel label={label} onChanged={load} />}
     {canFinance && <section className="border-y border-white/10 py-5" data-testid="admin-label-balance-adjustment-section"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-display text-lg font-bold">Kesesuaian Saldo Royalti</h2><p className="mt-1 text-sm text-zinc-400">Preview perhitungan ulang setelah cutoff tanpa menyentuh withdrawal web.</p></div><button type="button" className={balanceAuditOpen ? "rm-btn-primary inline-flex items-center gap-2" : "rm-btn-ghost inline-flex items-center gap-2"} onClick={() => setBalanceAuditOpen((value) => !value)} data-testid="admin-label-balance-audit-toggle"><Scale className="h-4 w-4" /> {balanceAuditOpen ? "Tutup Penyesuaian" : "Audit & Sesuaikan Saldo"}</button></div>{balanceAuditOpen && <div className="mt-5" data-testid="admin-label-balance-audit-content"><BalanceAuditPanel label={label} onComplete={load} /></div>}</section>}
+    <LabelTransferPanel label={label} canManage={hasPermission("labels.manage")} />
     <BankChangePanel labelId={id} bank={data.bank_account} canFinance={canFinance} onChanged={load} />
     <LabelDetailModals data={data} modals={modals} />
   </div>;

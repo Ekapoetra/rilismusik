@@ -28,8 +28,8 @@ class AdjustmentRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     label_id: str
-    source: Literal["ADMIN_ADJUSTMENT"]
-    adjustment_type: Literal["LEGACY_RECONCILIATION"]
+    source: Literal["ADMIN_ADJUSTMENT", "LABEL_TRANSFER"]
+    adjustment_type: Literal["LEGACY_RECONCILIATION", "LABEL_TRANSFER"]
     amount_idr: int
     currency: Literal["IDR"]
     reason: str

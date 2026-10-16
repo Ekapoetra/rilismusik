@@ -58,6 +58,7 @@ const MyCompensation = rolePage("admin", () => import("@/pages/admin/MyCompensat
 const CompensationAdmin = rolePage("admin", () => import("@/pages/admin/CompensationAdmin"));
 const MultiLabelRequest = lazy(() => import("@/pages/MultiLabelRequest"));
 const RateChangeQueue = rolePage("admin", () => import("@/pages/admin/RateChangeQueue"));
+const AdminLabelTransfers = rolePage("admin", () => import("@/pages/admin/LabelTransfers"));
 const WorkQueue = rolePage("admin", () => import("@/pages/admin/WorkQueue"));
 const BankVerifications = rolePage("admin", () => import("@/pages/admin/BankVerifications"));
 const StaffManagement = rolePage("admin", () => import("@/pages/admin/StaffManagement"));
@@ -127,6 +128,7 @@ function AppRoutes() {
             <Route path="/admin/labels/:id" element={guard("labels.view", <AdminLabelDetail />)} />
             <Route path="/admin/rate-changes" element={guard("labels.rate.request.view", <RateChangeQueue />)} />
             <Route path="/admin/multi-label" element={guard("labels.multi_label.view", <MultiLabelMerge />)} />
+            <Route path="/admin/label-transfers" element={guard("labels.view", <AdminLabelTransfers />)} />
             <Route path="/admin/compensation/me" element={guard("compensation.view_own", <MyCompensation />)} />
             <Route path="/admin/compensation/payroll" element={guard("compensation.payroll.view", <CompensationAdmin />)} />
             <Route path="/admin/compensation/staff" element={guard("compensation.view_team", <CompensationAdmin />)} />

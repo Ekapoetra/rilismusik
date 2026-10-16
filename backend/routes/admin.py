@@ -260,7 +260,9 @@ async def admin_get_label(label_id: str, user: dict = Depends(require_admin)):
     from .royalty_adjustment_balance import ADJUSTMENT_TYPE
     adjustment_total = 0
     async for row in db_bg.balance_transactions.aggregate([
-        {"$match": {"label_id": label_id, "type": ADJUSTMENT_TYPE, "status": "active"}},
+        # A transfer's settled-period credit stands in for moved lines that the
+        # lifetime total already counts, so it is left out of this display sum.
+        {"$match": {"label_id": label_id, "type": ADJUSTMENT_TYPE, "status": "active", "transfer_kind": {"$ne": "settled_credit"}}},
         {"$group": {"_id": None, "amount": {"$sum": "$amount_idr"}}},
     ]):
         adjustment_total = int(row["amount"])

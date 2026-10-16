@@ -14,7 +14,7 @@ PERMISSION_MODULES = [
     {"key": "dashboard", "label_id": "Dashboard", "label_en": "Dashboard", "actions": [("dashboard.view", "Lihat dashboard", "View dashboard")]},
     {"key": "work", "label_id": "Pekerjaan", "label_en": "Work", "actions": [("work.view", "Lihat Pekerjaan", "View Work queue"), ("work.manage", "Kelola Tanggung Jawab & SLA", "Manage Responsibility & SLA")]},
     {"key": "analytics", "label_id": "Analitik", "label_en": "Analytics", "actions": [("analytics.view", "Lihat analitik", "View analytics"), ("analytics.manage", "Hitung ulang analitik", "Recompute analytics")]},
-    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.email", "Ganti Email Langsung", "Direct Email Change"), ("labels.email.approve", "Setujui/Tolak Ganti Email", "Approve/Reject Email Change"), ("labels.bank", "Kelola rekening", "Manage bank accounts"), ("labels.bank.verify", "Verifikasi Rekening", "Verify Bank Accounts"), ("labels.multi_label.view", "Lihat Multi Label", "View Multi Label"), ("labels.multi_label.manage", "Kelola Multi Label", "Manage Multi Label")]},
+    {"key": "labels", "label_id": "Label", "label_en": "Labels", "actions": [("labels.view", "Lihat label", "View labels"), ("labels.manage", "Edit label", "Edit labels"), ("labels.package", "Ubah Langsung Paket", "Direct Package Change"), ("labels.package.request", "Ajukan Perubahan Paket", "Request Package Change"), ("labels.package.request.view", "Lihat Permintaan Paket", "View Package Requests"), ("labels.package.approve", "Setujui/Tolak Paket", "Approve/Reject Package"), ("labels.rate", "Ubah Langsung Rate/Fee", "Direct Rate/Fee Change"), ("labels.rate.request", "Ajukan Perubahan Rate/Fee", "Request Rate/Fee Change"), ("labels.rate.request.view", "Lihat Permintaan Rate/Fee", "View Rate/Fee Requests"), ("labels.rate.approve", "Setujui/Tolak Rate/Fee", "Approve/Reject Rate/Fee"), ("labels.blacklist", "Blacklist Langsung", "Direct Blacklist"), ("labels.blacklist.request", "Ajukan Blacklist", "Request Blacklist"), ("labels.blacklist.request.view", "Lihat Permintaan Blacklist", "View Blacklist Requests"), ("labels.blacklist.approve", "Setujui/Tolak Blacklist", "Approve/Reject Blacklist"), ("labels.accounts", "Kelola akun label", "Manage label accounts"), ("labels.email", "Ganti Email Langsung", "Direct Email Change"), ("labels.email.approve", "Setujui/Tolak Ganti Email", "Approve/Reject Email Change"), ("labels.transfer", "Pindah/Ganti Nama Label Langsung", "Direct Label Transfer"), ("labels.transfer.approve", "Setujui/Tolak Pindah Label", "Approve/Reject Label Transfer"), ("labels.bank", "Kelola rekening", "Manage bank accounts"), ("labels.bank.verify", "Verifikasi Rekening", "Verify Bank Accounts"), ("labels.multi_label.view", "Lihat Multi Label", "View Multi Label"), ("labels.multi_label.manage", "Kelola Multi Label", "Manage Multi Label")]},
     {"key": "kyc", "label_id": "Verifikasi Akun", "label_en": "Account Verification", "actions": [("kyc.view", "Lihat Verifikasi Akun", "View account verification"), ("kyc.review", "Setujui/tolak Verifikasi Akun", "Approve/reject account verification")]},
     {"key": "artists", "label_id": "Artis", "label_en": "Artists", "actions": [("artists.view", "Lihat artis", "View artists"), ("artists.manage", "Edit artis", "Edit artists")]},
     {"key": "releases", "label_id": "Rilisan", "label_en": "Releases", "actions": [("releases.view", "Lihat rilisan", "View releases"), ("releases.review", "Review dan ubah status", "Review and update status"), ("releases.go_live", "Finalisasi Tayang (UPC/ISRC)", "Finalize Go-Live (UPC/ISRC)"), ("releases.takedown", "Turunkan Rilisan", "Take Down Release"), ("releases.delete", "Hapus Rilisan", "Delete Release")]},
@@ -100,6 +100,14 @@ PERMISSION_META = {
     "labels.email.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.view"],
         "desc_id": "Menyetujui atau menolak permintaan ganti email akun label (tidak bisa menyetujui permintaan sendiri).",
         "desc_en": "Approve or reject label account email change requests (cannot approve own request)."},
+    "labels.transfer": {"type": "direct", "sensitive": True, "depends_on": ["labels.manage"],
+        "desc_id": "Menerapkan ganti nama, gabung, atau pindah rilisan label secara LANGSUNG (memindahkan saldo yang belum ditarik).",
+        "desc_en": "Apply a label rename, merge or release move DIRECTLY (moves unwithdrawn balance).",
+        "boundary_id": "Penjualan label ke akun lain tetap wajib disetujui Super Admin lain.",
+        "boundary_en": "Selling a label to another account always needs another Super Admin's approval."},
+    "labels.transfer.approve": {"type": "approval", "sensitive": True, "depends_on": ["labels.view"],
+        "desc_id": "Menyetujui atau menolak pengajuan pindah/ganti nama label (tidak bisa menyetujui pengajuan sendiri).",
+        "desc_en": "Approve or reject label transfer/rename requests (cannot approve own request)."},
     # --- Granular high-risk actions (Phase C) ---
     "releases.go_live": {"type": "sensitive", "sensitive": True, "depends_on": ["releases.review"],
         "desc_id": "Menandai rilisan TAYANG (mengunci UPC/ISRC). Aksi final yang tampil di DSP.",
@@ -197,6 +205,7 @@ DEFAULT_NAV_ITEMS = [
     ("labels", "/admin/labels", "Building2", "labels.view", "Manajemen Label", "Label Management", None),
     ("rate_changes", "/admin/rate-changes", "ShieldCheck", "labels.rate.request.view", "Persetujuan Sensitif", "Sensitive Approvals", "labels"),
     ("multi_label", "/admin/multi-label", "Layers", "labels.multi_label.view", "Multi Label", "Multi Label", "labels"),
+    ("label_transfers", "/admin/label-transfers", "ArrowRightLeft", "labels.view", "Pindah Label", "Label Transfers", "labels"),
     ("kyc", "/admin/kyc", "ShieldCheck", "kyc.view", "Verifikasi Akun", "Account Verification", None),
     ("artists", "/admin/artists", "UserSquare", "artists.view", "Manajemen Artis", "Artist Management", None),
     ("releases", "/admin/releases", "Disc3", "releases.view", "Manajemen Rilisan", "Release Management", None),
@@ -245,7 +254,7 @@ DEFAULT_NAV_GROUPS = [
 # nav item key → default group id
 NAV_GROUP_MAP = {
     "dashboard": "work_center", "work": "work_center", "status": "work_center",
-    "labels": "distribution_ops", "rate_changes": "distribution_ops", "multi_label": "distribution_ops",
+    "labels": "distribution_ops", "rate_changes": "distribution_ops", "multi_label": "distribution_ops", "label_transfers": "distribution_ops",
     "kyc": "distribution_ops", "releases": "distribution_ops", "migrate": "distribution_ops", "contracts": "distribution_ops",
     "analytics": "royalty_finance", "analytics_audit": "royalty_finance", "artists": "royalty_finance",
     "royalty": "royalty_finance", "royalty_adjustments": "royalty_finance", "withdraw": "royalty_finance",
@@ -676,6 +685,9 @@ def permission_for_request(path: str, method: str) -> Optional[str]:
         return "labels.blacklist.request"
     if "/admin/labels/" in path and path.endswith("/package-request"):
         return "labels.package.request"
+    if "/admin/label-transfers" in path:
+        # Deciding/applying is checked per transfer in the handler.
+        return "labels.view"
     if "/admin/labels/" in path and path.endswith("/email-change-request"):
         return "labels.accounts"
     if "/admin/labels/" in path and path.endswith("/change-email"):

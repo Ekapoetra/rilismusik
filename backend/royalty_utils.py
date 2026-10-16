@@ -34,6 +34,13 @@ def slug_artist(name: str) -> str:
     return s
 
 
+def label_name_key(value: Optional[str]) -> str:
+    """Key used by royalty imports to match Believe label names: case and spacing insensitive."""
+    if not value:
+        return ""
+    return " ".join(str(value).strip().lower().split())
+
+
 def normalize_label_match_name(value: Optional[str]) -> str:
     """Normalize label names for controlled bulk matching.
 

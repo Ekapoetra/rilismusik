@@ -1,5 +1,13 @@
 # RILIS MUSIK — Changelog
 
+## 2026-10 — Pindah / Ganti Nama Label (ikut Believe)
+- Mode: **ganti nama**, **gabung** (akun sama), **pindah rilisan terpilih** (akun sama), **penjualan** ke akun lain (lebih ketat). Detail: `memory/LABEL_TRANSFER_PRD.md`.
+- Saldo belum ditarik ikut pindah: baris royalti unsettled dipindah; bagian yang periodenya sudah ditarik label tujuan dikreditkan lewat jurnal penyesuaian (`source=LABEL_TRANSFER`). Gabung juga memindah saldo Inject Saldo. Urutan tulis aman: terputus di tengah hanya menyembunyikan saldo sementara, tidak pernah dobel; klik Lanjutkan untuk meneruskan.
+- Import royalti mengenali nama lama (alias) dan label yang digabung, jadi tidak membuat label placeholder baru. Lagu yang dijual: periode sebelum bulan efektif tetap ke penjual.
+- Pelanggan mengajukan dari dashboard label; admin input di `/admin/label-transfers` atau dari detail label. Izin baru `labels.transfer` (langsung) & `labels.transfer.approve`; penjualan wajib disetujui Super Admin lain dan kedua pemilik dinotifikasi saat pengajuan.
+- Diuji: `backend/tests/test_label_transfer.py` (14 test, termasuk konservasi saldo & resume), `LabelTransferCard.test.jsx`.
+
+
 ## 2026-10 — Perbaikan Ganti Email Akun Label + Persetujuan
 - **Akar masalah**: (1) `api` axios default `Content-Type: application/json` mengubah `FormData` menjadi JSON, sehingga endpoint `Form(...)` `change-email` & `revoke-account` selalu 422 — kena semua role termasuk Super Admin. (2) `admin_label_service` memakai cek role statis (`super_admin/admin_support/admin_release`), padahal admin dari role dinamis tersimpan `role="admin_custom"` → 403 walau punya izin `labels.accounts`.
 - **Perbaikan**: interceptor `client.js` mengirim FormData sebagai multipart; Buat Akun/Cabut Akses/Ganti Email memakai cek izin, bukan nama role.
