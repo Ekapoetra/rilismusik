@@ -181,7 +181,7 @@ withdrawalCard124=function(card){
   if(head){const p=head.querySelector('p');if(p)p.textContent=L(c.period);}
   card.insertAdjacentHTML('beforeend',
     `<div class="pc19-head"><strong>${jt(d.total)}</strong><span>${T('diajukan dari','requested of')} <b>${jt(max)}</b> ${T('yang bisa dicairkan','withdrawable')}</span><em>${nf(pct(d.total))}% · ${c.requestedLabels}/${c.eligible.labels} label</em></div>`
-   +`<div class="withdrawal-meter127 wb131 pc-bar131"><div class="wb131-pct"><span></span><strong>${nf(pct(d.paid))}%</strong></div><div class="payout-track" role="img" aria-label="${E(tipPaid+'; '+tipPay+'; '+tipLeft)}"><i style="width:${pct(d.paid)}%" data-tip131="${E(tipPaid)}"></i><s class="seg131 pay" style="left:${pct(d.paid)}%;width:${pct(d.unpaid)}%" data-tip131="${E(tipPay)}"></s><s class="seg131 left" style="left:${pct(d.total)}%;width:${pct(notReq)}%" data-tip131="${E(tipLeft)}"></s></div></div>`
+   +`<div class="withdrawal-meter127 wb131 pc-bar131"><div class="wb131-pct"><span></span><strong>${nf(pct(d.paid))}%</strong></div><div class="payout-track" role="img" aria-label="${E(tipPaid+'; '+tipPay+'; '+tipLeft)}"><i style="width:${pct(d.paid)}%" data-ftip131="${E(tipPaid)}"></i><s class="seg131 pay" style="left:${pct(d.paid)}%;width:${pct(d.unpaid)}%" data-ftip131="${E(tipPay)}"></s><s class="seg131 left" style="left:${pct(d.total)}%;width:${pct(notReq)}%" data-ftip131="${E(tipLeft)}"></s></div></div>`
    +`<div class="pc19-cols"><div><small><i class="wb131-dot paid"></i>${T('Dibayar','Paid')}</small><b>${jt(d.paid)}</b><span>${nf(pct(d.paid))}% ${T('dari maksimal','of maximum')}</span></div>`
    +`<button type="button" data-action="v6-metric" data-id="withdraw"><small><i class="wb131-dot pay"></i>${T('Belum dibayar','Unpaid')}</small><b>${jt(d.unpaid)}</b><span>${open.length} ${T('pengajuan','requests')} · ${T(`${daysPay} hari lagi`,`${daysPay} days left`)} <em>→</em></span></button>`
    +`<button type="button" data-action="payable131-open"><small><i class="wb131-dot left"></i>${leftName}</small><b>${jt(notReq)}</b><span>${notLabels} label · ${T('Kewajiban Royalti','Royalty Payable')} <em>→</em></span></button></div>`
@@ -203,3 +203,14 @@ function geoCoverage131(root=document){
 }
 const passBeforeGeo131=glassPass131;
 glassPass131=function(root=document){passBeforeGeo131(root);geoCoverage131(root===document?document:root);};
+
+/* dev.20 — tooltip melayang (fixed di body) untuk bagian batang: tidak terpotong tepi kartu dan
+   tidak tertutup elemen lain; mengikuti posisi kursor di atas batang dan dijepit di dalam layar. */
+let ftip131=null;
+function ftipShow131(el,x){if(!ftip131){ftip131=document.createElement('div');ftip131.className='ftip131';ftip131.setAttribute('role','tooltip');document.body.append(ftip131);}
+  ftip131.textContent=el.dataset.ftip131;const r=el.getBoundingClientRect(),w=ftip131.offsetWidth||200,cx=Math.min(innerWidth-w/2-8,Math.max(w/2+8,x));
+  ftip131.style.left=cx+'px';ftip131.style.top=(r.top-10)+'px';ftip131.classList.add('on');}
+document.addEventListener('pointerover',e=>{const el=e.target.closest&&e.target.closest('[data-ftip131]');if(el)ftipShow131(el,e.clientX);});
+document.addEventListener('pointermove',e=>{const el=e.target.closest&&e.target.closest('[data-ftip131]');if(el)ftipShow131(el,e.clientX);else if(ftip131)ftip131.classList.remove('on');});
+document.addEventListener('pointerout',e=>{if(ftip131&&!(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('[data-ftip131]')))ftip131.classList.remove('on');});
+addEventListener('scroll',()=>ftip131&&ftip131.classList.remove('on'),{passive:true});

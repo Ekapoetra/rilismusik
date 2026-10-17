@@ -1,5 +1,35 @@
 [
   {
+    "version": "1.1.0-dev.20",
+    "date": "2026-10-18",
+    "summary": {
+      "id": "Tooltip batang Penarikan melayang di atas halaman: bagian hijau kini punya info, dan tooltip tidak terpotong tepi kartu.",
+      "en": "Withdrawals bar tooltips float above the page: the green part now has info, and tooltips are no longer clipped by the card edge."
+    },
+    "entries": [
+      {
+        "id": "dev20-ftip",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period Withdrawals"
+          }
+        },
+        "title": {
+          "id": "Tooltip melayang untuk tiap bagian batang",
+          "en": "Floating tooltip for each bar segment"
+        },
+        "detail": {
+          "id": "Tooltip kini elemen melayang di atas halaman (bukan di dalam kartu): mengikuti kursor, tidak terpotong tepi kartu, dan dijepit agar tetap di dalam layar. Bagian hijau (dibayar) yang sebelumnya tertutup kini menampilkan infonya.",
+          "en": "Tooltips are now a floating element above the page (not inside the card): they follow the cursor, are not clipped by the card edge and stay within the screen. The green (paid) part, previously covered, now shows its info."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.19",
     "date": "2026-10-17",
     "summary": {

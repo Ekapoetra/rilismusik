@@ -280,3 +280,11 @@ html:root body.release124.release127 .withdrawal127 .pc-bar131{margin-top:16px}
 .withdrawal127 .pc19-cols span{font-size:12px;color:var(--muted)}
 .withdrawal127 .pc19-cols em{font-style:normal;margin-left:4px;color:var(--text)}
 @media (max-width:900px){.withdrawal127 .pc19-cols{grid-template-columns:1fr}}
+/* dev.20 — tooltip melayang untuk bagian batang (bahasa kaca yang sama dengan [data-tip131]) */
+.ftip131{position:fixed;z-index:9999;pointer-events:none;left:0;top:0;transform:translate(-50%,calc(-100% + 4px));opacity:0;white-space:nowrap;
+  padding:8px 12px;border-radius:999px;font-size:12px;line-height:1;color:var(--text);border:1px solid transparent;
+  background:linear-gradient(180deg,var(--g-top131),var(--g-bot131)) padding-box,linear-gradient(180deg,var(--g-rim-top131) 0%,var(--g-rim-side131,#00000012) 50%,var(--g-rim-bot131,var(--g-rim-top131)) 100%) border-box;
+  box-shadow:0 1px 1px var(--g-sh1-131),0 6px 16px -6px #00000033;transition:opacity .14s ease,transform .2s cubic-bezier(.2,.8,.2,1)}
+.ftip131.on{opacity:1;transform:translate(-50%,-100%)}
+[data-theme=dark] .ftip131{background:linear-gradient(180deg,#26262a,#1d1d20) padding-box,linear-gradient(180deg,#ffffff1c,#ffffff08) border-box;box-shadow:0 8px 20px -8px #000000cc}
+.withdrawal127 .pc-bar131 .payout-track>[data-ftip131]:hover{filter:brightness(1.06)}
