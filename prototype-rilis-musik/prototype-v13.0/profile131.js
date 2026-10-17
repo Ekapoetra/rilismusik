@@ -76,14 +76,21 @@ function profilePage131(){
     </div></section>`;
   return `<div class="profile4-131">${hero}<div class="pgrid131">${akunTab131(p,d)}${pwCard131()}${secTab131(p)}</div></div>`;
 }
+/* dev.19: Kota memakai RMDirectory (514 kab/kota, data yang sama dengan pilihan wilayah label,
+   dimuat-belakangan oleh lazy131) — tidak menambah atau menduplikasi data. */
+let cityCache131=null;
+function tc131(x){return String(x||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bDki\b/,'DKI').replace(/\bDi\b/,'DI');}
+function cityOptions131(){if(cityCache131)return cityCache131;let dir;try{dir=RMDirectory;}catch{return [];}if(!dir||!dir.regencies)return [];
+  const prov=new Map(dir.provinces.map(p=>[p.id,tc131(p.name.replace(/^DAERAH ISTIMEWA /,'DI ').replace(/^DKI /,'DKI '))]));
+  cityCache131=dir.regencies.map(r=>({id:r.id,label:`${tc131(r.name).replace(/^Kabupaten /,'Kab. ').replace(/^Kota Administrasi /,'Kota Adm. ')}, ${prov.get(r.parent)||''}`}));return cityCache131;}
 /* dev.17: Data akun diubah LANGSUNG di kartu (bukan drawer kanan). Klik Ubah → kolom jadi isian;
    Simpan/Batal di kepala kartu; Esc membatalkan. Menyimpan ke tempat yang sama dengan form v8. */
 function akunTab131(p,d){
   const ed=!!profile131.editAccount;
-  const facts=[['display',t('Nama tampilan','Display name'),p.name,'text','required maxlength="70"'],['legal',t('Nama administrasi','Administrative name'),d.legal||p.name,'text','required maxlength="100"'],['email','Email',p.email,'email','required'],['phone',t('Telepon','Phone'),d.phone||'','tel','maxlength="30"'],['address',t('Alamat','Address'),d.location||'','text','maxlength="200"'],['contract',t('Kontrak','Contract'),d.contract||'—',null,'']];
+  const facts=[['display',t('Nama tampilan','Display name'),p.name,'text','required maxlength="70"'],['legal',t('Nama administrasi','Administrative name'),d.legal||p.name,'text','required maxlength="100"'],['email','Email',p.email,'email','required'],['phone',t('Telepon','Phone'),d.phone||'','tel','maxlength="30"'],['city',t('Kota','City'),d.location||'','city',''],['contract',t('Kontrak','Contract'),d.contract||'—',null,'']];
   const note=t('Dokumen yang sudah diterbitkan tetap memakai data saat diterbitkan.','Issued documents keep the data they were issued with.');
   if(!ed)return `<section class="panel g131">${ghead131(t('Data akun','Account data'),btn(t('Ubah','Edit'),'profile131-edit',`title="${note}"`,'small'))}<dl class="kv131">${facts.map(([,k,v])=>`<div><dt>${k}</dt><dd>${E(v||'—')}</dd></div>`).join('')}</dl></section>`;
-  return `<section class="panel g131 editing131"><form data-form="profile131-account" novalidate>${ghead131(t('Data akun','Account data'),`<span class="gact131">${btn(t('Batal','Cancel'),'profile131-edit-cancel','','small text')}<button type="submit" class="btn small primary">${t('Simpan','Save')}</button></span>`)}<div class="kv131 kvedit131">${facts.map(([n,k,v,type,extra])=>type?`<label><span>${k}</span><input name="${n}" type="${type}" value="${E(v)}" ${extra}></label>`:`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</div><p class="fb131" role="status"></p><p class="hint131 note131">${note}</p></form></section>`;
+  return `<section class="panel g131 editing131"><form data-form="profile131-account" novalidate>${ghead131(t('Data akun','Account data'),`<span class="gact131">${btn(t('Batal','Cancel'),'profile131-edit-cancel','','small text')}<button type="submit" class="btn small primary">${t('Simpan','Save')}</button></span>`)}<div class="kv131 kvedit131">${facts.map(([n,k,v,type,extra])=>type==='city'?`<label><span>${k}</span><input name="city" list="cities131" value="${E(v)}" autocomplete="off" placeholder="${t('Ketik nama kota/kabupaten','Type a city/regency')}"></label>`:type?`<label><span>${k}</span><input name="${n}" type="${type}" value="${E(v)}" ${extra}></label>`:`<div><dt>${k}</dt><dd>${E(v)}</dd></div>`).join('')}</div><datalist id="cities131">${cityOptions131().map(o=>`<option value="${E(o.label)}"></option>`).join('')}</datalist><p class="fb131" role="status"></p><p class="hint131 note131">${note}</p></form></section>`;
 }
 /* dev.17: kartu Kata sandi — ubah langsung di kartu (pengganti kartu Kinerja). */
 function pwCard131(){
@@ -168,9 +175,10 @@ document.addEventListener('submit',e=>{
     if(!v('display'))return bad('display',t('Nama tampilan wajib diisi.','Display name is required.'));
     if(!v('legal'))return bad('legal',t('Nama administrasi wajib diisi.','Administrative name is required.'));
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email')))return bad('email',t('Format email tidak valid.','Invalid email format.'));
+    if(v('city')&&v('city')!==(prof131().location||'')&&!cityOptions131().some(o=>o.label===v('city')))return bad('city',t('Pilih kota dari daftar wilayah.','Pick a city from the region list.'));
     const p=me(),d=prof131();p.name=v('display');p.email=v('email').toLowerCase();
     try{const u=user114(p.id);if(u){u.name=p.name;u.email=p.email;}}catch{}
-    Object.assign(d,{legal:v('legal'),phone:v('phone'),location:v('address')});
+    Object.assign(d,{legal:v('legal'),phone:v('phone'),location:v('city')});const co=cityOptions131().find(o=>o.label===v('city'));if(co)d.cityId131=co.id;
     profile131.editAccount=false;if(typeof save8==='function')save8();else if(typeof save10==='function')save10();render();toast(t('Data akun tersimpan.','Account data saved.'));return;}
   const f=e.target.closest('form[data-form="profile131-password"]');if(!f)return;e.preventDefault();e.stopImmediatePropagation();
   const fb=f.querySelector('#form-feedback'),v=k=>f.elements[k].value;

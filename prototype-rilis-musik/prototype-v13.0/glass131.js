@@ -156,15 +156,14 @@ function arrowZones131(root=document){root.querySelectorAll('.metric124:not(:has
 const passBeforeArrow131=glassPass131;
 glassPass131=function(root=document){passBeforeArrow131(root);arrowZones131(root===document?document:root);};
 
-/* dev.18 — "Penarikan periode ini" disederhanakan (muatan sama, dibaca sekali lirik):
-   kiri  = satu kalimat utama: diajukan dari maksimal bulan ini (saldo ≥ Rp 1 jt);
-   kanan = dua angka yang perlu tindakan: belum dibayar (tenggat) & tidak diajukan (→ pemantauan);
-   tengah= satu batang tiga warna (dibayar · diajukan belum dibayar · tidak diajukan) + legenda satu baris;
-   bawah = satu baris konteks laporan (sumber, total royalti, di bawah ambang yang bergulir, tanggal penting).
-   Siklus pemilik: laporan Believe awal bulan → saldo ≥ Rp 1 jt bisa dicairkan → pengajuan s.d. tgl 14 →
-   bayar s.d. tgl 20 → sisa tidak diajukan menjadi kewajiban yang dipantau. */
+/* dev.19 — "Penarikan periode ini": tanpa keterangan jadwal yang sudah diketahui Super Admin;
+   satu angka utama, satu batang dengan TOOLTIP PER BAGIAN (dibayar · diajukan belum dibayar ·
+   tidak diajukan), lalu tiga angka sejajar yang warnanya sama dengan bagian batang; dua di
+   antaranya bisa diklik (daftar pengajuan · Kewajiban Royalti). Satu baris konteks laporan.
+   Siklus pemilik: laporan Believe awal bulan → saldo ≥ Rp 1 jt bisa dicairkan → pengajuan s.d.
+   tgl 14 → bayar s.d. tgl 20 → sisa tidak diajukan menjadi kewajiban yang dipantau. */
 const wdStatus131={'WD-091':'review','WD-092':'pay'};
-const cycle131={report:'Believe Agustus',uploaded:'2 Sep',reportTotal:131640000,eligible:{labels:48,amount:118900000},below:{labels:312,amount:12740000},requestedLabels:31,threshold:1000000,windowEnd:14,payDue:20,today:18};
+const cycle131={period:['September 2026','September 2026'],report:'Believe Agustus',uploaded:'2 Sep',reportTotal:131640000,eligible:{labels:48,amount:118900000},below:{labels:312,amount:12740000},requestedLabels:31,threshold:1000000,windowEnd:14,payDue:20,today:18};
 const wdBefore131=withdrawalCard124;
 withdrawalCard124=function(card){
   wdBefore131(card);
@@ -173,17 +172,20 @@ withdrawalCard124=function(card){
   const paidIds=new Set((data.ops||[]).filter(x=>x.status==='paid').map(x=>x.id));
   const open=Object.keys(withdrawalAmount7).filter(id=>!paidIds.has(id));
   const max=Math.max(c.eligible.amount,d.total),notReq=Math.max(0,max-d.total),closed=c.today>c.windowEnd,notLabels=Math.max(0,c.eligible.labels-c.requestedLabels);
-  const pct=v=>max>0?v/max*100:0,reqPct=pct(d.total),daysPay=c.payDue-c.today;
+  const pct=v=>max>0?v/max*100:0,daysPay=c.payDue-c.today,leftName=closed?T('Tidak diajukan','Not requested'):T('Belum diajukan','Not yet requested');
+  const tipPaid=`${T('Dibayar','Paid')} · ${money(d.paid)} · ${nf(pct(d.paid))}%`;
+  const tipPay=`${T('Diajukan, belum dibayar','Requested, unpaid')} · ${money(d.unpaid)} · ${open.length} ${T('pengajuan','requests')}`;
+  const tipLeft=`${leftName} · ${money(notReq)} · ${notLabels} label`;
   const head=card.querySelector('.withdraw-heading124');
   card.querySelectorAll(':scope>:not(.withdraw-heading124)').forEach(e=>e.remove());
-  if(head){const p=head.querySelector('p');if(p)p.textContent=closed?T(`Pengajuan ditutup 14 Sep · bayar s.d. 20 Sep`,`Requests closed Sep 14 · pay by Sep 20`):T(`Pengajuan dibuka s.d. 14 Sep`,`Requests open until Sep 14`);}
+  if(head){const p=head.querySelector('p');if(p)p.textContent=L(c.period);}
   card.insertAdjacentHTML('beforeend',
-    `<div class="pc131"><div class="pc-main131"><small>${T('Diajukan','Requested')}</small><strong>${jt(d.total)} <em>/ ${jt(max)}</em></strong><span>${nf(reqPct)}% ${T('dari yang bisa dicairkan bulan ini','of what can be withdrawn this month')} · ${c.requestedLabels} ${T('dari','of')} ${c.eligible.labels} label</span></div>`
-   +`<div class="pc-acts131">${d.unpaid>0?`<button type="button" class="pc-act131" data-action="v6-metric" data-id="withdraw"><small>${T('Belum dibayar','Unpaid')}</small><b>${jt(d.unpaid)}</b><span>${open.length} ${T('pengajuan','requests')} · ${T(`${daysPay} hari lagi`,`${daysPay} days left`)}</span></button>`:''}`
-   +`${notReq>0?`<button type="button" class="pc-act131 left" data-action="payable131-open"><small>${closed?T('Tidak diajukan','Not requested'):T('Belum diajukan','Not yet requested')}</small><b>${jt(notReq)}</b><span>${notLabels} label${closed?' → '+T('pemantauan','monitoring'):''}</span></button>`:''}</div></div>`
-   +`<div class="withdrawal-meter127 wb131 pc-bar131"><div class="wb131-pct"><span></span><strong>${nf(pct(d.paid))}%</strong></div><div class="payout-track" role="progressbar" aria-label="${T('Bagian yang telah dibayar dari potensi bulan ini','Share of this month’s potential already paid')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct(d.paid).toFixed(1)}" aria-valuetext="${nf(pct(d.paid))}% ${T('telah dibayarkan','paid')}"><i style="width:${pct(d.paid)}%"></i><s class="seg131 pay" style="left:${pct(d.paid)}%;width:${pct(d.unpaid)}%"></s><s class="seg131 left" style="left:${reqPct}%;width:${pct(notReq)}%"></s></div></div>`
-   +`<div class="pc-legend131"><span><i class="wb131-dot paid"></i>${T('Dibayar','Paid')} ${jt(d.paid)}</span><span><i class="wb131-dot pay"></i>${T('Diajukan, belum dibayar','Requested, unpaid')} ${jt(d.unpaid)}</span><span><i class="wb131-dot left"></i>${closed?T('Tidak diajukan','Not requested'):T('Belum diajukan','Not yet requested')} ${jt(notReq)}</span></div>`
-   +`<p class="pc-ctx131">${T(`Laporan ${c.report} diunggah ${c.uploaded} · royalti ${jt(c.reportTotal)} · ${jt(c.below.amount)} di bawah ambang Rp 1 jt bergulir ke bulan depan (${c.below.labels} label)`,`${c.report} report uploaded ${c.uploaded} · royalties ${jt(c.reportTotal)} · ${jt(c.below.amount)} below the Rp 1M threshold rolls over (${c.below.labels} labels)`)}</p>`);
+    `<div class="pc19-head"><strong>${jt(d.total)}</strong><span>${T('diajukan dari','requested of')} <b>${jt(max)}</b> ${T('yang bisa dicairkan','withdrawable')}</span><em>${nf(pct(d.total))}% · ${c.requestedLabels}/${c.eligible.labels} label</em></div>`
+   +`<div class="withdrawal-meter127 wb131 pc-bar131"><div class="wb131-pct"><span></span><strong>${nf(pct(d.paid))}%</strong></div><div class="payout-track" role="img" aria-label="${E(tipPaid+'; '+tipPay+'; '+tipLeft)}"><i style="width:${pct(d.paid)}%" data-tip131="${E(tipPaid)}"></i><s class="seg131 pay" style="left:${pct(d.paid)}%;width:${pct(d.unpaid)}%" data-tip131="${E(tipPay)}"></s><s class="seg131 left" style="left:${pct(d.total)}%;width:${pct(notReq)}%" data-tip131="${E(tipLeft)}"></s></div></div>`
+   +`<div class="pc19-cols"><div><small><i class="wb131-dot paid"></i>${T('Dibayar','Paid')}</small><b>${jt(d.paid)}</b><span>${nf(pct(d.paid))}% ${T('dari maksimal','of maximum')}</span></div>`
+   +`<button type="button" data-action="v6-metric" data-id="withdraw"><small><i class="wb131-dot pay"></i>${T('Belum dibayar','Unpaid')}</small><b>${jt(d.unpaid)}</b><span>${open.length} ${T('pengajuan','requests')} · ${T(`${daysPay} hari lagi`,`${daysPay} days left`)} <em>→</em></span></button>`
+   +`<button type="button" data-action="payable131-open"><small><i class="wb131-dot left"></i>${leftName}</small><b>${jt(notReq)}</b><span>${notLabels} label · ${T('Kewajiban Royalti','Royalty Payable')} <em>→</em></span></button></div>`
+   +`<p class="pc-ctx131">${T(`Laporan ${c.report} · diunggah ${c.uploaded} · royalti ${jt(c.reportTotal)} · ${jt(c.below.amount)} di bawah ambang Rp 1 jt bergulir (${c.below.labels} label)`,`${c.report} report · uploaded ${c.uploaded} · royalties ${jt(c.reportTotal)} · ${jt(c.below.amount)} below the Rp 1M threshold rolls over (${c.below.labels} labels)`)}</p>`);
   return card;
 };
 

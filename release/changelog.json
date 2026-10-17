@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.1.0-dev.19",
+    "date": "2026-10-17",
+    "summary": {
+      "id": "Profil & Kotak Masuk mengisi satu layar tanpa gulir; kolom Kota memakai data wilayah label; kartu Penarikan dengan tooltip per bagian batang; analisis Pemantauan Keuangan.",
+      "en": "Profile & Inbox fill one screen without scrolling; City field uses the label region data; Withdrawals card with per-segment bar tooltips; Financial Monitoring analysis."
+    },
+    "entries": [
+      {
+        "id": "dev19-fit",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Profil & Kotak Masuk",
+            "en": "Profile & Inbox"
+          }
+        },
+        "title": {
+          "id": "Satu layar penuh tanpa gulir",
+          "en": "One full screen, no scrolling"
+        },
+        "detail": {
+          "id": "Penyebab gulir: footer prototype + padding bawah + tinggi minimum 100vh di bawah header. Di kedua halaman itu dihapus; konten mengisi tinggi layar (diuji 1366×768, 1440×900, 1920×1080) dengan jarak lega di dalam kartu.",
+          "en": "Scroll cause: prototype footer + bottom padding + a 100vh minimum height below the header. Removed on both pages; content fills the screen height (tested 1366×768, 1440×900, 1920×1080) with comfortable spacing inside the cards."
+        }
+      },
+      {
+        "id": "dev19-city",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Profil · Data akun",
+            "en": "Profile · Account data"
+          }
+        },
+        "title": {
+          "id": "Alamat → Kota, dari direktori wilayah yang sama dengan label",
+          "en": "Address → City, from the same region directory as labels"
+        },
+        "detail": {
+          "id": "Isian Kota menyarankan 514 kab/kota dari direktori wilayah yang sudah dipakai label (dimuat-belakangan; tidak ada data baru atau duplikat). Kota di luar daftar ditolak; nilai lama tetap bisa disimpan selama tidak diubah.",
+          "en": "The City field suggests 514 regencies/cities from the region directory labels already use (lazy-loaded; no new or duplicated data). Cities outside the list are rejected; an old value can be kept if unchanged."
+        }
+      },
+      {
+        "id": "dev19-withdraw",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Dashboard · Penarikan periode ini",
+            "en": "Dashboard · Period Withdrawals"
+          }
+        },
+        "title": {
+          "id": "Penarikan: tooltip per bagian batang, tanpa keterangan jadwal",
+          "en": "Withdrawals: per-segment bar tooltips, no schedule note"
+        },
+        "detail": {
+          "id": "Keterangan \"pengajuan ditutup 14 Sep\" dihapus (sudah diketahui Super Admin). Hover tiap bagian batang menampilkan informasinya sendiri: dibayar · diajukan belum dibayar · tidak diajukan. Tiga angka di bawah batang memakai warna yang sama dengan bagiannya; dua bisa diklik.",
+          "en": "The \"requests closed Sep 14\" note is gone (Super Admins already know it). Hovering each bar segment shows its own info: paid · requested unpaid · not requested. The three numbers below use the same colours as their segments; two are clickable."
+        }
+      },
+      {
+        "id": "dev19-monitor-analysis",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "liability9",
+          "menu": {
+            "id": "Pemantauan Keuangan",
+            "en": "Financial Monitoring"
+          }
+        },
+        "title": {
+          "id": "Analisis Pemantauan Keuangan (dokumen, belum diterapkan)",
+          "en": "Financial Monitoring analysis (document, not applied)"
+        },
+        "detail": {
+          "id": "prototype-rilis-musik/ANALISIS-PEMANTAUAN-KEUANGAN.md: struktur tab, tumpang tindih Pemantauan Dana vs Kewajiban Royalti, kepadatan tabel, status kosong, catatan data untuk aplikasi asli, dan urutan perbaikan.",
+          "en": "prototype-rilis-musik/ANALISIS-PEMANTAUAN-KEUANGAN.md: tab structure, Funds Monitor vs Royalty Payable overlap, table density, empty states, data notes for the real app, and a fix order."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.18",
     "date": "2026-10-16",
     "summary": {
