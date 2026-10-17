@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demo Motion · Rilis Musik</title>
+<!-- v1.1 dev.21 — halaman demo motion graphic (tanpa library: CSS + Web Animations API + View Transitions).
+     Semua animasi: 150–900 ms, hanya transform/opacity/width, tidak ada perulangan tak berujung,
+     menghormati "kurangi gerakan" (sistem atau sakelar di halaman). -->
+<style>
+@font-face{font-family:Geist;src:url(geist131.woff2) format("woff2");font-weight:100 900;font-display:swap}
+:root{--bg:#f0f0f0;--surface:#f8f8f8;--soft:#ececee;--hover:#e7e7ea;--line:#e2e2e5;--text:#1b1d21;--muted:#6b7079;--green:#1eaa36;--green-soft:#8fe29c;--blue:#2e689e;--orange:#cc6419;--red:#c83255}
+[data-theme=dark]{--bg:#0a0a0b;--surface:#141415;--soft:#1d1d20;--hover:#232327;--line:#26262a;--text:#f2f2f3;--muted:#8e8e94;--green:#3ddb5a;--green-soft:#1f6f31;--blue:#6aa6dc}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Geist,Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;transition:background .3s,color .3s}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:14px 28px;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top h1{font-size:16px;font-weight:500;margin:0}.top p{margin:0;font-size:12px;color:var(--muted)}.top .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{white-space:nowrap;font:inherit;font-size:12px;padding:7px 13px;border:0;border-radius:999px;background:var(--soft);color:var(--text);cursor:pointer;transition:background .15s,transform .15s}
+.btn:hover{background:var(--hover)}.btn:active{transform:scale(.97)}.btn.pri{background:var(--text);color:var(--bg)}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer}
+main{max-width:1180px;margin:0 auto;padding:24px 28px 80px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--surface);border-radius:24px;padding:22px 24px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 6%,transparent);display:flex;flex-direction:column;gap:14px;min-width:0}
+.card.wide{grid-column:1/-1}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ch h2{font-size:16px;font-weight:500;margin:0}.ch small{display:block;font-size:12px;color:var(--muted);margin-top:3px;max-width:52ch}
+.tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.stage{background:var(--bg);border-radius:18px;padding:20px;position:relative;overflow:hidden;min-height:150px}
+/* 1. angka & batang */
+.metric{display:flex;align-items:center;gap:12px}.metric b{font-size:40px;font-weight:500;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;font-size:12px;background:linear-gradient(180deg,#fefefe,#f6f6f6);box-shadow:0 1px 1px #0000000d,0 2px 6px -2px #0000001c,inset 0 0 0 1px #00000010}
+[data-theme=dark] .pill{background:linear-gradient(180deg,#ffffff12,#ffffff06);box-shadow:inset 0 0 0 1px #ffffff12}
+.pill i{width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid var(--green)}
+.track{position:relative;height:14px;border-radius:999px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);margin-top:18px;overflow:hidden}
+.seg{position:absolute;top:0;bottom:0;width:0}
+.seg.paid{background:repeating-linear-gradient(135deg,var(--green) 0 5px,var(--green-soft) 5px 9px);border-radius:999px 0 0 999px}
+.seg.pay{background:var(--blue)}
+.seg.left{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--text) 12%,transparent) 0 4px,transparent 4px 8px);border-radius:0 999px 999px 0}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:10px}.legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--c)}
+/* 2. transisi data */
+.seg-ctl{display:inline-flex;padding:3px;border-radius:999px;background:var(--soft)}.seg-ctl button{font:inherit;font-size:12px;border:0;background:none;color:var(--muted);padding:5px 12px;border-radius:999px;cursor:pointer;transition:color .2s}
+.seg-ctl button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px #00000014}
+.bars{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;align-items:end;height:120px;margin-top:14px}
+.bars i{display:block;border-radius:8px 8px 3px 3px;background:var(--text);opacity:.85;height:0;transition:height .55s cubic-bezier(.2,.8,.2,1)}
+.bars i:nth-child(odd){background:color-mix(in srgb,var(--text) 35%,transparent)}
+/* 3. umpan balik aksi */
+.steps{display:flex;align-items:center;gap:0;margin:8px 0 14px}
+.st{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted);flex:none;width:86px;text-align:center}
+.st .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface);box-shadow:inset 0 0 0 2px var(--line);transition:box-shadow .3s,background .3s}
+.st.done .dot{background:var(--text);box-shadow:none}.st.now .dot{box-shadow:inset 0 0 0 2px var(--text),0 0 0 4px color-mix(in srgb,var(--text) 12%,transparent)}
+.st.now{color:var(--text)}
+.st svg{width:12px;height:12px;stroke:var(--bg);fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
+.st.done svg{stroke-dashoffset:0;transition:stroke-dashoffset .35s ease .1s}
+.ln{flex:1;height:2px;background:var(--line);position:relative;margin-bottom:22px}.ln b{position:absolute;inset:0 auto 0 0;width:0;background:var(--text);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.chat{display:flex;flex-direction:column;gap:8px;height:150px;overflow:hidden;justify-content:flex-end}
+.msg{align-self:flex-start;max-width:78%;padding:9px 12px;border-radius:14px 14px 14px 4px;background:var(--surface);font-size:13px;box-shadow:inset 0 0 0 1px var(--line)}
+.msg.me{align-self:flex-end;background:var(--text);color:var(--bg);border-radius:14px 14px 4px 14px;box-shadow:none}
+.compose{display:flex;gap:8px;margin-top:10px}.compose input{flex:1;font:inherit;font-size:13px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+.save{position:relative;min-width:132px;height:36px;display:inline-grid;place-items:center;overflow:hidden}
+.save .ok{position:absolute;inset:0;display:grid;place-items:center;opacity:0}.save .ok svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24}
+/* 4. momen penting */
+.ring{position:relative;width:150px;height:150px;flex:none}.ring svg{transform:rotate(-90deg)}
+.ring b{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}.ring b small{font-size:11px;font-weight:400;color:var(--muted)}
+.cele{display:flex;align-items:center;gap:22px}.cele h3{margin:0 0 4px;font-size:18px;font-weight:500}.cele p{margin:0;color:var(--muted);font-size:13px}
+#confetti{position:absolute;inset:0;pointer-events:none}
+.seal{display:inline-flex;align-items:center;gap:8px;font-size:15px;margin-top:10px}
+.seal svg{width:20px;height:20px;filter:drop-shadow(0 0 0 #2e7be600)}
+/* 5. status kosong */
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:10px 0}.empty svg{width:120px;height:96px}.empty p{margin:0;color:var(--muted);font-size:13px}
+/* 6. skeleton */
+.sk{display:flex;flex-direction:column;gap:10px}.sk .row{display:flex;gap:12px;align-items:center}
+.sk i{display:block;border-radius:8px;background:linear-gradient(90deg,var(--soft) 0%,var(--hover) 40%,var(--soft) 80%);background-size:200% 100%;animation:shim 1.1s linear 3}
+@keyframes shim{from{background-position:120% 0}to{background-position:-80% 0}}
+.real{display:none;flex-direction:column;gap:10px}.real .row{display:flex;gap:12px;align-items:center;font-size:13px}.av{width:34px;height:34px;border-radius:50%;background:var(--soft);display:grid;place-items:center;font-size:11px;flex:none}
+/* 7. transisi halaman */
+.vt{display:grid;grid-template-columns:150px 1fr;gap:12px;min-height:150px}
+.vt .list{display:flex;flex-direction:column;gap:4px}.vt .list button{font:inherit;font-size:13px;text-align:left;border:0;padding:9px 10px;border-radius:10px;background:none;color:var(--text);cursor:pointer}.vt .list button.on{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.vt .det{background:var(--surface);border-radius:14px;padding:14px 16px;view-transition-name:thread}
+.vt .det h4{margin:0 0 6px;font-size:15px;font-weight:500}.vt .det p{margin:0;font-size:13px;color:var(--muted)}
+::view-transition-old(thread){animation:vtOut .18s ease both}::view-transition-new(thread){animation:vtIn .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes vtOut{to{opacity:0;transform:translateX(-10px)}}@keyframes vtIn{from{opacity:0;transform:translateX(14px)}}
+.note{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+.reduced *{animation-duration:0s!important;transition-duration:0s!important}
+@media (prefers-reduced-motion:reduce){*{animation-duration:0s!important;transition-duration:0s!important}}
+</style>
+</head>
+<body>
+<header class="top"><div><h1>Demo motion · Rilis Musik</h1><p>Contoh gerak untuk dipilih sebelum diterapkan. Tanpa library tambahan.</p></div>
+<div class="sp"><label class="chk"><input type="checkbox" id="reduce"> Kurangi gerakan</label><button class="btn" id="theme">Tema gelap</button><button class="btn pri" id="playAll">Putar semua</button></div></header>
+<main>
+
+<section class="card wide" id="s1"><div class="ch"><div><h2>1 · Angka menghitung naik & batang terisi</h2><small>Saat Dashboard pertama tampil: angka metrik menghitung dari 0, pil persentase muncul, batang Penarikan terisi bagian demi bagian.</small></div><button class="btn" data-play="1">Putar ulang</button></div>
+<div class="stage"><div style="display:grid;grid-template-columns:auto 1fr;gap:36px;align-items:center">
+<div><div style="font-size:12px;color:var(--muted)">Total label</div><div class="metric"><b id="n1">0</b><span class="pill" id="p1"><i></i>+2,9%</span></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>Penarikan periode ini</span><span id="pct1">0%</span></div><div class="track"><span class="seg paid" id="b1"></span><span class="seg pay" id="b2"></span><span class="seg left" id="b3"></span></div>
+<div class="legend"><span style="--c:var(--green)">Dibayar</span><span style="--c:var(--blue)">Belum dibayar</span><span style="--c:var(--muted)">Tidak diajukan</span></div></div></div></div>
+<div class="note">Angka 900 ms (ease-out) · batang 3 × 450 ms berurutan · pil masuk 250 ms. Hanya sekali saat halaman dibuka.</div></section>
+
+<section class="card" id="s2"><div class="ch"><div><h2>2 · Transisi saat data berganti</h2><small>Ganti periode: batang & angka bergeser ke nilai baru, bukan langsung melompat — mata bisa melihat apa yang berubah.</small></div><span class="tag">550 ms</span></div>
+<div class="stage"><div style="display:flex;justify-content:space-between;align-items:center"><div class="seg-ctl" id="per"><button data-p="0">Juli</button><button data-p="1" class="on">Agustus</button><button data-p="2">September</button></div><b id="n2" style="font-size:22px;font-weight:500;font-variant-numeric:tabular-nums">Rp 32,4 jt</b></div>
+<div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+<div class="note">Klik bulan di atas. Dipakai untuk: kartu metrik, grafik Kewajiban Royalti, rincian per periode.</div></section>
+
+<section class="card" id="s3"><div class="ch"><div><h2>3 · Umpan balik aksi</h2><small>Setiap aksi menjawab dirinya sendiri: tahap tiket bergerak, pesan "naik" ke linimasa, tombol simpan berubah jadi centang.</small></div><span class="tag">200–400 ms</span></div>
+<div class="stage" style="display:flex;flex-direction:column;gap:12px">
+<div class="steps" id="steps"><div class="st done"><span class="dot"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>Diajukan</div><span class="ln"><b style="width:100%"></b></span><div class="st now"><span class="dot"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>Ditangani</div><span class="ln"><b></b></span><div class="st"><span class="dot"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>Distributor</div><span class="ln"><b></b></span><div class="st"><span class="dot"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>Selesai</div></div>
+<div style="display:flex;gap:8px"><button class="btn" id="adv">Lanjut tahap</button><button class="btn" id="rst">Ulang</button><span style="flex:1"></span><button class="btn pri save" id="save"><span class="lbl">Simpan data</span><span class="ok"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span></button></div></div>
+<div class="stage"><div class="chat" id="chat"><div class="msg">Apakah metadata Kumari sudah sesuai?</div><div class="msg me">Sudah kami periksa, aman.</div></div><form class="compose" id="cf"><input id="ci" value="Terima kasih, kami cek dulu." aria-label="Pesan"><button class="btn pri">Kirim</button></form></div>
+</section>
+
+<section class="card" id="s4"><div class="ch"><div><h2>4 · Momen penting</h2><small>Hanya untuk tonggak yang jarang terjadi: pencairan bulan ini tuntas 100%, label baru terverifikasi.</small></div><button class="btn" data-play="4">Putar ulang</button></div>
+<div class="stage" style="min-height:220px"><canvas id="confetti"></canvas><div class="cele"><div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="none" stroke="var(--line)" stroke-width="12"/><circle id="arc" cx="75" cy="75" r="62" fill="none" stroke="var(--green)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 390"/></svg><b><span id="n4">63%</span><small>dibayar</small></b></div>
+<div><h3 id="h4">Pencairan September</h3><p id="t4">Rp 75 jt dari Rp 99,2 jt telah dibayar.</p><div class="seal"><svg viewBox="0 0 24 24" id="sealIco"><path fill="#2e7be6" d="M12 1.6l2.2 1.9 2.9-.4 1.1 2.7 2.7 1.1-.4 2.9 1.9 2.2-1.9 2.2.4 2.9-2.7 1.1-1.1 2.7-2.9-.4L12 22.4l-2.2-1.9-2.9.4-1.1-2.7-2.7-1.1.4-2.9L1.6 12l1.9-2.2-.4-2.9 2.7-1.1 1.1-2.7 2.9.4z"/><path d="m7.6 12.2 2.9 2.9 5.9-5.9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Senja Records kini terverifikasi</div></div></div></div>
+<div class="note">Cincin 800 ms → 100%, konfeti 900 ms (sekali), seal berpendar 2 ×. Tidak dipakai untuk aksi rutin.</div></section>
+
+<section class="card" id="s5"><div class="ch"><div><h2>5 · Status kosong</h2><small>Ilustrasi bergerak halus menggantikan halaman "Rp 0" / "Belum ada catatan" yang terasa rusak.</small></div><button class="btn" data-play="5">Putar ulang</button></div>
+<div class="stage"><div class="empty"><svg viewBox="0 0 120 96" id="emptyIco"><rect x="18" y="40" width="84" height="46" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><path d="M18 58h26l6 10h20l6-10h26" fill="none" stroke="var(--line)" stroke-width="2"/><g id="env"><rect x="40" y="10" width="40" height="28" rx="5" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.6"/><path d="m40 14 20 13 20-13" fill="none" stroke="var(--muted)" stroke-width="1.6"/></g></svg><b style="font-weight:500">Tidak ada percakapan yang menunggu</b><p>Pesan baru dari label akan muncul di sini.</p></div></div>
+<div class="note">Amplop melayang 3 siklus (± 1,8 dtk) lalu diam — tidak berulang terus.</div></section>
+
+<section class="card" id="s6"><div class="ch"><div><h2>6 · Kerangka saat memuat</h2><small>Bentuk konten tampil dulu (berkilau), lalu isi asli memudar masuk — waktu tunggu terasa lebih singkat.</small></div><button class="btn" data-play="6">Putar ulang</button></div>
+<div class="stage"><div class="sk" id="sk"></div><div class="real" id="real"><div class="row"><span class="av">SR</span><div><b style="font-weight:500">Senja Records</b><div style="color:var(--muted);font-size:12px">T-318 · Metadata · Kumari</div></div></div><div class="row"><span class="av">AR</span><div><b style="font-weight:500">Awan Records</b><div style="color:var(--muted);font-size:12px">T-322 · Takedown · Langit Biru</div></div></div><div class="row"><span class="av">UM</span><div><b style="font-weight:500">Utara Music</b><div style="color:var(--muted);font-size:12px">T-325 · Ubah metadata</div></div></div></div></div>
+<div class="note">Kilau 1,1 dtk × maks. 3 · isi masuk 250 ms. Muncul hanya bila data > 300 ms.</div></section>
+
+<section class="card" id="s7"><div class="ch"><div><h2>7 · Transisi antar tampilan</h2><small>Pindah percakapan: isi lama bergeser keluar, isi baru masuk dari kanan (View Transitions — bawaan browser).</small></div><span class="tag">180 + 280 ms</span></div>
+<div class="stage"><div class="vt"><div class="list" id="vtl"><button class="on" data-i="0">Senja Records</button><button data-i="1">Awan Records</button><button data-i="2">Koordinasi internal</button></div><div class="det" id="vtd"></div></div></div>
+<div class="note">Dipakai untuk: Kotak Masuk, pindah tab, buka detail. Browser lama: pudar biasa.</div></section>
+
+</main>
+<script>
+'use strict';
+const $=s=>document.querySelector(s),reduced=()=>$('#reduce').checked||matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.body.classList.toggle('reduced',false);
+$('#reduce').addEventListener('change',e=>document.body.classList.toggle('reduced',e.target.checked));
+$('#theme').addEventListener('click',e=>{const d=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=d?'light':'dark';e.target.textContent=d?'Tema gelap':'Tema terang';});
+const nf=new Intl.NumberFormat('id-ID',{maximumFractionDigits:1});
+function count(el,to,ms,fmt=v=>nf.format(Math.round(v))){if(reduced()){el.textContent=fmt(to);return;}const t0=performance.now();const f=t=>{const k=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-k,3);el.textContent=fmt(to*e);if(k<1)requestAnimationFrame(f);};requestAnimationFrame(f);}
+const anim=(el,kf,o)=>reduced()?(Object.assign(el.style,kf[kf.length-1]),null):el.animate(kf,{fill:'forwards',easing:'cubic-bezier(.2,.8,.2,1)',...o});
+/* 1 */
+function play1(){count($('#n1'),1772,900);count($('#pct1'),63.1,1350,v=>nf.format(v)+'%');
+  anim($('#p1'),[{opacity:0,transform:'translateY(6px) scale(.9)'},{opacity:1,transform:'none'}],{duration:250,delay:650});
+  const s=[['#b1',0,63.1],['#b2',63.1,20.4],['#b3',83.5,16.5]];s.forEach(([id,l,w],i)=>{const el=$(id);el.style.left=l+'%';anim(el,[{width:'0%'},{width:w+'%'}],{duration:450,delay:150+i*420});});}
+/* 2 */
+const per=[[24,28,29,31,30,33],[26,29,31,30,32,35],[22,24,27,29,33,36]],tot=[30.6,32.4,34.1];
+function set2(i,first){$('#bars').querySelectorAll('i').forEach((b,k)=>b.style.height=per[i][k]*3+'px');const cur=parseFloat(($('#n2').dataset.v||tot[1]));
+  if(reduced()||first){$('#n2').textContent='Rp '+nf.format(tot[i])+' jt';}else{const t0=performance.now();const f=t=>{const k=Math.min(1,(t-t0)/550),e=1-Math.pow(1-k,3);$('#n2').textContent='Rp '+nf.format(Math.round((cur+(tot[i]-cur)*e)*10)/10)+' jt';if(k<1)requestAnimationFrame(f);};requestAnimationFrame(f);}
+  $('#n2').dataset.v=tot[i];$('#per').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.p===i));}
+$('#per').addEventListener('click',e=>{const b=e.target.closest('button');if(b)set2(+b.dataset.p);});
+/* 3 */
+$('#adv').addEventListener('click',()=>{const st=[...document.querySelectorAll('#steps .st')],lns=[...document.querySelectorAll('#steps .ln b')],i=st.findIndex(s=>s.classList.contains('now'));if(i<0||i>=st.length)return;
+  st[i].classList.remove('now');st[i].classList.add('done');if(lns[i])lns[i].style.width='100%';
+  const nx=st[i+1];if(nx){setTimeout(()=>{nx.classList.add('now');anim(nx.querySelector('.dot'),[{transform:'scale(.6)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:380});},reduced()?0:300);}});
+$('#rst').addEventListener('click',()=>{const st=[...document.querySelectorAll('#steps .st')];st.forEach((s,k)=>{s.className='st'+(k===0?' done':k===1?' now':'');});document.querySelectorAll('#steps .ln b').forEach((b,k)=>b.style.width=k===0?'100%':'0');});
+$('#save').addEventListener('click',()=>{const b=$('#save'),l=b.querySelector('.lbl'),o=b.querySelector('.ok'),p=o.querySelector('svg');
+  anim(l,[{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-8px)'}],{duration:180});anim(o,[{opacity:0},{opacity:1}],{duration:180,delay:120});anim(p,[{strokeDashoffset:24},{strokeDashoffset:0}],{duration:320,delay:220});
+  setTimeout(()=>{anim(o,[{opacity:1},{opacity:0}],{duration:180});anim(l,[{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],{duration:220,delay:120});},reduced()?0:1500);});
+$('#cf').addEventListener('submit',e=>{e.preventDefault();const v=$('#ci').value.trim();if(!v)return;const m=document.createElement('div');m.className='msg me';m.textContent=v;$('#chat').append(m);
+  anim(m,[{opacity:0,transform:'translateY(18px) scale(.96)'},{opacity:1,transform:'none'}],{duration:280});
+  const msgs=$('#chat').querySelectorAll('.msg');if(msgs.length>4)msgs[0].remove();
+  setTimeout(()=>{const r=document.createElement('div');r.className='msg';r.textContent='Siap, terima kasih!';$('#chat').append(r);anim(r,[{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:260});if($('#chat').querySelectorAll('.msg').length>4)$('#chat').querySelector('.msg').remove();},reduced()?0:900);});
+/* 4 */
+function play4(){const arc=$('#arc'),C=2*Math.PI*62;arc.setAttribute('stroke-dasharray',`${C*.631} ${C}`);$('#n4').textContent='63%';$('#h4').textContent='Pencairan September';$('#t4').textContent='Rp 75 jt dari Rp 99,2 jt telah dibayar.';
+  setTimeout(()=>{if(reduced()){arc.setAttribute('stroke-dasharray',`${C} ${C}`);$('#n4').textContent='100%';done4();return;}
+    const t0=performance.now();const f=t=>{const k=Math.min(1,(t-t0)/800),e=1-Math.pow(1-k,3),v=.631+(1-.631)*e;arc.setAttribute('stroke-dasharray',`${C*v} ${C}`);$('#n4').textContent=Math.round(v*100)+'%';if(k<1)requestAnimationFrame(f);else done4();};requestAnimationFrame(f);},500);}
+function done4(){$('#h4').textContent='Pencairan September tuntas';$('#t4').textContent='Semua pengajuan bulan ini telah dibayar.';confetti();
+  anim($('#sealIco'),[{filter:'drop-shadow(0 0 0 #2e7be600)'},{filter:'drop-shadow(0 0 6px #2e7be6cc)'},{filter:'drop-shadow(0 0 0 #2e7be600)'}],{duration:700,iterations:2,easing:'ease-in-out'});}
+function confetti(){if(reduced())return;const c=$('#confetti'),r=c.getBoundingClientRect(),g=c.getContext('2d');c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;g.scale(devicePixelRatio,devicePixelRatio);
+  const cols=['#1eaa36','#2e689e','#cc6419','#e5484d','#f2b900','#8fe29c'],ps=Array.from({length:70},()=>({x:90,y:110,vx:(Math.random()*2-.4)*6,vy:-(Math.random()*6+4),r:Math.random()*Math.PI,s:Math.random()*5+3,c:cols[(Math.random()*cols.length)|0]}));
+  const t0=performance.now();const f=t=>{const k=(t-t0)/900;g.clearRect(0,0,r.width,r.height);for(const p of ps){p.x+=p.vx;p.y+=p.vy;p.vy+=.28;p.r+=.2;g.save();g.translate(p.x,p.y);g.rotate(p.r);g.globalAlpha=Math.max(0,1-k);g.fillStyle=p.c;g.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);g.restore();}if(k<1)requestAnimationFrame(f);else g.clearRect(0,0,r.width,r.height);};requestAnimationFrame(f);}
+/* 5 */
+function play5(){anim($('#env'),[{transform:'translateY(0)'},{transform:'translateY(-7px)'},{transform:'translateY(0)'}],{duration:600,iterations:3,easing:'ease-in-out',fill:'none'});}
+/* 6 */
+function play6(){const sk=$('#sk');sk.innerHTML=[0,1,2].map(()=>'<div class="row"><i style="width:34px;height:34px;border-radius:50%"></i><div style="flex:1;display:flex;flex-direction:column;gap:6px"><i style="width:40%;height:12px"></i><i style="width:65%;height:10px"></i></div></div>').join('');
+  sk.style.display='flex';$('#real').style.display='none';setTimeout(()=>{sk.style.display='none';const r=$('#real');r.style.display='flex';anim(r,[{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:250});},reduced()?0:1600);}
+/* 7 */
+const th=[['Senja Records','Apakah metadata Kumari sudah sesuai? · T-318 · Dalam penanganan'],['Awan Records','Mohon takedown Langit Biru di semua platform · T-322 · Menunggu distributor'],['Koordinasi internal','Catatan metadata ada di R-1055 · hanya staf']];
+function show7(i){const d=$('#vtd');d.innerHTML=`<h4>${th[i][0]}</h4><p>${th[i][1]}</p>`;$('#vtl').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.i===i));}
+$('#vtl').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const i=+b.dataset.i;if(document.startViewTransition&&!reduced())document.startViewTransition(()=>show7(i));else show7(i);});
+/* putar */
+document.addEventListener('click',e=>{const b=e.target.closest('[data-play]');if(!b)return;({1:play1,4:play4,5:play5,6:play6})[b.dataset.play]();});
+$('#playAll').addEventListener('click',()=>{play1();set2(2);setTimeout(()=>set2(1),900);play4();play5();play6();});
+show7(0);set2(1,true);{const C=2*Math.PI*62;document.querySelector('#arc').setAttribute('stroke-dasharray',`${C*.631} ${C}`);}document.querySelector('#real').style.display='flex';
+const io=new IntersectionObserver(es=>es.forEach(en=>{if(!en.isIntersecting)return;io.unobserve(en.target);({s1:play1,s4:play4,s5:play5,s6:play6})[en.target.id]?.();}),{threshold:.4});
+['#s1','#s4','#s5','#s6'].forEach(s=>io.observe($(s)));
+</script>
+</body>
+</html>

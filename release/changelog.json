@@ -1,5 +1,55 @@
 [
   {
+    "version": "1.1.0-dev.21",
+    "date": "2026-10-18",
+    "summary": {
+      "id": "Profil: Kota diganti ID staf; halaman demo motion graphic (/motion-demo131.html).",
+      "en": "Profile: City replaced by Staff ID; motion graphics demo page (/motion-demo131.html)."
+    },
+    "entries": [
+      {
+        "id": "dev21-staffid",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "module",
+          "menu": {
+            "id": "Profil · Data akun",
+            "en": "Profile · Account data"
+          }
+        },
+        "title": {
+          "id": "ID staf menggantikan Kota",
+          "en": "Staff ID replaces City"
+        },
+        "detail": {
+          "id": "Format STF-YYMM-NNN (bulan bergabung + urutan staf). Hanya tampil, tidak bisa diubah sendiri; kota tetap tampil di pita identitas. Direktori wilayah tidak lagi dimuat oleh halaman Profil.",
+          "en": "Format STF-YYMM-NNN (join month + staff order). Display only, not self-editable; the city still shows in the identity band. The region directory is no longer loaded by the Profile page."
+        }
+      },
+      {
+        "id": "dev21-motion-demo",
+        "status": "prototype",
+        "where": {
+          "role": "super",
+          "page": "dashboard",
+          "menu": {
+            "id": "Demo motion",
+            "en": "Motion demo"
+          }
+        },
+        "title": {
+          "id": "Halaman demo motion graphic",
+          "en": "Motion graphics demo page"
+        },
+        "detail": {
+          "id": "Tujuh contoh tanpa library: angka menghitung & batang terisi, transisi data per periode, umpan balik aksi (tahap tiket, kirim pesan, simpan), momen penting (pencairan tuntas + konfeti + seal), status kosong, kerangka memuat, transisi antar tampilan. Ada sakelar \"Kurangi gerakan\" dan tema gelap.",
+          "en": "Seven examples with no library: counting numbers & filling bars, per-period data transitions, action feedback (ticket stage, send message, save), milestone moments (payout complete + confetti + seal), empty state, loading skeleton, view transitions. Includes a \"Reduce motion\" switch and dark theme."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.1.0-dev.20",
     "date": "2026-10-18",
     "summary": {
